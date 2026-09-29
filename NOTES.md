@@ -138,7 +138,7 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar (empty until its language is chosen). Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema *(pending, see open question 1)*. |
 | `docs/` | User's guide and dev log. |
-| `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. |
+| `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 The Godot folder layout (scenes, scripts) and the sidecar file table get
 filled in as the v1 features land.
