@@ -1,6 +1,7 @@
 {
   "name": "claude-cli-spike",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Throwaway M0 spike: drive a real claude CLI through hooks and a channel. See NOTES.md -> Milestones -> M0.",
   "scripts": {
