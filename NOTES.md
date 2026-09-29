@@ -727,6 +727,16 @@ a per-session token header. Verified mapping:
   subagent). Reliable one at a time; recheck for parallel spawns.
 - `PermissionRequest` → permission requested (also `Notification` with
   `permission_prompt` about 6 s later).
+- `Notification` also says when Claude Code waits on the user for other
+  reasons (hooks docs, checked 2026-09-29; not yet seen live):
+  `elicitation_dialog` / `elicitation_url_dialog` (one of the user's MCP
+  servers asks something in the terminal) and `agent_needs_input` → the
+  agent is `waiting` with reason `input`, until the next hook shows it
+  moving again (`elicitation_complete` / `elicitation_response` for
+  elicitations). `idle_prompt` only repeats that the turn is over.
+- A long operation is not a waiting state: after `PreToolUse` and before
+  its `PostToolUse`, the agent is working on that tool call (no hook fires
+  while a command runs, but the open call is known).
 - `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
   → error.
 - **No hook** when the user answers "No" to a permission in the terminal
@@ -780,15 +790,31 @@ bridge). What's limited:
   joined, and capabilities that need the transcript (e.g. token usage,
   if hooks don't carry it) aren't declared.
 
-**A session stuck at startup** (planned, idea from Agent Office). Before
-Claude Code can take input it may be waiting on a screen only the terminal
-shows: folder trust, login, first-run setup, or our development-channel
-confirmation. If the bridge hasn't connected within a short time after
-launch, the sidecar sends a session notice (e.g. `needs_terminal`) so the
-world says "Claude Code is asking you something in its terminal" instead of
-looking stuck; the notice clears when the bridge connects. (Agent Office
-watches for a `SessionStart` hook that never fires; our HTTP hooks can't
-receive `SessionStart`, so the bridge is our signal.)
+**Starting up: confirm in the terminal** (planned; user's decision, idea
+from Agent Office). Until the bridge connects we hear nothing from Claude
+Code, and nothing tells us why: it may be showing folder trust, login,
+first-run setup or the development-channel confirmation, or simply be
+starting slowly (updating, starting the user's other MCP servers).
+`SessionStart` can't reach HTTP hooks, and the docs don't say whether it
+fires before or after the trust dialog. But while channels are a research
+preview, the development-channel confirmation appears at launch, so every
+session we start needs the user in the terminal at least once. So the world
+doesn't guess:
+- From launch, it says "Confirm in the Claude Code terminal to start this
+  session." When the bridge connects, that becomes the rising island.
+- If the bridge still hasn't connected after a longer while (about a
+  minute or two, set from measurements), the text becomes "Still starting;
+  check the terminal." It never claims to know which case it is.
+- How the text reaches a session that isn't announced yet (the create
+  reply, or announcing at launch with the orchestrator waiting) is settled
+  when building this.
+
+To measure at checkpoint 1: whether the confirmation appears at every
+launch or only the first; whether Claude Code starts the bridge before or
+after its dialogs; and how long a normal startup takes with no dialogs.
+
+(Agent Office watches for a `SessionStart` hook that never fires instead;
+our HTTP hooks can't receive `SessionStart`.)
 
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
