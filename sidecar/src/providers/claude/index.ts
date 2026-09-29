@@ -104,7 +104,7 @@ export class ClaudeProvider implements Provider {
     if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
     const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
     if (!stored) throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.')
-    if (!fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
+    if (!path.isAbsolute(stored.project.path) || !fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
       throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
     }
     return this.start(host, {
