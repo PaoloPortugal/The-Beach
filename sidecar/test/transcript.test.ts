@@ -105,6 +105,13 @@ test('follower: a missing file (transcripts off) is fine; a new path (/clear) is
     fs.appendFileSync(next, ESC + '\n')
     f.poll()
     assert.equal(got.length, 2, 'still following the last good path')
+    // Rewritten shorter: its old lines aren't replayed; new ones are read.
+    fs.writeFileSync(next, ESC + '\n')
+    f.poll()
+    assert.equal(got.length, 2, 'a rewrite is not news')
+    fs.appendFileSync(next, AFTER_NO + '\n')
+    f.poll()
+    assert.equal(got.length, 3)
   } finally { f.stop() }
 })
 
