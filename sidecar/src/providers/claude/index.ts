@@ -473,7 +473,8 @@ class ClaudeSession implements ProviderSession {
   /**
    * Stop from the world: the busy agents stop at their next tool call (the
    * current reply or command finishes first). Pending permission prompts
-   * are denied, or they'd block the stop; that never allows anything.
+   * and questions are declined, or they'd block the stop; that never
+   * allows anything.
    */
   async interrupt(): Promise<void> {
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
@@ -481,6 +482,10 @@ class ClaudeSession implements ProviderSession {
       if (this.link?.send({ type: 'verdict', request_id: permission, behavior: 'deny' })) {
         this.emitAll(this.translator.permissionAnswered(permission, 'deny'))
       }
+    }
+    for (const question of [...this.held.keys()]) {
+      this.release(question, questionReply({}, { response: STOP_REASON }))
+      this.emitAll(this.translator.questionAnswered(question))
     }
   }
 

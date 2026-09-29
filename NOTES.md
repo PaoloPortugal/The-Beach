@@ -941,7 +941,10 @@ each busy subagent's. The stopped call is closed as `denied`; the
 orchestrator goes `idle`, a subagent `error` with reason `interrupted`
 (Protocol: error covers interrupted). A stop with nothing running does
 nothing. Pending permission prompts are denied through the bridge when the
-stop is requested, or they would block it (safe: it never allows).
+stop is requested, and held questions are declined (a deny carrying the
+stop reason), or they would block it (safe: it never allows). The stop
+applies only to the agents busy when it was asked, each once, so the
+user's next turn is never caught by it.
 
 **Fail-safe (verified).** With the hook server hanging, returning errors,
 or offline, Claude Code fell back to its own terminal prompt every time and
