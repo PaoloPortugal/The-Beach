@@ -80,3 +80,36 @@ channel policy, macOS/Linux terminals.
 
 No protocol changes needed. S02 in NOTES.md now describes the verified
 behaviour and the inference rules for the gaps.
+
+## Run 3: switching between the world and the terminal (same day)
+
+The user's goal: work interchangeably, e.g. act in the app, get a
+multiple-choice question, answer it in the terminal, carry on in the app.
+Run 1's question design held `PreToolUse`, which hid the question from the
+terminal, so that couldn't work. Run 1's logs suggested the terminal shows
+a question as a permission-style prompt while the `PermissionRequest` hook
+runs alongside it. Run 3 (clean environment, default permission mode)
+tested that:
+
+- **Questions in both places, first answer wins.** `PreToolUse` passed
+  through; the held `PermissionRequest` hook ran while the terminal showed
+  the question. Answering from the world (`decision: allow` with
+  `updatedInput` answers) closed the terminal's question as answered; the
+  user confirmed. Answering in the terminal worked too (`PostToolUse`
+  carried it), but Claude Code left our held request open, so the sidecar
+  must release it itself. `question.release` is no longer needed and was
+  removed from the protocol.
+- **Transcript written live** once `claude` was launched without the
+  inherited session variables (confirms finding 13's cause).
+- **Esc** fires no hook (the text just stops); the transcript records
+  `[Request interrupted by user]` the same second.
+- **Terminal "No"** fires no hook; the transcript records the tool result
+  as "User rejected tool use", then `[Request interrupted by user for tool
+  use]`, the same second.
+
+So the sidecar follows the transcript read-only for these. Its format isn't
+a documented interface: status only, parsed defensively, watch item.
+
+Result: switching works for chat, permissions, questions and stopping.
+Terminal-only for now: slash commands, switching permission mode, plan
+approval (the world sees their effects through hooks).

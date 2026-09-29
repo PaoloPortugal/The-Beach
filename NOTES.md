@@ -136,7 +136,7 @@ flowchart TB
     term -->|"hooks over local HTTP:<br/>what is happening"| provider
     provider -.->|"hook replies:<br/>question answers, stop"| term
     bridge <-->|"chat in, permission<br/>prompts and answers"| provider
-    provider -->|"reads history,<br/>stored sessions"| store
+    provider -->|"watches live, reads<br/>history and stored sessions"| store
     term <--> anthropic
 ```
 
@@ -148,8 +148,9 @@ flowchart TB
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
-  events over local HTTP, talks to it through our channel bridge and reads
-  and resumes sessions from `~/.claude/projects/*.jsonl`. See S02.
+  events over local HTTP, talks to it through our channel bridge, and
+  reads its transcript in `~/.claude/projects/*.jsonl` (live, for what hooks
+  don't report, and for history and resuming). See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
 
@@ -179,8 +180,10 @@ feature that touches them follows these rules, and each is tested:
   by building a shell command from text, so a project path or session name
   can't inject commands.
 - **Clean child environments.** Launched processes get the user's normal
-  environment minus variables that belong to another Claude Code session
-  (`CLAUDE_*`, `CLAUDECODE`), which could carry that session's tokens.
+  environment minus the variables Claude Code sets inside its own sessions
+  (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
+  which could carry another session's values. User configuration such as
+  `CLAUDE_CONFIG_DIR` is kept. Exact list settled when building S02.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -304,9 +307,10 @@ Each one is added to the schema and listed here:
 - **`questions`**: an agent asks the user clarifying questions, a set of
   1+ items, each with options and optional multi-select (Claude's
   AskUserQuestion). `question.asked` / `question.resolved` (`by`: `app` or
-  `external`) and the commands `question.answer` (per-item chosen labels or
-  typed text, or one free `response` instead) and `question.release` (hand
-  it to the provider's own interface, e.g. the terminal). Pending ones are in the
+  `external`) and the command `question.answer` (per-item chosen labels or
+  typed text, or one free `response` instead). A pending question may also
+  show in the provider's own interface (the terminal); whichever side
+  answers first wins. Pending ones are in the
   snapshot's `questions`; the agent is `waiting` with reason `question`.
 - **`interrupt`**: the user can stop what the session is doing; the session
   stays open. Command `interrupt.request`. Config
@@ -430,10 +434,10 @@ modifies or bundles Claude Code.
   terminal at startup (plus folder trust the first time). So the terminal
   must be visible, at least at launch;
 - `--name`: the session's display name;
-- a **clean environment**: the user's normal environment minus any
-  `CLAUDE_*` / `CLAUDECODE` variables inherited from another Claude Code
-  session. Inherited markers make `claude` treat itself as nested and turn
-  transcript saving off, and leak another session's values.
+- a **clean environment** (see Security rules). Inherited session
+  markers make `claude` treat itself as nested and turn transcript saving
+  off, and leak another session's values. Verified: with them removed, the
+  transcript is written live.
 
 It never passes a permission mode: the session uses the user's own
 (the spike ran in the user's default `auto` mode, where prompts are rare).
@@ -466,12 +470,22 @@ a per-session token header. Verified mapping:
   `permission_prompt` about 6 s later).
 - `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
   → error.
-- **No event** when the user answers "No" to a permission in the terminal
-  (the turn is interrupted silently), when a stop ends a turn, or when a
-  stopped subagent ends (no `SubagentStop`; only the `<task-notification>`
-  with its ID). The sidecar infers these: a pending permission is resolved
-  (`by: external`) when a later tool hook for it or a new user message
-  arrives; after a stop the sidecar sets the states itself.
+- **No hook** when the user answers "No" to a permission in the terminal
+  or presses Esc (the turn is interrupted silently), when a stop ends a
+  turn, or when a stopped subagent ends (no `SubagentStop`; only the
+  `<task-notification>` with its ID).
+
+**Filling the gaps: the transcript.** The sidecar also follows the
+session's transcript (`transcript_path` in every hook), read-only. Claude
+Code writes it live and records what hooks miss, within the same second:
+Esc adds a user entry `[Request interrupted by user]`; a terminal "No"
+adds a tool result marked as an error with `toolUseResult: "User rejected
+tool use"` and then `[Request interrupted by user for tool use]`. So the
+world shows the agent idle and the permission resolved (`by: external`)
+right away. After a stop it causes itself, the sidecar sets the states
+directly. The transcript's line format isn't a documented interface (see
+Watch items), so this is used for status only and must degrade gracefully:
+without it, the fallback is inferring from the next hook or user message.
 
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
@@ -490,14 +504,20 @@ with a token. Verified:
   world closes the terminal dialog. A deny from the world lets Claude
   continue its turn; a "No" in the terminal interrupts it.
 
-**Clarifying questions (`questions` capability).** Verified: a `PreToolUse`
-hook matched to `AskUserQuestion` holds the HTTP request until the user
-answers in the world, then returns `permissionDecision: "allow"` with the
-answers in `updatedInput`; the terminal never shows the question. On
-`question.release`, replying with an empty body instead hands the question
-to the terminal, and the
-answer shows up in `PostToolUse`. Per the docs, a timed-out hook also falls
-back to the terminal.
+**Clarifying questions (`questions` capability).** Verified (run 3): in
+the terminal a question is a permission-style prompt, so `PreToolUse`
+passes it through and the `PermissionRequest` hook for `AskUserQuestion`
+is held while **the terminal shows the question at the same time**. Answer
+in the world: the held hook returns `decision: { behavior: "allow",
+updatedInput: { questions, answers } }` and the terminal's menu closes as
+answered. Answer in the terminal: the answer arrives in `PostToolUse`.
+Claude Code doesn't close our held request then, so the sidecar releases
+it itself on that `PostToolUse` (same question) and sends
+`question.resolved` (`by: external`). That hook needs a long `timeout`; if
+it times out, the terminal question simply stays. (Run 1 held `PreToolUse`
+instead, which hid the question from the terminal; rejected, since the
+user must be able to answer in either place.) Questions don't go through
+the channel's permission relay.
 
 **Stopping (`interrupt` capability, `immediate: false`).** Verified: on
 `interrupt.request` the sidecar answers the session's next `PreToolUse` with
@@ -680,6 +700,11 @@ exists.
   pulls in 94 packages, including a web server we don't use. Consider a
   minimal stdio implementation of the few messages the bridge needs,
   weighed against the "few dependencies" rule.
+- **Transcript format.** Esc and terminal "No" are only visible in the
+  transcript, whose line format isn't a documented interface. It is used
+  for status only, parsed defensively, and re-checked on Claude Code
+  updates; if it changes, the world falls back to inferring from the next
+  event.
 - **Channels are a research preview.** Chat and permission answers from the
   world depend on them (S02). Flags and protocol may change, custom channels
   need `--dangerously-load-development-channels` (confirmed by the user at

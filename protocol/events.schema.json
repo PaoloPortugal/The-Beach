@@ -32,7 +32,6 @@
     { "$ref": "#/$defs/message.send" },
     { "$ref": "#/$defs/permission.respond" },
     { "$ref": "#/$defs/question.answer" },
-    { "$ref": "#/$defs/question.release" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -440,7 +439,7 @@
       "additionalProperties": false
     },
     "question.resolved": {
-      "description": "Sidecar -> Godot (questions capability). The questions were answered or dismissed, here or elsewhere. Godot clears them.",
+      "description": "Sidecar -> Godot (questions capability). The questions were answered, here (by: app) or in the provider's own interface (by: external); a pending question may show in both. Godot clears them.",
       "type": "object",
       "required": ["type", "session", "seq", "question", "by"],
       "properties": {
@@ -577,18 +576,6 @@
         "response": { "description": "A free reply instead of answering the items.", "type": "string" }
       },
       "oneOf": [{ "required": ["answers"] }, { "required": ["response"] }],
-      "additionalProperties": false
-    },
-    "question.release": {
-      "description": "Godot -> sidecar (questions capability). Hand a pending question to the provider's own interface (the terminal, for Claude) instead of answering it here. question.resolved (by: external) follows once it is answered there.",
-      "type": "object",
-      "required": ["type", "id", "session", "question"],
-      "properties": {
-        "type": { "const": "question.release" },
-        "id": { "$ref": "#/$defs/id" },
-        "session": { "$ref": "#/$defs/id" },
-        "question": { "$ref": "#/$defs/id" }
-      },
       "additionalProperties": false
     },
 

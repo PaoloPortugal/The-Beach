@@ -11,6 +11,11 @@ Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
 Code are hooks (HTTP, with the session's token); Bridge is our channel
 bridge (NOTES.md → S02).
 
+The terminal and the world are two windows onto the same session: you can
+switch between them at any point, and whichever answers first wins.
+Transcript is Claude Code's session file, which the sidecar follows
+read-only for the things no hook reports (NOTES.md → S02).
+
 **How to read these.** Time runs top to bottom; each arrow is one message.
 - **Solid arrow:** a message. **Dashed arrow:** the reply to an earlier
   request.
@@ -19,7 +24,8 @@ bridge (NOTES.md → S02).
   "anything to add?"; the usual answer is "nothing to add") and commands
   from the world (answered `ok` or `error`).
 - **Announcements get no reply:** "this happened" messages, such as protocol
-  events to the world, and chat or verdicts passed along through the bridge.
+  events to the world, chat or verdicts passed along through the bridge,
+  and new lines in the transcript.
 - Boxes are notes, or group steps: `loop` repeats, `alt` / `else` are
   alternatives, `par` / `and` happen at the same time.
 
@@ -100,6 +106,7 @@ sequenceDiagram
     participant Sidecar
     participant Bridge
     participant Claude as Claude Code (terminal)
+    participant Log as Transcript
 
     Claude->>Sidecar: PreToolUse (e.g. Bash)
     Sidecar-->>Claude: empty reply (no decision)
@@ -120,10 +127,17 @@ sequenceDiagram
         Bridge->>Claude: verdict: terminal dialog closes
         Sidecar->>World: permission.resolved (by app)
         Note over Claude: A deny from the world lets Claude continue its turn.
-    else answered in the terminal
-        User->>Claude: allow or "No"
-        Note over Claude,Sidecar: No hook says so. The sidecar infers it: a later tool hook<br/>for that call (allowed) or the next user message ("No" interrupts the turn).
+    else allowed in the terminal
+        User->>Claude: allow
+        Claude->>Sidecar: PostToolUse for that call
+        Sidecar-->>Claude: nothing to add
         Sidecar->>World: permission.resolved (by external)
+    else "No" in the terminal
+        User->>Claude: No
+        Note over Claude: No hook fires: the turn is interrupted silently.
+        Claude->>Log: "User rejected tool use", then "interrupted"
+        Log->>Sidecar: new lines (the sidecar follows the file)
+        Sidecar->>World: permission.resolved (by external), agent → idle
     end
 ```
 
@@ -136,24 +150,26 @@ sequenceDiagram
     participant Sidecar
     participant Claude as Claude Code (terminal)
 
-    Claude->>Sidecar: PreToolUse AskUserQuestion (request held open)
-    Sidecar->>World: question.asked, agent → waiting (question)
+    Claude->>Sidecar: PreToolUse AskUserQuestion
+    Sidecar-->>Claude: nothing to add
+    par Claude Code asks, and we hold the question open
+        Claude->>User: question in the terminal
+    and
+        Claude->>Sidecar: PermissionRequest AskUserQuestion (held open)
+        Sidecar->>World: question.asked, agent → waiting (question)
+    end
     alt answered in the world
         User->>World: picks options or types an answer
         World->>Sidecar: question.answer
         Sidecar-->>World: ok
         Sidecar-->>Claude: reply to the held hook: allow + answers
-        Note over Claude: The terminal never shows the question.
+        Note over Claude: The terminal's question closes as answered.
         Sidecar->>World: question.resolved (by app)
-    else handed to the terminal
-        User->>World: "answer in the terminal"
-        World->>Sidecar: question.release
-        Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: nothing to add
-        Claude->>User: question in the terminal
+    else answered in the terminal
         User->>Claude: answer
         Claude->>Sidecar: PostToolUse AskUserQuestion (with the answer)
         Sidecar-->>Claude: nothing to add
+        Sidecar-->>Claude: reply to the held hook: nothing to add<br/>(Claude Code no longer waits on it, so the sidecar tidies up)
         Sidecar->>World: question.resolved (by external)
     end
 ```
@@ -198,16 +214,25 @@ sequenceDiagram
     participant World as World (Godot)
     participant Sidecar
     participant Claude as Claude Code (terminal)
+    participant Log as Transcript
 
-    User->>World: stop
-    World->>Sidecar: interrupt.request
-    Sidecar-->>World: ok (world shows "stopping after this step")
-    Note over Claude: The current step (reply text or a running command) finishes.
-    Claude->>Sidecar: next PreToolUse
-    Sidecar-->>Claude: deny this call and stop (continue false)
-    Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
-    Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
-    Sidecar->>World: agent.state_changed (orchestrator → idle, or subagent → done)
+    alt stop in the world
+        User->>World: stop
+        World->>Sidecar: interrupt.request
+        Sidecar-->>World: ok (world shows "stopping after this step")
+        Note over Claude: The current step (reply text or a running command) finishes.
+        Claude->>Sidecar: next PreToolUse
+        Sidecar-->>Claude: deny this call and stop (continue false)
+        Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
+        Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
+        Sidecar->>World: agent.state_changed (orchestrator → idle, or subagent → done)
+    else Esc in the terminal
+        User->>Claude: Esc (stops at once, even mid-reply)
+        Note over Claude: No hook fires.
+        Claude->>Log: "[Request interrupted by user]"
+        Log->>Sidecar: new line (the sidecar follows the file)
+        Sidecar->>World: agent.state_changed (orchestrator → idle)
+    end
 ```
 
 ## 7. When our side fails
