@@ -28,3 +28,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Claude CLI integration spike](2026-09-29-claude-cli-spike.md) | S02 |
 | 2026-09-29 | [NOTES.md sanity check](2026-09-29-notes-sanity-check.md) | docs |
 | 2026-09-29 | [License](2026-09-29-license.md) | docs |
+| 2026-09-29 | [Privacy check](2026-09-29-privacy-check.md) | tooling |

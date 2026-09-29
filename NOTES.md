@@ -628,6 +628,10 @@ island (W04).
   license). CC0 or made by the user only; never AI-generated.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
+- **Privacy in git.** The repo will be public. Never commit secrets,
+  session logs, tokens or machine-specific paths; spike logs and run files
+  are git-ignored for that reason. Commit author emails are the user's
+  normal address, public by choice (dev log 2026-09-29-privacy-check).
 - **License.** The project is MIT (`LICENSE`). Third-party parts keep their
   own licenses: `addons/godot_ai/` (MIT, its own `LICENSE`) and the assets in
   `assets/CREDITS.md`. Don't add code or dependencies whose license forbids
@@ -783,6 +787,8 @@ exists.
 - **Markdown → BBCode rendering (C03)** is the biggest UX risk.
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
+- **Before making the repo public:** re-run the history scan for secrets,
+  personal data and machine paths (dev log 2026-09-29-privacy-check).
 - **Godot AI plugin:** its auth doesn't protect against a compromised process
   running as the same user, and on Windows it claims no isolation from other
   local accounts (per its security model). Telemetry is on by default
