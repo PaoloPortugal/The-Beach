@@ -49,3 +49,12 @@ git clone https://github.com/PaoloPortugal/The-Beach.git
 - [NOTES.md](NOTES.md): design and developer reference.
 - [docs/flows.md](docs/flows.md): diagrams of how the pieces talk.
 - [docs/devlog/](docs/devlog/README.md): why things are the way they are.
+
+## License
+
+[MIT](LICENSE). Third-party parts keep their own licenses: the
+`addons/godot_ai` editor plugin (MIT, see its `LICENSE`) and the assets
+listed in [assets/CREDITS.md](assets/CREDITS.md).
+
+Not affiliated with or endorsed by Anthropic. Claude and Claude Code are
+Anthropic's; this app runs your own installed copy of Claude Code.
