@@ -23,6 +23,8 @@ export interface TerminalOptions {
   preferred?: string
   /** For tests: finds an executable on PATH or at known places. */
   which?: (name: string, env: Env) => string | null
+  /** For tests: whether a file at a known place can be run. */
+  isProgram?: (file: string) => boolean
   /** For tests: starts the terminal. */
   start?: (file: string, args: string[]) => Promise<void>
 }
@@ -32,7 +34,7 @@ export class TerminalError extends Error {}
 interface Terminal {
   id: string
   /** The executable, or null if this terminal isn't installed. */
-  find(o: Required<Pick<TerminalOptions, 'env' | 'which'>>): string | null
+  find(o: Required<Pick<TerminalOptions, 'env' | 'which' | 'isProgram'>>): string | null
   /** File and args to start, or null if it can't safely run this request. */
   command(exe: string, req: TerminalRequest): { file: string; args: string[] } | null
 }
@@ -41,7 +43,7 @@ interface Terminal {
 
 const windowsTerminal: Terminal = {
   id: 'windows-terminal',
-  find: ({ env, which }) => which('wt.exe', env) ?? existing(
+  find: ({ env, which, isProgram }) => which('wt.exe', env) ?? existing(isProgram,
     env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe')),
   command(exe, req) {
     // wt parses its own command line: `;` starts a new wt command even when
@@ -52,11 +54,17 @@ const windowsTerminal: Terminal = {
   },
 }
 
-/** The classic console: the launcher itself, started detached, gets a new console window. */
+/**
+ * The classic console, through conhost.exe. Starting the launcher detached
+ * on its own would open a console window, but with our ignored stdio its
+ * stdin and stdout are NUL, not that window, and the program it starts isn't
+ * interactive (claude exited right after starting; 2026-09-29). conhost
+ * gives the launcher a real console.
+ */
 const windowsConsole: Terminal = {
   id: 'console',
-  find: () => 'console',
-  command: (_exe, req) => ({ file: req.argv[0]!, args: req.argv.slice(1) }),
+  find: ({ env, isProgram }) => existing(isProgram, env.SystemRoot && path.win32.join(env.SystemRoot, 'System32', 'conhost.exe')),
+  command: (exe, req) => ({ file: exe, args: ['--', ...req.argv] }),
 }
 
 // ---- macOS ----
@@ -121,6 +129,7 @@ export async function openTerminal(req: TerminalRequest, opts: TerminalOptions =
   const platform = opts.platform ?? process.platform
   const env = opts.env ?? process.env
   const which = opts.which ?? findOnPath
+  const isRunnable = opts.isProgram ?? ((f: string) => isProgram(f, platform))
   const start = opts.start ?? startDetached
   const list = terminalsFor(platform)
   const ordered = opts.preferred
@@ -128,7 +137,7 @@ export async function openTerminal(req: TerminalRequest, opts: TerminalOptions =
     : list
   const failures: string[] = []
   for (const t of ordered) {
-    const exe = t.find({ env, which })
+    const exe = t.find({ env, which, isProgram: isRunnable })
     if (!exe) continue
     const cmd = t.command(exe, req)
     if (!cmd) continue
@@ -144,8 +153,23 @@ export async function openTerminal(req: TerminalRequest, opts: TerminalOptions =
     : 'no supported terminal is installed')
 }
 
-function existing(p: string | undefined | false): string | null {
-  return p && fs.existsSync(p) ? p : null
+function existing(isProgram: (file: string) => boolean, p: string | undefined | false): string | null {
+  return p && isProgram(p) ? p : null
+}
+
+/**
+ * Whether a file can be run. On Windows, apps from the Store (Windows
+ * Terminal's wt.exe) are "app execution aliases": `stat` fails on them with
+ * EACCES, so they look missing; `lstat` sees a link, and starting one works.
+ */
+function isProgram(full: string, platform: NodeJS.Platform = process.platform): boolean {
+  try {
+    const st = fs.statSync(full)
+    return st.isFile() && (platform === 'win32' || (st.mode & 0o111) !== 0)
+  } catch (e) {
+    if (platform !== 'win32' || (e as NodeJS.ErrnoException).code !== 'EACCES') return false
+    try { return fs.lstatSync(full).isSymbolicLink() } catch { return false }
+  }
 }
 
 /** Finds an executable on PATH (with PATHEXT on Windows), without a shell. */
@@ -158,10 +182,7 @@ export function findOnPath(name: string, env: Env, platform: NodeJS.Platform = p
   for (const dir of dirs) {
     for (const ext of exts) {
       const full = p.join(dir.replace(/^"(.*)"$/, '$1'), name + ext)
-      try {
-        const st = fs.statSync(full)
-        if (st.isFile() && (platform === 'win32' || (st.mode & 0o111) !== 0)) return full
-      } catch { /* not here */ }
+      if (isProgram(full, platform)) return full
     }
   }
   return null
