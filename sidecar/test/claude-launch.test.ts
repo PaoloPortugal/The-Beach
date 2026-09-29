@@ -99,7 +99,17 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     assert.equal(launch.cwd, path.resolve(project))
     assert.equal(launch.args[0], '--session-id')
     assert.match(launch.args[1]!, /^[0-9a-f-]{36}$/)
-    assert.deepEqual(launch.args.slice(2), ['--name', path.basename(project)])
+    assert.deepEqual(launch.args.slice(2, 4), ['--name', path.basename(project)])
+    assert.equal(launch.args[4], '--mcp-config')
+    assert.deepEqual(launch.args.slice(6), ['--dangerously-load-development-channels', 'server:world-bridge'])
+    // The bridge's config: this executable in bridge mode, the link's port
+    // and token in the bridge's own environment only.
+    const mcp = JSON.parse(fs.readFileSync(launch.args[5]!, 'utf8'))
+    const bridge = mcp.mcpServers['world-bridge']
+    assert.equal(bridge.command, '/sidecar')
+    assert.deepEqual(bridge.args, ['bridge', 'claude'])
+    assert.match(bridge.env.BRIDGE_TOKEN, /^[0-9a-f]{64}$/)
+    assert.match(bridge.env.BRIDGE_PORT, /^\d+$/)
     assert.deepEqual(launch.unsetEnv, ClaudeProvider.UNSET_ENV)
     // No permission mode is chosen for the user.
     assert.ok(!launch.args.some((a) => a.startsWith('--permission-mode') || a.includes('dangerously-skip')))

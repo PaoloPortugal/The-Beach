@@ -1100,6 +1100,13 @@ exists.
   don't use. **Re-evaluate** (user's instruction) whenever the bridge's MCP
   handling grows: if we keep adding to it, switch to the SDK rather than
   re-implement what Anthropic already maintains.
+  *MCP's 2026-07-28 revision* drops the `initialize` handshake and lets a
+  server send notifications only inside a request or a client-opened
+  subscription, which is how channel messages would have to travel. The
+  bridge speaks the older handshake, exactly like the official SDK (1.31.0,
+  up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
+  Claude Code updates: if it stops accepting older servers, or channels
+  move to subscriptions, adopt the SDK once it supports the new revision.
 - **Transcript format.** Esc and terminal "No" are only visible in the
   transcript, whose line format isn't a documented interface. It is used
   for status only, parsed defensively, and re-checked on Claude Code
