@@ -6,6 +6,8 @@ design; keep it current and short.
 - `NOTES.md` (this file): what the project is, where it's going, how it works.
 - `docs/GUIDE.md`: user's guide for built features. Must always match this file.
 - `docs/devlog/`: long history, decisions, rejected alternatives, bugs. Look up by feature ID.
+- `docs/flows.md`: step-by-step diagrams (create a session, chat, permission,
+  question, subagent, stop, failure). Derived from this file; update together.
 - `CLAUDE.md`: working rules. `README.md`: pitch and setup.
 - `assets/CREDITS.md`: source and license of every asset.
 
@@ -95,7 +97,8 @@ v1 slice.
 - [ ] Add or update its `<ID>` section in `docs/GUIDE.md` in plain language,
       and add it to the guide's table of contents.
 - [ ] Reread the guide section against this file.
-- [ ] Update Architecture / Protocol / Conventions if it touched them.
+- [ ] Update Architecture / Protocol / Conventions if it touched them, and
+      `docs/flows.md` if it changed how the pieces talk.
 - [ ] Record any new assets in `assets/CREDITS.md`.
 - [ ] Write a dev-log entry and add it to `docs/devlog/README.md`.
 - [ ] Update "Current focus".
@@ -103,7 +106,8 @@ v1 slice.
 ## Architecture
 
 Overview (GitHub draws this Mermaid block as a diagram). Everything runs on
-the user's machine; only Claude Code itself talks to Anthropic.
+the user's machine; only Claude Code itself talks to Anthropic. Step-by-step
+flows are in `docs/flows.md`.
 
 ```mermaid
 flowchart TB
@@ -408,7 +412,7 @@ protocol.
 
 ### S02 Claude provider
 *Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
-Windows; dev log 2026-09-29-claude-cli-spike). The only place
+Windows; dev log 2026-09-29-claude-cli-spike). Diagrams: `docs/flows.md`. The only place
 Claude-specific names may appear. It drives the user's own installed
 `claude` CLI, signed in with their own account through Anthropic's login.
 Our code never reads, stores or passes on Claude credentials, and never
