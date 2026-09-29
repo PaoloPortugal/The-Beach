@@ -87,11 +87,38 @@ v1 slice.
 
 ## Architecture
 
-```
-Godot 4 (GDScript)  <--local WebSocket-->  sidecar       -->  provider(s)
-world, player, agents,     generic core +    session registry,   Claude provider:
-chat UI, provider UI       capabilities +    WebSocket server    launches `claude` CLI, hooks,
-                           extensions                            channel, JSONL store
+Overview (GitHub draws this Mermaid block as a diagram). Everything runs on
+the user's machine; only Claude Code itself talks to Anthropic.
+
+```mermaid
+flowchart TB
+    godot["<b>Godot</b><br/>world, agents, chat UI"]
+
+    subgraph sidecar["Sidecar (TypeScript on Node)"]
+        direction LR
+        core["<b>Generic core</b><br/>session registry,<br/>WebSocket server"]
+        provider["<b>Claude provider</b><br/>the only Claude-specific part"]
+        core <--> provider
+    end
+
+    subgraph machine["On the user's machine, per session"]
+        direction LR
+        bridge["<b>Channel bridge</b><br/>ours: tiny MCP server"]
+        term["<b>Terminal running claude</b><br/>user's own install and login"]
+        store[("<b>Transcripts</b><br/>~/.claude/projects")]
+        term <-->|"starts it,<br/>stdio"| bridge
+        term -->|writes| store
+    end
+
+    anthropic(["Anthropic servers"])
+
+    godot <-->|"WebSocket, protocol v1:<br/>events down, commands up"| core
+    provider -->|"launches with our<br/>settings and flags"| term
+    term -->|"hooks over local HTTP:<br/>what is happening"| provider
+    provider -.->|"hook replies:<br/>question answers, stop"| term
+    bridge <-->|"chat in, permission<br/>prompts and answers"| provider
+    provider -->|"reads history,<br/>stored sessions"| store
+    term <--> anthropic
 ```
 
 - **Godot** (GDScript): the world, player movement, island and bridge
@@ -102,9 +129,8 @@ chat UI, provider UI       capabilities +    WebSocket server    launches `claud
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
-  events over local HTTP, talks to it through a channel (a local MCP
-  server) and reads and resumes sessions from `~/.claude/projects/*.jsonl`.
-  See S02.
+  events over local HTTP, talks to it through our channel bridge and reads
+  and resumes sessions from `~/.claude/projects/*.jsonl`. See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
 
@@ -353,9 +379,12 @@ calls; `SubagentStart` / `SubagentStop` → subagents (`agent_id`,
 orchestrator idle; `StopFailure` → error. Hooks fired inside a subagent
 carry its `agent_id`.
 
-**Talking to the session: a channel**, a small MCP server the sidecar
-provides. It pushes the user's chat messages into the session, and with
-permission relay it receives permission prompts. The terminal prompt and
+**Talking to the session: a channel.** A channel is an MCP server that
+Claude Code itself starts as a subprocess and talks to over stdio, so ours
+is a tiny **channel bridge** script shipped with the sidecar: `claude`
+starts it, and it connects back to the sidecar over a local connection. It
+pushes the user's chat messages into the session, and with permission
+relay it receives permission prompts. The terminal prompt and
 the world are both live; whichever answers first wins (`by: external` when
 it was the terminal).
 

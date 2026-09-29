@@ -75,3 +75,11 @@ Claude Code versions without notice, and a keystroke landing in the wrong
 state could type or approve something unintended. The one keystroke worth
 keeping in mind is Esc for an immediate stop, if the soft stop turns out to
 be too slow in practice.
+
+## Correction: the channel is started by Claude Code
+
+While drawing the architecture overview: the channels reference says
+Claude Code spawns each channel server as a subprocess and talks to it over
+stdio. So the channel can't live inside the sidecar process; it is a tiny
+"channel bridge" script that `claude` starts and that connects back to the
+sidecar locally. NOTES.md → S02 and the Architecture diagram say so.
