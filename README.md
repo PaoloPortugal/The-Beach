@@ -4,10 +4,11 @@
 
 A 3D world where your AI coding sessions are islands. Each Claude Code
 session rises out of the ocean as an island. Its orchestrator sits at a beach
-desk in the middle, and the subagents it spawns show up as little
-logo-on-PC models on the sand. Walk up to the orchestrator to chat with it,
-approve permission prompts and start or resume sessions, all without
-leaving the world.
+desk in the middle, and the subagents it spawns show up as little figures at
+their PCs on the sand. Walk up to the orchestrator to chat with it, answer
+permission prompts and questions, and start or resume sessions, all without
+leaving the world. Every session is also a normal Claude Code terminal, so
+you can switch between the world and the terminal whenever you like.
 
 > **Status:** early development. Nothing is playable yet; see
 > [NOTES.md](NOTES.md) for the plan.
@@ -19,14 +20,18 @@ leaving the world.
   to the one you need.
 - Chat with a session's orchestrator from an in-world panel.
 - See at a glance which agents are working, finished, or waiting on you.
+- Switch to the session's terminal at any point and back again.
 
 ## Requirements
 
 - [Godot](https://godotengine.org/download) **4.7.2** (standard build; .NET is
   not needed)
-- Sidecar runtime: TypeScript on Node
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and
-  signed in
+- [Node.js](https://nodejs.org) for the sidecar (version settled when it's
+  built)
+- [Claude Code](https://code.claude.com/docs) installed and signed in with
+  your own account. The app uses Claude Code's channels (a research
+  preview): available on Pro and Max plans, while Team and Enterprise
+  organisations need an admin to enable them.
 
 ## Setup
 
@@ -42,4 +47,14 @@ git clone https://github.com/PaoloPortugal/The-Beach.git
 
 - [docs/GUIDE.md](docs/GUIDE.md): how to use it.
 - [NOTES.md](NOTES.md): design and developer reference.
+- [docs/flows.md](docs/flows.md): diagrams of how the pieces talk.
 - [docs/devlog/](docs/devlog/README.md): why things are the way they are.
+
+## License
+
+[MIT](LICENSE). Third-party parts keep their own licenses: the
+`addons/godot_ai` editor plugin (MIT, see its `LICENSE`) and the assets
+listed in [assets/CREDITS.md](assets/CREDITS.md).
+
+Not affiliated with or endorsed by Anthropic. Claude and Claude Code are
+Anthropic's; this app runs your own installed copy of Claude Code.
