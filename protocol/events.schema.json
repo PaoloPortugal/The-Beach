@@ -26,7 +26,7 @@
     { "$ref": "#/$defs/session.list_stored" },
     { "$ref": "#/$defs/session.resume" },
     { "$ref": "#/$defs/session.end" },
-    { "$ref": "#/$defs/session.interrupt" },
+    { "$ref": "#/$defs/interrupt.request" },
     { "$ref": "#/$defs/session.get_snapshot" },
     { "$ref": "#/$defs/session.get_history" },
     { "$ref": "#/$defs/message.send" },
@@ -500,12 +500,12 @@
       },
       "additionalProperties": false
     },
-    "session.interrupt": {
-      "description": "Godot -> sidecar. Stop what the session is doing, like Esc in a terminal. The session stays open; agent.state_changed events follow.",
+    "interrupt.request": {
+      "description": "Godot -> sidecar (interrupt capability). Stop what the session is doing. The capability's config says whether the stop is immediate or happens at the next step. The session stays open; agent.state_changed events follow.",
       "type": "object",
       "required": ["type", "id", "session"],
       "properties": {
-        "type": { "const": "session.interrupt" },
+        "type": { "const": "interrupt.request" },
         "id": { "$ref": "#/$defs/id" },
         "session": { "$ref": "#/$defs/id" }
       },

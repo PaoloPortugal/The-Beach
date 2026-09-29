@@ -50,3 +50,28 @@ the channel covers sending chat messages and answering permission prompts
 The terms also restrict using Claude Code or Anthropic names and logos in
 a product's own name or logo. Recorded as a watch item, since the agents
 are "logo models".
+
+## Follow-up: questions and stopping (same day)
+
+The user asked whether we could type into the terminal what it expects,
+to stop the agent and answer multiple-choice questions. Documented hook
+features cover both instead:
+- **Questions:** a `PreToolUse` hook on `AskUserQuestion` waits for the
+  answer from the world and returns it in `updatedInput` with
+  `permissionDecision: "allow"`. So the `questions` capability is supported
+  on this route after all.
+- **Stopping:** any hook can return `continue: false`. The sidecar answers
+  the next hook call that way, so the stop happens at the next step rather
+  than instantly. User approved moving interrupt from core to an
+  `interrupt` capability (`interrupt.request`, config `immediate`), since not
+  every route can stop instantly.
+
+Rejected for now: typing keystrokes into the terminal. The sidecar would
+have to own the terminal's input through a pseudo-terminal, and then either
+draw the terminal itself or leave it invisible (but the terminal must show
+the channel confirmation, folder trust and MCP consent prompts). The key
+sequences for menus aren't a documented interface and can change between
+Claude Code versions without notice, and a keystroke landing in the wrong
+state could type or approve something unintended. The one keystroke worth
+keeping in mind is Esc for an immediate stop, if the soft stop turns out to
+be too slow in practice.
