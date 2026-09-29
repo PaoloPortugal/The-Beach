@@ -125,6 +125,16 @@ test('create writes a launch file and opens a terminal with only our launcher', 
   } finally { await s.close(); await p.shutdown() }
 })
 
+test('terminal titles are plain printable text, short, whatever the session name holds', async () => {
+  const { terminalTitle } = await import('../src/providers/claude/index.ts')
+  assert.equal(terminalTitle('my-project'), 'Claude Code - my-project')
+  const nasty = 'fix it"; wt new-tab calc\r\n\t\u0007\u009b[31m \\ back\\slash' + 'x'.repeat(200)
+  const t = terminalTitle(nasty)
+  assert.ok(!/[\u0000-\u001f\u007f-\u009f;"\\]/.test(t), JSON.stringify(t))
+  assert.ok(t.length <= 'Claude Code - '.length + 60)
+  assert.equal(terminalTitle('\n\n'), 'Claude Code - session')
+})
+
 test('create reports a missing claude or terminal as a readable error', async () => {
   const { ClaudeNotFound } = await import('../src/providers/claude/find.ts')
   const { TerminalError } = await import('../src/launch/terminal.ts')
