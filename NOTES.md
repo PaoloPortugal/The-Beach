@@ -836,7 +836,10 @@ text for codes it knows. The same mechanism carries other warnings about a
 session: `hooks_unavailable` when a world message sent while the
 orchestrator is idle brings no hook at all within 10 s (hooks work: one
 arrives within a second), most likely hooks blocked by the user's
-`allowedHttpHookUrls` (built on branch `s02-hooks-notice`). **The world shows only a short disclaimer** (user's decision), along
+`allowedHttpHookUrls` (built on branch `s02-hooks-notice`). Probed with
+`claude -p` and `allowedHttpHookUrls: ["https://example.com/*"]`: the
+session runs normally, not one hook arrives, and nothing reports an
+error, so without this notice the world would just look idle. **The world shows only a short disclaimer** (user's decision), along
 the lines of "Transcript saving is off in Claude Code, so some features
 may not work as intended. Turning it on is recommended." The detailed
 list below is for development, not for the UI. What still works:
