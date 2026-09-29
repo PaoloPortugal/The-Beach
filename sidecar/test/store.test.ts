@@ -149,6 +149,11 @@ test('through a session: list, resume with --resume in the project folder, its c
       const bad = await c.command({ type: 'session.resume', provider: 'claude', native_id: nativeId })
       assert.match(String(bad.message), why)
     }
+    // A transcript naming a relative folder isn't resumed from wherever the sidecar runs.
+    const rel = path.join(s.dir, 'c')
+    fs.mkdirSync(rel)
+    fs.writeFileSync(path.join(rel, `${ID(7)}.jsonl`), jsonl({ type: 'user', message: { content: 'x' }, cwd: 'src', entrypoint: 'cli' }))
+    assert.match(String((await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(7) })).message), /no longer exists/)
     fs.rmSync(s.projB, { recursive: true })
     const gone = await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(2) })
     assert.match(String(gone.message), /no longer exists/)
