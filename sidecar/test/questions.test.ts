@@ -208,3 +208,18 @@ test('through a session: plain permission hooks are not held', async () => {
     assert.deepEqual(r, { status: 200, body: '' })
   } finally { await x.close() }
 })
+
+test('through a session: a stop declines a held question (deny with the stop reason)', async () => {
+  const x = await liveSession()
+  try {
+    await x.send(hook('UserPromptSubmit', { prompt: 'ask me' })).done
+    await x.send(ask('toolu_q')).done
+    const hold = x.send(held())
+    await x.c.next('question.asked')
+    assert.equal((await x.c.command({ type: 'interrupt.request', session: x.id })).type, 'ok')
+    const reply = JSON.parse((await hold.done).body)
+    assert.equal(reply.hookSpecificOutput.decision.behavior, 'deny')
+    assert.match(reply.hookSpecificOutput.decision.message, /stopped/)
+    assert.equal((await x.c.next('question.resolved')).by, 'app')
+  } finally { await x.close() }
+})
