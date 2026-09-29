@@ -221,5 +221,8 @@ test('through a session: a stop declines a held question (deny with the stop rea
     assert.equal(reply.hookSpecificOutput.decision.behavior, 'deny')
     assert.match(reply.hookSpecificOutput.decision.message, /stopped/)
     assert.equal((await x.c.next('question.resolved')).by, 'app')
+    // The declined call gets no hook of its own; it's closed as denied.
+    const fin = await x.c.next('tool.finished')
+    assert.deepEqual([fin.tool_call, fin.status], ['toolu_q', 'denied'])
   } finally { await x.close() }
 })

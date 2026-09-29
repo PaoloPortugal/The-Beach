@@ -351,7 +351,7 @@ export class ClaudeSession implements ProviderSession {
       throw new CommandError('invalid_message', (e as Error).message)
     }
     this.release(question, reply)
-    this.emitAll(this.translator.questionAnswered(question))
+    this.emitAll(this.translator.questionAnswered(question, 'response' in answer))
   }
 
   /**
@@ -369,7 +369,7 @@ export class ClaudeSession implements ProviderSession {
     }
     for (const question of [...this.held.keys()]) {
       this.release(question, questionReply({}, { response: STOP_REASON }))
-      this.emitAll(this.translator.questionAnswered(question))
+      this.emitAll(this.translator.questionAnswered(question, true))
     }
   }
 
