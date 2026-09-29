@@ -89,3 +89,56 @@ test('through a session: a transcript being written means no notice', async () =
     assert.ok(!x.c.received.some((m) => m.type === 'session.notice'))
   } finally { await x.close() }
 })
+
+async function hooklessSession() {
+  let launch: { args: string[] } = { args: [] }
+  const p = new ClaudeProvider({
+    log: new RecordingLog(),
+    findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
+    selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
+    openTerminal: async (req) => { launch = JSON.parse(fs.readFileSync(req.argv[2]!, 'utf8')); return 'fake' },
+    hooksCheckMs: 300,
+  })
+  const s = await testServer([p])
+  const c = await connect(s.port, s.token)
+  await c.sync()
+  const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: os.tmpdir() } })
+  const id = (r.result as { session: string }).session
+  const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
+  const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.UserPromptSubmit[0].hooks[0]
+  const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
+  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  await new Promise((res) => sock.once('connect', res))
+  sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+  await c.next('session.created')
+  const hook = (body: object) => new Promise<void>((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: Number(new URL(h.url).port), method: 'POST', path: '/hook',
+      headers: { authorization: h.headers.Authorization } }, (res) => { res.resume(); res.on('end', resolve) })
+    req.on('error', reject)
+    req.end(JSON.stringify(body))
+  })
+  return { c, id, hook, close: async () => { sock.destroy(); await c.close(); await s.close(); await p.shutdown() } }
+}
+
+test('through a session: no hook after a world message sent while idle → hooks_unavailable, once', async () => {
+  const x = await hooklessSession()
+  try {
+    await x.c.command({ type: 'message.send', session: x.id, text: 'hello?' })
+    const n = await x.c.next('session.notice', 3000)
+    assert.equal((n.notice as any).code, 'hooks_unavailable')
+    await x.c.command({ type: 'message.send', session: x.id, text: 'again' })
+    await new Promise((res) => setTimeout(res, 600))
+    assert.ok(!x.c.received.some((m) => m.type === 'session.notice'), 'only once')
+    assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+test('through a session: hooks arriving means no hooks_unavailable notice', async () => {
+  const x = await hooklessSession()
+  try {
+    await x.c.command({ type: 'message.send', session: x.id, text: 'hello' })
+    await x.hook({ hook_event_name: 'UserPromptSubmit', prompt: '<channel source="world-bridge" sender="user">\nhello\n</channel>' })
+    await new Promise((res) => setTimeout(res, 600))
+    assert.ok(!x.c.received.some((m) => m.type === 'session.notice'))
+  } finally { await x.close() }
+})

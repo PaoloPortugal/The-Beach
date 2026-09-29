@@ -59,6 +59,21 @@ export const TRANSCRIPTS_OFF = {
  */
 export const HISTORY_MAX = 5000
 
+/**
+ * A world message sent while the orchestrator is idle makes Claude Code fire
+ * UserPromptSubmit at once (well under a second in the spike). If no hook at
+ * all arrives within this long, hooks aren't reaching us: most likely the
+ * user's settings allow only other HTTP hook URLs (allowedHttpHookUrls,
+ * possibly company-managed). Chat still works through the channel.
+ */
+export const HOOKS_CHECK_MS = 10_000
+
+/** The notice when hooks don't arrive (English fallback; Godot shows its own text). */
+export const HOOKS_UNAVAILABLE = {
+  code: 'hooks_unavailable',
+  message: 'Claude Code isn\'t sending this session\'s activity to the world (a setting such as allowedHttpHookUrls may be blocking it). Chat still works; answer prompts and questions in the terminal.',
+}
+
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
@@ -78,6 +93,8 @@ export interface ClaudeOptions {
   startupTimeoutMs?: number
   /** For tests: Claude Code's projects folder (stored sessions). */
   projectsDir?: string
+  /** For tests: how long a world message waits for its first hook. */
+  hooksCheckMs?: number
 }
 
 /** Everything the launched claude and our side share for one session. */
@@ -153,7 +170,7 @@ export class ClaudeProvider implements Provider {
     this.live.add(o.nativeId)
     const session = new ClaudeSession(host, launch, o.project, o.name, this.log,
       () => { this.forget(launch.runDir); this.live.delete(o.nativeId) },
-      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt)
+      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
@@ -295,6 +312,12 @@ class ClaudeSession implements ProviderSession {
   private readonly history: HistoryMessage[] = []
   /** Messages started but not yet completed: who and when. */
   private readonly starting = new Map<string, { agent: string; role: 'user' | 'assistant'; at: string }>()
+  /** Whether any hook has arrived yet. */
+  private hooksSeen = false
+  /** Checking that hooks arrive (once, after the first world message sent while idle). */
+  private hooksCheck: NodeJS.Timeout | null = null
+  private hooksChecked = false
+  private readonly hooksCheckMs: number
   /** Whether the transcript has been checked for (once, after the first reply). */
   private transcriptChecked = false
   /**
@@ -310,7 +333,8 @@ class ClaudeSession implements ProviderSession {
   private prompt: string | null
 
   constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
-    cleanup: () => void, startupTimeoutMs: number, history: HistoryMessage[] = [], prompt?: string) {
+    cleanup: () => void, startupTimeoutMs: number, history: HistoryMessage[] = [], prompt?: string,
+    hooksCheckMs = HOOKS_CHECK_MS) {
     this.host = host
     this.launch = launch
     this.project = project
@@ -321,6 +345,7 @@ class ClaudeSession implements ProviderSession {
     this.translator = new HookTranslator(project.path)
     this.history.push(...history)
     this.prompt = prompt ?? null
+    this.hooksCheckMs = hooksCheckMs
   }
 
   bridgeHandlers() {
@@ -368,6 +393,7 @@ class ClaudeSession implements ProviderSession {
    */
   onHook(p: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void> {
     if (this.disposed || this.host.ended) return
+    this.hooksSeen = true
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
@@ -476,6 +502,7 @@ class ClaudeSession implements ProviderSession {
     if (this.disposed) return
     this.disposed = true
     if (this.startupTimer) clearTimeout(this.startupTimer)
+    if (this.hooksCheck) clearTimeout(this.hooksCheck)
     this.link?.unregister()
     this.hookLink?.unregister()
     this.transcript.stop()
@@ -486,6 +513,15 @@ class ClaudeSession implements ProviderSession {
   async sendMessage(text: string): Promise<void> {
     if (!this.link?.send({ type: 'chat', text })) {
       throw new CommandError('provider_error', 'The session is not connected.')
+    }
+    if (!this.hooksSeen && !this.hooksChecked && !this.translator.busy()) {
+      this.hooksChecked = true
+      this.hooksCheck = setTimeout(() => {
+        if (this.disposed || this.host.ended || this.hooksSeen) return
+        this.log.warn(`session ${this.host.id}: no hooks arrived after a world message`)
+        this.host.emit({ type: 'session.notice', notice: HOOKS_UNAVAILABLE })
+      }, this.hooksCheckMs)
+      this.hooksCheck.unref()
     }
   }
   /**
