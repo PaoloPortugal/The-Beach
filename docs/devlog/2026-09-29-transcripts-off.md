@@ -34,6 +34,11 @@ transcript and shows what's limited; it never forces saving back on and
 never writes its own copy of the conversation to disk (added to Private
 by default).
 
+The user then chose how it's presented: the app shows only a short
+disclaimer (some features may not work as intended; turning transcript
+saving on is recommended), not the detailed list, which stays in NOTES.md
+for development.
+
 ## Bug found in passing
 
 The S02 spike built its clean environment by dropping every variable
