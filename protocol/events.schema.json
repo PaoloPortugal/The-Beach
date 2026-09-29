@@ -439,7 +439,7 @@
       "additionalProperties": false
     },
     "question.resolved": {
-      "description": "Sidecar -> Godot (questions capability). The questions were answered or dismissed, here or elsewhere. Godot clears them.",
+      "description": "Sidecar -> Godot (questions capability). The questions were answered, here (by: app) or in the provider's own interface (by: external); a pending question may show in both. Godot clears them.",
       "type": "object",
       "required": ["type", "session", "seq", "question", "by"],
       "properties": {
