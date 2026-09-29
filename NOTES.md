@@ -27,12 +27,18 @@ Other biomes (hills, mountains) come later, so region connection is a
 general system, not a beach-specific one.
 
 **Agents.** The **orchestrator** sits at the centre of its island (a bigger
-logo model at a beach desk or under an umbrella). Walking up to it opens the
-chat panel. **Subagents** are small logo-on-a-little-PC models on the sand.
+model at a beach desk or under an umbrella). Walking up to it opens the
+chat panel. **Subagents** are small models at little PCs on the sand.
 They spawn when the orchestrator spawns them and, when they finish, run
 their report back to whoever called them and disappear. They show working,
-waiting-on-you or done. An agent that waits on a permission prompt should
-visibly draw your attention.
+waiting on you, done or error (A03). An agent waiting on a permission
+prompt or a question should visibly draw your attention. The agents'
+look was planned as the AI tool's logo; that is open question 7 (branding).
+
+**Terminal and world together.** Each session is a normal `claude` running
+in a terminal window, and the world is a second window onto it: you can
+chat, answer prompts and questions, or stop it in either place, and switch
+at any time (S02).
 
 **Downtime.** You spend a lot of time waiting on agents, so the world should
 eventually give you something to do: parkour and minigames. These aren't
@@ -55,7 +61,7 @@ designed yet (see Known issues and next steps → Deferred ideas).
 **Art direction.** Low-poly. Assets are made by the user or come from CC0 packs
 such as Kenney, **never AI-generated**. Kenney packs are the likely source
 for terrain and environment, which leaves custom modelling effort for the
-logo-on-PC agent models.
+agent models (their look: open question 7).
 
 ## Feature index
 
@@ -151,7 +157,7 @@ flowchart TB
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
   events over local HTTP, talks to it through our channel bridge, and
-  reads its transcript in `~/.claude/projects/*.jsonl` (live, for what hooks
+  reads its transcript under `~/.claude/projects/` (live, for what hooks
   don't report, and for history and resuming). See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
@@ -162,10 +168,10 @@ into a session, so they are as sensitive as the user's keyboard. Every
 feature that touches them follows these rules, and each is tested:
 - **Loopback only.** Every server binds to `127.0.0.1`, never `0.0.0.0`.
 - **Authenticate every connection.** The sidecar makes random secret
-  tokens at start: one for Godot's WebSocket, one per launched session for
-  its hooks (sent as a header; hooks support headers from environment
-  variables) and for its bridge. Requests without the right token are
-  rejected. Loopback alone isn't enough: any local program could connect.
+  tokens at start: one for Godot's WebSocket, and per launched session one
+  for its hooks (sent as a header) and one for its bridge. Requests
+  without the right token are rejected. Loopback alone isn't enough: any
+  local program could connect.
 - **Reject browsers.** Web pages can open connections to `localhost`, and
   browsers always send an `Origin` header. Besides requiring the token, the
   WebSocket server rejects requests whose `Origin` isn't what Godot sends
@@ -177,7 +183,7 @@ feature that touches them follows these rules, and each is tested:
   modes chosen for the user, no "allow always" without an explicit choice.
 - **Fail safe.** If the sidecar or Godot is down, slow or crashes, the
   session must fall back to Claude Code's own terminal prompts, never to
-  allowing. (The spike checks what an unreachable hook does in each case.)
+  allowing. (Verified for hanging, erroring and offline hooks: S02.)
 - **No shell strings.** Processes are launched with argument arrays, never
   by building a shell command from text, so a project path or session name
   can't inject commands.
@@ -229,7 +235,8 @@ top-level folders sit beside it:
 | `assets/` | Art and audio, plus `CREDITS.md`. |
 | `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands). Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
-| `docs/` | User's guide and dev log. |
+| `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
+| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry. `claude-cli/` is kept as the reference for building S02, then deleted. Has a `.gdignore`. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 The Godot folder layout (scenes, scripts) and the sidecar file table get
@@ -298,9 +305,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   animation.
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
-  text typed elsewhere shows up once attaching exists.
-- `permission.resolved` has `by`: `app` or `external` (answered elsewhere,
-  once attaching exists).
+  text typed in the terminal shows up in the world.
+- `permission.resolved` has `by`: `app` or `external` (answered in the
+  terminal).
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -362,12 +369,12 @@ across the world to reach an orchestrator. Sorting, grouping and whether to
 add a minimap are open question 3.
 
 ### A01 Orchestrator
-*Planned (v1).* A bigger logo model at the centre of its island, at a beach
-desk or under an umbrella. It's the main way you interact with a session
-(see C01).
+*Planned (v1).* A bigger model at the centre of its island, at a beach
+desk or under an umbrella (look: open question 7). It's the main way you
+interact with a session (see C01).
 
 ### A02 Subagents
-*Planned (v1).* Small logo-on-a-little-PC models on the island's sand. They
+*Planned (v1).* Small models at little PCs on the island's sand. They
 appear when the orchestrator spawns them. When one finishes (`done`), it
 runs to the agent that called it (its `parent`) with a paper on its head,
 throws the report to it, and disappears. A resumed subagent (back to
@@ -386,8 +393,8 @@ island. Nothing may assume a fixed maximum agent count. Options for larger
 counts are in Deferred ideas.
 
 ### A05 Permission attention cue
-*Planned.* A pending permission prompt is shown on the relevant island
-and agent, so a waiting agent visibly draws your attention.
+*Planned.* A pending permission prompt or question is shown on the
+relevant island and agent, so a waiting agent visibly draws your attention.
 
 ### C01 Walk up to chat
 *Planned (v1).* Walking up to an orchestrator opens the chat panel for its
@@ -441,12 +448,12 @@ and offers: **Yes, and use auto mode** (or "auto-accept edits"), **Yes,
 manually approve edits**, and **No, keep planning** (tell Claude what to
 change). This runs through Claude's `ExitPlanMode` tool, which Claude Code
 treats like `AskUserQuestion` (it needs a person), and hooks receive the
-plan's Markdown (`tool_input.plan`). Intended design, the same as C04's
-questions: the plan shows in both places, the `PermissionRequest` hook is
-held, first answer wins. Approve → `allow` with the input echoed back plus
-the matching `setMode` (see C06); keep planning → `deny` with the user's
-feedback as the message. **Untested:** needs a short spike before it's
-built. Rendering the plan depends on C03.
+plan's Markdown (`tool_input.plan`). Intended design, the same as for
+clarifying questions (S02): the plan shows in both places, the
+`PermissionRequest` hook is held, first answer wins. Approve → `allow`
+with the input echoed back plus the matching `setMode` (see C06); keep
+planning → `deny` with the user's feedback as the message. **Untested:**
+needs a short spike before it's built. Rendering the plan depends on C03.
 
 ### S01 Sidecar and WebSocket server
 *Planned (v1).* The sidecar process that hosts the session registry and the
@@ -455,9 +462,10 @@ protocol.
 
 ### S02 Claude provider
 *Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
-Windows; dev log 2026-09-29-claude-cli-spike). Diagrams: `docs/flows.md`. The only place
-Claude-specific names may appear. It drives the user's own installed
-`claude` CLI, signed in with their own account through Anthropic's login.
+Windows; dev log 2026-09-29-claude-cli-spike). Diagrams: `docs/flows.md`.
+The only place Claude-specific names may appear. It drives the user's own
+installed `claude` CLI, signed in with their own account through
+Anthropic's login.
 Our code never reads, stores or passes on Claude credentials, and never
 modifies or bundles Claude Code.
 
@@ -477,8 +485,9 @@ modifies or bundles Claude Code.
   off, and leak another session's values. Verified: with them removed, the
   transcript is written live.
 
-It never passes a permission mode: the session uses the user's own
-(the spike ran in the user's default `auto` mode, where prompts are rare).
+It passes no permission mode unless the user picks one at launch (C06):
+by default the session uses the user's own (the spike ran in the user's
+default `auto` mode, where prompts are rare).
 Every hook carries `permission_mode`, so the world can show it.
 
 **Seeing the session: HTTP hooks** posted to the sidecar on localhost, with
@@ -596,8 +605,10 @@ and channel, which such a session would need to be started with.
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
 `claude --resume <id>`. Sessions launched from this app are ordinary CLI
 sessions in the same store, so they are resumable from a terminal, and old
-CLI sessions can be listed and resumed here (launched with `--resume`). The Claude **desktop app** does
-not use this store (see Deliberate limitations).
+CLI sessions can be listed and resumed here (launched with `--resume`).
+The Claude desktop app's own sessions also write transcripts there; whether
+they should be listed and resumed here is to check when building S04 (see
+Deliberate limitations).
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its
@@ -672,6 +683,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
    Anthropic's channel examples use the TypeScript MCP SDK.
+7. **Agent look and branding.** The agents were planned as "logo" models
+   (the AI tool's logo on a little PC). Anthropic's terms don't allow using
+   their logos in a product without permission (Watch items → Claude
+   branding), so a public release needs an original look. Decide before
+   modelling the agents (A01, A02).
 
 ## Known issues and next steps
 
@@ -680,20 +696,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ### Milestones
 
 **M0 Setup.** Docs and scaffold, event schema, and two throwaway spikes:
-- **Claude CLI integration spike (S02).** *Done 2026-09-29; results in S02
-  and the dev log (2026-09-29-claude-cli-spike).* Everything in S02 was
-  confirmed from the docs only. Launch a real `claude` with our hook settings and a
-  bare channel, log every hook payload, and check: the launch flags and the
-  channel confirmation prompt; which hooks fire and what they carry (IDs,
-  subagent `agent_id`, `MessageDisplay` batches); chat into the session
-  through the channel; permission relay (world and terminal both live);
-  answering `AskUserQuestion` from a `PreToolUse` hook; `continue: false`
-  stopping at the next step, and whether inside a subagent it stops the
-  subagent or the whole session; **fail-safe behaviour**: what each hook
-  does when the sidecar is unreachable or slow (must fall back to the
-  terminal, never allow); token headers on hooks. Uses a little of the
-  user's subscription.
-  Results go in the dev log and update S02 and the schema if needed.
+- **Claude CLI integration spike (S02).** *Done 2026-09-29, three runs
+  against a real `claude`: launch, hooks, channel chat, permission relay,
+  questions in both places, stopping, Esc and "No" via the transcript, and
+  fail-safe behaviour. Results in S02 and the dev log
+  (2026-09-29-claude-cli-spike); code in `spikes/claude-cli/`.*
 - **Markdown → BBCode spike (C03).**
 
 **M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
@@ -705,8 +712,10 @@ exists.
   answers through a channel (S01, S02).
 - Walk up to chat with a plain-text chat panel wired to the sidecar (W03, C01,
   C02).
-- Subagents as simple logo-on-PC models with ring or spiral placement,
+- Subagents as simple placeholder models with ring or spiral placement,
   appearing and disappearing on spawn and finish events (A02, A04).
+- Permission prompts and questions can still be answered in the terminal
+  in v1; answering them in the world is C05 and the `questions` capability.
 - Not in v1: bridges, teleport menu, multiple islands or archipelagos,
   minigames and parkour, Markdown polish, any second provider.
 
@@ -766,9 +775,8 @@ exists.
   need `--dangerously-load-development-channels` (confirmed by the user at
   startup), and Team/Enterprise organisations block channels unless an
   admin enables them. Pro/Max users without an organisation can use them.
-
-- Markdown → BBCode rendering (C03) is the biggest UX risk.
-- `icon.svg` is Godot's default icon (CC BY 4.0, not CC0). It is a
+- **Markdown → BBCode rendering (C03)** is the biggest UX risk.
+- **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Godot AI plugin:** its auth doesn't protect against a compromised process
   running as the same user, and on Windows it claims no isolation from other
@@ -777,11 +785,14 @@ exists.
 
 ### Deliberate limitations
 
-- **No Claude desktop app integration.** As of research in Sept 2026, the
-  desktop app keeps its own session store, doesn't read
-  `~/.claude/projects/`, and offers no supported way to register a session or
-  launch into a folder from outside. The terminal/JSONL store is the
-  integration point.
+- **No Claude desktop app integration.** The desktop app runs its own
+  sessions with its own session list, and offers no supported way for us to
+  launch into it or watch its sessions. It does interoperate with the CLI
+  (docs, checked 2026-09-29): `/resume` in the desktop app picks up CLI
+  sessions, including ones this app launched, and `/desktop` in a terminal
+  moves a CLI session into the desktop app and exits the CLI (which ends
+  our link to it). Its sessions also write transcripts under
+  `~/.claude/projects/`. The CLI and that store are our integration point.
 - **No Agent SDK (not in the near future).** Driving Claude through the
   Agent SDK gives more control (an immediate stop, word-by-word streaming,
   no terminal window), but Anthropic's terms expect SDK apps to use an API key
