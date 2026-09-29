@@ -308,8 +308,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 - Set Editor Settings → Plugins → `godot_ai/mcp_client_scope` to `local`,
   then press **Configure** next to Claude Code in the Godot AI dock. The
   client entry pins versions and machine paths, so it isn't tracked in the repo.
-- Telemetry off: set the user environment variable
-  `GODOT_AI_DISABLE_TELEMETRY=true`.
+  Without the `claude` CLI on PATH, Configure can only write **user** scope
+  (`~/.claude.json` → `mcpServers`); move the `godot-ai` entry by hand into
+  `projects["<repo path>"].mcpServers`, which is what local scope is. Recheck
+  after plugin updates, since they re-pin the entry.
+- Telemetry off: set Editor Settings → Plugins → `godot_ai/telemetry_enabled`
+  to off, and the user environment variable `GODOT_AI_DISABLE_TELEMETRY=true`.
+  Apps only see a new environment variable after they restart, and Godot
+  launched from Godot Hub inherits the Hub's environment, so restart the Hub.
 - Update with the dock's **Update** button, never by copying files over it.
 
 ## Open questions
