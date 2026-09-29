@@ -202,7 +202,8 @@ feature that touches them follows these rules, and each is tested:
   only read the user's Claude files, never write them, and never edit the
   user's settings (per-session `--settings` instead).
 - **Few, pinned dependencies.** Every sidecar dependency is justified,
-  version-pinned with a lockfile, and updated deliberately.
+  version-pinned with a lockfile, updated deliberately, and under a license
+  that allows redistribution in an MIT project.
 
 **Multi-provider rules.** Only Claude is built, and near-term effort goes into
 making it good, including Claude-only features (e.g. model choice, usage,
@@ -627,6 +628,10 @@ island (W04).
   license). CC0 or made by the user only; never AI-generated.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
+- **License.** The project is MIT (`LICENSE`). Third-party parts keep their
+  own licenses: `addons/godot_ai/` (MIT, its own `LICENSE`) and the assets in
+  `assets/CREDITS.md`. Don't add code or dependencies whose license forbids
+  redistribution in an MIT project.
 
 ### Renaming the project
 
