@@ -256,7 +256,7 @@
         "type": { "const": "error" },
         "id": { "$ref": "#/$defs/id" },
         "code": {
-          "description": "Machine-readable, e.g. invalid_message, unknown_session, unknown_provider, provider_error.",
+          "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared), invalid_project (path not absolute or not a folder), provider_error (the provider failed; details stay in the sidecar's log).",
           "type": "string"
         },
         "message": { "description": "Human-readable.", "type": "string" }

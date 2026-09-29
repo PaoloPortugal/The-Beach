@@ -36,3 +36,4 @@ Thumbs.db
 
 # godot-ai self-update staging and backups
 addons/.godot_ai_update/
+/sidecar/.cache/
