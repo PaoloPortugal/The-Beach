@@ -1,0 +1,594 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "protocol/events.schema.json",
+  "title": "Sidecar <-> Godot protocol, version 1",
+  "description": "Every WebSocket message is one JSON object matching exactly one entry below. Event types (sidecar -> Godot) are past tense; command types (Godot -> sidecar) are imperative. See NOTES.md -> Protocol.",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/sync.completed" },
+    { "$ref": "#/$defs/ok" },
+    { "$ref": "#/$defs/error" },
+    { "$ref": "#/$defs/session.snapshot" },
+    { "$ref": "#/$defs/session.created" },
+    { "$ref": "#/$defs/session.ended" },
+    { "$ref": "#/$defs/agent.spawned" },
+    { "$ref": "#/$defs/agent.state_changed" },
+    { "$ref": "#/$defs/message.started" },
+    { "$ref": "#/$defs/message.delta" },
+    { "$ref": "#/$defs/message.completed" },
+    { "$ref": "#/$defs/tool.started" },
+    { "$ref": "#/$defs/tool.finished" },
+    { "$ref": "#/$defs/permission.requested" },
+    { "$ref": "#/$defs/permission.resolved" },
+    { "$ref": "#/$defs/question.asked" },
+    { "$ref": "#/$defs/question.resolved" },
+    { "$ref": "#/$defs/session.create" },
+    { "$ref": "#/$defs/session.list_stored" },
+    { "$ref": "#/$defs/session.resume" },
+    { "$ref": "#/$defs/session.end" },
+    { "$ref": "#/$defs/interrupt.request" },
+    { "$ref": "#/$defs/session.get_snapshot" },
+    { "$ref": "#/$defs/session.get_history" },
+    { "$ref": "#/$defs/message.send" },
+    { "$ref": "#/$defs/permission.respond" },
+    { "$ref": "#/$defs/question.answer" },
+    { "$ref": "#/$defs/extension" }
+  ],
+  "$defs": {
+
+    "id": { "type": "string", "minLength": 1 },
+    "provider_id": {
+      "description": "Provider key, e.g. \"claude\". Also the extension namespace.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "seq": {
+      "description": "Per-session event counter, starting at 1. A snapshot carries the current value; later events for that session continue from it. A gap means Godot missed an event and should send session.get_snapshot.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "description": "working: both roles. waiting: both roles, needs the user (see reason). idle: orchestrator only, turn finished. done: subagent only, result returned; may be resumed (back to working). error: both roles.",
+      "enum": ["working", "waiting", "idle", "done", "error"]
+    },
+    "state_reason": {
+      "description": "Why an agent is waiting or errored, e.g. \"permission\", \"question\" or \"input\" when waiting. Null otherwise.",
+      "type": ["string", "null"]
+    },
+    "project": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "description": "Absolute path of the working directory.", "type": "string" },
+        "name": { "description": "Display name; defaults to the folder name.", "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "agent": {
+      "type": "object",
+      "required": ["agent", "role", "parent", "state", "reason"],
+      "properties": {
+        "agent": { "$ref": "#/$defs/id" },
+        "role": { "enum": ["orchestrator", "subagent"] },
+        "parent": {
+          "description": "The agent that spawned this one; null for the orchestrator. Agents form a tree.",
+          "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "name": { "description": "Display name or agent type.", "type": "string" },
+        "task": { "description": "Short description of what it was asked to do.", "type": "string" },
+        "state": { "$ref": "#/$defs/state" },
+        "reason": { "$ref": "#/$defs/state_reason" }
+      },
+      "additionalProperties": false
+    },
+
+    "permission": {
+      "type": "object",
+      "required": ["permission", "agent", "tool", "summary"],
+      "properties": {
+        "permission": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "tool": { "description": "The provider's tool name.", "type": "string" },
+        "summary": { "description": "One human-readable line, e.g. \"Run: npm install\".", "type": "string" },
+        "input": { "description": "Raw tool input, for a details view.", "type": "object" }
+      },
+      "additionalProperties": false
+    },
+
+    "question": {
+      "description": "Clarifying questions an agent asks the user, as one set (questions capability).",
+      "type": "object",
+      "required": ["question", "agent", "items"],
+      "properties": {
+        "question": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["text", "options", "multi_select"],
+            "properties": {
+              "text": { "description": "The question to display.", "type": "string" },
+              "header": { "description": "Short label.", "type": "string" },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["label"],
+                  "properties": {
+                    "label": { "type": "string" },
+                    "description": { "type": "string" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "multi_select": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "session": {
+      "description": "Full state of one session (one island).",
+      "type": "object",
+      "required": ["session", "seq", "provider", "native_id", "origin", "project", "title", "started_at", "capabilities", "extensions", "agents", "permissions"],
+      "properties": {
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "native_id": {
+          "description": "The provider's own session ID (e.g. Claude's session UUID). Null until the provider assigns one, or if it has none.",
+          "type": ["string", "null"]
+        },
+        "origin": {
+          "description": "app: started from this app. external: attached to a session running elsewhere (not in v1).",
+          "enum": ["app", "external"]
+        },
+        "project": { "$ref": "#/$defs/project" },
+        "title": { "type": ["string", "null"] },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "capabilities": {
+          "description": "Capabilities the provider declares for this session, keyed by capability name, each with its own config object. Capability events are only sent when declared.",
+          "type": "object",
+          "additionalProperties": { "type": "object" }
+        },
+        "extensions": {
+          "description": "Extension namespaces this session may send, e.g. [\"claude\"].",
+          "type": "array",
+          "items": { "$ref": "#/$defs/provider_id" }
+        },
+        "agents": {
+          "description": "Every agent, orchestrator first. Includes done subagents.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/agent" }
+        },
+        "permissions": {
+          "description": "Pending permission requests.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/permission" }
+        },
+        "questions": {
+          "description": "Pending questions. Present only when the questions capability is declared.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/question" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "history_message": {
+      "type": "object",
+      "required": ["message", "agent", "role", "text", "at"],
+      "properties": {
+        "message": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "role": { "enum": ["user", "assistant"] },
+        "text": { "description": "Markdown.", "type": "string" },
+        "at": { "$ref": "#/$defs/timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "stored_session": {
+      "type": "object",
+      "required": ["provider", "native_id", "project", "title", "updated_at"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "native_id": { "type": "string" },
+        "project": { "$ref": "#/$defs/project" },
+        "title": { "type": ["string", "null"] },
+        "updated_at": { "$ref": "#/$defs/timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "hello": {
+      "description": "Sidecar -> Godot, first message after connecting. Followed by one session.snapshot per live session, then sync.completed. Godot refuses a protocol version it doesn't know.",
+      "type": "object",
+      "required": ["type", "protocol", "providers"],
+      "properties": {
+        "type": { "const": "hello" },
+        "protocol": { "const": 1 },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["provider", "name"],
+            "properties": {
+              "provider": { "$ref": "#/$defs/provider_id" },
+              "name": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sync.completed": {
+      "description": "Sidecar -> Godot. The initial snapshots after hello are all sent.",
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "sync.completed" } },
+      "additionalProperties": false
+    },
+    "ok": {
+      "description": "Sidecar -> Godot, success reply to the command with the same id. The result shape depends on the command (see each command's description).",
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "ok" },
+        "id": { "$ref": "#/$defs/id" },
+        "result": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "description": "Sidecar -> Godot. With id: the command with that id failed. Without id: a protocol-level error (e.g. invalid message).",
+      "type": "object",
+      "required": ["type", "code", "message"],
+      "properties": {
+        "type": { "const": "error" },
+        "id": { "$ref": "#/$defs/id" },
+        "code": {
+          "description": "Machine-readable, e.g. invalid_message, unknown_session, unknown_provider, provider_error.",
+          "type": "string"
+        },
+        "message": { "description": "Human-readable.", "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "session.snapshot": {
+      "description": "Sidecar -> Godot. Full state of a session that already exists: after hello, after session.get_snapshot, or when attaching. Godot places the island without the rise animation and replaces whatever it had for this session.",
+      "type": "object",
+      "required": ["type", "session"],
+      "properties": {
+        "type": { "const": "session.snapshot" },
+        "session": { "$ref": "#/$defs/session" }
+      },
+      "additionalProperties": false
+    },
+    "session.created": {
+      "description": "Sidecar -> Godot. A new session started; Godot plays the rise animation.",
+      "type": "object",
+      "required": ["type", "session"],
+      "properties": {
+        "type": { "const": "session.created" },
+        "session": { "$ref": "#/$defs/session" }
+      },
+      "additionalProperties": false
+    },
+    "session.ended": {
+      "description": "Sidecar -> Godot. The session is gone from the registry; Godot sinks its island.",
+      "type": "object",
+      "required": ["type", "session", "seq", "reason"],
+      "properties": {
+        "type": { "const": "session.ended" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "reason": {
+          "description": "user: ended from this app. exited: the session stopped on its own or was closed elsewhere. error: it crashed.",
+          "enum": ["user", "exited", "error"]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "agent.spawned": {
+      "description": "Sidecar -> Godot. A new agent appeared in the session.",
+      "type": "object",
+      "required": ["type", "session", "seq", "agent"],
+      "properties": {
+        "type": { "const": "agent.spawned" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "agent": { "$ref": "#/$defs/agent" }
+      },
+      "additionalProperties": false
+    },
+    "agent.state_changed": {
+      "description": "Sidecar -> Godot. An agent's state changed.",
+      "type": "object",
+      "required": ["type", "session", "seq", "agent", "state", "reason"],
+      "properties": {
+        "type": { "const": "agent.state_changed" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "agent": { "$ref": "#/$defs/id" },
+        "state": { "$ref": "#/$defs/state" },
+        "reason": { "$ref": "#/$defs/state_reason" }
+      },
+      "additionalProperties": false
+    },
+
+    "message.started": {
+      "description": "Sidecar -> Godot. A chat message begins. User messages are included, so text typed elsewhere (once attaching exists) shows up too.",
+      "type": "object",
+      "required": ["type", "session", "seq", "message", "agent", "role"],
+      "properties": {
+        "type": { "const": "message.started" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "message": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "role": { "enum": ["user", "assistant"] }
+      },
+      "additionalProperties": false
+    },
+    "message.delta": {
+      "description": "Sidecar -> Godot. Streamed text to append to the message.",
+      "type": "object",
+      "required": ["type", "session", "seq", "message", "text"],
+      "properties": {
+        "type": { "const": "message.delta" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "message": { "$ref": "#/$defs/id" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "message.completed": {
+      "description": "Sidecar -> Godot. The message is finished; text is the full Markdown and replaces the streamed deltas.",
+      "type": "object",
+      "required": ["type", "session", "seq", "message", "text"],
+      "properties": {
+        "type": { "const": "message.completed" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "message": { "$ref": "#/$defs/id" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "tool.started": {
+      "description": "Sidecar -> Godot. An agent started a tool call (for the C04 log).",
+      "type": "object",
+      "required": ["type", "session", "seq", "tool_call", "agent", "tool", "summary"],
+      "properties": {
+        "type": { "const": "tool.started" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "tool_call": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "tool": { "description": "The provider's tool name.", "type": "string" },
+        "summary": { "description": "One human-readable line, e.g. \"Read NOTES.md\".", "type": "string" },
+        "input": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "tool.finished": {
+      "description": "Sidecar -> Godot. A tool call ended.",
+      "type": "object",
+      "required": ["type", "session", "seq", "tool_call", "status"],
+      "properties": {
+        "type": { "const": "tool.finished" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "tool_call": { "$ref": "#/$defs/id" },
+        "status": { "enum": ["ok", "error", "denied"] },
+        "summary": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "permission.requested": {
+      "description": "Sidecar -> Godot. An agent waits on a permission prompt. Its state also changes to waiting with reason \"permission\".",
+      "type": "object",
+      "required": ["type", "session", "seq", "permission"],
+      "properties": {
+        "type": { "const": "permission.requested" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "permission": { "$ref": "#/$defs/permission" }
+      },
+      "additionalProperties": false
+    },
+    "permission.resolved": {
+      "description": "Sidecar -> Godot. A permission request was answered, here or elsewhere (by: external, once attaching exists). Godot clears the prompt.",
+      "type": "object",
+      "required": ["type", "session", "seq", "permission", "decision", "by"],
+      "properties": {
+        "type": { "const": "permission.resolved" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "permission": { "$ref": "#/$defs/id" },
+        "decision": { "enum": ["allow", "deny"] },
+        "by": { "enum": ["app", "external"] }
+      },
+      "additionalProperties": false
+    },
+
+    "question.asked": {
+      "description": "Sidecar -> Godot (questions capability). An agent asks the user clarifying questions. Its state also changes to waiting with reason \"question\".",
+      "type": "object",
+      "required": ["type", "session", "seq", "question"],
+      "properties": {
+        "type": { "const": "question.asked" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "question": { "$ref": "#/$defs/question" }
+      },
+      "additionalProperties": false
+    },
+    "question.resolved": {
+      "description": "Sidecar -> Godot (questions capability). The questions were answered or dismissed, here or elsewhere. Godot clears them.",
+      "type": "object",
+      "required": ["type", "session", "seq", "question", "by"],
+      "properties": {
+        "type": { "const": "question.resolved" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "question": { "$ref": "#/$defs/id" },
+        "by": { "enum": ["app", "external"] }
+      },
+      "additionalProperties": false
+    },
+
+    "session.create": {
+      "description": "Godot -> sidecar. Start a new session. Reply result: {\"session\": <id>}; session.created follows.",
+      "type": "object",
+      "required": ["type", "id", "provider", "project"],
+      "properties": {
+        "type": { "const": "session.create" },
+        "id": { "$ref": "#/$defs/id" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "project": { "$ref": "#/$defs/project" },
+        "prompt": { "description": "Optional first user message.", "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "session.list_stored": {
+      "description": "Godot -> sidecar. List resumable sessions the provider has stored (S04). Reply result: {\"sessions\": [stored_session, ...]}, newest first.",
+      "type": "object",
+      "required": ["type", "id", "provider"],
+      "properties": {
+        "type": { "const": "session.list_stored" },
+        "id": { "$ref": "#/$defs/id" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "project": { "description": "Only sessions for this project path.", "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "session.resume": {
+      "description": "Godot -> sidecar. Resume a stored session (S04). Reply result: {\"session\": <id>}; session.created follows.",
+      "type": "object",
+      "required": ["type", "id", "provider", "native_id"],
+      "properties": {
+        "type": { "const": "session.resume" },
+        "id": { "$ref": "#/$defs/id" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "native_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "session.end": {
+      "description": "Godot -> sidecar. End a session (S05). session.ended follows.",
+      "type": "object",
+      "required": ["type", "id", "session"],
+      "properties": {
+        "type": { "const": "session.end" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "interrupt.request": {
+      "description": "Godot -> sidecar (interrupt capability). Stop what the session is doing. The capability's config says whether the stop is immediate or happens at the next step. The session stays open; agent.state_changed events follow.",
+      "type": "object",
+      "required": ["type", "id", "session"],
+      "properties": {
+        "type": { "const": "interrupt.request" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "session.get_snapshot": {
+      "description": "Godot -> sidecar. Resend a session's full state, e.g. after a seq gap. A session.snapshot follows the ok reply.",
+      "type": "object",
+      "required": ["type", "id", "session"],
+      "properties": {
+        "type": { "const": "session.get_snapshot" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "session.get_history": {
+      "description": "Godot -> sidecar. Fetch the chat history, e.g. when the chat panel opens. Reply result: {\"messages\": [history_message, ...]}, oldest first.",
+      "type": "object",
+      "required": ["type", "id", "session"],
+      "properties": {
+        "type": { "const": "session.get_history" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "message.send": {
+      "description": "Godot -> sidecar. The user sends a chat message to the orchestrator. message.started (role user) follows.",
+      "type": "object",
+      "required": ["type", "id", "session", "text"],
+      "properties": {
+        "type": { "const": "message.send" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "permission.respond": {
+      "description": "Godot -> sidecar. Answer a permission request (C05). permission.resolved follows.",
+      "type": "object",
+      "required": ["type", "id", "session", "permission", "decision"],
+      "properties": {
+        "type": { "const": "permission.respond" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" },
+        "permission": { "$ref": "#/$defs/id" },
+        "decision": { "enum": ["allow", "deny"] },
+        "note": { "description": "Optional message to the agent, e.g. why it was denied.", "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "question.answer": {
+      "description": "Godot -> sidecar (questions capability). Answer a question set with either answers or a free response. question.resolved follows.",
+      "type": "object",
+      "required": ["type", "id", "session", "question"],
+      "properties": {
+        "type": { "const": "question.answer" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" },
+        "question": { "$ref": "#/$defs/id" },
+        "answers": {
+          "description": "One entry per item, in order: the chosen option labels, or the user's own typed text as a single entry.",
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" } }
+        },
+        "response": { "description": "A free reply instead of answering the items.", "type": "string" }
+      },
+      "oneOf": [{ "required": ["answers"] }, { "required": ["response"] }],
+      "additionalProperties": false
+    },
+
+    "extension": {
+      "description": "Either direction. Provider-specific message, type ext.<provider>.<name>. Only sent for sessions whose extensions list the provider. Session-scoped ones carry session (and seq from the sidecar); commands carry id. Payload schemas live in protocol/ext/<provider>.schema.json.",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "pattern": "^ext\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_.]*$" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "id": { "$ref": "#/$defs/id" }
+      }
+    }
+  }
+}

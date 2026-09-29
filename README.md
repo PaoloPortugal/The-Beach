@@ -24,7 +24,7 @@ leaving the world.
 
 - [Godot](https://godotengine.org/download) **4.7.2** (standard build; .NET is
   not needed)
-- Sidecar runtime: *to be decided*
+- Sidecar runtime: TypeScript on Node
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and
   signed in
 

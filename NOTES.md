@@ -90,19 +90,21 @@ v1 slice.
 ```
 Godot 4 (GDScript)  <--local WebSocket-->  sidecar       -->  provider(s)
 world, player, agents,     generic core +    session registry,   Claude provider:
-chat UI, provider UI       capabilities +    WebSocket server    Agent SDK, hooks, JSONL store
-                           extensions
+chat UI, provider UI       capabilities +    WebSocket server    launches `claude` CLI, hooks,
+                           extensions                            channel, JSONL store
 ```
 
 - **Godot** (GDScript): the world, player movement, island and bridge
   generation, agent models and state visuals, in-world chat UI.
-- **Sidecar** (language TBD, open question 6): runs sessions and forwards their activity to Godot
-  as generic events. It owns the session registry.
+- **Sidecar** (TypeScript on Node, open question 6): runs sessions and
+  forwards their activity to Godot as generic events. It owns the session
+  registry.
 - **Provider**: translates one AI tool's native events into the generic
-  vocabulary. Only the **Claude provider** exists; it uses the Claude Agent
-  SDK (or spawns `claude`), listens to Claude Code hook events (subagent
-  spawn, tool use, finish, permission requests) and reads and resumes sessions
-  from `~/.claude/projects/*.jsonl`.
+  vocabulary. Only the **Claude provider** exists. It launches the user's
+  own, unmodified `claude` CLI in a terminal window, receives its hook
+  events over local HTTP, talks to it through a channel (a local MCP
+  server) and reads and resumes sessions from `~/.claude/projects/*.jsonl`.
+  See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
 
@@ -126,7 +128,7 @@ Naming: Claude-specific names appear only in the sidecar's Claude provider
 module, the Claude extension namespace of the protocol, and Godot's Claude UI
 module. Everything else is named generically. Don't build a second provider;
 just don't assume there will only be one. The exact capability and extension
-format is part of the event schema (open question 1).
+format is in Protocol → Capabilities and Extensions.
 
 **Layout.** The Godot project is the repo root (`project.godot`). Other
 top-level folders sit beside it:
@@ -135,8 +137,8 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar (empty until its language is chosen). Has a `.gdignore` so Godot doesn't scan it. |
-| `protocol/` | Shared event schema *(pending, see open question 1)*. |
+| `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands). Has a `.gdignore` so Godot doesn't scan it. |
+| `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide and dev log. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
@@ -148,14 +150,89 @@ filled in as the v1 features land.
 The contract between Godot and the sidecar, over a local WebSocket. It has
 a generic core, capability-gated optional features and provider-namespaced
 extensions (see Multi-provider rules), and must not assume a maximum number of agents
-per session. The concrete schema is **not settled yet** (open question 1);
-once it is, it will be written here and in `protocol/events.schema.json`.
+per session. The full schema is `protocol/events.schema.json` (JSON Schema,
+so the sidecar and tests can validate against it); this section is the
+overview. **Version 1.**
 
-Vocabulary from the design:
-- **Sidecar → Godot:** session created / ended, subagent spawned / finished,
-  agent state changed, permission requested, messages (streamed).
-- **Godot → sidecar:** user chat message, permission approve / deny,
-  create session, resume session.
+**Messages.** One JSON object per WebSocket message, with a `type`:
+- Types are `noun.verb`. Events (sidecar → Godot) are past tense
+  (`session.created`); commands (Godot → sidecar) are imperative
+  (`session.create`).
+- Every command has an `id`. The sidecar answers `ok` (with an optional
+  `result`) or `error` (`code`, `message`) carrying the same `id`. An `error`
+  without `id` is a protocol-level error.
+- Every session-scoped event has `session` and `seq`, a per-session counter.
+  A gap in `seq` means Godot missed something and sends
+  `session.get_snapshot`.
+
+**Connecting.** The sidecar sends `hello` (protocol version, providers), one
+`session.snapshot` per live session, then `sync.completed`. Godot refuses a
+protocol version it doesn't know. A snapshot is a session's full state
+(agents, states, pending permissions, capabilities); after it, only changes
+follow. This covers Godot restarting in v1 and attaching to outside
+sessions later (open question 5): both are "send a snapshot, then changes".
+Chat history isn't in the snapshot; Godot asks for it with
+`session.get_history`.
+
+**IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
+(e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
+`app` (started here) or `external` (attached; not in v1). Agents are keyed by
+`agent` within their session.
+
+**Agents** form a tree: `role` is `orchestrator` or `subagent`, and `parent`
+is the agent that spawned it (null for the orchestrator). Agents stay in the
+session after finishing; Godot decides what to show. **States:**
+
+| State | Orchestrator | Subagent | Meaning |
+|---|---|---|---|
+| `working` | ✓ | ✓ | thinking or running tools |
+| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `question`, `input`, ...) |
+| `idle` | ✓ | | turn finished, the user's move |
+| `done` | | ✓ | result returned; may be resumed (back to `working`) |
+| `error` | ✓ | ✓ | failed or interrupted |
+
+The orchestrator never becomes `done`: the session ending is `session.ended`.
+
+**Core vocabulary.**
+
+| Sidecar → Godot | Godot → sidecar |
+|---|---|
+| `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
+| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `agent.spawned`, `agent.state_changed` | `message.send` |
+| `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
+| `tool.started`, `tool.finished` | |
+| `permission.requested`, `permission.resolved` | |
+
+- `session.snapshot` places an island as is; `session.created` plays the rise
+  animation.
+- Messages stream as `started` → `delta`s → `completed`, whose `text` is the
+  full Markdown and replaces the deltas. User messages are events too, so
+  text typed elsewhere shows up once attaching exists.
+- `permission.resolved` has `by`: `app` or `external` (answered elsewhere,
+  once attaching exists).
+
+**Capabilities.** A session declares `capabilities`, keyed by name, each with
+its own config object (e.g. `"usage": {}`). A capability's events use its
+name as the noun (e.g. `usage.updated`) and are only sent when declared.
+Each one is added to the schema and listed here:
+- **`questions`**: an agent asks the user clarifying questions, a set of
+  1+ items, each with options and optional multi-select (Claude's
+  AskUserQuestion). `question.asked` / `question.resolved` (`by`: `app` or
+  `external`) and the command `question.answer` (per-item chosen labels or
+  typed text, or one free `response` instead). Pending ones are in the
+  snapshot's `questions`; the agent is `waiting` with reason `question`.
+- **`interrupt`**: the user can stop what the session is doing; the session
+  stays open. Command `interrupt.request`. Config
+  `{ "immediate": true | false }`: `false` means the stop happens at the
+  session's next step (e.g. before its next tool call), not mid-reply, so
+  Godot can say "stopping after this step".
+
+**Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
+Extension messages are `ext.<provider>.<name>` in either direction, carry
+`session`/`seq` or `id` like core messages, and are routed in Godot by
+prefix to that provider's UI module. Their payload schemas go in
+`protocol/ext/<provider>.schema.json`.
 
 ## Systems
 
@@ -199,13 +276,16 @@ desk or under an umbrella. It's the main way you interact with a session
 
 ### A02 Subagents
 *Planned (v1).* Small logo-on-a-little-PC models on the island's sand. They
-appear when the orchestrator spawns them and power down or disappear when
-they finish. Chat is orchestrator-only for now; whether to talk to
+appear when the orchestrator spawns them. When one finishes (`done`), it
+runs to the agent that called it (its `parent`) with a paper on its head,
+throws the report to it, and disappears. A resumed subagent (back to
+`working`) reappears. Chat is orchestrator-only for now; whether to talk to
 subagents directly is open question 4.
 
 ### A03 Agent state indicators
-*Planned.* A visible state on each agent: working, waiting on user input
-(e.g. a permission prompt) or done.
+*Planned.* A visible state on each agent, from the protocol's state enum
+(see Protocol): working, waiting on the user (e.g. a permission prompt),
+idle (orchestrator), done (subagent) or error.
 
 ### A04 Procedural agent placement
 *Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
@@ -246,21 +326,72 @@ local WebSocket server Godot connects to. It speaks only the generic
 protocol.
 
 ### S02 Claude provider
-*Planned (v1).* Starts a Claude Code session via the Claude Agent SDK and
-translates its hook/SDK events into generic events. It is the only place
-Claude-specific names may appear.
+*Planned (v1).* Gets a throwaway integration spike first (see Milestones →
+M0). The only place Claude-specific names may appear. It drives
+the user's own installed `claude` CLI, signed in with their own account
+through Anthropic's login. Our code never reads, stores or passes on Claude
+credentials, and never modifies or bundles Claude Code.
+
+**Launch.** It opens a terminal window running `claude` with:
+- `--settings <json>`: hooks for this session only, so the user's own
+  settings files are never edited;
+- `--session-id <uuid>`: the ID is known before the session starts
+  (becomes `native_id`);
+- `--mcp-config` plus `--dangerously-load-development-channels server:<name>`:
+  registers our channel. While channels are a research preview, custom
+  channels need this flag, and Claude Code asks the user to confirm it in the
+  terminal at startup. So the terminal must be visible, at least at launch;
+- `--name`: the session's display name.
+
+**Seeing the session: HTTP hooks** posted to the sidecar on localhost.
+Planned mapping: `SessionStart` / `SessionEnd` → session created / ended;
+`UserPromptSubmit` → user message; `MessageDisplay` → assistant text (it
+arrives in batches of completed lines, so chat streams line by line, not
+word by word); `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool
+calls; `SubagentStart` / `SubagentStop` → subagents (`agent_id`,
+`agent_type`); `PermissionRequest` → permission requested; `Stop` →
+orchestrator idle; `StopFailure` → error. Hooks fired inside a subagent
+carry its `agent_id`.
+
+**Talking to the session: a channel**, a small MCP server the sidecar
+provides. It pushes the user's chat messages into the session, and with
+permission relay it receives permission prompts. The terminal prompt and
+the world are both live; whichever answers first wins (`by: external` when
+it was the terminal).
+
+**Clarifying questions (`questions` capability).** A `PreToolUse` hook
+matched to `AskUserQuestion` holds the HTTP request open until the user
+answers in the world, then returns `permissionDecision: "allow"` with the
+answers in `updatedInput` (documented for answering programmatically). The
+tool then runs without the terminal asking. This hook needs a long
+`timeout`: on timeout the tool doesn't run and Claude is told the hook
+didn't respond.
+
+**Stopping (`interrupt` capability, `immediate: false`).** Any hook can
+return `{ "continue": false, "stopReason": ... }`, which stops Claude after
+that hook. On `interrupt.request` the sidecar answers the session's next
+hook call that way. So the stop lands at the next step (a tool call, a tool
+finishing, a subagent starting or stopping), not mid-reply or mid-command.
+To test: whether a stop from a hook inside a subagent stops the subagent
+only or the whole session.
+
+**Not available on this route:** an immediate stop (Esc) and anything only
+the terminal shows (folder trust, MCP consent, the channel confirmation).
+Typing into the terminal was considered and rejected for now (see the
+dev log, 2026-09-29-claude-cli-route).
 
 ### S03 Create session
-*Planned.* A "create new session" command from Godot. Whether the app only
-runs sessions itself, attaches to sessions already running elsewhere, or both
-is open question 5.
+*Planned.* A "create new session" command from Godot; the sidecar launches
+a `claude` terminal (see S02). Attaching to sessions the user started
+themselves comes later (open question 5, decided); it uses the same hooks
+and channel, which such a session would need to be started with.
 
 ### S04 List and resume sessions
 *Planned.* Claude Code stores transcripts as JSONL under
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
-`claude --resume <id>`. Sessions created through the Agent SDK use the same
-store, so sessions made in this app are resumable from a terminal, and old
-CLI sessions can be listed and resumed here. The Claude **desktop app** does
+`claude --resume <id>`. Sessions launched from this app are ordinary CLI
+sessions in the same store, so they are resumable from a terminal, and old
+CLI sessions can be listed and resumed here (launched with `--resume`). The Claude **desktop app** does
 not use this store (see Deliberate limitations).
 
 ### S05 End session
@@ -296,8 +427,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 ## Running it
 
-Nothing runs yet. Once it does: start the sidecar (commands depend on
-open question 6), then open `project.godot` in Godot 4.7.2 and press F5.
+Nothing runs yet. Once it does: start the sidecar (Node; commands land
+with S01), then open `project.godot` in Godot 4.7.2 and press F5.
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
@@ -320,37 +451,50 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Open questions
 
-1. **Event schema.** The data model between sidecar and Godot (session →
-   island, agent → model, state → visual). It must be nailed down before
-   building either side. *Next up.*
+1. ~~**Event schema.**~~ *Decided:* version 1 is in Protocol and
+   `protocol/events.schema.json`.
 2. **Archipelago clustering.** Strictly by repo path, or can projects be
    manually named or arranged?
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
-5. **Session ownership.** Does the app run sessions itself, attach to
-   sessions already running elsewhere, or both?
-6. **Sidecar language.** Node, Python or something else? The design left
-   Node or Python open; the user is investigating. Only the Claude provider
-   depends heavily on this (it needs a Claude Agent SDK or the `claude` CLI).
+5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
+   launches sessions from inside the app; attaching to sessions already
+   running elsewhere comes later. The event schema must allow for attaching
+   (joining a session partway through) even though v1 doesn't use it.
+6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
+   while the Agent SDK was the plan (its TypeScript version is the more
+   complete one). It still fits the CLI route: channels are MCP servers and
+   Anthropic's channel examples use the TypeScript MCP SDK.
 
 ## Known issues and next steps
 
-**Current focus:** settle the event schema (open question 1), including the
-capability and extension format. The sidecar language (open question 6) is
-under investigation. Then: the Markdown → BBCode spike (C03).
+**Current focus:** the Claude CLI integration spike (S02), then the
+Markdown → BBCode spike (C03). Both are M0.
 
 ### Milestones
 
-**M0 Setup.** Docs and scaffold, event schema, Markdown → BBCode spike.
+**M0 Setup.** Docs and scaffold, event schema, and two throwaway spikes:
+- **Claude CLI integration spike (S02).** Everything in S02 is confirmed
+  from the docs only. Launch a real `claude` with our hook settings and a
+  bare channel, log every hook payload, and check: the launch flags and the
+  channel confirmation prompt; which hooks fire and what they carry (IDs,
+  subagent `agent_id`, `MessageDisplay` batches); chat into the session
+  through the channel; permission relay (world and terminal both live);
+  answering `AskUserQuestion` from a `PreToolUse` hook; `continue: false`
+  stopping at the next step, and whether inside a subagent it stops the
+  subagent or the whole session. Uses a little of the user's subscription.
+  Results go in the dev log and update S02 and the schema if needed.
+- **Markdown → BBCode spike (C03).**
 
-**M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ Agent SDK pipeline
+**M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
 exists.
 - One archipelago, one island, one orchestrator (W01, W02, A01).
-- Sidecar starts one Claude Code session via the Agent SDK and forwards hook
-  events over WebSocket (S01, S02).
+- Sidecar launches one `claude` CLI session in a terminal, turns its hook
+  events into generic events over WebSocket, and relays chat and permission
+  answers through a channel (S01, S02).
 - Walk up to chat with a plain-text chat panel wired to the sidecar (W03, C01,
   C02).
 - Subagents as simple logo-on-PC models with ring or spiral placement,
@@ -376,6 +520,27 @@ exists.
 
 ### Watch items
 
+- **Anthropic's terms (public release).** The app is meant for free public
+  release (maybe donations later). Per Claude Code's legal and compliance
+  docs (checked 2026-09-29): third parties may not offer claude.ai login,
+  route requests through Free/Pro/Max credentials, or collect, store or
+  intermediate Claude credentials; this doesn't prevent a user signing in
+  to the **unmodified** Claude Code binary with their own subscription.
+  Hence the CLI route (S02): each user installs and signs in to Claude Code
+  themselves; we never bundle, modify or authenticate it. Recheck the terms
+  before each release; for certainty, ask Anthropic (the page points to
+  their sales contact).
+- **Claude branding.** Same page: a product may say in plain text that it
+  runs Claude Code, but may not use the Claude Code or Anthropic names or
+  logos in its own name or logo, or suggest Anthropic built or endorses it.
+  Other use of their logos needs written permission. This affects the "logo
+  model" agents (A01, A02) in a public release.
+- **Channels are a research preview.** Chat and permission answers from the
+  world depend on them (S02). Flags and protocol may change, custom channels
+  need `--dangerously-load-development-channels` (confirmed by the user at
+  startup), and Team/Enterprise organisations block channels unless an
+  admin enables them. Pro/Max users without an organisation can use them.
+
 - Markdown → BBCode rendering (C03) is the biggest UX risk.
 - `icon.svg` is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
@@ -391,5 +556,11 @@ exists.
   `~/.claude/projects/`, and offers no supported way to register a session or
   launch into a folder from outside. The terminal/JSONL store is the
   integration point.
+- **No Agent SDK (not in the near future).** Driving Claude through the
+  Agent SDK gives more control (an immediate stop, word-by-word streaming,
+  no terminal window), but Anthropic's terms expect SDK apps to use an API key
+  (billed per token) rather than the user's subscription. We use the CLI
+  route instead (S02). Revisit only if Anthropic confirms subscription use
+  is fine for this kind of app, or an API-key option is wanted.
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
