@@ -1036,8 +1036,12 @@ any other version) and Godot 4.7.2.
 
 In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
-- `npm run dev:fake`: the sidecar with a fake provider that echoes chat,
-  for building the world without Claude.
+- `npm run dev:fake`: the sidecar with a scripted fake provider, for
+  building the world without Claude. Chat drives it: a message containing
+  `permission`, `question`, `agents [n]` or `notice` acts out that part of
+  a session (a prompt to answer, a question, n background subagents, a
+  notice); anything else is echoed back. A stop from the world ends what's
+  running. `test/dev-fake.test.ts` plays every scenario.
 - `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
   provider, driven like Godot would. It opens a terminal with `claude`
   (confirm the development channel there), prints every event with the
