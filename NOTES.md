@@ -27,13 +27,28 @@ general system, not a beach-specific one.
 **Agents.** The **orchestrator** sits at the centre of its island (a bigger
 logo model at a beach desk or under an umbrella). Walking up to it opens the
 chat panel. **Subagents** are small logo-on-a-little-PC models on the sand.
-They spawn when the orchestrator spawns them and power down when they
-finish, showing working, waiting-on-you or done. An agent that waits on a
-permission prompt should visibly draw your attention.
+They spawn when the orchestrator spawns them and, when they finish, run
+their report back to whoever called them and disappear. They show working,
+waiting-on-you or done. An agent that waits on a permission prompt should
+visibly draw your attention.
 
 **Downtime.** You spend a lot of time waiting on agents, so the world should
 eventually give you something to do: parkour and minigames. These aren't
 designed yet (see Known issues and next steps → Deferred ideas).
+
+**Principles (user's).**
+- **A pretty interface over the real thing, nothing more.** We touch as
+  little of what the AI tool provides as possible: we launch it, watch it
+  through its documented extension points and pass the user's own input to
+  it. We never modify, bundle or re-implement it, never handle its logins,
+  and never rely on undocumented behaviour when a documented way exists.
+- **Never harm the user through poor quality.** No vulnerabilities, no
+  silent actions on the user's behalf, no data leaving the machine. When
+  our side fails, the tool must fall back to its own normal behaviour (e.g.
+  the terminal asks the question), never to "allowed". See Architecture →
+  Security rules.
+- **Free public release** is the goal, so everything must hold up on other
+  people's machines, not just the developer's.
 
 **Art direction.** Low-poly. Assets are made by the user or come from CC0 packs
 such as Kenney, **never AI-generated**. Kenney packs are the likely source
@@ -87,11 +102,38 @@ v1 slice.
 
 ## Architecture
 
-```
-Godot 4 (GDScript)  <--local WebSocket-->  sidecar       -->  provider(s)
-world, player, agents,     generic core +    session registry,   Claude provider:
-chat UI, provider UI       capabilities +    WebSocket server    launches `claude` CLI, hooks,
-                           extensions                            channel, JSONL store
+Overview (GitHub draws this Mermaid block as a diagram). Everything runs on
+the user's machine; only Claude Code itself talks to Anthropic.
+
+```mermaid
+flowchart TB
+    godot["<b>Godot</b><br/>world, agents, chat UI"]
+
+    subgraph sidecar["Sidecar (TypeScript on Node)"]
+        direction LR
+        core["<b>Generic core</b><br/>session registry,<br/>WebSocket server"]
+        provider["<b>Claude provider</b><br/>the only Claude-specific part"]
+        core <--> provider
+    end
+
+    subgraph machine["On the user's machine, per session"]
+        direction LR
+        bridge["<b>Channel bridge</b><br/>ours: tiny MCP server"]
+        term["<b>Terminal running claude</b><br/>user's own install and login"]
+        store[("<b>Transcripts</b><br/>~/.claude/projects")]
+        term <-->|"starts it,<br/>stdio"| bridge
+        term -->|writes| store
+    end
+
+    anthropic(["Anthropic servers"])
+
+    godot <-->|"WebSocket, protocol v1:<br/>events down, commands up"| core
+    provider -->|"launches with our<br/>settings and flags"| term
+    term -->|"hooks over local HTTP:<br/>what is happening"| provider
+    provider -.->|"hook replies:<br/>question answers, stop"| term
+    bridge <-->|"chat in, permission<br/>prompts and answers"| provider
+    provider -->|"reads history,<br/>stored sessions"| store
+    term <--> anthropic
 ```
 
 - **Godot** (GDScript): the world, player movement, island and bridge
@@ -102,11 +144,47 @@ chat UI, provider UI       capabilities +    WebSocket server    launches `claud
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
-  events over local HTTP, talks to it through a channel (a local MCP
-  server) and reads and resumes sessions from `~/.claude/projects/*.jsonl`.
-  See S02.
+  events over local HTTP, talks to it through our channel bridge and reads
+  and resumes sessions from `~/.claude/projects/*.jsonl`. See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
+
+**Security rules.** Our local entry points (the WebSocket server, the hook
+endpoint, the bridge connection) can approve tool use and send messages
+into a session, so they are as sensitive as the user's keyboard. Every
+feature that touches them follows these rules, and each is tested:
+- **Loopback only.** Every server binds to `127.0.0.1`, never `0.0.0.0`.
+- **Authenticate every connection.** The sidecar makes random secret
+  tokens at start: one for Godot's WebSocket, one per launched session for
+  its hooks (sent as a header; hooks support headers from environment
+  variables) and for its bridge. Requests without the right token are
+  rejected. Loopback alone isn't enough: any local program could connect.
+- **Reject browsers.** Web pages can open connections to `localhost`, and
+  browsers always send an `Origin` header. Besides requiring the token, the
+  WebSocket server rejects requests whose `Origin` isn't what Godot sends
+  (check what Godot's client sends when building S01), so a malicious site
+  can't drive a session.
+- **Nothing is approved without the user.** Permissions, questions and
+  messages go to the session only as the direct result of the user's
+  action in the world. No auto-approve rules, no permissive permission
+  modes chosen for the user, no "allow always" without an explicit choice.
+- **Fail safe.** If the sidecar or Godot is down, slow or crashes, the
+  session must fall back to Claude Code's own terminal prompts, never to
+  allowing. (The spike checks what an unreachable hook does in each case.)
+- **No shell strings.** Processes are launched with argument arrays, never
+  by building a shell command from text, so a project path or session name
+  can't inject commands.
+- **Treat all session content as untrusted.** Model output, tool output and
+  file content can contain anything: escape it before it becomes BBCode (no
+  injected `[url]` or `[img]`), never open links or run anything from it
+  without a user click, and never pass it back into the session as if the
+  user typed it.
+- **Private by default.** Transcripts and events stay on the machine: no
+  telemetry, no network calls except those Claude Code makes itself. We
+  only read the user's Claude files, never write them, and never edit the
+  user's settings (per-session `--settings` instead).
+- **Few, pinned dependencies.** Every sidecar dependency is justified,
+  version-pinned with a lockfile, and updated deliberately.
 
 **Multi-provider rules.** Only Claude is built, and near-term effort goes into
 making it good, including Claude-only features (e.g. model choice, usage,
@@ -353,9 +431,12 @@ calls; `SubagentStart` / `SubagentStop` → subagents (`agent_id`,
 orchestrator idle; `StopFailure` → error. Hooks fired inside a subagent
 carry its `agent_id`.
 
-**Talking to the session: a channel**, a small MCP server the sidecar
-provides. It pushes the user's chat messages into the session, and with
-permission relay it receives permission prompts. The terminal prompt and
+**Talking to the session: a channel.** A channel is an MCP server that
+Claude Code itself starts as a subprocess and talks to over stdio, so ours
+is a tiny **channel bridge** script shipped with the sidecar: `claude`
+starts it, and it connects back to the sidecar over a local connection. It
+pushes the user's chat messages into the session, and with permission
+relay it receives permission prompts. The terminal prompt and
 the world are both live; whichever answers first wins (`by: external` when
 it was the terminal).
 
@@ -484,7 +565,10 @@ Markdown → BBCode spike (C03). Both are M0.
   through the channel; permission relay (world and terminal both live);
   answering `AskUserQuestion` from a `PreToolUse` hook; `continue: false`
   stopping at the next step, and whether inside a subagent it stops the
-  subagent or the whole session. Uses a little of the user's subscription.
+  subagent or the whole session; **fail-safe behaviour**: what each hook
+  does when the sidecar is unreachable or slow (must fall back to the
+  terminal, never allow); token headers on hooks. Uses a little of the
+  user's subscription.
   Results go in the dev log and update S02 and the schema if needed.
 - **Markdown → BBCode spike (C03).**
 
