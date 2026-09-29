@@ -223,6 +223,11 @@ sequenceDiagram
     end
 ```
 
+A free-text `response` from the world is sent as a deny carrying the
+user's words. If Claude Code drops the held hook (it timed out, or
+`claude` exited), or the turn ends with the question open (Esc), the
+question resolves by external.
+
 ## 5. A subagent
 
 ```mermaid

@@ -5,7 +5,7 @@
 // (MessageDisplay); every field is treated as optional and checked.
 import path from 'node:path'
 import crypto from 'node:crypto'
-import type { Agent, Id, Permission, SessionEvent, State } from '../../protocol.ts'
+import type { Agent, Id, Permission, QuestionItem, SessionEvent, State } from '../../protocol.ts'
 import type { HookPayload } from './hook-server.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 
@@ -16,6 +16,13 @@ export const MAIN = 'main'
 const REPORT_TIMEOUT_S = 5
 /** MessageDisplay holds up the text on screen; answered instantly anyway. */
 const DISPLAY_TIMEOUT_S = 2
+/**
+ * A question is held open until the user answers in either place. If this
+ * runs out, the terminal's question simply stays (NOTES.md -> S02).
+ */
+const QUESTION_TIMEOUT_S = 24 * 60 * 60
+/** Claude Code's clarifying-question tool. */
+export const QUESTION_TOOL = 'AskUserQuestion'
 
 /** Hook events we translate. SessionStart can't be an HTTP hook. */
 export const REPORTED_HOOKS = [
@@ -30,6 +37,9 @@ export function hookSettings(url: string, token: string): { hooks: Record<string
   }]
   const hooks: Record<string, unknown> = { MessageDisplay: hook(DISPLAY_TIMEOUT_S) }
   for (const name of REPORTED_HOOKS) hooks[name] = hook(REPORT_TIMEOUT_S)
+  // Questions only: plain permission prompts come through the channel's
+  // relay, and holding them here would hold up the terminal's own answer.
+  hooks.PermissionRequest = [{ matcher: `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
   return { hooks }
 }
 
@@ -49,7 +59,11 @@ interface OpenTool {
   small: boolean
   /** The request_id of its pending permission prompt, if any. */
   permission: Id | null
+  /** Its pending question, if it's a question. */
+  question: Id | null
 }
+
+interface PendingQuestion { agent: Id; toolCall: Id | null; input: Record<string, unknown> }
 
 interface PendingPermission { agent: Id; toolCall: Id | null }
 
@@ -73,6 +87,7 @@ export class HookTranslator {
   private readonly openTools = new Map<Id, OpenTool>()
   /** Pending permission prompts by request_id. */
   private readonly permissions = new Map<Id, PendingPermission>()
+  private readonly questions = new Map<Id, PendingQuestion>()
   private readonly streaming = new Map<Id, string>()
   private readonly userMessages = new Set<Id>()
   /** Agent tool calls, oldest first, each waiting for its SubagentStart. */
@@ -205,7 +220,7 @@ export class HookTranslator {
     this.setState(agent, 'working', null, out)
     const summary = summarizeTool(tool, input, this.cwd)
     const small = JSON.stringify(input).length <= INPUT_MAX
-    this.openTools.set(id, { agent, tool, input, summary, small, permission: null })
+    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null })
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}) })
   }
 
@@ -214,8 +229,9 @@ export class HookTranslator {
     const call = id ? this.openTools.get(id) : undefined
     if (!id || !call) return
     this.openTools.delete(id)
-    // It ran, so a prompt it had was allowed, in the terminal.
+    // It ran, so a prompt it had was allowed, and a question answered, in the terminal.
     if (call.permission) this.resolvePermission(call.permission, 'allow', 'external', out, true)
+    if (call.question) this.resolveQuestion(call.question, 'external', out, true)
     const error = status === 'error' ? str(p.error) : undefined
     out.push({ type: 'tool.finished', tool_call: id, status, ...(error ? { summary: clip(firstLine(error)) } : {}) })
   }
@@ -295,6 +311,66 @@ export class HookTranslator {
     for (const [id, p] of [...this.permissions]) {
       if (p.agent === agent) this.resolvePermission(id, 'deny', 'external', out, false)
     }
+    // A question the agent moved on from was answered or dismissed (Esc) there.
+    for (const [id, q] of [...this.questions]) {
+      if (q.agent === agent) this.resolveQuestion(id, 'external', out, false)
+    }
+  }
+
+  /**
+   * A clarifying question (the held PermissionRequest for AskUserQuestion).
+   * Returns its id and events, or null if it can't be shown (then the hook
+   * is answered at once and the question stays in the terminal only).
+   */
+  questionAsked(p: HookPayload): { question: Id; events: SessionEvent[] } | null {
+    const hookAgent = this.agentOf(p)
+    const input = isObject(p.tool_input) ? p.tool_input : null
+    const items = input ? questionItems(input) : null
+    if (!hookAgent || !input || !items) return null
+    // Its PreToolUse came first, with the tool_use_id and the agent (in
+    // case this hook doesn't name a subagent): the newest open question
+    // call, preferably the same agent's.
+    const open = [...this.openTools.entries()].filter(([, c]) => c.tool === QUESTION_TOOL && !c.question)
+    const [toolCall, call] = open.filter(([, c]) => c.agent === hookAgent).at(-1) ?? open.at(-1) ?? [null, null]
+    const agent = call?.agent ?? hookAgent
+    const question = toolCall && !this.questions.has(toolCall) ? toolCall : crypto.randomUUID()
+    if (call) call.question = question
+    this.questions.set(question, { agent, toolCall, input })
+    const events: SessionEvent[] = [{ type: 'question.asked', question: { question, agent, items } }]
+    this.setState(agent, 'waiting', 'question', events)
+    return { question, events }
+  }
+
+  /** The input the question was asked with (for the answer's reply). */
+  questionInput(question: Id): Record<string, unknown> | null {
+    return this.questions.get(question)?.input ?? null
+  }
+
+  /** Answered in the world (the held hook was answered). */
+  questionAnswered(question: Id): SessionEvent[] {
+    const out: SessionEvent[] = []
+    this.resolveQuestion(question, 'app', out, true)
+    return out
+  }
+
+  /** Claude Code stopped waiting on the held hook (answered or dismissed there, or timed out). */
+  questionGone(question: Id): SessionEvent[] {
+    const out: SessionEvent[] = []
+    this.resolveQuestion(question, 'external', out, true)
+    return out
+  }
+
+  private resolveQuestion(question: Id, by: 'app' | 'external', out: SessionEvent[], resume: boolean) {
+    const q = this.questions.get(question)
+    if (!q) return
+    this.questions.delete(question)
+    const call = q.toolCall ? this.openTools.get(q.toolCall) : undefined
+    if (call) call.question = null
+    out.push({ type: 'question.resolved', question, by })
+    const stillWaiting = [...this.questions.values()].some((x) => x.agent === q.agent)
+    if (resume && !stillWaiting && this.states.get(q.agent) === 'waiting' && this.reasons.get(q.agent) === 'question') {
+      this.setState(q.agent, 'working', null, out)
+    }
   }
 
   private subagentStarted(p: HookPayload, out: SessionEvent[]) {
@@ -342,6 +418,45 @@ export class HookTranslator {
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** AskUserQuestion's input as protocol items, or null if it isn't one. */
+export function questionItems(input: Record<string, unknown>): QuestionItem[] | null {
+  const qs = input.questions
+  if (!Array.isArray(qs) || qs.length === 0) return null
+  const items: QuestionItem[] = []
+  for (const q of qs) {
+    if (!isObject(q) || typeof q.question !== 'string' || !Array.isArray(q.options)) return null
+    const options: QuestionItem['options'] = []
+    for (const o of q.options) {
+      if (!isObject(o) || typeof o.label !== 'string') return null
+      options.push({ label: o.label, ...(typeof o.description === 'string' ? { description: o.description } : {}) })
+    }
+    items.push({
+      text: q.question, options, multi_select: q.multiSelect === true,
+      ...(typeof q.header === 'string' ? { header: q.header } : {}),
+    })
+  }
+  return items
+}
+
+/**
+ * The held hook's reply for an answer from the world. Answers: allow with
+ * the input plus `answers` keyed by question text (verified in the spike;
+ * several labels of a multi-select joined by ", ", unverified). A free
+ * response instead: deny with the user's words as the message (unverified).
+ * Throws on answers that don't fit the questions.
+ */
+export function questionReply(input: Record<string, unknown>, answer: { answers: string[][] } | { response: string }): Record<string, unknown> {
+  const decision = (d: Record<string, unknown>) => ({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: d } })
+  if ('response' in answer) return decision({ behavior: 'deny', message: answer.response })
+  const items = questionItems(input) ?? []
+  if (answer.answers.length !== items.length || answer.answers.some((a) => a.length === 0)) {
+    throw new Error('one answer per question is needed')
+  }
+  const answers: Record<string, string> = {}
+  items.forEach((item, i) => { answers[item.text] = answer.answers[i]!.join(', ') })
+  return decision({ behavior: 'allow', updatedInput: { ...input, answers } })
 }
 
 function parseObject(s: string): Record<string, unknown> | null {

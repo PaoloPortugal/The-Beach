@@ -895,6 +895,15 @@ it times out, the terminal question simply stays. (Run 1 held `PreToolUse`
 instead, which hid the question from the terminal; rejected, since the
 user must be able to answer in either place.) Questions don't go through
 the channel's permission relay.
+*Built (branch `s02-questions`; not yet run live):* sessions declare
+`questions`. `PermissionRequest` is registered only for `AskUserQuestion`
+(24 h timeout); the question's id is its `tool_use_id` from the
+`PreToolUse` just before, which also names the agent when the held hook
+doesn't. Answers from the world become `answers` keyed by question text;
+a multi-select's labels are joined with ", ", and a free `response` is
+sent as a deny with the user's words as the message (both unverified:
+check in the live run). Claude Code dropping the held hook (timeout,
+exit), or the agent moving on (Esc), resolves the question by external.
 
 **Stopping (`interrupt` capability, `immediate: false`).** Verified: on
 `interrupt.request` the sidecar answers the session's next `PreToolUse` with
@@ -1087,9 +1096,8 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** a live run of the permission relay (built on
-`s02-permissions`), the `questions` and
-`interrupt` capabilities, the transcript follower (Esc, terminal "No"),
+**Next:** live runs of the permission relay and questions (built on
+`s02-permissions` and `s02-questions`), the `interrupt` capability, the transcript follower (Esc, terminal "No"),
 session notices (`session.notice` schema entry, transcripts off, the
 "confirm in the terminal" startup text and how it reaches a session not
 yet announced), history, then the live run (checkpoint 2) and the S02
