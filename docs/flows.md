@@ -87,7 +87,7 @@ sequenceDiagram
     Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
     Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment)
     Sidecar-->>World: ok { session }
-    Claude->>User: folder trust (first time) and<br/>development channel confirmation
+    Claude->>User: folder trust (first time in a folder) and<br/>development channel confirmation (every launch)
     User->>Claude: accept
     Claude->>Bridge: start it (stdio)
     Bridge->>Sidecar: connect with the session's token
@@ -96,8 +96,10 @@ sequenceDiagram
     Note over Claude,Sidecar: No start hook: SessionStart doesn't support HTTP hooks,<br/>so the bridge connecting is the "session is up" signal.
 ```
 
-Ending: `/exit` in the terminal (or `session.end` from the world) → the
-`SessionEnd` hook → `session.ended` (island sinks).
+Ending: `/exit` in the terminal (or `session.end` from the world) →
+Claude Code exits and its bridge's connection closes → `session.ended`
+(island sinks). Not the `SessionEnd` hook: it also fires for `/clear`,
+when `claude` keeps running.
 
 Which terminal opens depends on the OS and the user's setting; the
 terminal is only given our launcher and a session file, and the launcher
@@ -126,18 +128,19 @@ sequenceDiagram
     Sidecar->>World: message.started / .completed (role user, unwrapped)
     Sidecar->>World: agent.state_changed orchestrator → working
     loop each batch of finished lines
-        Claude->>Sidecar: MessageDisplay (delta)
+        Claude->>Sidecar: MessageDisplay (message_id, delta, final)
         Sidecar-->>Claude: empty reply, instantly
-        Sidecar->>World: message.started (first batch), message.delta
+        Sidecar->>World: message.started (first batch), message.delta,<br/>message.completed (final batch: the full text)
     end
-    Claude->>Sidecar: Stop (final text)
+    Claude->>Sidecar: Stop
     Sidecar-->>Claude: nothing to add
-    Sidecar->>World: message.completed, orchestrator → idle
+    Sidecar->>World: orchestrator → idle (and completes any reply<br/>whose final batch never came)
 ```
 
 A message typed in the terminal arrives the same way, as plain text
-without the channel tag. A `<task-notification>` prompt is not a user
-message (see flow 5).
+without the channel tag. A `<task-notification>` or subagent hand-back
+prompt is not a user message (see flow 5). Tool calls in between are
+`tool.started` / `tool.finished` (flow 5 shows them).
 
 ## 3. A permission prompt
 
@@ -242,9 +245,10 @@ sequenceDiagram
     Claude->>Sidecar: SubagentStop (its report)
     Sidecar-->>Claude: nothing to add
     Sidecar->>World: subagent → done (runs its report to the parent, disappears)
-    Claude->>Sidecar: UserPromptSubmit with a task-notification
+    Claude->>Sidecar: UserPromptSubmit with a task-notification<br/>or a subagent hand-back (its report)
     Sidecar-->>Claude: nothing to add
     Sidecar->>World: orchestrator → working (not shown as a user message)
+    Note over Sidecar: A subagent stopped from the terminal gets no SubagentStop:<br/>its task-notification (status) ends it instead.
     Note over Sidecar: Stops or tool hooks for an agent never seen starting come from<br/>Claude Code's internal helpers and are ignored.
 ```
 

@@ -13,7 +13,8 @@
     "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
     "build": "node scripts/build.ts",
     "package": "node scripts/package.ts",
-    "dev:fake": "node test/dev-fake.ts"
+    "dev:fake": "node test/dev-fake.ts",
+    "try:claude": "node test/try-claude.ts"
   },
   "dependencies": {
     "ajv": "8.20.0",

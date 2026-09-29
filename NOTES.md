@@ -197,15 +197,19 @@ feature that touches them follows these rules, and each is tested:
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
-  which could carry another session's values. Remove only a named list of
-  those markers, never everything starting with `CLAUDE`: user
-  configuration such as `CLAUDE_CONFIG_DIR` and
+  which could carry another session's values. Remove a named list of
+  those markers plus a few **narrow families** by prefix (user's decision,
+  S02), only where every documented variable in the family is one Claude
+  Code sets itself: `CLAUDE_CODE_SESSION_`, `CLAUDE_CODE_CHILD_`,
+  `CLAUDE_CODE_MESSAGING_`, `CLAUDE_CODE_BRIDGE_` (checked against the
+  env-vars docs, 2026-09-29). Never everything starting with `CLAUDE`: user
+  configuration such as `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_EFFORT_LEVEL` and
   `CLAUDE_CODE_SKIP_PROMPT_HISTORY` (transcripts off) must pass through,
   or we'd silently undo the user's choices. (The S02 spike stripped every
   `CLAUDE*` variable; don't copy that.) The same goes for anything a store client
-  injects into the game (e.g. Steam's `LD_LIBRARY_PATH`, `LD_PRELOAD`
-  overlay hooks and `STEAM_*` variables). Exact list settled when building
-  S02.
+  injects into the game (e.g. Steam's `LD_PRELOAD` overlay hooks and its
+  `Steam*` variables). The lists are in `sidecar/src/providers/claude/env.ts`
+  and `sidecar/src/launch/env.ts`, with a test that user settings survive.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -250,7 +254,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Terminal windows.** A generic **terminal launcher** in the sidecar
   (not Claude-specific: any CLI provider runs in a terminal) opens the
   user's terminal on a per-OS default, with fallbacks and a setting to pick
-  another: Windows Terminal, then the classic console on Windows;
+  another: Windows Terminal, then the classic console (started through
+  `conhost.exe`, so the program gets a real console) on Windows;
   Terminal.app (iTerm2 selectable) on macOS; the first installed of the
   common ones (GNOME Terminal, Konsole, xfce4-terminal, kitty, Alacritty,
   WezTerm, …) on Linux. The terminal runs our **launcher** (a mode of the
@@ -355,8 +360,9 @@ removing a provider means deleting its folders.
 | `src/commands.ts` | Runs commands from Godot. |
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
-| `src/providers/` | One folder per provider (none until S02). |
-| `test/` | `node:test` suites, the fake provider and `dev-fake.ts`. Not shipped. |
+| `src/launch/` | Generic: terminal launcher, `launch` mode, clean environments. |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude`, launching it, the channel bridge and the hook endpoint (S02). |
+| `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
 
@@ -496,6 +502,10 @@ mountains) plug into it.
 *Planned.* Instantly jumps to a session's island, so you never have to walk
 across the world to reach an orchestrator. Sorting, grouping and whether to
 add a minimap are open question 3.
+
+*Possible feature, not planned (from Agent Office):* a "go to whoever has
+waited longest" shortcut that jumps straight to the agent that has been
+waiting longest on a permission or question.
 
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
@@ -696,16 +706,26 @@ Every hook carries `permission_mode`, so the world can show it.
 
 **Seeing the session: HTTP hooks** posted to the sidecar on localhost, with
 a per-session token header. Verified mapping:
-- The session is known to exist from the launch and the bridge connecting.
-  `SessionStart` doesn't support HTTP hooks. `SessionEnd` → session ended
-  (`reason`, e.g. `prompt_input_exit`).
-- `UserPromptSubmit` → user message. Three kinds, told apart by content:
+- The session is known to exist from the launch and the bridge connecting
+  (or its first hook, which also only comes after the startup dialogs).
+  `SessionStart` doesn't support HTTP hooks. It ends when the bridge's
+  connection closes (Claude Code exited), not on `SessionEnd`, which also
+  fires for `/clear` and `resume` while `claude` keeps running, so we don't
+  register it.
+- `UserPromptSubmit` → user message. Four kinds, told apart by content:
   typed in the terminal (plain text); from the world (wrapped in
-  `<channel source="..." ...>`, unwrap for display); and a
-  `<task-notification>` Claude Code injects when a background subagent
-  finishes (not a user message; the orchestrator goes back to working).
-- `MessageDisplay` → assistant text, in batches of whole lines (`index`,
-  `final`, `message_id`). Must be answered instantly with an empty body.
+  `<channel source="world-bridge" ...>`, unwrapped for display); and two
+  that Claude Code injects, which are not user messages (the orchestrator
+  goes back to working): a `<task-notification>` when a background task
+  ends (its `<status>` ends a subagent stopped from the terminal), and a
+  **subagent hand-back** `<agent-message from="<agent_id>">` carrying a
+  subagent's final report (seen live, 2.1.284). Injected prompts reuse the
+  user's `prompt_id`, so it names a user message only the first time.
+- `MessageDisplay` → assistant text, in batches of whole lines
+  (`message_id`, `index`, `final`, and `delta`: only the new text; the docs
+  describe a single `message_text` instead, also accepted). The final batch
+  completes the message with the full text. Must be answered instantly
+  with an empty body.
 - `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, keyed
   by `tool_use_id`. Inside a subagent they carry its `agent_id`.
 - `SubagentStart` / `SubagentStop` → subagents (`agent_id`, `agent_type`;
@@ -719,8 +739,29 @@ a per-session token header. Verified mapping:
   subagent). Reliable one at a time; recheck for parallel spawns.
 - `PermissionRequest` → permission requested (also `Notification` with
   `permission_prompt` about 6 s later).
+- `Notification` also says when Claude Code waits on the user for other
+  reasons (hooks docs, checked 2026-09-29; not yet seen live):
+  `elicitation_dialog` / `elicitation_url_dialog` (one of the user's MCP
+  servers asks something in the terminal) and `agent_needs_input` → the
+  agent is `waiting` with reason `input`, until the next hook shows it
+  moving again (`elicitation_complete` / `elicitation_response` for
+  elicitations). `idle_prompt` only repeats that the turn is over.
+- A long operation is not a waiting state: after `PreToolUse` and before
+  its `PostToolUse`, the agent is working on that tool call (no hook fires
+  while a command runs, but the open call is known).
 - `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
   → error.
+- *Built (2026-09-29):* `sidecar/src/providers/claude/hook-server.ts` (the
+  endpoint: one per sidecar, loopback, a token per session, `Origin` and
+  foreign `Host` refused, `POST /hook` only, 16 MiB body limit, always an
+  instant empty 200) and `hooks.ts` (the `--settings` file, and the
+  translation). Tool calls get a one-line summary (e.g. "Run: npm
+  install", paths relative to the project); inputs over 64 KiB aren't
+  forwarded. Parallel spawns pair an `Agent` call with its subagent by
+  agent type, oldest first. `PermissionRequest` isn't registered yet:
+  until the relay is built, prompts stay in the terminal and the world
+  shows the agent as working meanwhile. Verified live: a turn with a
+  file write, a failed read, a background subagent and its hand-back.
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
@@ -748,8 +789,11 @@ offer no setting of our own and never force saving back on (e.g. never
 `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
 has no transcript (no file at `transcript_path` once the first reply is
 in; what hooks send in that case is to check when building S02) and tells
-the world. How it's told is a protocol addition, to agree on when building
-S02. **The world shows only a short disclaimer** (user's decision), along
+the world with a **session notice** (user's decision, S02): a generic
+core event `session.notice` carrying a code (`transcripts_off`) and an
+English fallback message, also listed in the snapshot. Godot shows its own
+text for codes it knows. The same mechanism carries other warnings about a
+session (e.g. hooks blocked by `allowedHttpHookUrls`). **The world shows only a short disclaimer** (user's decision), along
 the lines of "Transcript saving is off in Claude Code, so some features
 may not work as intended. Turning it on is recommended." The detailed
 list below is for development, not for the UI. What still works:
@@ -768,6 +812,41 @@ bridge). What's limited:
 - **Attaching** to an outside session (later) shows nothing from before we
   joined, and capabilities that need the transcript (e.g. token usage,
   if hooks don't carry it) aren't declared.
+
+**Starting up: confirm in the terminal** (planned; user's decision, idea
+from Agent Office). Until the bridge connects we hear nothing from Claude
+Code, and nothing tells us why: it may be showing folder trust, login,
+first-run setup or the development-channel confirmation, or simply be
+starting slowly (updating, starting the user's other MCP servers).
+`SessionStart` can't reach HTTP hooks, and the docs don't say whether it
+fires before or after the trust dialog. But while channels are a research
+preview, the development-channel confirmation appears at launch, so every
+session we start needs the user in the terminal at least once. So the world
+doesn't guess:
+- From launch, it says "Confirm in the Claude Code terminal to start this
+  session." When the bridge connects, that becomes the rising island.
+- If the bridge still hasn't connected after a longer while (about a
+  minute or two, set from measurements), the text becomes "Still starting;
+  check the terminal." It never claims to know which case it is.
+- How the text reaches a session that isn't announced yet (the create
+  reply, or announcing at launch with the orchestrator waiting) is settled
+  when building this.
+
+Measured at checkpoint 1 (2026-09-29, Claude Code 2.1.284, Windows):
+- First launch in a new folder: folder trust, then the development-channel
+  confirmation. Second launch in the same folder: only the confirmation.
+  **The confirmation appears at every launch**, so every session needs the
+  user at the terminal once.
+- Claude Code starts the bridge only after its dialogs: the session came
+  up when the user answered the last one (8 s after launch on the second
+  run, with the user answering promptly).
+- A startup with no dialogs can't happen on this route while the
+  confirmation is shown every time, so there is nothing to measure there.
+  "Still starting" is for a user who hasn't answered yet, so it can wait
+  about two minutes.
+
+(Agent Office watches for a `SessionStart` hook that never fires instead;
+our HTTP hooks can't receive `SessionStart`.)
 
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
@@ -850,7 +929,10 @@ reaches that far back.
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its
-island (W04).
+island (W04). Claude Code offers no documented way to close a session from
+outside, so until S05 decides how, `session.end` gets `not_supported` for
+Claude sessions (user's decision, S02); `/exit` in the terminal still ends
+a session and sinks its island (the `SessionEnd` hook).
 
 ## Conventions
 
@@ -933,6 +1015,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
   Apps only see a new environment variable after they restart, and Godot
   launched from Godot Hub inherits the Hub's environment, so restart the Hub.
 - Update with the dock's **Update** button, never by copying files over it.
+- Port clash: the server's HTTP port (default 8000) is often taken on
+  Windows by Docker or WSL. Change Editor Settings → Plugins → `godot_ai`
+  → Http Port (or the dock's port picker), and the `--port` in the client
+  entry to match (Configure rewrites it); restart Claude Code to reconnect.
 
 ## Open questions
 
@@ -960,9 +1046,37 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M1, sidecar first (user's decision). S01 (sidecar core,
-WebSocket server, packaging, Godot client) is built and awaiting review;
-next is S02, the Claude provider.
+**Current focus:** M1, sidecar first (user's decision). S01 is merged.
+S02 (Claude provider) is in progress. Its first part (launcher, bridge,
+hooks) was merged on 2026-09-29 with the user's approval; the rest goes on
+follow-up branches (`s02-*`). Two review checkpoints (user's decision):
+after the terminal launcher opens a real `claude`, and at the end with a
+live run.
+
+*Handoff (2026-09-29).* Built and tested (94 `node:test` checks, all
+passing): terminal launcher and `launch` mode, finding `claude` (minimum
+2.1.284), clean environments (named markers plus narrow families), the
+channel bridge (`bridge claude` mode: own MCP handshake, link back to the
+sidecar), and the provider's create path (session comes up when the
+bridge is ready, ends when it closes or after 15 min without coming up;
+world chat goes down the bridge), and HTTP hooks with their translation
+into messages, tool calls, subagents and agent states (S02 → Seeing the
+session; verified live). `session.end` answers `not_supported` (S05).
+
+**Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
+folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
+world message reached Claude and it replied, `/exit` ended the session,
+and the transcript was written under `~/.claude/projects/` with our
+session ID (so no session markers were inherited). Startup prompts are in
+S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
+(dev log 2026-09-29-windows-terminals).
+
+**Next:** permission relay and `permission.respond`, the `questions` and
+`interrupt` capabilities, the transcript follower (Esc, terminal "No"),
+session notices (`session.notice` schema entry, transcripts off, the
+"confirm in the terminal" startup text and how it reaches a session not
+yet announced), history, then the live run (checkpoint 2) and the S02
+docs (Systems section, guide, flows, dev log).
 
 ### Milestones
 
@@ -999,6 +1113,12 @@ exists.
 
 ### Deferred ideas (not features yet)
 
+- **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
+  every assistant entry in the transcript records the API's token usage and
+  model, subagent transcripts sit next to it, and Claude Code appends its
+  own cost total when a session ends, which is the figure to trust. Read
+  only, like the rest of the transcript (S02). Not available when
+  transcripts are off.
 - **Agent scaling**, only if agent counts become a problem:
   - *Island growth:* the island footprint grows, or subdivides into a
     mini-archipelago, past some agent count.
@@ -1037,10 +1157,19 @@ exists.
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
   sidecar should detect missing hook events and explain this.
-- **MCP SDK weight.** The official MCP SDK (needed for the channel bridge)
-  pulls in 94 packages, including a web server we don't use. Consider a
-  minimal stdio implementation of the few messages the bridge needs,
-  weighed against the "few dependencies" rule.
+- **Own MCP code in the bridge.** *Decided (user's, S02):* the channel
+  bridge speaks the few MCP messages it needs itself instead of using the
+  official MCP SDK, which pulls in 94 packages, including a web server we
+  don't use. **Re-evaluate** (user's instruction) whenever the bridge's MCP
+  handling grows: if we keep adding to it, switch to the SDK rather than
+  re-implement what Anthropic already maintains.
+  *MCP's 2026-07-28 revision* drops the `initialize` handshake and lets a
+  server send notifications only inside a request or a client-opened
+  subscription, which is how channel messages would have to travel. The
+  bridge speaks the older handshake, exactly like the official SDK (1.31.0,
+  up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
+  Claude Code updates: if it stops accepting older servers, or channels
+  move to subscriptions, adopt the SDK once it supports the new revision.
 - **Transcript format.** Esc and terminal "No" are only visible in the
   transcript, whose line format isn't a documented interface. It is used
   for status only, parsed defensively, and re-checked on Claude Code
