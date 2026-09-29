@@ -317,10 +317,9 @@ open question 6), then open `project.godot` in Godot 4.7.2 and press F5.
 
 ## Known issues and next steps
 
-**Current focus:** scaffold merged. Pending: the user reviews the DESIGN.md →
-NOTES mapping (see the setup dev-log entry), then DESIGN.md is deleted. The
-sidecar language (open question 6) is under investigation. Next: settle the
-event schema (open question 1), then the Markdown → BBCode spike (C03).
+**Current focus:** settle the event schema (open question 1), including the
+capability and extension format. The sidecar language (open question 6) is
+under investigation. Then: the Markdown → BBCode spike (C03).
 
 ### Milestones
 
