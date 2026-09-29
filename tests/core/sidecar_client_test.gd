@@ -47,6 +47,15 @@ func _run() -> void:
 		var ended := await _event(func(m: Dictionary) -> bool: return m["type"] == "session.ended")
 		_check(ended.get("reason") == "user", "session.ended")
 
+	# A dropped connection while the sidecar runs: the client reconnects and syncs again.
+	var syncs := [0]
+	sidecar.synced.connect(func(_p: Array) -> void: syncs[0] += 1)
+	sidecar._ws.close()
+	await _until(func() -> bool: return syncs[0] == 1, 10.0)
+	_check(syncs[0] == 1 and sidecar.status == SidecarClient.Status.READY, "reconnects after a dropped connection")
+	reply = await _command(sidecar, "session.list_stored", {"provider": "nope"})
+	_check(reply.get("code") == "unknown_provider", "commands work after reconnecting")
+
 	var pid: int = sidecar._pid
 	sidecar.stop()
 	_check(not OS.is_process_running(pid), "sidecar exits when stopped")
