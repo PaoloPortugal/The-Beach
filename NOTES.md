@@ -1176,15 +1176,23 @@ follow-up branches (`s02-*`). Two review checkpoints (user's decision):
 after the terminal launcher opens a real `claude`, and at the end with a
 live run.
 
-*Handoff (2026-09-29).* Built and tested (94 `node:test` checks, all
-passing): terminal launcher and `launch` mode, finding `claude` (minimum
-2.1.284), clean environments (named markers plus narrow families), the
-channel bridge (`bridge claude` mode: own MCP handshake, link back to the
-sidecar), and the provider's create path (session comes up when the
-bridge is ready, ends when it closes or after 15 min without coming up;
-world chat goes down the bridge), and HTTP hooks with their translation
-into messages, tool calls, subagents and agent states (S02 → Seeing the
-session; verified live). `session.end` answers `not_supported` (S05).
+*Handoff (2026-09-29, after an unattended session).* On `main`:
+terminal launcher and `launch` mode, finding `claude` (minimum 2.1.284),
+clean environments, the channel bridge, the provider's create path, and
+HTTP hooks with their translation (S02 → Seeing the session; verified
+live). On one straight chain of unmerged branches, in merge order
+(`s02-permissions` → `s02-questions` → `s02-interrupt` →
+`s02-transcript` → `s02-notices` → `s02-history` → `s02-live-tools` →
+`s04-list-resume` → `s02-hooks-notice` → `core-session-store`; 139
+`node:test` checks plus 3 Godot headless tests): the permission relay,
+questions, stopping, the transcript follower, session notices
+(`transcripts_off`, `hooks_unavailable`), history, `try:claude`'s world
+buttons, the scripted `dev:fake`, S04's sidecar side, and Godot's
+`SessionStore`. Parts were checked against a real `claude` with
+`claude -p`, which needs no channel (dev log
+2026-09-29-s02-relay-questions-stop). Two proposal branches off the top
+(`proposal-permission-note`, `proposal-startup-notice`) await the user's
+choice. `session.end` answers `not_supported` (S05).
 
 **Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
 folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
@@ -1194,13 +1202,13 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** live runs of the permission relay, questions, stopping, the
-transcript follower and the transcripts-off notice (built on
-`s02-permissions`, `s02-questions`, `s02-interrupt`, `s02-transcript`,
-`s02-notices`, `s02-history`; the `session.notice` shape awaits
-approval), the "confirm in the terminal" startup text (how it reaches a
-session not yet announced is the user's call), then the live run
-(checkpoint 2) and the S02 docs (Systems section, guide, flows, dev log).
+**Next:** the user's review of the branches and their answers to the
+open decisions (the `session.notice` shape, the startup text, permission
+notes, stopped subagents, which stored sessions to list), then the live
+run (checkpoint 2; `try:claude`'s `/` commands cover it) and the S02 docs
+(Systems section, guide, dev log). After S02: the M1 world, which needs
+the user's calls on camera, movement, island, ocean, props and the chat
+panel first.
 
 ### Milestones
 
