@@ -991,7 +991,7 @@ reaches that far back.
 island (W04). Claude Code offers no documented way to close a session from
 outside, so until S05 decides how, `session.end` gets `not_supported` for
 Claude sessions (user's decision, S02); `/exit` in the terminal still ends
-a session and sinks its island (the `SessionEnd` hook).
+a session and sinks its island (its channel bridge closes).
 
 ## Conventions
 
