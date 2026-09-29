@@ -430,7 +430,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | Sidecar → Godot | Godot → sidecar |
 |---|---|
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
-| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `session.snapshot`, `session.created`, `session.ended`, `session.notice` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
 | `tool.started`, `tool.finished` | |
@@ -443,6 +443,12 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   text typed in the terminal shows up in the world.
 - `permission.resolved` has `by`: `app` or `external` (answered in the
   terminal).
+- `session.notice` tells the user something about a session that isn't an
+  agent's state: a `code` (Godot shows its own text for codes it knows)
+  and an English fallback `message`. One per code (a new one replaces
+  it); the snapshot lists them in `notices`. Codes: `transcripts_off`.
+  *(Drafted on branch `s02-notices`; the shape awaits the user's
+  approval.)*
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -813,8 +819,9 @@ history in every mode (docs, checked 2026-09-29). `cleanupPeriodDays`
 only shortens how long they're kept (default 30 days, minimum 1). We
 offer no setting of our own and never force saving back on (e.g. never
 `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
-has no transcript (no file at `transcript_path` once the first reply is
-in; what hooks send in that case is to check when building S02) and tells
+has no transcript (no file at `transcript_path` about a second after the
+first reply ends: with saving off, hooks still name a path but nothing is
+written there; probed with `claude -p`, 2.1.284) and tells
 the world with a **session notice** (user's decision, S02): a generic
 core event `session.notice` carrying a code (`transcripts_off`) and an
 English fallback message, also listed in the snapshot. Godot shows its own
@@ -1114,11 +1121,12 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** live runs of the permission relay, questions and stopping
-and the transcript follower (built on `s02-permissions`,
-`s02-questions`, `s02-interrupt`, `s02-transcript`), session notices (`session.notice` schema entry, transcripts off, the
-"confirm in the terminal" startup text and how it reaches a session not
-yet announced), history, then the live run (checkpoint 2) and the S02
+**Next:** live runs of the permission relay, questions, stopping, the
+transcript follower and the transcripts-off notice (built on
+`s02-permissions`, `s02-questions`, `s02-interrupt`, `s02-transcript`,
+`s02-notices`; the `session.notice` shape awaits approval), the "confirm
+in the terminal" startup text (how it reaches a session not yet announced
+is the user's call), history, then the live run (checkpoint 2) and the S02
 docs (Systems section, guide, flows, dev log).
 
 ### Milestones
