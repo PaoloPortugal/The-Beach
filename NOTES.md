@@ -84,6 +84,7 @@ v1 slice.
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
 | C05 | Permission approve / deny                 | planned | n/a           | n/a       |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
+| C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | planned | n/a           | n/a       |
 | S02 | Claude provider (v1)                      | planned | n/a           | n/a       |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
@@ -432,6 +433,21 @@ Claude Code refuses `setMode` to `bypassPermissions` unless the session was
 launched with bypass available, which we never do. Protocol fields are
 added when this is built.
 
+### C07 Plan approval
+*Planned (after v1). Scope: capability `plans`* (plan modes exist in other
+tools too). Approve or reject a plan from the world, as well as in the
+terminal. In the terminal, when Claude finishes planning, it shows the plan
+and offers: **Yes, and use auto mode** (or "auto-accept edits"), **Yes,
+manually approve edits**, and **No, keep planning** (tell Claude what to
+change). This runs through Claude's `ExitPlanMode` tool, which Claude Code
+treats like `AskUserQuestion` (it needs a person), and hooks receive the
+plan's Markdown (`tool_input.plan`). Intended design, the same as C04's
+questions: the plan shows in both places, the `PermissionRequest` hook is
+held, first answer wins. Approve → `allow` with the input echoed back plus
+the matching `setMode` (see C06); keep planning → `deny` with the user's
+feedback as the message. **Untested:** needs a short spike before it's
+built. Rendering the plan depends on C03.
+
 ### S01 Sidecar and WebSocket server
 *Planned (v1).* The sidecar process that hosts the session registry and the
 local WebSocket server Godot connects to. It speaks only the generic
@@ -552,10 +568,22 @@ subagent; the orchestrator is told and carries on.
 or offline, Claude Code fell back to its own terminal prompt every time and
 nothing was allowed. Hooks resume when the server comes back.
 
-**Not available on this route:** an immediate stop (Esc) and anything only
-the terminal shows (folder trust, MCP consent, the channel confirmation).
-Typing into the terminal was considered and rejected for now (see the
-dev log, 2026-09-29-claude-cli-route).
+**Terminal-only on this route.** No documented way exists to do these
+from outside, so they stay in the terminal (the world sees their effects
+through hooks where there are any). Typing keystrokes into the terminal was
+considered and rejected (dev log 2026-09-29-claude-cli-route).
+- An immediate stop from the world (the world's stop lands at the next
+  step; Esc in the terminal is immediate).
+- Prompts only the terminal shows: folder trust, MCP server consent, the
+  development-channel confirmation.
+- Built-in slash commands: session-changing ones (`/model`, `/effort`,
+  `/compact`, `/clear`, `/rewind`, `/permissions`, `/mcp`, `/config`, ...)
+  and screens (`/context`, `/usage`, `/diff`, `/help`, ...). Some have
+  launch-time equivalents: model, effort, name and permission mode can be
+  chosen when creating or resuming a session. Chat messages from the world
+  starting with `/` reach Claude as plain text, not as commands.
+- Switching permission mode with no prompt open (C06 covers switching at
+  launch and while answering a prompt).
 
 ### S03 Create session
 *Planned.* A "create new session" command from Godot; the sidecar launches
@@ -697,6 +725,12 @@ exists.
 - **Other biomes:** hills, mountains, joined by the same bridge system (W06).
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
+- **Commands from the world** (probably a capability). Skills and custom
+  commands could be sent through as requests, since Claude can run most
+  skills itself (not guaranteed; skills marked user-only won't run that
+  way; untested). Built-ins with a launch-time equivalent could be offered
+  at session creation or resume. Other built-ins stay terminal-only (S02),
+  and the world should say so instead of sending them to Claude as text.
 
 ### Watch items
 
