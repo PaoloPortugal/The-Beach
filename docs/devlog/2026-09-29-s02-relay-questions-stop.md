@@ -59,6 +59,16 @@ next turn was stopped too. Now the stop applies to the agents busy when it
 was asked, each once. The regression test was checked to fail on the old
 code.
 
+**Found with a live probe:** `claude -p` needs no channel, so no
+confirmation prompt, and hooks can be pointed at the real endpoint and
+translator unattended. Stopping at the first tool call worked, but a call
+issued in the same batch still arrived and ran, which would have left the
+orchestrator "working" forever (no `Stop` hook follows a stop). Now a
+stopped agent's further calls are stopped too until a new turn; re-probed:
+nothing ran. The same method checked the translation with real payloads
+(a foreground subagent, tool calls, reply, idle) and that
+`allowedHttpHookUrls` excluding our URL makes hooks vanish with no error.
+
 ## Transcript follower
 
 The spike's transcript has exactly what hooks miss. A "No" is a tool

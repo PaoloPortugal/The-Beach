@@ -154,3 +154,22 @@ test('through a session: a stop only applies to the turn it was asked in', async
     assert.deepEqual(await x.send(tool('toolu_3')), { status: 200, body: '' })
   } finally { await x.close() }
 })
+
+// Seen with claude -p (2.1.284): calls issued in the same batch as the
+// stopped one still arrive, and would otherwise run.
+test('through a session: the rest of a stopped batch is stopped too, silently, until the next turn', async () => {
+  const x = await liveSession()
+  try {
+    await x.send(hook('UserPromptSubmit', { prompt: 'read and glob' }))
+    await x.c.command({ type: 'interrupt.request', session: x.id })
+    assert.equal(JSON.parse((await x.send(tool('toolu_read'))).body).continue, false)
+    await x.c.next((m) => m.type === 'agent.state_changed' && m.agent === 'main' && m.state === 'idle')
+    const glob = await x.send(hook('PreToolUse', { tool_name: 'Glob', tool_input: { pattern: '*.md' }, tool_use_id: 'toolu_glob' }))
+    assert.equal(JSON.parse(glob.body).continue, false)
+    const after = await x.c.quiet()
+    assert.ok(!after.some((m) => m.type === 'tool.started' || m.type === 'agent.state_changed'), JSON.stringify(after.map((m) => m.type)))
+    // The next turn runs normally.
+    await x.send(hook('UserPromptSubmit', { prompt: 'go on' }))
+    assert.deepEqual(await x.send(tool('toolu_next')), { status: 200, body: '' })
+  } finally { await x.close() }
+})
