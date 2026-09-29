@@ -40,3 +40,5 @@ branch before merging. Then write the dev-log entry. Follow the
   AI-generated**. Don't create art assets unless asked for a placeholder.
   Record every asset in `assets/CREDITS.md`.
 - Don't move or rename anything in the Godot project without asking.
+- Follow NOTES.md → Principles and Security rules. Security and fail-safe
+  behaviour are tested, not assumed.
