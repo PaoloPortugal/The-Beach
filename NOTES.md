@@ -1047,8 +1047,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** M1, sidecar first (user's decision). S01 is merged.
-S02 (Claude provider) is in progress on branch `s02-claude-provider`
-(pushed, not merged), with two review checkpoints (user's decision):
+S02 (Claude provider) is in progress. Its first part (launcher, bridge,
+hooks) was merged on 2026-09-29 with the user's approval; the rest goes on
+follow-up branches (`s02-*`). Two review checkpoints (user's decision):
 after the terminal launcher opens a real `claude`, and at the end with a
 live run.
 
