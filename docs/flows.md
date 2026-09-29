@@ -40,6 +40,7 @@ transcripts are off).
 - [5. A subagent](#5-a-subagent)
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
+- [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
 
 ## 0. Starting up
 
@@ -312,4 +313,34 @@ sequenceDiagram
     end
     Claude->>User: normal behaviour: the terminal asks
     Note over User,Claude: Nothing is ever allowed because our side failed.<br/>Hooks resume when the sidecar comes back.
+```
+
+If the user's settings only allow other hook URLs (`allowedHttpHookUrls`),
+no hook ever arrives and nothing reports an error. The sidecar notices when
+a world message sent while the orchestrator is idle brings no hook within
+10 s, and sends `session.notice` (`hooks_unavailable`); chat still works
+through the bridge.
+
+## 8. Resuming a stored session (S04)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Store as Transcripts
+    participant Claude as Claude Code (terminal)
+
+    User->>World: open the list of earlier sessions
+    World->>Sidecar: session.list_stored (optionally one project)
+    Store->>Sidecar: each file's first and last 64 KiB (read-only):<br/>folder, where it started, name, first message
+    Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
+    User->>World: pick one
+    World->>Sidecar: session.resume (native_id)
+    Store->>Sidecar: its whole transcript: the chat so far
+    Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel
+    Sidecar-->>World: ok { session }
+    Note over Claude,Sidecar: From here it's flow 1: the confirmation, the bridge<br/>connects, session.created. The session keeps its id.
+    World->>Sidecar: session.get_history
+    Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
 ```
