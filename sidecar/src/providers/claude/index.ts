@@ -16,6 +16,15 @@ import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
+import { BRIDGE_SERVER_NAME } from './bridge.ts'
+import { BridgeServer, type BridgeLink } from './bridge-server.ts'
+
+/**
+ * How long a launched session may take to come up (the user answering the
+ * startup prompts in its terminal). After that it's treated as gone: if the
+ * user chose Exit at a startup prompt, nothing else would tell us.
+ */
+export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
 
 export interface ClaudeOptions {
   log?: Log
@@ -29,6 +38,8 @@ export interface ClaudeOptions {
   openTerminal?: typeof openTerminal
   /** For tests: replaces finding claude. */
   findClaude?: () => Promise<FoundClaude>
+  /** For tests: a shorter startup timeout. */
+  startupTimeoutMs?: number
 }
 
 /** Everything the launched claude and our side share for one session. */
@@ -43,6 +54,7 @@ export class ClaudeProvider implements Provider {
   private readonly opts: ClaudeOptions
   private readonly log: Log
   private readonly runDirs = new Set<string>()
+  private bridges: BridgeServer | null = null
 
   constructor(opts: ClaudeOptions = {}) {
     this.opts = opts
@@ -57,12 +69,30 @@ export class ClaudeProvider implements Provider {
 
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
     const found = await this.find()
+    const bridges = await this.bridgeServer()
     const launch = this.prepare()
     const name = options.project.name ?? path.basename(options.project.path)
-    const args = ['--session-id', launch.nativeId, '--name', name]
-    await this.launch(launch, found.path, args, options.project.path, name)
+    const session = new ClaudeSession(host, launch, options.project, name, this.log,
+      () => this.forget(launch.runDir), this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)
+    session.link = bridges.register(session.bridgeHandlers())
+    const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
+    const args = [
+      '--session-id', launch.nativeId,
+      '--name', name,
+      '--mcp-config', mcpConfig,
+      // Custom channels need this while channels are a research preview;
+      // Claude Code asks the user to confirm it in the terminal.
+      '--dangerously-load-development-channels', `server:${BRIDGE_SERVER_NAME}`,
+    ]
+    try {
+      await this.launch(launch, found.path, args, options.project.path, name)
+    } catch (e) {
+      session.dispose()
+      throw e
+    }
     this.log.info(`launched claude ${found.version} for session ${host.id}`)
-    return new ClaudeSession(host, launch)
+    session.startWaiting()
+    return session
   }
 
   async resume(): Promise<ProviderSession> {
@@ -74,8 +104,38 @@ export class ClaudeProvider implements Provider {
   }
 
   async shutdown(): Promise<void> {
+    await this.bridges?.close()
+    this.bridges = null
     for (const dir of this.runDirs) fs.rmSync(dir, { recursive: true, force: true })
     this.runDirs.clear()
+  }
+
+  private async bridgeServer(): Promise<BridgeServer> {
+    if (!this.bridges) this.bridges = new BridgeServer(this.log)
+    await this.bridges.start()
+    return this.bridges
+  }
+
+  private forget(runDir: string) {
+    fs.rmSync(runDir, { recursive: true, force: true })
+    this.runDirs.delete(runDir)
+  }
+
+  /**
+   * The MCP config that makes Claude Code start our bridge: this executable
+   * in bridge mode, with the link's port and token in the bridge's own
+   * environment (not Claude's: the bridge is Claude Code's child, so
+   * commands Claude runs never see it).
+   */
+  private writeMcpConfig(launch: Launch, port: number, token: string): string {
+    const [command, ...args] = (this.opts.selfCommand ?? selfCommand)('bridge', 'claude')
+    const file = path.join(launch.runDir, 'mcp.json')
+    fs.writeFileSync(file, JSON.stringify({
+      mcpServers: {
+        [BRIDGE_SERVER_NAME]: { command, args, env: { BRIDGE_PORT: String(port), BRIDGE_TOKEN: token } },
+      },
+    }), { mode: 0o600 })
+    return file
   }
 
   private async find(): Promise<FoundClaude> {
@@ -112,8 +172,7 @@ export class ClaudeProvider implements Provider {
       )
       this.log.info(`opened ${used}`)
     } catch (e) {
-      fs.rmSync(launch.runDir, { recursive: true, force: true })
-      this.runDirs.delete(launch.runDir)
+      this.forget(launch.runDir)
       if (e instanceof TerminalError) {
         throw new CommandError('provider_error', 'No terminal window could be opened to run Claude Code.')
       }
@@ -125,14 +184,78 @@ export class ClaudeProvider implements Provider {
 class ClaudeSession implements ProviderSession {
   readonly host: SessionHost
   readonly launch: Launch
+  link: BridgeLink | null = null
+  private readonly project: Project
+  private readonly name: string
+  private readonly log: Log
+  private readonly cleanup: () => void
+  private readonly startupTimeoutMs: number
+  private launchedAt = 0
+  private startupTimer: NodeJS.Timeout | null = null
+  private disposed = false
 
-  constructor(host: SessionHost, launch: Launch) {
+  constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
+    cleanup: () => void, startupTimeoutMs: number) {
     this.host = host
     this.launch = launch
+    this.project = project
+    this.name = name
+    this.log = log
+    this.cleanup = cleanup
+    this.startupTimeoutMs = startupTimeoutMs
   }
 
-  async sendMessage(): Promise<void> {
-    throw new CommandError('not_supported', 'not built yet')
+  bridgeHandlers() {
+    return {
+      onReady: () => this.onReady(),
+      onPermissionRequest: () => { /* the permission relay comes with the hooks */ },
+      onClose: () => this.onGone('the bridge closed'),
+    }
+  }
+
+  /** Called once the terminal is open: the user now answers the startup prompts. */
+  startWaiting() {
+    this.launchedAt = Date.now()
+    this.startupTimer = setTimeout(() => this.onGone('it never came up'), this.startupTimeoutMs)
+    this.startupTimer.unref()
+  }
+
+  private onReady() {
+    if (this.disposed || this.host.ended) return
+    if (this.startupTimer) clearTimeout(this.startupTimer)
+    this.startupTimer = null
+    // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
+    this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
+    this.host.announce({
+      native_id: this.launch.nativeId,
+      project: this.project,
+      title: this.name,
+      capabilities: {},
+      extensions: [],
+      agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
+    })
+  }
+
+  /** Claude Code exited, or never came up. */
+  private onGone(why: string) {
+    if (this.disposed) return
+    this.log.info(`session ${this.host.id} is gone: ${why}`)
+    this.dispose()
+    this.host.end('exited')
+  }
+
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    if (this.startupTimer) clearTimeout(this.startupTimer)
+    this.link?.unregister()
+    this.cleanup()
+  }
+
+  async sendMessage(text: string): Promise<void> {
+    if (!this.link?.send({ type: 'chat', text })) {
+      throw new CommandError('provider_error', 'The session is not connected.')
+    }
   }
   async respondPermission(): Promise<void> {
     throw new CommandError('not_supported', 'not built yet')
