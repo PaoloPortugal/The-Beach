@@ -7,7 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { HistoryMessage, Project, StoredSession } from '../../protocol.ts'
+import type { HistoryMessage, Project, SessionEvent, StoredSession } from '../../protocol.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
 import { writeSessionFile } from '../../launch/launcher.ts'
@@ -19,7 +19,7 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer, type BridgeLink } from './bridge-server.ts'
 import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
-import { HookTranslator, hookSettings, MAIN } from './hooks.ts'
+import { HookTranslator, hookSettings, MAIN, type RelayedPermission } from './hooks.ts'
 
 /**
  * How long a launched session may take to come up (the user answering the
@@ -27,6 +27,13 @@ import { HookTranslator, hookSettings, MAIN } from './hooks.ts'
  * user chose Exit at a startup prompt, nothing else would tell us.
  */
 export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
+
+/**
+ * How long a relayed permission prompt waits for its tool call's
+ * PreToolUse, which comes on another connection (about 100 ms earlier in
+ * the S02 spike). After that it's shown without one, as the orchestrator's.
+ */
+export const PERMISSION_MATCH_MS = 300
 
 export interface ClaudeOptions {
   log?: Log
@@ -234,7 +241,7 @@ class ClaudeSession implements ProviderSession {
   bridgeHandlers() {
     return {
       onReady: () => this.onReady(),
-      onPermissionRequest: () => { /* the permission relay comes with the hooks */ },
+      onPermissionRequest: (p: RelayedPermission) => this.onPermissionRequest(p),
       onClose: () => this.onGone('the bridge closed'),
     }
   }
@@ -269,7 +276,22 @@ class ClaudeSession implements ProviderSession {
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
-    for (const event of this.translator.translate(p)) this.host.emit(event)
+    this.emitAll(this.translator.translate(p))
+  }
+
+  /** Claude Code shows a permission prompt, relayed by the bridge. */
+  private onPermissionRequest(p: RelayedPermission) {
+    if (this.disposed || this.host.ended) return
+    const events = this.translator.permissionRequested(p)
+    if (events) return this.emitAll(events)
+    const t = setTimeout(() => {
+      if (!this.disposed && !this.host.ended) this.emitAll(this.translator.permissionRequested(p, true) ?? [])
+    }, PERMISSION_MATCH_MS)
+    t.unref()
+  }
+
+  private emitAll(events: SessionEvent[]) {
+    for (const event of events) this.host.emit(event)
   }
 
   /** Claude Code exited, or never came up. */
@@ -294,8 +316,19 @@ class ClaudeSession implements ProviderSession {
       throw new CommandError('provider_error', 'The session is not connected.')
     }
   }
-  async respondPermission(): Promise<void> {
-    throw new CommandError('not_supported', 'not built yet')
+  /**
+   * The user answered a prompt in the world. The verdict goes down the
+   * bridge and closes the terminal's dialog; nothing is allowed any other
+   * way (NOTES.md -> Security rules).
+   */
+  async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string): Promise<void> {
+    // The channel's verdict carries no message (open question: send a note
+    // as a chat message after a deny?). Refuse rather than drop the user's words.
+    if (note) throw new CommandError('not_supported', 'notes with a permission answer are not supported yet')
+    if (!this.link?.send({ type: 'verdict', request_id: permission, behavior: decision })) {
+      throw new CommandError('provider_error', 'The session is not connected.')
+    }
+    this.emitAll(this.translator.permissionAnswered(permission, decision))
   }
   async end(): Promise<void> {
     // No documented way to close Claude Code from outside (S05 decides).
