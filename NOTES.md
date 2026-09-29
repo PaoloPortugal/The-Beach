@@ -251,9 +251,9 @@ translates its hook/SDK events into generic events. It is the only place
 Claude-specific names may appear.
 
 ### S03 Create session
-*Planned.* A "create new session" command from Godot. Whether the app only
-runs sessions itself, attaches to sessions already running elsewhere, or both
-is open question 5.
+*Planned.* A "create new session" command from Godot. The app runs sessions
+itself first; attaching to sessions already running elsewhere comes later
+(open question 5, decided).
 
 ### S04 List and resume sessions
 *Planned.* Claude Code stores transcripts as JSONL under
@@ -329,8 +329,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
-5. **Session ownership.** Does the app run sessions itself, attach to
-   sessions already running elsewhere, or both?
+5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
+   runs sessions started from inside the app; attaching to sessions already
+   running elsewhere comes later. The event schema must allow for attaching
+   (joining a session partway through) even though v1 doesn't use it.
 6. **Sidecar language.** Node, Python or something else? The design left
    Node or Python open; the user is investigating. Only the Claude provider
    depends heavily on this (it needs a Claude Agent SDK or the `claude` CLI).
