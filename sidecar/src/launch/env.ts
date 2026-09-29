@@ -1,7 +1,9 @@
 // Clean child environments (NOTES.md -> Security rules): a launched program
-// gets the user's normal environment minus a named list of variables that
-// belong to someone else (another tool's session, a store client). Never a
-// prefix wipe: user configuration must pass through untouched.
+// gets the user's normal environment minus variables that belong to someone
+// else (another tool's session, a store client): a named list, plus narrow
+// prefixes for families the tool documents as its own. Never a broad wipe
+// (e.g. everything starting with the tool's name): user configuration must
+// pass through untouched.
 
 export type Env = Record<string, string | undefined>
 
@@ -18,16 +20,21 @@ export const STORE_CLIENT_VARIABLES: readonly string[] = [
 /** Library preloads from a store overlay; other entries in LD_PRELOAD are kept. */
 const OVERLAY_PRELOAD = /gameoverlayrenderer/i
 
+/** What to remove: exact names, and name prefixes (each a whole family). */
+export interface Unset { names: readonly string[]; prefixes?: readonly string[] }
+
 /**
- * Returns a copy of `env` without the `remove` names. Names compare
- * case-insensitively on Windows, where environment names are.
+ * Returns a copy of `env` without the given names and prefixes. Names
+ * compare case-insensitively on Windows, where environment names are.
  */
-export function cleanEnv(env: Env, remove: readonly string[], platform: NodeJS.Platform = process.platform): Record<string, string> {
+export function cleanEnv(env: Env, unset: Unset, platform: NodeJS.Platform = process.platform): Record<string, string> {
   const fold = platform === 'win32' ? (k: string) => k.toUpperCase() : (k: string) => k
-  const drop = new Set(remove.map(fold))
+  const drop = new Set(unset.names.map(fold))
+  const prefixes = (unset.prefixes ?? []).map(fold)
   const out: Record<string, string> = {}
   for (const [k, v] of Object.entries(env)) {
-    if (v === undefined || drop.has(fold(k))) continue
+    const key = fold(k)
+    if (v === undefined || drop.has(key) || prefixes.some((p) => key.startsWith(p))) continue
     out[k] = v
   }
   if (platform !== 'win32' && out.LD_PRELOAD !== undefined) {

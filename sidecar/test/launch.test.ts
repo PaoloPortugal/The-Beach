@@ -21,19 +21,27 @@ function tmp(): string {
 
 test('cleanEnv removes exactly the named variables', () => {
   const env = { CLAUDECODE: '1', CLAUDE_CONFIG_DIR: '/c', PATH: '/bin', KEEP: 'x', GONE: undefined }
-  assert.deepEqual(cleanEnv(env, ['CLAUDECODE'], 'linux'), { CLAUDE_CONFIG_DIR: '/c', PATH: '/bin', KEEP: 'x' })
+  assert.deepEqual(cleanEnv(env, { names: ['CLAUDECODE'] }, 'linux'), { CLAUDE_CONFIG_DIR: '/c', PATH: '/bin', KEEP: 'x' })
+})
+
+test('cleanEnv removes whole families by prefix, nothing else', () => {
+  const env = { CLAUDE_CODE_SESSION_ID: 'a', CLAUDE_CODE_SESSION_NEW: 'b', CLAUDE_CODE_SESSIONS: 'kept', CLAUDE_CONFIG_DIR: '/c' }
+  assert.deepEqual(cleanEnv(env, { names: [], prefixes: ['CLAUDE_CODE_SESSION_'] }, 'linux'),
+    { CLAUDE_CODE_SESSIONS: 'kept', CLAUDE_CONFIG_DIR: '/c' })
+  assert.deepEqual(cleanEnv({ claude_code_session_id: 'a', Path: 'x' }, { names: [], prefixes: ['CLAUDE_CODE_SESSION_'] }, 'win32'),
+    { Path: 'x' })
 })
 
 test('cleanEnv ignores case on Windows only', () => {
   const env = { ClaudeCode: '1', Path: 'C:\\x' }
-  assert.deepEqual(cleanEnv(env, ['CLAUDECODE'], 'win32'), { Path: 'C:\\x' })
-  assert.deepEqual(cleanEnv(env, ['CLAUDECODE'], 'linux'), env)
+  assert.deepEqual(cleanEnv(env, { names: ['CLAUDECODE'] }, 'win32'), { Path: 'C:\\x' })
+  assert.deepEqual(cleanEnv(env, { names: ['CLAUDECODE'] }, 'linux'), env)
 })
 
 test('cleanEnv drops only store overlay preloads', () => {
-  assert.deepEqual(cleanEnv({ LD_PRELOAD: '/a/libmine.so:/steam/gameoverlayrenderer.so' }, [], 'linux'),
+  assert.deepEqual(cleanEnv({ LD_PRELOAD: '/a/libmine.so:/steam/gameoverlayrenderer.so' }, { names: [] }, 'linux'),
     { LD_PRELOAD: '/a/libmine.so' })
-  assert.deepEqual(cleanEnv({ LD_PRELOAD: '/steam/gameoverlayrenderer.so' }, [], 'linux'), {})
+  assert.deepEqual(cleanEnv({ LD_PRELOAD: '/steam/gameoverlayrenderer.so' }, { names: [] }, 'linux'), {})
 })
 
 // ---- terminals ----
@@ -114,7 +122,7 @@ test('a terminal that fails to start is skipped', async () => {
 test('a session file is read once and deleted', () => {
   const dir = tmp()
   const file = path.join(dir, 'launch.json')
-  writeSessionFile(file, { command: process.execPath, args: ['-v'], cwd: dir, unsetEnv: [] })
+  writeSessionFile(file, { command: process.execPath, args: ['-v'], cwd: dir, unsetEnv: { names: [], prefixes: [] } })
   const s = takeSessionFile(file)
   assert.equal(s.command, process.execPath)
   assert.equal(fs.existsSync(file), false)
@@ -123,12 +131,16 @@ test('a session file is read once and deleted', () => {
 
 test('bad session files are refused (and still deleted)', () => {
   const dir = tmp()
+  const none = { names: [], prefixes: [] }
   const cases: [unknown, RegExp][] = [
     ['not json', /damaged/],
-    [{ version: 2, command: process.execPath, args: [], cwd: dir, unsetEnv: [] }, /another version/],
-    [{ version: 1, command: 'relative.exe', args: [], cwd: dir, unsetEnv: [] }, /not found/],
-    [{ version: 1, command: process.execPath, args: [1], cwd: dir, unsetEnv: [] }, /another version/],
-    [{ version: 1, command: process.execPath, args: [], cwd: path.join(dir, 'nope'), unsetEnv: [] }, /folder not found/],
+    [{ version: 2, command: process.execPath, args: [], cwd: dir, unsetEnv: none }, /another version/],
+    [{ version: 1, command: 'relative.exe', args: [], cwd: dir, unsetEnv: none }, /not found/],
+    [{ version: 1, command: process.execPath, args: [1], cwd: dir, unsetEnv: none }, /another version/],
+    [{ version: 1, command: process.execPath, args: [], cwd: path.join(dir, 'nope'), unsetEnv: none }, /folder not found/],
+    [{ version: 1, command: process.execPath, args: [], cwd: dir, unsetEnv: [] }, /another version/],
+    // A prefix so short it would wipe far more than one family (e.g. "C").
+    [{ version: 1, command: process.execPath, args: [], cwd: dir, unsetEnv: { names: [], prefixes: ['C'] } }, /another version/],
   ]
   for (const [body, why] of cases) {
     const file = path.join(dir, 'launch.json')
@@ -149,7 +161,7 @@ test('the launcher starts the program with its args, folder and a clean environm
   const file = path.join(dir, 'launch.json')
   const tricky = ['a b', 'c;d', 'e"f', '$(whoami)', '%PATH%', '']
   writeSessionFile(file, {
-    command: process.execPath, args: [recorder, out, ...tricky], cwd: project, unsetEnv: ['CLAUDECODE'],
+    command: process.execPath, args: [recorder, out, ...tricky], cwd: project, unsetEnv: { names: ['CLAUDECODE'], prefixes: [] },
   })
   const code = await new Promise<number | null>((resolve) => {
     const child = spawn(process.execPath, [main, 'launch', file], {
@@ -169,7 +181,7 @@ test('the launcher starts the program with its args, folder and a clean environm
 test('the launcher passes on the program\'s exit code', async () => {
   const dir = tmp()
   const file = path.join(dir, 'launch.json')
-  writeSessionFile(file, { command: process.execPath, args: ['-e', 'process.exit(7)'], cwd: dir, unsetEnv: [] })
+  writeSessionFile(file, { command: process.execPath, args: ['-e', 'process.exit(7)'], cwd: dir, unsetEnv: { names: [], prefixes: [] } })
   const code = await new Promise<number | null>((resolve) => {
     spawn(process.execPath, [main, 'launch', file], { stdio: 'ignore' }).once('exit', resolve)
   })
