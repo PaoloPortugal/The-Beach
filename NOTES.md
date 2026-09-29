@@ -344,7 +344,7 @@ removing a provider means deleting its folders.
 
 | Path | Role |
 |------|------|
-| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). |
+| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
 | `world/`, `agents/`, `chat/` | World, agent and chat-panel scenes and scripts (as W, A and C features land). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
 | `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
@@ -674,6 +674,21 @@ sidecar never stalls on a full pipe. On Windows, Godot starts it without a
 console window. Which sidecar runs: next to the game executable in exports;
 `node sidecar/src/main.ts` in the editor; `-- --sidecar=<path>` or
 `-- --sidecar-dev-fake` override it (see Running it).
+
+**Session store** (`core/sessions/session_store.gd`, `SessionStore`, built
+on branch `core-session-store`): a plain class (no autoload) that the world
+creates and `attach`es to the client. It applies every event to its copy
+of each session (the protocol's session object, plus the chat so far and a
+tool-call log, capped at 2000 messages and 500 calls per session) and emits
+fine-grained signals (`session_added` with `created` for the rise
+animation, `agent_changed`, `message_changed`, `permissions_changed`,
+`questions_changed`, `notices_changed`, ...). Extension messages pass
+through untouched (`extension_event`) for the provider's UI module.
+`load_history` puts `session.get_history`'s messages before the live ones.
+A snapshot (resync) replaces the state but keeps the chat. After a
+reconnect, sessions without a snapshot ended meanwhile and are removed;
+the client's `sync_started` signal (on `hello`) marks where a reconnect's
+snapshots begin. It's the Godot handler for `session.notice`.
 
 Not yet: the sidecar isn't restarted if it dies (sessions it launched keep
 running, but the world loses them); export presets that copy the executable
@@ -1102,6 +1117,7 @@ executable). Headless smoke test, from the repo root:
 ```
 godot --headless --path . --script res://tests/core/sidecar_client_test.gd
 godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
+godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
 ```
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin

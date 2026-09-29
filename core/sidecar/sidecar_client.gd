@@ -11,8 +11,13 @@ extends Node
 ## - exported game: the [code]sidecar[/code] executable next to the game's;
 ## - editor / dev: [code]node sidecar/src/main.ts[/code] (Node 22.18+ on PATH);
 ## - [code]-- --sidecar=<path>[/code] on Godot's command line: that executable;
-## - [code]-- --sidecar-dev-fake[/code]: the fake provider that echoes chat, for
-##   building the world without a real AI tool (dev only).
+## - [code]-- --sidecar-dev-fake[/code]: the scripted fake provider, for
+##   building the world without a real AI tool (dev only; see NOTES.md →
+##   Running it).
+
+## A (re)connect began: the live sessions' snapshots follow, then
+## [signal synced].
+signal sync_started
 
 ## The connection is up and the initial snapshots have been delivered.
 signal synced(providers: Array)
@@ -280,6 +285,7 @@ func _handle(text: String) -> void:
 				_fail("The sidecar speaks a different protocol version; reinstall the game.")
 				return
 			providers = msg.get("providers", [])
+			sync_started.emit()
 			return
 		"sync.completed":
 			status = Status.READY

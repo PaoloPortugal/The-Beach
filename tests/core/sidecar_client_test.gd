@@ -22,7 +22,8 @@ func _run() -> void:
 
 	await _until(func() -> bool: return sidecar.status in [SidecarClient.Status.READY, SidecarClient.Status.FAILED], 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "connected and synced")
-	_check(sidecar.providers.size() == (1 if fake else 0), "hello lists the providers")
+	var ids := sidecar.providers.map(func(p: Dictionary) -> String: return p["provider"])
+	_check(ids == (["fake"] if fake else ["claude"]), "hello lists the providers")
 
 	var reply := await _command(sidecar, "session.list_stored", {"provider": "nope"})
 	_check(reply.get("type") == "error" and reply.get("code") == "unknown_provider", "command round trip")
