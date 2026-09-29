@@ -7,7 +7,7 @@
 // terminal opens with claude), prints every event with the time since
 // launch, and sends each line you type as a chat message from the world.
 // Lines starting with / act like the world's buttons instead:
-//   /allow [id]   /deny [id]        answer a permission (default: the latest)
+//   /allow [id]   /deny [id] [note] answer a permission (default: the latest)
 //   /answer [id] <label>[|label...]  answer a question (one item; | for multi-select)
 //   /reply [id] <text>                answer a question with free text
 //   /stop                             interrupt.request
@@ -86,9 +86,9 @@ function command(line: string) {
   switch (cmd) {
     case 'allow':
     case 'deny': {
-      const { id } = target(permissions, words)
+      const { id, rest } = target(permissions, words)
       if (!id) return console.log('no pending permission')
-      return send({ type: 'permission.respond', session, permission: id, decision: cmd })
+      return send({ type: 'permission.respond', session, permission: id, decision: cmd, ...(rest ? { note: rest } : {}) })
     }
     case 'answer':
     case 'reply': {
