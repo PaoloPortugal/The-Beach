@@ -951,7 +951,13 @@ nothing. Pending permission prompts are denied through the bridge when the
 stop is requested, and held questions are declined (a deny carrying the
 stop reason), or they would block it (safe: it never allows). The stop
 applies only to the agents busy when it was asked, each once, so the
-user's next turn is never caught by it.
+user's next turn is never caught by it. Checked with `claude -p` (no
+channel needed): calls issued in the same batch as the stopped one still
+arrive and ran; so a stopped agent's further calls are stopped too
+(silently) until the next prompt starts a new turn, and then nothing ran
+and no `Stop` hook followed, as in the spike. The same run checked the
+hook translation with real payloads: a foreground subagent under the
+orchestrator, its tool calls, the reply and idle, all schema-valid.
 
 **Fail-safe (verified).** With the hook server hanging, returning errors,
 or offline, Claude Code fell back to its own terminal prompt every time and

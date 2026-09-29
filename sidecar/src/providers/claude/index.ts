@@ -77,6 +77,16 @@ export const HOOKS_UNAVAILABLE = {
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
+/**
+ * The PreToolUse reply that stops a tool call and the agent's turn.
+ * `continue: false` alone still let the call run (spike run 1), so it's
+ * denied too.
+ */
+const STOP_REPLY = {
+  continue: false, stopReason: STOP_REASON,
+  hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: STOP_REASON },
+}
+
 export interface ClaudeOptions {
   log?: Log
   /** How to start this sidecar in another mode; tests and dev tools override it. */
@@ -326,6 +336,12 @@ class ClaudeSession implements ProviderSession {
    * its own first is dropped, so a later turn is never stopped by it.
    */
   private readonly stopping = new Set<string>()
+  /**
+   * Agents already stopped. Calls they had already issued in the same batch
+   * still arrive (seen with claude -p, 2.1.284) and are stopped too, until a
+   * new turn starts.
+   */
+  private readonly halted = new Set<string>()
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
   private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
 
@@ -402,18 +418,19 @@ class ClaudeSession implements ProviderSession {
     if (p.hook_event_name === 'PermissionRequest') {
       return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
     }
-    this.emitAll(this.translator.translate(p))
-    if (this.stopping.size === 0) return
+    // A new turn: agents stopped in the last one may work again.
+    if (p.hook_event_name === 'UserPromptSubmit') this.halted.clear()
     const agent = this.translator.agentOf(p)
+    const call = p.hook_event_name === 'PreToolUse' && agent !== null
+    // Another call from the same batch as a stopped one: stopped too, and
+    // not shown (it never runs, and the agent's stop is already shown).
+    if (call && this.halted.has(agent)) return STOP_REPLY
+    this.emitAll(this.translator.translate(p))
     let reply: Record<string, unknown> | undefined
-    if (p.hook_event_name === 'PreToolUse' && agent && this.stopping.has(agent)) {
+    if (call && this.stopping.has(agent)) {
       this.stopping.delete(agent)
-      // `continue: false` alone still let the call run (spike run 1), so
-      // deny it too.
-      reply = {
-        continue: false, stopReason: STOP_REASON,
-        hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: STOP_REASON },
-      }
+      this.halted.add(agent)
+      reply = STOP_REPLY
       this.emitAll(this.translator.stopped(p))
     }
     for (const a of [...this.stopping]) if (!this.translator.isBusy(a)) this.stopping.delete(a)
