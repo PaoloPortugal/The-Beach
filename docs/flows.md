@@ -275,12 +275,14 @@ sequenceDiagram
         User->>World: stop
         World->>Sidecar: interrupt.request
         Sidecar-->>World: ok (world shows "stopping after this step")
+        Sidecar->>Claude: pending permission prompts: deny (through the bridge)
         Note over Claude: The current step (reply text or a running command) finishes.
-        Claude->>Sidecar: next PreToolUse
+        Claude->>Sidecar: next PreToolUse (of each busy agent)
         Sidecar-->>Claude: deny this call and stop (continue false)
         Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
         Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
-        Sidecar->>World: agent.state_changed (orchestrator → idle, or subagent → done)
+        Sidecar->>World: tool.finished (denied), agent.state_changed<br/>(orchestrator → idle, subagent → error "interrupted")
+        Note over Sidecar: The stop stays armed until no agent is working or waiting.
     else Esc in the terminal
         User->>Claude: Esc (stops at once, even mid-reply)
         Note over Claude: No hook fires.

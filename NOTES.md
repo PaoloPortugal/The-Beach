@@ -911,6 +911,14 @@ exit), or the agent moving on (Esc), resolves the question by external.
 alone still let that tool call run. The stop lands before the next tool
 call, not mid-reply or mid-command. Inside a subagent it stops only that
 subagent; the orchestrator is told and carries on.
+*Built (branch `s02-interrupt`; not yet run live):* sessions declare
+`interrupt` with `immediate: false`. A stop stays armed until no agent is
+working or waiting, so it catches the orchestrator's next tool call and
+each busy subagent's. The stopped call is closed as `denied`; the
+orchestrator goes `idle`, a subagent `error` with reason `interrupted`
+(Protocol: error covers interrupted). A stop with nothing running does
+nothing. Pending permission prompts are denied through the bridge when the
+stop is requested, or they would block it (safe: it never allows).
 
 **Fail-safe (verified).** With the hook server hanging, returning errors,
 or offline, Claude Code fell back to its own terminal prompt every time and
@@ -1096,9 +1104,9 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** live runs of the permission relay and questions (built on
-`s02-permissions` and `s02-questions`), the `interrupt` capability, the transcript follower (Esc, terminal "No"),
-session notices (`session.notice` schema entry, transcripts off, the
+**Next:** live runs of the permission relay, questions and stopping
+(built on `s02-permissions`, `s02-questions`, `s02-interrupt`), the
+transcript follower (Esc, terminal "No"), session notices (`session.notice` schema entry, transcripts off, the
 "confirm in the terminal" startup text and how it reaches a session not
 yet announced), history, then the live run (checkpoint 2) and the S02
 docs (Systems section, guide, flows, dev log).
