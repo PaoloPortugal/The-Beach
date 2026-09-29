@@ -38,3 +38,28 @@ Features: docs (protocol; shapes S01, S02, A02, A03, C02, C04, C05)
 A finished subagent runs to whoever called it with a paper on its head,
 throws the report to it and disappears. This is presentation only, recorded
 in A02; the enum is unchanged.
+
+## Checked against the Agent SDK docs
+
+The user asked for extra care on integration work, since they can't review
+it from experience. The schema was checked against the current Agent SDK
+docs (hooks, permissions, subagents, sessions, streaming, user input).
+
+Confirmed: subagents nest (3 deep, 20 at once by default), finished
+subagents can be resumed (not the built-in Explore/Plan ones), permission
+callbacks can wait indefinitely, stored sessions can be listed and read,
+and messages sent mid-turn are queued.
+
+Added, user approved:
+- **`session.interrupt` (core).** Every coding agent can be stopped; the
+  first draft had no way to do it.
+- **`questions` capability.** Claude's AskUserQuestion (1–4 questions, 2–4
+  options each, multi-select, free text) arrives through the same callback
+  as permissions but needs its own UI. A capability rather than core,
+  because other providers may lack structured questions. Answers are per
+  item in order, not keyed by question text as the SDK does; the provider
+  maps them.
+
+Noted, no schema change: subagents run in the background by default, so
+the orchestrator can be `idle` while subagents work; subagent text arrives
+as whole messages, not deltas. "Allow always" is deferred to C05.
