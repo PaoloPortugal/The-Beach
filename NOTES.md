@@ -83,6 +83,7 @@ v1 slice.
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
 | C05 | Permission approve / deny                 | planned | n/a           | n/a       |
+| C06 | Permission mode control                   | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | planned | n/a           | n/a       |
 | S02 | Claude provider (v1)                      | planned | n/a           | n/a       |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
@@ -409,6 +410,27 @@ the chat panel.
 ### C05 Permission approve / deny
 *Planned.* Answer permission requests from inside the world. They are
 sent to the sidecar as approve/deny.
+
+### C06 Permission mode control
+*Planned (after v1). Scope: capability `permission_modes`* (other tools have
+similar approval modes). The user's wish: switch permission modes from the
+world. What the CLI route allows (Claude docs, checked 2026-09-29):
+- **Choose the mode at launch:** a mode picker when creating or resuming a
+  session (`--permission-mode`).
+- **Switch while answering a prompt:** "allow, and switch to mode X", like
+  the terminal's own "Yes, and switch to auto mode". The `PermissionRequest`
+  hook's allow reply carries `updatedPermissions: [{ type: "setMode", mode,
+  destination: "session" }]`.
+- **Always show the current mode:** every hook carries `permission_mode`,
+  so switches made in the terminal (Shift+Tab) show up too.
+
+Not possible: switching at an arbitrary moment with no prompt open (only
+Shift+Tab in the terminal; typing keystrokes was rejected). Safety rules:
+only on an explicit user choice, `session` destination only (never written
+to settings files), current mode always visible with plain descriptions.
+Claude Code refuses `setMode` to `bypassPermissions` unless the session was
+launched with bypass available, which we never do. Protocol fields are
+added when this is built.
 
 ### S01 Sidecar and WebSocket server
 *Planned (v1).* The sidecar process that hosts the session registry and the
