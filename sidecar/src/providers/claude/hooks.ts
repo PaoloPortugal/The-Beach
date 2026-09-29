@@ -130,6 +130,39 @@ export class HookTranslator {
     return out
   }
 
+  /**
+   * The transcript shows a "No" in the terminal for this call (no hook
+   * fires for it): its prompt is denied there and the call never runs.
+   */
+  rejectedInTerminal(toolUseId: Id): SessionEvent[] {
+    const out: SessionEvent[] = []
+    const call = this.openTools.get(toolUseId)
+    if (!call) return out
+    if (call.permission) this.resolvePermission(call.permission, 'deny', 'external', out, false)
+    if (call.question) this.resolveQuestion(call.question, 'external', out, false)
+    if (this.openTools.delete(toolUseId)) out.push({ type: 'tool.finished', tool_call: toolUseId, status: 'denied' })
+    return out
+  }
+
+  /**
+   * The transcript shows the orchestrator's turn interrupted from the
+   * terminal (Esc, or after a "No"); no hook fires. Its prompts were
+   * dismissed, a running command was stopped, and it's the user's move.
+   */
+  interruptedByUser(): SessionEvent[] {
+    const out: SessionEvent[] = []
+    if (!this.isBusy(MAIN)) return out
+    this.finishMessages(out)
+    this.dropPermissions(MAIN, out)
+    for (const [id, call] of [...this.openTools]) {
+      if (call.agent !== MAIN) continue
+      this.openTools.delete(id)
+      out.push({ type: 'tool.finished', tool_call: id, status: 'error', summary: 'Interrupted' })
+    }
+    this.setState(MAIN, 'idle', null, out)
+    return out
+  }
+
   /** Whether any agent is working or waiting (something a stop would end). */
   busy(): boolean {
     for (const state of this.states.values()) if (state === 'working' || state === 'waiting') return true

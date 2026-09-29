@@ -19,6 +19,7 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer, type BridgeLink } from './bridge-server.ts'
 import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
+import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
 import {
   HookTranslator, hookSettings, MAIN, QUESTION_TOOL, questionReply, type RelayedPermission,
 } from './hooks.ts'
@@ -230,6 +231,8 @@ class ClaudeSession implements ProviderSession {
   private startupTimer: NodeJS.Timeout | null = null
   private disposed = false
   private readonly translator: HookTranslator
+  /** Fills in what hooks miss: Esc and a "No" in the terminal. */
+  private readonly transcript = new TranscriptFollower((s) => this.onTranscript(s))
   /** A stop from the world is waiting for the busy agents' next tool calls. */
   private stopping = false
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
@@ -289,6 +292,7 @@ class ClaudeSession implements ProviderSession {
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
+    this.transcript.follow(p.transcript_path)
     if (p.hook_event_name === 'PermissionRequest') {
       return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
     }
@@ -321,6 +325,11 @@ class ClaudeSession implements ProviderSession {
       })
       this.emitAll(asked.events)
     })
+  }
+
+  private onTranscript(s: TranscriptSignal) {
+    if (this.disposed || this.host.ended) return
+    this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
   /** Claude Code shows a permission prompt, relayed by the bridge. */
@@ -363,6 +372,7 @@ class ClaudeSession implements ProviderSession {
     if (this.startupTimer) clearTimeout(this.startupTimer)
     this.link?.unregister()
     this.hookLink?.unregister()
+    this.transcript.stop()
     for (const q of [...this.held.keys()]) this.release(q)
     this.cleanup()
   }
