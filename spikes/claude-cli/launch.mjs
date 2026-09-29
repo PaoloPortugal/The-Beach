@@ -76,6 +76,9 @@ const hookServer = http.createServer(async (req, res) => {
   if (state.stopPending && STOP_EVENTS.has(ev)) {
     state.stopPending = false
     const out = { continue: false, stopReason: 'Stopped from the companion app (spike).' }
+    // Run 1 showed continue:false alone lets the current tool call run; also deny it.
+    if (ev === 'PreToolUse') out.hookSpecificOutput = { hookEventName: 'PreToolUse',
+      permissionDecision: 'deny', permissionDecisionReason: 'The user stopped the session.' }
     log('hook-reply', { ev, out })
     return json(res, 200, out)
   }
@@ -224,7 +227,9 @@ const claudeArgs = [
   '--settings', settingsPath,
   '--mcp-config', mcpPath,
   '--dangerously-load-development-channels', 'server:world-bridge',
-  '--session-id', sessionId,
+  // --no-session-id: run 2 checked the missing transcript wasn't caused by this flag
+  // (it was nested-session detection: see the dev log).
+  ...(process.argv.includes('--no-session-id') ? [] : ['--session-id', sessionId]),
   '--name', 'cli-spike',
 ]
 log('launch', { workDir, claudeArgs })

@@ -174,6 +174,9 @@ feature that touches them follows these rules, and each is tested:
 - **No shell strings.** Processes are launched with argument arrays, never
   by building a shell command from text, so a project path or session name
   can't inject commands.
+- **Clean child environments.** Launched processes get the user's normal
+  environment minus variables that belong to another Claude Code session
+  (`CLAUDE_*`, `CLAUDECODE`), which could carry that session's tokens.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -404,57 +407,102 @@ local WebSocket server Godot connects to. It speaks only the generic
 protocol.
 
 ### S02 Claude provider
-*Planned (v1).* Gets a throwaway integration spike first (see Milestones →
-M0). The only place Claude-specific names may appear. It drives
-the user's own installed `claude` CLI, signed in with their own account
-through Anthropic's login. Our code never reads, stores or passes on Claude
-credentials, and never modifies or bundles Claude Code.
+*Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
+Windows; dev log 2026-09-29-claude-cli-spike). The only place
+Claude-specific names may appear. It drives the user's own installed
+`claude` CLI, signed in with their own account through Anthropic's login.
+Our code never reads, stores or passes on Claude credentials, and never
+modifies or bundles Claude Code.
 
 **Launch.** It opens a terminal window running `claude` with:
 - `--settings <json>`: hooks for this session only, so the user's own
   settings files are never edited;
 - `--session-id <uuid>`: the ID is known before the session starts
-  (becomes `native_id`);
+  (becomes `native_id`); verified;
 - `--mcp-config` plus `--dangerously-load-development-channels server:<name>`:
   registers our channel. While channels are a research preview, custom
   channels need this flag, and Claude Code asks the user to confirm it in the
-  terminal at startup. So the terminal must be visible, at least at launch;
-- `--name`: the session's display name.
+  terminal at startup (plus folder trust the first time). So the terminal
+  must be visible, at least at launch;
+- `--name`: the session's display name;
+- a **clean environment**: the user's normal environment minus any
+  `CLAUDE_*` / `CLAUDECODE` variables inherited from another Claude Code
+  session. Inherited markers make `claude` treat itself as nested and turn
+  transcript saving off, and leak another session's values.
 
-**Seeing the session: HTTP hooks** posted to the sidecar on localhost.
-Planned mapping: `SessionStart` / `SessionEnd` → session created / ended;
-`UserPromptSubmit` → user message; `MessageDisplay` → assistant text (it
-arrives in batches of completed lines, so chat streams line by line, not
-word by word); `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool
-calls; `SubagentStart` / `SubagentStop` → subagents (`agent_id`,
-`agent_type`); `PermissionRequest` → permission requested; `Stop` →
-orchestrator idle; `StopFailure` → error. Hooks fired inside a subagent
-carry its `agent_id`.
+It never passes a permission mode: the session uses the user's own
+(the spike ran in the user's default `auto` mode, where prompts are rare).
+Every hook carries `permission_mode`, so the world can show it.
+
+**Seeing the session: HTTP hooks** posted to the sidecar on localhost, with
+a per-session token header. Verified mapping:
+- The session is known to exist from the launch and the bridge connecting.
+  `SessionStart` doesn't support HTTP hooks. `SessionEnd` → session ended
+  (`reason`, e.g. `prompt_input_exit`).
+- `UserPromptSubmit` → user message. Three kinds, told apart by content:
+  typed in the terminal (plain text); from the world (wrapped in
+  `<channel source="..." ...>`, unwrap for display); and a
+  `<task-notification>` Claude Code injects when a background subagent
+  finishes (not a user message; the orchestrator goes back to working).
+- `MessageDisplay` → assistant text, in batches of whole lines (`index`,
+  `final`, `message_id`). Must be answered instantly with an empty body.
+- `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, keyed
+  by `tool_use_id`. Inside a subagent they carry its `agent_id`.
+- `SubagentStart` / `SubagentStop` → subagents (`agent_id`, `agent_type`;
+  stop carries `last_assistant_message`, the report). Subagents run in the
+  background by default, so the orchestrator is often `idle` while they
+  work. Claude Code also runs **internal helper agents** that fire
+  `SubagentStop` and tool hooks with an empty `agent_type` and no
+  `SubagentStart`: ignore any agent never seen starting. **Gap:**
+  `SubagentStart` doesn't name the parent; infer it from the `Agent` tool
+  call just before (whose hook carries the caller's `agent_id` if it's a
+  subagent). Reliable one at a time; recheck for parallel spawns.
+- `PermissionRequest` → permission requested (also `Notification` with
+  `permission_prompt` about 6 s later).
+- `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
+  → error.
+- **No event** when the user answers "No" to a permission in the terminal
+  (the turn is interrupted silently), when a stop ends a turn, or when a
+  stopped subagent ends (no `SubagentStop`; only the `<task-notification>`
+  with its ID). The sidecar infers these: a pending permission is resolved
+  (`by: external`) when a later tool hook for it or a new user message
+  arrives; after a stop the sidecar sets the states itself.
+
+Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
+`MessageDisplay`; long only for the question hook. A hung sidecar makes
+Claude wait out each timeout.
 
 **Talking to the session: a channel.** A channel is an MCP server that
 Claude Code itself starts as a subprocess and talks to over stdio, so ours
 is a tiny **channel bridge** script shipped with the sidecar: `claude`
-starts it, and it connects back to the sidecar over a local connection. It
-pushes the user's chat messages into the session, and with permission
-relay it receives permission prompts. The terminal prompt and
-the world are both live; whichever answers first wins (`by: external` when
-it was the terminal).
+starts it, and it connects back to the sidecar over a local connection
+with a token. Verified:
+- Chat: the user's message is pushed as a channel event; Claude treats it
+  as the user's message (the bridge's instructions say so) and replies
+  normally, so no reply tool is needed.
+- Permission relay: the prompt reaches the bridge (with a 5-letter
+  `request_id`) at the same time as the terminal dialog. Answering from the
+  world closes the terminal dialog. A deny from the world lets Claude
+  continue its turn; a "No" in the terminal interrupts it.
 
-**Clarifying questions (`questions` capability).** A `PreToolUse` hook
-matched to `AskUserQuestion` holds the HTTP request open until the user
+**Clarifying questions (`questions` capability).** Verified: a `PreToolUse`
+hook matched to `AskUserQuestion` holds the HTTP request until the user
 answers in the world, then returns `permissionDecision: "allow"` with the
-answers in `updatedInput` (documented for answering programmatically). The
-tool then runs without the terminal asking. This hook needs a long
-`timeout`: on timeout the tool doesn't run and Claude is told the hook
-didn't respond.
+answers in `updatedInput`; the terminal never shows the question. Replying
+with an empty body instead hands the question to the terminal, and the
+answer shows up in `PostToolUse`. Per the docs, a timed-out hook also falls
+back to the terminal.
 
-**Stopping (`interrupt` capability, `immediate: false`).** Any hook can
-return `{ "continue": false, "stopReason": ... }`, which stops Claude after
-that hook. On `interrupt.request` the sidecar answers the session's next
-hook call that way. So the stop lands at the next step (a tool call, a tool
-finishing, a subagent starting or stopping), not mid-reply or mid-command.
-To test: whether a stop from a hook inside a subagent stops the subagent
-only or the whole session.
+**Stopping (`interrupt` capability, `immediate: false`).** Verified: on
+`interrupt.request` the sidecar answers the session's next `PreToolUse` with
+`continue: false` **and** `permissionDecision: "deny"`. `continue: false`
+alone still let that tool call run. The stop lands before the next tool
+call, not mid-reply or mid-command. Inside a subagent it stops only that
+subagent; the orchestrator is told and carries on.
+
+**Fail-safe (verified).** With the hook server hanging, returning errors,
+or offline, Claude Code fell back to its own terminal prompt every time and
+nothing was allowed. Hooks resume when the server comes back.
 
 **Not available on this route:** an immediate stop (Esc) and anything only
 the terminal shows (folder trust, MCP consent, the channel confirmation).
@@ -551,14 +599,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the Claude CLI integration spike (S02), then the
-Markdown → BBCode spike (C03). Both are M0.
+**Current focus:** the Markdown → BBCode spike (C03), the last M0 item.
 
 ### Milestones
 
 **M0 Setup.** Docs and scaffold, event schema, and two throwaway spikes:
-- **Claude CLI integration spike (S02).** Everything in S02 is confirmed
-  from the docs only. Launch a real `claude` with our hook settings and a
+- **Claude CLI integration spike (S02).** *Done 2026-09-29; results in S02
+  and the dev log (2026-09-29-claude-cli-spike).* Everything in S02 was
+  confirmed from the docs only. Launch a real `claude` with our hook settings and a
   bare channel, log every hook payload, and check: the launch flags and the
   channel confirmation prompt; which hooks fire and what they carry (IDs,
   subagent `agent_id`, `MessageDisplay` batches); chat into the session
@@ -619,6 +667,13 @@ exists.
   logos in its own name or logo, or suggest Anthropic built or endorses it.
   Other use of their logos needs written permission. This affects the "logo
   model" agents (A01, A02) in a public release.
+- **Hook URL allowlists.** If a user's or organisation's settings define
+  `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
+  sidecar should detect missing hook events and explain this.
+- **MCP SDK weight.** The official MCP SDK (needed for the channel bridge)
+  pulls in 94 packages, including a web server we don't use. Consider a
+  minimal stdio implementation of the few messages the bridge needs,
+  weighed against the "few dependencies" rule.
 - **Channels are a research preview.** Chat and permission answers from the
   world depend on them (S02). Flags and protocol may change, custom channels
   need `--dangerously-load-development-channels` (confirmed by the user at
