@@ -798,8 +798,14 @@ a per-session token header. Verified mapping:
   (external deny), a fallback until the transcript follower. A subagent's
   prompt resolves that way when the subagent stops. The channel's verdict
   carries no text, so a `note` with the answer follows the verdict as the
-  user's next chat message (proposal branch `proposal-permission-note`,
-  awaiting the user's choice).
+  user's next chat message (user's decision, 2026-09-29), provided Claude
+  reads it before doing any work it would affect: **check in the live
+  run** (after a world deny Claude continues its turn; unknown whether
+  Claude Code delivers the channel message at once or at the turn's end).
+  If it doesn't, the fallback: hold the `PermissionRequest` hook for plain
+  prompts too (as for questions, where the terminal still shows the
+  prompt) and answer a noted deny there with the note as the decision's
+  `message`, which Claude reads as the denied call's result.
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
@@ -966,9 +972,9 @@ subagent; the orchestrator is told and carries on.
 working or waiting, so it catches the orchestrator's next tool call and
 each busy subagent's. The stopped call is closed as `denied`; the
 orchestrator goes `idle`, a subagent `error` with reason `interrupted`
-(Protocol: error covers interrupted). A stop with nothing running does
+(Protocol: error covers interrupted; user's decision, 2026-09-29). A stop with nothing running does
 nothing. Pending permission prompts are denied through the bridge when the
-stop is requested, and held questions are declined (a deny carrying the
+stop is requested (user's decision, 2026-09-29, for now), and held questions are declined (a deny carrying the
 stop reason), or they would block it (safe: it never allows). The stop
 applies only to the agents busy when it was asked, each once, so the
 user's next turn is never caught by it. Checked with `claude -p` (no
@@ -1103,7 +1109,8 @@ In `sidecar/`:
   (confirm the development channel there), prints every event with the
   time since launch, and sends each typed line as world chat. Lines
   starting with `/` act like the world's buttons: `/allow` and `/deny` (a
-  permission; the latest unless an id is given), `/answer <label>` (a
+  permission; the latest unless an id is given; text after it is sent as
+  a note), `/answer <label>` (a
   question; `A|B` for multi-select), `/reply <text>` (free answer),
   `/stop`, `/history`. Use a neutrally named folder: Claude once guessed
   this repo's path from a test folder's name and wrote there.
@@ -1196,8 +1203,7 @@ questions, stopping, the transcript follower, session notices
 buttons, the scripted `dev:fake`, S04's sidecar side, and Godot's
 `SessionStore`, and the startup notice in the create/resume reply. Parts were checked against a real `claude` with
 `claude -p`, which needs no channel (dev log
-2026-09-29-s02-relay-questions-stop). A proposal branch off the top
-(`proposal-permission-note`) awaits the user's choice. `session.end` answers `not_supported` (S05).
+2026-09-29-s02-relay-questions-stop). `session.end` answers `not_supported` (S05).
 
 **Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
 folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
@@ -1207,10 +1213,9 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** the user's answers on permission notes and stopped subagents
-(the notice shape, the startup text and CLI-only listing are decided),
-then the live
-run (checkpoint 2; `try:claude`'s `/` commands cover it) and the S02 docs
+**Next:** the live
+run (checkpoint 2; `try:claude`'s `/` commands cover it; include a
+deny with a note, to check Claude reads it before carrying on) and the S02 docs
 (Systems section, guide, dev log). After S02: the M1 world, which needs
 the user's calls on camera, movement, island, ocean, props and the chat
 panel first.
