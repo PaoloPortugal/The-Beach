@@ -87,7 +87,12 @@ export class TranscriptFollower {
     if (!this.file || this.reading) return
     const size = fs.statSync(this.file, { throwIfNoEntry: false })?.size
     if (size === undefined) return          // not written (yet, or ever: saving is off)
-    if (size < this.offset) this.offset = 0 // replaced
+    if (size < this.offset) {
+      // Rewritten shorter: what's in it now is the past, not news.
+      this.offset = size
+      this.partial = ''
+      return
+    }
     if (size === this.offset) return
     this.reading = true
     try {
