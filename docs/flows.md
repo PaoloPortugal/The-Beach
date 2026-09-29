@@ -14,7 +14,10 @@ bridge (NOTES.md → S02).
 The terminal and the world are two windows onto the same session: you can
 switch between them at any point, and whichever answers first wins.
 Transcript is Claude Code's session file, which the sidecar follows
-read-only for the things no hook reports (NOTES.md → S02).
+read-only for the things no hook reports (NOTES.md → S02). If the user
+turned transcripts off in Claude Code, the Transcript steps don't happen
+and the world waits for the next hook instead (NOTES.md → S02 → When
+transcripts are off).
 
 **How to read these.** Time runs top to bottom; each arrow is one message.
 - **Solid arrow:** a message. **Dashed arrow:** the reply to an earlier
