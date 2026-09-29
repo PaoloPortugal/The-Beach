@@ -89,6 +89,10 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     const project = fs.mkdtempSync(path.join(os.tmpdir(), 'proj;x '))
     const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: project } })
     assert.equal(r.type, 'ok', JSON.stringify(r))
+    // Until it's up, the world tells the user to confirm in the terminal.
+    assert.deepEqual((r.result as any).notice, {
+      code: 'confirm_in_terminal', message: 'Confirm in the Claude Code terminal to start this session.',
+    })
     assert.equal(opened.length, 1)
     const [exe, mode, file] = opened[0]!.argv
     assert.equal(exe, '/sidecar')

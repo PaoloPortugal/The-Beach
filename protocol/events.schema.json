@@ -194,7 +194,7 @@
       "required": ["code", "message"],
       "properties": {
         "code": {
-          "description": "Machine-readable; Godot shows its own text for codes it knows. transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works).",
+          "description": "Machine-readable; Godot shows its own text for codes it knows. confirm_in_terminal: the provider needs the user in its own window to start the session (create/resume replies only). transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works).",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
@@ -487,7 +487,7 @@
     },
 
     "session.create": {
-      "description": "Godot -> sidecar. Start a new session. Reply result: {\"session\": <id>}; session.created follows.",
+      "description": "Godot -> sidecar. Start a new session. Reply result: {\"session\": <id>, \"notice\"?: notice}; session.created follows. A notice (e.g. confirm_in_terminal) is what to tell the user until then; if the session still isn't up after a minute or two, Godot says it's still starting.",
       "type": "object",
       "required": ["type", "id", "provider", "project"],
       "properties": {
@@ -512,7 +512,7 @@
       "additionalProperties": false
     },
     "session.resume": {
-      "description": "Godot -> sidecar. Resume a stored session (S04). Reply result: {\"session\": <id>}; session.created follows.",
+      "description": "Godot -> sidecar. Resume a stored session (S04). Reply result: {\"session\": <id>, \"notice\"?: notice}, as for session.create; session.created follows.",
       "type": "object",
       "required": ["type", "id", "provider", "native_id"],
       "properties": {
