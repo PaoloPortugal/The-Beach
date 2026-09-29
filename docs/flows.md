@@ -50,7 +50,7 @@ sequenceDiagram
     User->>World: create a session for a project
     World->>Sidecar: session.create
     Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
-    Sidecar->>Claude: open a terminal running claude<br/>(settings, channel, session ID, clean environment)
+    Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment)
     Sidecar-->>World: ok { session }
     Claude->>User: folder trust (first time) and<br/>development channel confirmation
     User->>Claude: accept
@@ -63,6 +63,12 @@ sequenceDiagram
 
 Ending: `/exit` in the terminal (or `session.end` from the world) → the
 `SessionEnd` hook → `session.ended` (island sinks).
+
+Which terminal opens depends on the OS and the user's setting; the
+terminal is only given our launcher and a session file, and the launcher
+starts `claude` with an argument list (NOTES.md → Architecture →
+Platforms). Before any of this, Godot has started the sidecar, which exits
+when Godot does.
 
 ## 2. A chat turn
 
