@@ -71,3 +71,6 @@ Found while drawing every reply in the flow diagrams (docs/flows.md, flow
 instead". The user approved a separate `question.release` command over a
 flag on `question.answer`, which would have mixed two actions in one
 command.
+Removed again after spike run 3: questions now show in the terminal and the
+world at the same time (first answer wins), so there is nothing to hand
+over. `question.resolved` with `by: external` covers a terminal answer.
