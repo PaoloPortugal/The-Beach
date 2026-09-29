@@ -657,8 +657,11 @@ offer no setting of our own and never force saving back on (e.g. never
 `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
 has no transcript (no file at `transcript_path` once the first reply is
 in; what hooks send in that case is to check when building S02) and tells
-the world, which shows what's limited. How it's told is a protocol
-addition, to agree on when building S02. What still works:
+the world. How it's told is a protocol addition, to agree on when building
+S02. **The world shows only a short disclaimer** (user's decision), along
+the lines of "Transcript saving is off in Claude Code, so some features
+may not work as intended. Turning it on is recommended." The detailed
+list below is for development, not for the UI. What still works:
 chat, streaming, tool calls, subagents, permissions and questions
 answered in the world, and stopping from the world (hooks and the
 bridge). What's limited:
