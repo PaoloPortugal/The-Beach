@@ -198,7 +198,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | Sidecar → Godot | Godot → sidecar |
 |---|---|
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
-| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.interrupt`, `session.get_snapshot`, `session.get_history` |
+| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
 | `tool.started`, `tool.finished` | |
@@ -211,8 +211,6 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   text typed elsewhere shows up once attaching exists.
 - `permission.resolved` has `by`: `app` or `external` (answered elsewhere,
   once attaching exists).
-- `session.interrupt` stops what the session is doing, like Esc in a
-  terminal; the session stays open.
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -224,6 +222,11 @@ Each one is added to the schema and listed here:
   `external`) and the command `question.answer` (per-item chosen labels or
   typed text, or one free `response` instead). Pending ones are in the
   snapshot's `questions`; the agent is `waiting` with reason `question`.
+- **`interrupt`**: the user can stop what the session is doing; the session
+  stays open. Command `interrupt.request`. Config
+  `{ "immediate": true | false }`: `false` means the stop happens at the
+  session's next step (e.g. before its next tool call), not mid-reply, so
+  Godot can say "stopping after this step".
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -355,10 +358,26 @@ permission relay it receives permission prompts. The terminal prompt and
 the world are both live; whichever answers first wins (`by: external` when
 it was the terminal).
 
-**Not available on this route (for now):** interrupting from the world (no
-documented way), and clarifying questions, which stay in the terminal (the
-`questions` capability isn't declared). Things only the terminal shows
-(folder trust, MCP consent) also stay there.
+**Clarifying questions (`questions` capability).** A `PreToolUse` hook
+matched to `AskUserQuestion` holds the HTTP request open until the user
+answers in the world, then returns `permissionDecision: "allow"` with the
+answers in `updatedInput` (documented for answering programmatically). The
+tool then runs without the terminal asking. This hook needs a long
+`timeout`: on timeout the tool doesn't run and Claude is told the hook
+didn't respond.
+
+**Stopping (`interrupt` capability, `immediate: false`).** Any hook can
+return `{ "continue": false, "stopReason": ... }`, which stops Claude after
+that hook. On `interrupt.request` the sidecar answers the session's next
+hook call that way. So the stop lands at the next step (a tool call, a tool
+finishing, a subagent starting or stopping), not mid-reply or mid-command.
+To test: whether a stop from a hook inside a subagent stops the subagent
+only or the whole session.
+
+**Not available on this route:** an immediate stop (Esc) and anything only
+the terminal shows (folder trust, MCP consent, the channel confirmation).
+Typing into the terminal was considered and rejected for now (see the
+dev log, 2026-09-29-claude-cli-route).
 
 ### S03 Create session
 *Planned.* A "create new session" command from Godot; the sidecar launches
@@ -525,8 +544,8 @@ exists.
   launch into a folder from outside. The terminal/JSONL store is the
   integration point.
 - **No Agent SDK (not in the near future).** Driving Claude through the
-  Agent SDK gives more control (interrupt, clarifying questions, word-by-word
-  streaming), but Anthropic's terms expect SDK apps to use an API key
+  Agent SDK gives more control (an immediate stop, word-by-word streaming,
+  no terminal window), but Anthropic's terms expect SDK apps to use an API key
   (billed per token) rather than the user's subscription. We use the CLI
   route instead (S02). Revisit only if Anthropic confirms subscription use
   is fine for this kind of app, or an API-key option is wanted.
