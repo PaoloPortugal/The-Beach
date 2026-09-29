@@ -34,6 +34,16 @@ export {
  */
 export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
 
+/**
+ * The terminal window's title. The name can come from a stored session's
+ * transcript (anything the user once typed), and Windows Terminal parses its
+ * own command line, so only plain printable text goes in, short.
+ */
+export function terminalTitle(name: string): string {
+  const clean = name.replace(/[\u0000-\u001f\u007f-\u009f;"\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+  return `Claude Code - ${clean || 'session'}`
+}
+
 export interface ClaudeOptions {
   log?: Log
   /** How to start this sidecar in another mode; tests and dev tools override it. */
@@ -227,7 +237,7 @@ export class ClaudeProvider implements Provider {
     const open = this.opts.openTerminal ?? openTerminal
     try {
       const used = await open(
-        { argv, title: `Claude Code - ${name}`.replace(/[;"]/g, ' '), runDir: launch.runDir },
+        { argv, title: terminalTitle(name), runDir: launch.runDir },
         { ...(this.opts.terminal ? { preferred: this.opts.terminal } : {}) },
       )
       this.log.info(`opened ${used}`)
