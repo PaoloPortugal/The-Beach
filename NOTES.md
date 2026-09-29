@@ -748,8 +748,11 @@ offer no setting of our own and never force saving back on (e.g. never
 `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
 has no transcript (no file at `transcript_path` once the first reply is
 in; what hooks send in that case is to check when building S02) and tells
-the world. How it's told is a protocol addition, to agree on when building
-S02. **The world shows only a short disclaimer** (user's decision), along
+the world with a **session notice** (user's decision, S02): a generic
+core event `session.notice` carrying a code (`transcripts_off`) and an
+English fallback message, also listed in the snapshot. Godot shows its own
+text for codes it knows. The same mechanism carries other warnings about a
+session (e.g. hooks blocked by `allowedHttpHookUrls`). **The world shows only a short disclaimer** (user's decision), along
 the lines of "Transcript saving is off in Claude Code, so some features
 may not work as intended. Turning it on is recommended." The detailed
 list below is for development, not for the UI. What still works:
@@ -850,7 +853,10 @@ reaches that far back.
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its
-island (W04).
+island (W04). Claude Code offers no documented way to close a session from
+outside, so until S05 decides how, `session.end` gets `not_supported` for
+Claude sessions (user's decision, S02); `/exit` in the terminal still ends
+a session and sinks its island (the `SessionEnd` hook).
 
 ## Conventions
 
@@ -960,9 +966,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M1, sidecar first (user's decision). S01 (sidecar core,
-WebSocket server, packaging, Godot client) is built and awaiting review;
-next is S02, the Claude provider.
+**Current focus:** M1, sidecar first (user's decision). S01 is merged.
+S02 (Claude provider) is in progress on one branch with two review
+checkpoints (user's decision): after the terminal launcher opens a real
+`claude`, and at the end with a live run.
 
 ### Milestones
 
@@ -1037,10 +1044,12 @@ exists.
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
   sidecar should detect missing hook events and explain this.
-- **MCP SDK weight.** The official MCP SDK (needed for the channel bridge)
-  pulls in 94 packages, including a web server we don't use. Consider a
-  minimal stdio implementation of the few messages the bridge needs,
-  weighed against the "few dependencies" rule.
+- **Own MCP code in the bridge.** *Decided (user's, S02):* the channel
+  bridge speaks the few MCP messages it needs itself instead of using the
+  official MCP SDK, which pulls in 94 packages, including a web server we
+  don't use. **Re-evaluate** (user's instruction) whenever the bridge's MCP
+  handling grows: if we keep adding to it, switch to the SDK rather than
+  re-implement what Anthropic already maintains.
 - **Transcript format.** Esc and terminal "No" are only visible in the
   transcript, whose line format isn't a documented interface. It is used
   for status only, parsed defensively, and re-checked on Claude Code
