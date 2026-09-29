@@ -11,6 +11,7 @@
     { "$ref": "#/$defs/session.snapshot" },
     { "$ref": "#/$defs/session.created" },
     { "$ref": "#/$defs/session.ended" },
+    { "$ref": "#/$defs/session.notice" },
     { "$ref": "#/$defs/agent.spawned" },
     { "$ref": "#/$defs/agent.state_changed" },
     { "$ref": "#/$defs/message.started" },
@@ -137,7 +138,7 @@
     "session": {
       "description": "Full state of one session (one island).",
       "type": "object",
-      "required": ["session", "seq", "provider", "native_id", "origin", "project", "title", "started_at", "capabilities", "extensions", "agents", "permissions"],
+      "required": ["session", "seq", "provider", "native_id", "origin", "project", "title", "started_at", "capabilities", "extensions", "agents", "permissions", "notices"],
       "properties": {
         "session": { "$ref": "#/$defs/id" },
         "seq": { "$ref": "#/$defs/seq" },
@@ -177,7 +178,27 @@
           "description": "Pending questions. Present only when the questions capability is declared.",
           "type": "array",
           "items": { "$ref": "#/$defs/question" }
+        },
+        "notices": {
+          "description": "Current notices, at most one per code.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/notice" }
         }
+      },
+      "additionalProperties": false
+    },
+
+    "notice": {
+      "description": "Something the user should know about a session that isn't an agent's state, e.g. a setting that limits what the world can show.",
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "description": "Machine-readable; Godot shows its own text for codes it knows. transcripts_off: the provider isn't saving transcripts, so some features may not work as intended.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "message": { "description": "English fallback text for codes Godot doesn't know.", "type": "string" }
       },
       "additionalProperties": false
     },
@@ -296,6 +317,19 @@
           "description": "user: ended from this app. exited: the session stopped on its own or was closed elsewhere. error: it crashed.",
           "enum": ["user", "exited", "error"]
         }
+      },
+      "additionalProperties": false
+    },
+
+    "session.notice": {
+      "description": "Sidecar -> Godot. A notice about the session; it replaces an earlier one with the same code. Also listed in the snapshot's notices.",
+      "type": "object",
+      "required": ["type", "session", "seq", "notice"],
+      "properties": {
+        "type": { "const": "session.notice" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "notice": { "$ref": "#/$defs/notice" }
       },
       "additionalProperties": false
     },

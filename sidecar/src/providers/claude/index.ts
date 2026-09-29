@@ -38,6 +38,20 @@ export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
  */
 export const PERMISSION_MATCH_MS = 300
 
+/**
+ * How long after the first reply ends the transcript must exist. With
+ * saving on it's written live (it exists by the Stop hook); with
+ * CLAUDE_CODE_SKIP_PROMPT_HISTORY the hooks still name a path, but nothing
+ * is ever written there (probed with 2.1.284, 2026-09-29).
+ */
+export const TRANSCRIPT_CHECK_MS = 1000
+
+/** The notice when Claude Code isn't saving transcripts (user's wording, NOTES.md -> S02). */
+export const TRANSCRIPTS_OFF = {
+  code: 'transcripts_off',
+  message: 'Transcript saving is off in Claude Code, so some features may not work as intended. Turning it on is recommended.',
+}
+
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
@@ -233,6 +247,8 @@ class ClaudeSession implements ProviderSession {
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
   private readonly transcript = new TranscriptFollower((s) => this.onTranscript(s))
+  /** Whether the transcript has been checked for (once, after the first reply). */
+  private transcriptChecked = false
   /** A stop from the world is waiting for the busy agents' next tool calls. */
   private stopping = false
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
@@ -293,6 +309,7 @@ class ClaudeSession implements ProviderSession {
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
     this.transcript.follow(p.transcript_path)
+    if (p.hook_event_name === 'Stop' && !this.transcriptChecked) this.checkTranscript(p.transcript_path)
     if (p.hook_event_name === 'PermissionRequest') {
       return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
     }
@@ -325,6 +342,18 @@ class ClaudeSession implements ProviderSession {
       })
       this.emitAll(asked.events)
     })
+  }
+
+  /** Tells the world if Claude Code isn't saving this session's transcript. */
+  private checkTranscript(file: unknown) {
+    if (typeof file !== 'string') return
+    this.transcriptChecked = true
+    const t = setTimeout(() => {
+      if (this.disposed || this.host.ended || fs.existsSync(file)) return
+      this.log.info(`session ${this.host.id}: no transcript is being saved`)
+      this.host.emit({ type: 'session.notice', notice: TRANSCRIPTS_OFF })
+    }, TRANSCRIPT_CHECK_MS)
+    t.unref()
   }
 
   private onTranscript(s: TranscriptSignal) {

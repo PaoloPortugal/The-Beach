@@ -81,6 +81,6 @@ function sessionWith(over: Record<string, unknown>) {
     session: 's', seq: 1, provider: 'x', native_id: null, origin: 'app', project: { path: '/p' },
     title: null, started_at: '2026-09-29T10:00:00Z', capabilities: {}, extensions: [],
     agents: [{ agent: 'a', role: 'orchestrator', parent: null, state: 'idle', reason: null }],
-    permissions: [], ...over,
+    permissions: [], notices: [], ...over,
   }
 }
