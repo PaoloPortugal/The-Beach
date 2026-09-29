@@ -1015,6 +1015,11 @@ the world: those are stored with `isMeta`, so they're recognised by our
 channel tag) and the text of Claude's replies; tool calls, thinking,
 subagents and injected context are left out. Also: `session.create`'s
 optional `prompt` is now sent as world chat once the session is up.
+Probed with two `claude -p` runs (2.1.284): `--resume <id>` keeps the
+session id (our `native_id`) and writes on in the same transcript, the
+resumed session remembers the earlier turns, and the history reader reads
+all four messages back. `claude -p` sessions are stored as `sdk-cli`, so
+they aren't listed.
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its
