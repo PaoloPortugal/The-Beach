@@ -20,3 +20,4 @@ reading; look things up by feature ID.
 | 2026-09-28 | [Project setup](2026-09-28-project-setup.md) | docs, tooling |
 | 2026-09-28 | [Provider scopes](2026-09-28-provider-scopes.md) | docs |
 | 2026-09-28 | [Godot MCP plugin](2026-09-28-godot-mcp.md) | tooling |
+| 2026-09-29 | [Switch to godot-ai](2026-09-29-godot-ai.md) | tooling |
