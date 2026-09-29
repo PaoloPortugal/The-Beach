@@ -361,7 +361,7 @@ removing a provider means deleting its folders.
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
 | `src/launch/` | Generic: terminal launcher, `launch` mode, clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude`, launching it, the channel bridge and the hook endpoint (S02). |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude`, launching it, the channel bridge, the hook endpoint and translation, the transcript follower (S02). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
@@ -794,6 +794,16 @@ right away. After a stop it causes itself, the sidecar sets the states
 directly. The transcript's line format isn't a documented interface (see
 Watch items), so this is used for status only and must degrade gracefully:
 without it, the fallback is inferring from the next hook or user message.
+*Built (branch `s02-transcript`):* `providers/claude/transcript.ts`
+follows the `transcript_path` the hooks name (and moves to the new file
+after `/clear`), from its end at that moment, polling every 250 ms. A "No"
+is a tool result with `is_error` and `toolUseResult: "User rejected tool
+use"` (also `toolDenialKind: "user-rejected"`) naming the call's
+`tool_use_id`, so it resolves that exact prompt; `[Request interrupted by
+user]` (Esc) and `[... for tool use]` (after a "No") leave the orchestrator
+idle, closing its running calls as interrupted. Checked against the spike's
+real transcript: exactly its one "No" and two interruptions. Subagent
+transcripts aren't followed.
 
 **When transcripts are off (user's decision: Claude Code's setting is the
 only control).** Users can turn transcript saving off in Claude Code with
@@ -1105,8 +1115,8 @@ S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
 **Next:** live runs of the permission relay, questions and stopping
-(built on `s02-permissions`, `s02-questions`, `s02-interrupt`), the
-transcript follower (Esc, terminal "No"), session notices (`session.notice` schema entry, transcripts off, the
+and the transcript follower (built on `s02-permissions`,
+`s02-questions`, `s02-interrupt`, `s02-transcript`), session notices (`session.notice` schema entry, transcripts off, the
 "confirm in the terminal" startup text and how it reaches a session not
 yet announced), history, then the live run (checkpoint 2) and the S02
 docs (Systems section, guide, flows, dev log).

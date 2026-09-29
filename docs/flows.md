@@ -185,8 +185,9 @@ sequenceDiagram
     end
 ```
 
-Until the transcript follower is built (and when transcripts are off), a
-terminal "No" is noticed when the orchestrator's turn ends or the user
+The "No" line names the call's `tool_use_id`, so the sidecar resolves that
+exact prompt and closes the call as `denied`. When transcripts are off, a
+terminal "No" is only noticed when the orchestrator's turn ends or the user
 sends the next message: its prompts resolve as deny, by external. A
 subagent's prompt resolves when that subagent stops.
 
