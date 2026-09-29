@@ -14,7 +14,7 @@ import { writeSessionFile } from '../../launch/launcher.ts'
 import { selfCommand } from '../../launch/self.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
-import { CLAUDE_SESSION_MARKERS } from './env.ts'
+import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 
 export interface ClaudeOptions {
@@ -50,7 +50,10 @@ export class ClaudeProvider implements Provider {
   }
 
   /** Variables removed from every launched process's environment. */
-  static readonly UNSET_ENV: readonly string[] = [...CLAUDE_SESSION_MARKERS, ...STORE_CLIENT_VARIABLES]
+  static readonly UNSET_ENV = {
+    names: [...CLAUDE_SESSION_MARKERS, ...STORE_CLIENT_VARIABLES],
+    prefixes: [...CLAUDE_SESSION_MARKER_PREFIXES],
+  }
 
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
     const found = await this.find()
@@ -99,7 +102,7 @@ export class ClaudeProvider implements Provider {
 
   private async launch(launch: Launch, claude: string, args: string[], cwd: string, name: string) {
     const file = path.join(launch.runDir, 'launch.json')
-    writeSessionFile(file, { command: claude, args, cwd, unsetEnv: [...ClaudeProvider.UNSET_ENV] })
+    writeSessionFile(file, { command: claude, args, cwd, unsetEnv: ClaudeProvider.UNSET_ENV })
     const argv = (this.opts.selfCommand ?? selfCommand)('launch', file)
     const open = this.opts.openTerminal ?? openTerminal
     try {

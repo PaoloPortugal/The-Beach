@@ -7,7 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { cleanEnv } from './env.ts'
+import { cleanEnv, type Unset } from './env.ts'
 
 export const SESSION_FILE_VERSION = 1
 
@@ -19,7 +19,7 @@ export interface SessionFile {
   /** Absolute folder to start it in. */
   cwd: string
   /** Environment variables to remove (see env.ts). */
-  unsetEnv: string[]
+  unsetEnv: { names: string[]; prefixes: string[] }
 }
 
 /** Writes a session file readable only by this user. */
@@ -42,8 +42,10 @@ export function takeSessionFile(file: string): SessionFile {
   let s: Partial<SessionFile>
   try { s = JSON.parse(raw) as Partial<SessionFile> } catch { throw new Error('The launch file is damaged.') }
   const strings = (a: unknown): a is string[] => Array.isArray(a) && a.every((x) => typeof x === 'string')
+  const unset = s.unsetEnv as Partial<Unset> | undefined
   if (s.version !== SESSION_FILE_VERSION || typeof s.command !== 'string' || typeof s.cwd !== 'string' ||
-      !strings(s.args) || !strings(s.unsetEnv)) {
+      !strings(s.args) || !unset || !strings(unset.names) || !strings(unset.prefixes) ||
+      unset.prefixes.some((p) => p.length < 8)) {
     throw new Error('The launch file is from another version of the game.')
   }
   if (!path.isAbsolute(s.command) || !fs.existsSync(s.command)) throw new Error(`Program not found: ${s.command}`)

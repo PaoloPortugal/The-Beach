@@ -6,7 +6,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { candidates, npmWrapperTargets, parseVersion, versionAtLeast, MIN_VERSION } from '../src/providers/claude/find.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { CLAUDE_SESSION_MARKERS } from '../src/providers/claude/env.ts'
+import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from '../src/providers/claude/env.ts'
+import { cleanEnv } from '../src/launch/env.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { CommandError } from '../src/provider.ts'
 import { connect, testServer } from './helpers.ts'
@@ -49,13 +50,21 @@ test('npm wrapper: finds the exe inside the npm folder, never outside it', () =>
   assert.ok(got.every((p) => p.toLowerCase().startsWith(dir.toLowerCase())), JSON.stringify(got))
 })
 
-test('session markers are named, and user settings are not among them', () => {
-  for (const kept of ['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_SKIP_PROMPT_HISTORY', 'ANTHROPIC_BASE_URL',
-    'ANTHROPIC_API_KEY', 'CLAUDE_CODE_DISABLE_TERMINAL_TITLE', 'CLAUDE_CODE_GIT_BASH_PATH']) {
-    assert.ok(!CLAUDE_SESSION_MARKERS.includes(kept), kept)
+test('session markers go, user settings stay', () => {
+  const settings = {
+    CLAUDE_CONFIG_DIR: '1', CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1', ANTHROPIC_BASE_URL: '1', ANTHROPIC_API_KEY: '1',
+    CLAUDE_CODE_DISABLE_TERMINAL_TITLE: '1', CLAUDE_CODE_GIT_BASH_PATH: '1', CLAUDE_CODE_EFFORT_LEVEL: '1',
+    CLAUDE_CODE_USE_POWERSHELL_TOOL: '1', CLAUDE_CODE_OAUTH_SCOPES: '1', DISABLE_AUTOUPDATER: '1',
   }
-  assert.ok(CLAUDE_SESSION_MARKERS.includes('CLAUDECODE'))
-  assert.ok(CLAUDE_SESSION_MARKERS.includes('CLAUDE_CODE_CHILD_SESSION'))
+  const markers = {
+    CLAUDECODE: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_SESSION_ID: '1', CLAUDE_CODE_SESSION_ATTENDED: '1',
+    CLAUDE_CODE_MESSAGING_SOCKET: '1', CLAUDE_CODE_MESSAGING_TOKEN: '1', CLAUDE_CODE_BRIDGE_SESSION_ID: '1',
+    CLAUDE_EFFORT: '1', CLAUDE_CODE_HOST_SESSION_ID: '1', CLAUDE_PID: '1',
+  }
+  const unset = { names: CLAUDE_SESSION_MARKERS, prefixes: CLAUDE_SESSION_MARKER_PREFIXES }
+  for (const platform of ['win32', 'linux'] as const) {
+    assert.deepEqual(cleanEnv({ ...settings, ...markers }, unset, platform), settings, platform)
+  }
 })
 
 function provider(over: Partial<ConstructorParameters<typeof ClaudeProvider>[0]> = {}) {
@@ -76,7 +85,8 @@ test('create writes a launch file and opens a terminal with only our launcher', 
   try {
     const c = await connect(s.port, s.token)
     await c.sync()
-    const project = fs.mkdtempSync(path.join(os.tmpdir(), 'proj;"x '))
+    // `;` and spaces are legal in folder names and must not reach a terminal.
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), 'proj;x '))
     const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: project } })
     assert.equal(r.type, 'ok', JSON.stringify(r))
     assert.equal(opened.length, 1)
@@ -90,7 +100,7 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     assert.equal(launch.args[0], '--session-id')
     assert.match(launch.args[1]!, /^[0-9a-f-]{36}$/)
     assert.deepEqual(launch.args.slice(2), ['--name', path.basename(project)])
-    assert.deepEqual([...launch.unsetEnv].sort(), [...ClaudeProvider.UNSET_ENV].sort())
+    assert.deepEqual(launch.unsetEnv, ClaudeProvider.UNSET_ENV)
     // No permission mode is chosen for the user.
     assert.ok(!launch.args.some((a) => a.startsWith('--permission-mode') || a.includes('dangerously-skip')))
     await c.close()
