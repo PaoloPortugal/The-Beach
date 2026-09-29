@@ -33,9 +33,16 @@ minigames. It runs as a web server, locally or deployed to a cloud machine.
 
 ## Borrowed (ideas only, no code)
 
-1. **A session stuck at startup** → planned in S02: a session notice when
-   the bridge hasn't connected in time (they use a missing `SessionStart`
-   hook).
+1. **A session stuck at startup** → planned in S02 (they use a missing
+   `SessionStart` hook). Refined the same day after the user asked how we'd
+   tell "waiting on you" from "a long operation": during a session, hooks
+   tell us (an open tool call is working; permission, question and
+   `Notification` types such as `elicitation_dialog` are waiting). At
+   startup nothing does, so rather than guess after a timeout, the world
+   says "confirm in the terminal" from launch (the development-channel
+   confirmation appears every time while channels are a preview), and
+   "still starting; check the terminal" after a longer wait. User
+   approved.
 2. **Token usage from the transcript**, with Claude Code's own cost total
    at session end → Deferred ideas (a `usage` capability).
 3. **"Go to whoever has waited longest"** → recorded under W07 as a
