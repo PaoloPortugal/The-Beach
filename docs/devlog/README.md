@@ -23,3 +23,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Switch to godot-ai](2026-09-29-godot-ai.md) | tooling |
 | 2026-09-29 | [Event schema v1](2026-09-29-event-schema.md) | docs |
 | 2026-09-29 | [Sidecar language](2026-09-29-sidecar-language.md) | docs |
+| 2026-09-29 | [Claude CLI route](2026-09-29-claude-cli-route.md) | docs |
