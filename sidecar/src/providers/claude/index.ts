@@ -262,8 +262,12 @@ class ClaudeSession implements ProviderSession {
   private readonly starting = new Map<string, { agent: string; role: 'user' | 'assistant'; at: string }>()
   /** Whether the transcript has been checked for (once, after the first reply). */
   private transcriptChecked = false
-  /** A stop from the world is waiting for the busy agents' next tool calls. */
-  private stopping = false
+  /**
+   * A stop from the world: the agents that were busy when it was asked,
+   * each stopped at its next tool call. One that goes idle or finishes on
+   * its own first is dropped, so a later turn is never stopped by it.
+   */
+  private readonly stopping = new Set<string>()
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
   private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
 
@@ -327,10 +331,11 @@ class ClaudeSession implements ProviderSession {
       return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
     }
     this.emitAll(this.translator.translate(p))
-    if (!this.stopping) return
+    if (this.stopping.size === 0) return
     const agent = this.translator.agentOf(p)
     let reply: Record<string, unknown> | undefined
-    if (p.hook_event_name === 'PreToolUse' && agent) {
+    if (p.hook_event_name === 'PreToolUse' && agent && this.stopping.has(agent)) {
+      this.stopping.delete(agent)
       // `continue: false` alone still let the call run (spike run 1), so
       // deny it too.
       reply = {
@@ -339,7 +344,7 @@ class ClaudeSession implements ProviderSession {
       }
       this.emitAll(this.translator.stopped(p))
     }
-    if (!this.translator.busy()) this.stopping = false
+    for (const a of [...this.stopping]) if (!this.translator.isBusy(a)) this.stopping.delete(a)
     return reply
   }
 
@@ -471,8 +476,7 @@ class ClaudeSession implements ProviderSession {
    * are denied, or they'd block the stop; that never allows anything.
    */
   async interrupt(): Promise<void> {
-    if (!this.translator.busy()) return
-    this.stopping = true
+    for (const a of this.translator.busyAgents()) this.stopping.add(a)
     for (const permission of this.translator.pendingPermissions()) {
       if (this.link?.send({ type: 'verdict', request_id: permission, behavior: 'deny' })) {
         this.emitAll(this.translator.permissionAnswered(permission, 'deny'))
