@@ -6,6 +6,8 @@ design; keep it current and short.
 - `NOTES.md` (this file): what the project is, where it's going, how it works.
 - `docs/GUIDE.md`: user's guide for built features. Must always match this file.
 - `docs/devlog/`: long history, decisions, rejected alternatives, bugs. Look up by feature ID.
+- `docs/flows.md`: step-by-step diagrams (create a session, chat, permission,
+  question, subagent, stop, failure). Derived from this file; update together.
 - `CLAUDE.md`: working rules. `README.md`: pitch and setup.
 - `assets/CREDITS.md`: source and license of every asset.
 
@@ -81,6 +83,8 @@ v1 slice.
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
 | C05 | Permission approve / deny                 | planned | n/a           | n/a       |
+| C06 | Permission mode control                   | planned | n/a           | n/a       |
+| C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | planned | n/a           | n/a       |
 | S02 | Claude provider (v1)                      | planned | n/a           | n/a       |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
@@ -95,7 +99,8 @@ v1 slice.
 - [ ] Add or update its `<ID>` section in `docs/GUIDE.md` in plain language,
       and add it to the guide's table of contents.
 - [ ] Reread the guide section against this file.
-- [ ] Update Architecture / Protocol / Conventions if it touched them.
+- [ ] Update Architecture / Protocol / Conventions if it touched them, and
+      `docs/flows.md` if it changed how the pieces talk.
 - [ ] Record any new assets in `assets/CREDITS.md`.
 - [ ] Write a dev-log entry and add it to `docs/devlog/README.md`.
 - [ ] Update "Current focus".
@@ -103,7 +108,8 @@ v1 slice.
 ## Architecture
 
 Overview (GitHub draws this Mermaid block as a diagram). Everything runs on
-the user's machine; only Claude Code itself talks to Anthropic.
+the user's machine; only Claude Code itself talks to Anthropic. Step-by-step
+flows are in `docs/flows.md`.
 
 ```mermaid
 flowchart TB
@@ -132,7 +138,7 @@ flowchart TB
     term -->|"hooks over local HTTP:<br/>what is happening"| provider
     provider -.->|"hook replies:<br/>question answers, stop"| term
     bridge <-->|"chat in, permission<br/>prompts and answers"| provider
-    provider -->|"reads history,<br/>stored sessions"| store
+    provider -->|"watches live, reads<br/>history and stored sessions"| store
     term <--> anthropic
 ```
 
@@ -144,8 +150,9 @@ flowchart TB
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
-  events over local HTTP, talks to it through our channel bridge and reads
-  and resumes sessions from `~/.claude/projects/*.jsonl`. See S02.
+  events over local HTTP, talks to it through our channel bridge, and
+  reads its transcript in `~/.claude/projects/*.jsonl` (live, for what hooks
+  don't report, and for history and resuming). See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
 
@@ -175,8 +182,10 @@ feature that touches them follows these rules, and each is tested:
   by building a shell command from text, so a project path or session name
   can't inject commands.
 - **Clean child environments.** Launched processes get the user's normal
-  environment minus variables that belong to another Claude Code session
-  (`CLAUDE_*`, `CLAUDECODE`), which could carry that session's tokens.
+  environment minus the variables Claude Code sets inside its own sessions
+  (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
+  which could carry another session's values. User configuration such as
+  `CLAUDE_CONFIG_DIR` is kept. Exact list settled when building S02.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -301,7 +310,9 @@ Each one is added to the schema and listed here:
   1+ items, each with options and optional multi-select (Claude's
   AskUserQuestion). `question.asked` / `question.resolved` (`by`: `app` or
   `external`) and the command `question.answer` (per-item chosen labels or
-  typed text, or one free `response` instead). Pending ones are in the
+  typed text, or one free `response` instead). A pending question may also
+  show in the provider's own interface (the terminal); whichever side
+  answers first wins. Pending ones are in the
   snapshot's `questions`; the agent is `waiting` with reason `question`.
 - **`interrupt`**: the user can stop what the session is doing; the session
   stays open. Command `interrupt.request`. Config
@@ -401,6 +412,42 @@ the chat panel.
 *Planned.* Answer permission requests from inside the world. They are
 sent to the sidecar as approve/deny.
 
+### C06 Permission mode control
+*Planned (after v1). Scope: capability `permission_modes`* (other tools have
+similar approval modes). The user's wish: switch permission modes from the
+world. What the CLI route allows (Claude docs, checked 2026-09-29):
+- **Choose the mode at launch:** a mode picker when creating or resuming a
+  session (`--permission-mode`).
+- **Switch while answering a prompt:** "allow, and switch to mode X", like
+  the terminal's own "Yes, and switch to auto mode". The `PermissionRequest`
+  hook's allow reply carries `updatedPermissions: [{ type: "setMode", mode,
+  destination: "session" }]`.
+- **Always show the current mode:** every hook carries `permission_mode`,
+  so switches made in the terminal (Shift+Tab) show up too.
+
+Not possible: switching at an arbitrary moment with no prompt open (only
+Shift+Tab in the terminal; typing keystrokes was rejected). Safety rules:
+only on an explicit user choice, `session` destination only (never written
+to settings files), current mode always visible with plain descriptions.
+Claude Code refuses `setMode` to `bypassPermissions` unless the session was
+launched with bypass available, which we never do. Protocol fields are
+added when this is built.
+
+### C07 Plan approval
+*Planned (after v1). Scope: capability `plans`* (plan modes exist in other
+tools too). Approve or reject a plan from the world, as well as in the
+terminal. In the terminal, when Claude finishes planning, it shows the plan
+and offers: **Yes, and use auto mode** (or "auto-accept edits"), **Yes,
+manually approve edits**, and **No, keep planning** (tell Claude what to
+change). This runs through Claude's `ExitPlanMode` tool, which Claude Code
+treats like `AskUserQuestion` (it needs a person), and hooks receive the
+plan's Markdown (`tool_input.plan`). Intended design, the same as C04's
+questions: the plan shows in both places, the `PermissionRequest` hook is
+held, first answer wins. Approve → `allow` with the input echoed back plus
+the matching `setMode` (see C06); keep planning → `deny` with the user's
+feedback as the message. **Untested:** needs a short spike before it's
+built. Rendering the plan depends on C03.
+
 ### S01 Sidecar and WebSocket server
 *Planned (v1).* The sidecar process that hosts the session registry and the
 local WebSocket server Godot connects to. It speaks only the generic
@@ -408,7 +455,7 @@ protocol.
 
 ### S02 Claude provider
 *Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
-Windows; dev log 2026-09-29-claude-cli-spike). The only place
+Windows; dev log 2026-09-29-claude-cli-spike). Diagrams: `docs/flows.md`. The only place
 Claude-specific names may appear. It drives the user's own installed
 `claude` CLI, signed in with their own account through Anthropic's login.
 Our code never reads, stores or passes on Claude credentials, and never
@@ -425,10 +472,10 @@ modifies or bundles Claude Code.
   terminal at startup (plus folder trust the first time). So the terminal
   must be visible, at least at launch;
 - `--name`: the session's display name;
-- a **clean environment**: the user's normal environment minus any
-  `CLAUDE_*` / `CLAUDECODE` variables inherited from another Claude Code
-  session. Inherited markers make `claude` treat itself as nested and turn
-  transcript saving off, and leak another session's values.
+- a **clean environment** (see Security rules). Inherited session
+  markers make `claude` treat itself as nested and turn transcript saving
+  off, and leak another session's values. Verified: with them removed, the
+  transcript is written live.
 
 It never passes a permission mode: the session uses the user's own
 (the spike ran in the user's default `auto` mode, where prompts are rare).
@@ -461,12 +508,22 @@ a per-session token header. Verified mapping:
   `permission_prompt` about 6 s later).
 - `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
   → error.
-- **No event** when the user answers "No" to a permission in the terminal
-  (the turn is interrupted silently), when a stop ends a turn, or when a
-  stopped subagent ends (no `SubagentStop`; only the `<task-notification>`
-  with its ID). The sidecar infers these: a pending permission is resolved
-  (`by: external`) when a later tool hook for it or a new user message
-  arrives; after a stop the sidecar sets the states itself.
+- **No hook** when the user answers "No" to a permission in the terminal
+  or presses Esc (the turn is interrupted silently), when a stop ends a
+  turn, or when a stopped subagent ends (no `SubagentStop`; only the
+  `<task-notification>` with its ID).
+
+**Filling the gaps: the transcript.** The sidecar also follows the
+session's transcript (`transcript_path` in every hook), read-only. Claude
+Code writes it live and records what hooks miss, within the same second:
+Esc adds a user entry `[Request interrupted by user]`; a terminal "No"
+adds a tool result marked as an error with `toolUseResult: "User rejected
+tool use"` and then `[Request interrupted by user for tool use]`. So the
+world shows the agent idle and the permission resolved (`by: external`)
+right away. After a stop it causes itself, the sidecar sets the states
+directly. The transcript's line format isn't a documented interface (see
+Watch items), so this is used for status only and must degrade gracefully:
+without it, the fallback is inferring from the next hook or user message.
 
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
@@ -485,13 +542,20 @@ with a token. Verified:
   world closes the terminal dialog. A deny from the world lets Claude
   continue its turn; a "No" in the terminal interrupts it.
 
-**Clarifying questions (`questions` capability).** Verified: a `PreToolUse`
-hook matched to `AskUserQuestion` holds the HTTP request until the user
-answers in the world, then returns `permissionDecision: "allow"` with the
-answers in `updatedInput`; the terminal never shows the question. Replying
-with an empty body instead hands the question to the terminal, and the
-answer shows up in `PostToolUse`. Per the docs, a timed-out hook also falls
-back to the terminal.
+**Clarifying questions (`questions` capability).** Verified (run 3): in
+the terminal a question is a permission-style prompt, so `PreToolUse`
+passes it through and the `PermissionRequest` hook for `AskUserQuestion`
+is held while **the terminal shows the question at the same time**. Answer
+in the world: the held hook returns `decision: { behavior: "allow",
+updatedInput: { questions, answers } }` and the terminal's menu closes as
+answered. Answer in the terminal: the answer arrives in `PostToolUse`.
+Claude Code doesn't close our held request then, so the sidecar releases
+it itself on that `PostToolUse` (same question) and sends
+`question.resolved` (`by: external`). That hook needs a long `timeout`; if
+it times out, the terminal question simply stays. (Run 1 held `PreToolUse`
+instead, which hid the question from the terminal; rejected, since the
+user must be able to answer in either place.) Questions don't go through
+the channel's permission relay.
 
 **Stopping (`interrupt` capability, `immediate: false`).** Verified: on
 `interrupt.request` the sidecar answers the session's next `PreToolUse` with
@@ -504,10 +568,22 @@ subagent; the orchestrator is told and carries on.
 or offline, Claude Code fell back to its own terminal prompt every time and
 nothing was allowed. Hooks resume when the server comes back.
 
-**Not available on this route:** an immediate stop (Esc) and anything only
-the terminal shows (folder trust, MCP consent, the channel confirmation).
-Typing into the terminal was considered and rejected for now (see the
-dev log, 2026-09-29-claude-cli-route).
+**Terminal-only on this route.** No documented way exists to do these
+from outside, so they stay in the terminal (the world sees their effects
+through hooks where there are any). Typing keystrokes into the terminal was
+considered and rejected (dev log 2026-09-29-claude-cli-route).
+- An immediate stop from the world (the world's stop lands at the next
+  step; Esc in the terminal is immediate).
+- Prompts only the terminal shows: folder trust, MCP server consent, the
+  development-channel confirmation.
+- Built-in slash commands: session-changing ones (`/model`, `/effort`,
+  `/compact`, `/clear`, `/rewind`, `/permissions`, `/mcp`, `/config`, ...)
+  and screens (`/context`, `/usage`, `/diff`, `/help`, ...). Some have
+  launch-time equivalents: model, effort, name and permission mode can be
+  chosen when creating or resuming a session. Chat messages from the world
+  starting with `/` reach Claude as plain text, not as commands.
+- Switching permission mode with no prompt open (C06 covers switching at
+  launch and while answering a prompt).
 
 ### S03 Create session
 *Planned.* A "create new session" command from Godot; the sidecar launches
@@ -649,6 +725,12 @@ exists.
 - **Other biomes:** hills, mountains, joined by the same bridge system (W06).
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
+- **Commands from the world** (probably a capability). Skills and custom
+  commands could be sent through as requests, since Claude can run most
+  skills itself (not guaranteed; skills marked user-only won't run that
+  way; untested). Built-ins with a launch-time equivalent could be offered
+  at session creation or resume. Other built-ins stay terminal-only (S02),
+  and the world should say so instead of sending them to Claude as text.
 
 ### Watch items
 
@@ -674,6 +756,11 @@ exists.
   pulls in 94 packages, including a web server we don't use. Consider a
   minimal stdio implementation of the few messages the bridge needs,
   weighed against the "few dependencies" rule.
+- **Transcript format.** Esc and terminal "No" are only visible in the
+  transcript, whose line format isn't a documented interface. It is used
+  for status only, parsed defensively, and re-checked on Claude Code
+  updates; if it changes, the world falls back to inferring from the next
+  event.
 - **Channels are a research preview.** Chat and permission answers from the
   world depend on them (S02). Flags and protocol may change, custom channels
   need `--dangerously-load-development-channels` (confirmed by the user at

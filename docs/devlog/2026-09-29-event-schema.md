@@ -63,3 +63,14 @@ Added, user approved:
 Noted, no schema change: subagents run in the background by default, so
 the orchestrator can be `idle` while subagents work; subagent text arrives
 as whole messages, not deltas. "Allow always" is deferred to C05.
+
+## Follow-up: `question.release` (same day)
+
+Found while drawing every reply in the flow diagrams (docs/flows.md, flow
+4): the world had no message for "answer this question in the terminal
+instead". The user approved a separate `question.release` command over a
+flag on `question.answer`, which would have mixed two actions in one
+command.
+Removed again after spike run 3: questions now show in the terminal and the
+world at the same time (first answer wins), so there is nothing to hand
+over. `question.resolved` with `by: external` covers a terminal answer.

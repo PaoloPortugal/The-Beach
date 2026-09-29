@@ -7,6 +7,8 @@ Working rules for this repo. Read `NOTES.md` first every session.
 - `NOTES.md`: developer reference and **single source of truth for the design**.
 - `docs/GUIDE.md`: user's guide, built features only, written from NOTES.md.
 - `docs/devlog/`: history of decisions, bugs and dead ends. Look up by feature ID.
+- `docs/flows.md`: step-by-step diagrams of how the pieces talk. Update it
+  with any change to NOTES.md → S02 or Protocol.
 - `README.md`: pitch and setup for newcomers.
 - `assets/CREDITS.md`: source and license of every asset.
 

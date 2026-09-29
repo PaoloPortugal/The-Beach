@@ -63,16 +63,37 @@ r = await hookCall({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_inpu
 check('stop applies once', r.body === null)
 
 const questions = [{ question: 'Pick one?', header: 'Pick', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false }]
-const held = hookCall({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions } }, 5000)
+const getState = () => fetch(ctl.url + '/state', { headers: { Authorization: `Bearer ${ctl.token}` } }).then((x) => x.json())
+
+// parallel (default): PreToolUse passes straight through, PermissionRequest is held
+r = await hookCall({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions } })
+check('parallel: question PreToolUse is not held', r.status === 200 && r.body === null)
+let held = hookCall({ hook_event_name: 'PermissionRequest', tool_name: 'AskUserQuestion', tool_input: { questions } }, 5000)
 await new Promise((res) => setTimeout(res, 300))
-const st = await fetch(ctl.url + '/state', { headers: { Authorization: `Bearer ${ctl.token}` } }).then((x) => x.json())
-check('question is held until answered', st.heldQuestion?.questions?.[0]?.question === 'Pick one?')
+check('parallel: question PermissionRequest is held', (await getState()).heldQuestion?.questions?.[0]?.question === 'Pick one?')
+await ctlCall('/answer', { answers: { 'Pick one?': 'B' } })
+r = await held
+let d = r.body?.hookSpecificOutput
+check('parallel: answer returns PermissionRequest allow + answers',
+  d?.hookEventName === 'PermissionRequest' && d?.decision?.behavior === 'allow' &&
+  d?.decision?.updatedInput?.answers?.['Pick one?'] === 'B')
+held = hookCall({ hook_event_name: 'PermissionRequest', tool_name: 'AskUserQuestion', tool_input: { questions } }, 400)
+await held
+await new Promise((res) => setTimeout(res, 200))
+check('parallel: a held question is dropped when Claude Code gives up on it', (await getState()).heldQuestion === null)
+
+// hold (run 1 design): PreToolUse is held
+await ctlCall('/mode', { questionMode: 'hold' })
+held = hookCall({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions } }, 5000)
+await new Promise((res) => setTimeout(res, 300))
+check('hold: question is held until answered', (await getState()).heldQuestion?.questions?.[0]?.question === 'Pick one?')
 await ctlCall('/answer', { answers: { 'Pick one?': 'B' } })
 r = await held
 const out = r.body?.hookSpecificOutput
-check('answer returns allow + updatedInput with answers',
+check('hold: answer returns allow + updatedInput with answers',
   out?.permissionDecision === 'allow' && out?.updatedInput?.answers?.['Pick one?'] === 'B' &&
   out?.updatedInput?.questions?.length === 1)
+await ctlCall('/mode', { questionMode: 'parallel' })
 
 await ctlCall('/mode', { hookMode: 'hang' })
 r = await hookCall({ hook_event_name: 'Stop' }, 800)
