@@ -1,0 +1,2 @@
+# Normalize line endings to LF (matches Godot's default template)
+* text=auto eol=lf
