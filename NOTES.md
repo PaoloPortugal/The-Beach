@@ -1038,6 +1038,15 @@ In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
 - `npm run dev:fake`: the sidecar with a fake provider that echoes chat,
   for building the world without Claude.
+- `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
+  provider, driven like Godot would. It opens a terminal with `claude`
+  (confirm the development channel there), prints every event with the
+  time since launch, and sends each typed line as world chat. Lines
+  starting with `/` act like the world's buttons: `/allow` and `/deny` (a
+  permission; the latest unless an id is given), `/answer <label>` (a
+  question; `A|B` for multi-select), `/reply <text>` (free answer),
+  `/stop`, `/history`. Use a neutrally named folder: Claude once guessed
+  this repo's path from a test folder's name and wrote there.
 - `npm run build`: the bundle, `dist/sidecar.cjs`. To run the process tests
   against it or a packaged executable, set `SIDECAR_CMD` to a JSON array,
   e.g. `SIDECAR_CMD='["dist/win-x64/sidecar.exe"]' node --test test/process.test.ts`.
