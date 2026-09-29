@@ -138,8 +138,7 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar (empty until its language is chosen). Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema *(pending, see open question 1)*. |
 | `docs/` | User's guide and dev log. |
-| `addons/godot_mcp/` | Dev tool, not a feature: third-party editor plugin that lets Claude Code drive the Godot editor over MCP. See Running it. |
-| `.mcp.json` | Registers that plugin's MCP server with Claude Code (project scope). |
+| `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. |
 
 The Godot folder layout (scenes, scripts) and the sidecar file table get
 filled in as the v1 features land.
@@ -300,13 +299,18 @@ names. Add to this list if it ever has to appear anywhere new.
 Nothing runs yet. Once it does: start the sidecar (commands depend on
 open question 6), then open `project.godot` in Godot 4.7.2 and press F5.
 
-**Godot MCP (dev tool).** The `addons/godot_mcp` editor plugin
-([DaxianLee/godot-mcp](https://github.com/DaxianLee/godot-mcp)) serves MCP at
-`http://127.0.0.1:3000/mcp` while the editor is open; `.mcp.json` points
-Claude Code at it. Auto-start is **off** (per-machine setting in
-`%APPDATA%/Godot/app_userdata/The Beach/godot_mcp_settings.json`), so press
-**Start** in the plugin's dock when you want Claude to use it, and **Stop**
-afterwards. Claude Code asks once to approve the project server.
+**Godot AI (dev tool).** The `addons/godot_ai` editor plugin
+([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
+Code drive the open editor. It needs [uv](https://docs.astral.sh/uv/) (the
+client runs a Python bridge through `uvx`). Chain: Claude Code → `godot-ai
+attach` (stdio) → local Python server (authenticated HTTP, port 8000) → editor
+plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
+- Set Editor Settings → Plugins → `godot_ai/mcp_client_scope` to `local`,
+  then press **Configure** next to Claude Code in the Godot AI dock. The
+  client entry pins versions and machine paths, so it isn't tracked in the repo.
+- Telemetry off: set the user environment variable
+  `GODOT_AI_DISABLE_TELEMETRY=true`.
+- Update with the dock's **Update** button, never by copying files over it.
 
 ## Open questions
 
@@ -369,15 +373,10 @@ exists.
 - Markdown → BBCode rendering (C03) is the biggest UX risk.
 - `icon.svg` is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
-
-- **Godot MCP plugin security:** its server has no auth and sends
-  `Access-Control-Allow-Origin: *`, so any web page open in a browser can call
-  its tools (create, edit and delete files under `res://` and `user://`) while
-  it runs. Mitigation for now (user's choice): auto-start off, run it only
-  when needed.
-- **Godot MCP plugin licence:** custom *non-commercial* licence
-  (`addons/godot_mcp/LICENSE`, kept with the copy as it requires). Fine while
-  the project is non-commercial; revisit if that changes.
+- **Godot AI plugin:** its auth doesn't protect against a compromised process
+  running as the same user, and on Windows it claims no isolation from other
+  local accounts (per its security model). Telemetry is on by default
+  upstream; we opt out per machine.
 
 ### Deliberate limitations
 
