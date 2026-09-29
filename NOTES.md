@@ -126,7 +126,7 @@ Naming: Claude-specific names appear only in the sidecar's Claude provider
 module, the Claude extension namespace of the protocol, and Godot's Claude UI
 module. Everything else is named generically. Don't build a second provider;
 just don't assume there will only be one. The exact capability and extension
-format is part of the event schema (open question 1).
+format is in Protocol → Capabilities and Extensions.
 
 **Layout.** The Godot project is the repo root (`project.godot`). Other
 top-level folders sit beside it:
@@ -136,7 +136,7 @@ top-level folders sit beside it:
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
 | `sidecar/` | Sidecar (empty until its language is chosen). Has a `.gdignore` so Godot doesn't scan it. |
-| `protocol/` | Shared event schema *(pending, see open question 1)*. |
+| `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide and dev log. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
@@ -148,14 +148,78 @@ filled in as the v1 features land.
 The contract between Godot and the sidecar, over a local WebSocket. It has
 a generic core, capability-gated optional features and provider-namespaced
 extensions (see Multi-provider rules), and must not assume a maximum number of agents
-per session. The concrete schema is **not settled yet** (open question 1);
-once it is, it will be written here and in `protocol/events.schema.json`.
+per session. The full schema is `protocol/events.schema.json` (JSON Schema,
+so either sidecar language can validate against it); this section is the
+overview. **Version 1.**
 
-Vocabulary from the design:
-- **Sidecar → Godot:** session created / ended, subagent spawned / finished,
-  agent state changed, permission requested, messages (streamed).
-- **Godot → sidecar:** user chat message, permission approve / deny,
-  create session, resume session.
+**Messages.** One JSON object per WebSocket message, with a `type`:
+- Types are `noun.verb`. Events (sidecar → Godot) are past tense
+  (`session.created`); commands (Godot → sidecar) are imperative
+  (`session.create`).
+- Every command has an `id`. The sidecar answers `ok` (with an optional
+  `result`) or `error` (`code`, `message`) carrying the same `id`. An `error`
+  without `id` is a protocol-level error.
+- Every session-scoped event has `session` and `seq`, a per-session counter.
+  A gap in `seq` means Godot missed something and sends
+  `session.get_snapshot`.
+
+**Connecting.** The sidecar sends `hello` (protocol version, providers), one
+`session.snapshot` per live session, then `sync.completed`. Godot refuses a
+protocol version it doesn't know. A snapshot is a session's full state
+(agents, states, pending permissions, capabilities); after it, only changes
+follow. This covers Godot restarting in v1 and attaching to outside
+sessions later (open question 5): both are "send a snapshot, then changes".
+Chat history isn't in the snapshot; Godot asks for it with
+`session.get_history`.
+
+**IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
+(e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
+`app` (started here) or `external` (attached; not in v1). Agents are keyed by
+`agent` within their session.
+
+**Agents** form a tree: `role` is `orchestrator` or `subagent`, and `parent`
+is the agent that spawned it (null for the orchestrator). Agents stay in the
+session after finishing; Godot decides what to show. **States:**
+
+| State | Orchestrator | Subagent | Meaning |
+|---|---|---|---|
+| `working` | ✓ | ✓ | thinking or running tools |
+| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `input`, ...) |
+| `idle` | ✓ | | turn finished, the user's move |
+| `done` | | ✓ | result returned; may be resumed (back to `working`) |
+| `error` | ✓ | ✓ | failed or interrupted |
+
+The orchestrator never becomes `done`: the session ending is `session.ended`.
+
+**Core vocabulary.**
+
+| Sidecar → Godot | Godot → sidecar |
+|---|---|
+| `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
+| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `agent.spawned`, `agent.state_changed` | `message.send` |
+| `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
+| `tool.started`, `tool.finished` | |
+| `permission.requested`, `permission.resolved` | |
+
+- `session.snapshot` places an island as is; `session.created` plays the rise
+  animation.
+- Messages stream as `started` → `delta`s → `completed`, whose `text` is the
+  full Markdown and replaces the deltas. User messages are events too, so
+  text typed elsewhere shows up once attaching exists.
+- `permission.resolved` has `by`: `app` or `external` (answered elsewhere,
+  once attaching exists).
+
+**Capabilities.** A session declares `capabilities`, keyed by name, each with
+its own config object (e.g. `"usage": {}`). A capability's events use its
+name as the noun (e.g. `usage.updated`) and are only sent when declared.
+None are defined yet; each one is added to the schema and listed here.
+
+**Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
+Extension messages are `ext.<provider>.<name>` in either direction, carry
+`session`/`seq` or `id` like core messages, and are routed in Godot by
+prefix to that provider's UI module. Their payload schemas go in
+`protocol/ext/<provider>.schema.json`.
 
 ## Systems
 
@@ -199,13 +263,16 @@ desk or under an umbrella. It's the main way you interact with a session
 
 ### A02 Subagents
 *Planned (v1).* Small logo-on-a-little-PC models on the island's sand. They
-appear when the orchestrator spawns them and power down or disappear when
-they finish. Chat is orchestrator-only for now; whether to talk to
+appear when the orchestrator spawns them. When one finishes (`done`), it
+runs to the agent that called it (its `parent`) with a paper on its head,
+throws the report to it, and disappears. A resumed subagent (back to
+`working`) reappears. Chat is orchestrator-only for now; whether to talk to
 subagents directly is open question 4.
 
 ### A03 Agent state indicators
-*Planned.* A visible state on each agent: working, waiting on user input
-(e.g. a permission prompt) or done.
+*Planned.* A visible state on each agent, from the protocol's state enum
+(see Protocol): working, waiting on the user (e.g. a permission prompt),
+idle (orchestrator), done (subagent) or error.
 
 ### A04 Procedural agent placement
 *Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
@@ -320,9 +387,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Open questions
 
-1. **Event schema.** The data model between sidecar and Godot (session →
-   island, agent → model, state → visual). It must be nailed down before
-   building either side. *Next up.*
+1. ~~**Event schema.**~~ *Decided:* version 1 is in Protocol and
+   `protocol/events.schema.json`.
 2. **Archipelago clustering.** Strictly by repo path, or can projects be
    manually named or arranged?
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
@@ -339,9 +405,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** settle the event schema (open question 1), including the
-capability and extension format. The sidecar language (open question 6) is
-under investigation. Then: the Markdown → BBCode spike (C03).
+**Current focus:** the Markdown → BBCode spike (C03), the last M0 item. The
+sidecar language (open question 6) is under investigation.
 
 ### Milestones
 
