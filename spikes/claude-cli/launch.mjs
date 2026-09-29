@@ -35,7 +35,8 @@ const log = (dir, data) => {
 const state = {
   hookMode: 'normal',        // normal | hang | error
   stopPending: false,
-  heldQuestion: null,        // { res, input, tool_use_id }
+  questionMode: 'parallel',  // parallel | hold
+  heldQuestion: null,        // { res, input, via }
   permissions: {},           // request_id -> params
   counts: {},
 }
@@ -83,9 +84,19 @@ const hookServer = http.createServer(async (req, res) => {
     return json(res, 200, out)
   }
 
-  if (ev === 'PreToolUse' && p.tool_name === 'AskUserQuestion') {
-    state.heldQuestion = { res, input: p.tool_input, tool_use_id: p.tool_use_id }
-    log('question-held', { tool_use_id: p.tool_use_id })
+  // Questions. 'hold' (run 1): hold PreToolUse, so the terminal never shows it.
+  // 'parallel' (run 3): let the terminal show it and hold PermissionRequest
+  // alongside; whichever side answers first wins.
+  const holdEvent = state.questionMode === 'hold' ? 'PreToolUse' : 'PermissionRequest'
+  if (ev === holdEvent && p.tool_name === 'AskUserQuestion') {
+    state.heldQuestion = { res, input: p.tool_input, via: ev }
+    res.on('close', () => {
+      if (state.heldQuestion?.res === res) {
+        state.heldQuestion = null
+        log('held-closed', { via: ev, answered: res.writableEnded })
+      }
+    })
+    log('question-held', { via: ev })
     return                                           // answered via /ctl/answer or /ctl/release
   }
   return json(res, 200)
@@ -137,7 +148,8 @@ const ctlServer = http.createServer(async (req, res) => {
   switch (req.url) {
     case '/state':
       return json(res, 200, {
-        sessionId, hookMode: state.hookMode, stopPending: state.stopPending,
+        sessionId, hookMode: state.hookMode, questionMode: state.questionMode,
+        stopPending: state.stopPending,
         heldQuestion: state.heldQuestion && state.heldQuestion.input,
         permissions: state.permissions, bridgeConnected: !!bridge, counts: state.counts, logFile,
       })
@@ -152,9 +164,12 @@ const ctlServer = http.createServer(async (req, res) => {
       const q = state.heldQuestion
       if (!q) return json(res, 409, { error: 'no held question' })
       state.heldQuestion = null
-      const out = { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow',
-        updatedInput: { questions: q.input.questions, answers: body.answers } } }
-      log('hook-reply', { ev: 'PreToolUse', out })
+      const updatedInput = { questions: q.input.questions, answers: body.answers }
+      const out = q.via === 'PreToolUse'
+        ? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput } }
+        : { hookSpecificOutput: { hookEventName: 'PermissionRequest',
+            decision: { behavior: 'allow', updatedInput } } }
+      log('hook-reply', { ev: q.via, out })
       json(q.res, 200, out)
       return json(res, 200, { answered: true })
     }
@@ -169,9 +184,15 @@ const ctlServer = http.createServer(async (req, res) => {
       state.stopPending = true
       return json(res, 200, { stopPending: true })
     case '/mode':
-      if (!['normal', 'hang', 'error'].includes(body.hookMode)) return json(res, 400, {})
-      state.hookMode = body.hookMode
-      return json(res, 200, { hookMode: state.hookMode })
+      if (body.hookMode !== undefined) {
+        if (!['normal', 'hang', 'error'].includes(body.hookMode)) return json(res, 400, {})
+        state.hookMode = body.hookMode
+      }
+      if (body.questionMode !== undefined) {
+        if (!['parallel', 'hold'].includes(body.questionMode)) return json(res, 400, {})
+        state.questionMode = body.questionMode
+      }
+      return json(res, 200, { hookMode: state.hookMode, questionMode: state.questionMode })
     case '/hooks-down':
       hookServer.close()
       hookServer.closeAllConnections()
@@ -203,7 +224,11 @@ const settings = {
       { matcher: '^(?!AskUserQuestion$)', hooks: [hook(30)] },
       { matcher: 'AskUserQuestion', hooks: [hook(3600)] },
     ],
-    PostToolUse: all(), PostToolUseFailure: all(), PermissionRequest: all(),
+    PostToolUse: all(), PostToolUseFailure: all(),
+    PermissionRequest: [
+      { matcher: '^(?!AskUserQuestion$)', hooks: [hook(30)] },
+      { matcher: 'AskUserQuestion', hooks: [hook(3600)] },
+    ],
     Notification: all(), Stop: all(), StopFailure: all(),
     SubagentStart: all(), SubagentStop: all(), PreCompact: all(), PostCompact: all(),
   },
@@ -234,8 +259,14 @@ const claudeArgs = [
 ]
 log('launch', { workDir, claudeArgs })
 if (!process.argv.includes('--no-launch')) {
+  // Clean environment (NOTES.md -> Security rules): drop variables from any
+  // Claude Code session this was started from. Runs 1-2 inherited them, so
+  // claude treated itself as nested and saved no transcript.
+  const env = Object.fromEntries(Object.entries(process.env)
+    .filter(([k]) => !/^CLAUDE/i.test(k)))
+  log('launch-env', { dropped: Object.keys(process.env).filter((k) => /^CLAUDE/i.test(k)) })
   spawn('wt.exe', ['-w', 'new', 'new-tab', '--title', 'cli-spike', '-d', workDir, 'claude', ...claudeArgs],
-    { detached: true, stdio: 'ignore', shell: false }).unref()
+    { detached: true, stdio: 'ignore', shell: false, env }).unref()
 }
 console.log(`hub ready; control file: ${path.join(runDir, 'ctl.json')}`)
 console.log(`log: ${logFile}`)
