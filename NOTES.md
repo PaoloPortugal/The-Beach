@@ -90,8 +90,8 @@ v1 slice.
 ```
 Godot 4 (GDScript)  <--local WebSocket-->  sidecar       -->  provider(s)
 world, player, agents,     generic core +    session registry,   Claude provider:
-chat UI, provider UI       capabilities +    WebSocket server    Agent SDK, hooks, JSONL store
-                           extensions
+chat UI, provider UI       capabilities +    WebSocket server    launches `claude` CLI, hooks,
+                           extensions                            channel, JSONL store
 ```
 
 - **Godot** (GDScript): the world, player movement, island and bridge
@@ -100,10 +100,11 @@ chat UI, provider UI       capabilities +    WebSocket server    Agent SDK, hook
   forwards their activity to Godot as generic events. It owns the session
   registry.
 - **Provider**: translates one AI tool's native events into the generic
-  vocabulary. Only the **Claude provider** exists; it uses the Claude Agent
-  SDK (or spawns `claude`), listens to Claude Code hook events (subagent
-  spawn, tool use, finish, permission requests) and reads and resumes sessions
-  from `~/.claude/projects/*.jsonl`.
+  vocabulary. Only the **Claude provider** exists. It launches the user's
+  own, unmodified `claude` CLI in a terminal window, receives its hook
+  events over local HTTP, talks to it through a channel (a local MCP
+  server) and reads and resumes sessions from `~/.claude/projects/*.jsonl`.
+  See S02.
 - **One session ID = one island.** It is the core unit in both the sidecar's
   data model and Godot's scene tree.
 
@@ -322,21 +323,55 @@ local WebSocket server Godot connects to. It speaks only the generic
 protocol.
 
 ### S02 Claude provider
-*Planned (v1).* Starts a Claude Code session via the Claude Agent SDK and
-translates its hook/SDK events into generic events. It is the only place
-Claude-specific names may appear.
+*Planned (v1).* The only place Claude-specific names may appear. It drives
+the user's own installed `claude` CLI, signed in with their own account
+through Anthropic's login. Our code never reads, stores or passes on Claude
+credentials, and never modifies or bundles Claude Code.
+
+**Launch.** It opens a terminal window running `claude` with:
+- `--settings <json>`: hooks for this session only, so the user's own
+  settings files are never edited;
+- `--session-id <uuid>`: the ID is known before the session starts
+  (becomes `native_id`);
+- `--mcp-config` plus `--dangerously-load-development-channels server:<name>`:
+  registers our channel. While channels are a research preview, custom
+  channels need this flag, and Claude Code asks the user to confirm it in the
+  terminal at startup. So the terminal must be visible, at least at launch;
+- `--name`: the session's display name.
+
+**Seeing the session: HTTP hooks** posted to the sidecar on localhost.
+Planned mapping: `SessionStart` / `SessionEnd` → session created / ended;
+`UserPromptSubmit` → user message; `MessageDisplay` → assistant text (it
+arrives in batches of completed lines, so chat streams line by line, not
+word by word); `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool
+calls; `SubagentStart` / `SubagentStop` → subagents (`agent_id`,
+`agent_type`); `PermissionRequest` → permission requested; `Stop` →
+orchestrator idle; `StopFailure` → error. Hooks fired inside a subagent
+carry its `agent_id`.
+
+**Talking to the session: a channel**, a small MCP server the sidecar
+provides. It pushes the user's chat messages into the session, and with
+permission relay it receives permission prompts. The terminal prompt and
+the world are both live; whichever answers first wins (`by: external` when
+it was the terminal).
+
+**Not available on this route (for now):** interrupting from the world (no
+documented way), and clarifying questions, which stay in the terminal (the
+`questions` capability isn't declared). Things only the terminal shows
+(folder trust, MCP consent) also stay there.
 
 ### S03 Create session
-*Planned.* A "create new session" command from Godot. The app runs sessions
-itself first; attaching to sessions already running elsewhere comes later
-(open question 5, decided).
+*Planned.* A "create new session" command from Godot; the sidecar launches
+a `claude` terminal (see S02). Attaching to sessions the user started
+themselves comes later (open question 5, decided); it uses the same hooks
+and channel, which such a session would need to be started with.
 
 ### S04 List and resume sessions
 *Planned.* Claude Code stores transcripts as JSONL under
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
-`claude --resume <id>`. Sessions created through the Agent SDK use the same
-store, so sessions made in this app are resumable from a terminal, and old
-CLI sessions can be listed and resumed here. The Claude **desktop app** does
+`claude --resume <id>`. Sessions launched from this app are ordinary CLI
+sessions in the same store, so they are resumable from a terminal, and old
+CLI sessions can be listed and resumed here (launched with `--resume`). The Claude **desktop app** does
 not use this store (see Deliberate limitations).
 
 ### S05 End session
@@ -405,30 +440,29 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
-   runs sessions started from inside the app; attaching to sessions already
+   launches sessions from inside the app; attaching to sessions already
    running elsewhere comes later. The event schema must allow for attaching
    (joining a session partway through) even though v1 doesn't use it.
-6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. The
-   TypeScript Agent SDK is the more complete one: several hook events we
-   want (session start/end, turn failures, compaction finished) are
-   TypeScript-only.
+6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
+   while the Agent SDK was the plan (its TypeScript version is the more
+   complete one). It still fits the CLI route: channels are MCP servers and
+   Anthropic's channel examples use the TypeScript MCP SDK.
 
 ## Known issues and next steps
 
 **Current focus:** the Markdown → BBCode spike (C03), the last M0 item.
-Before building the sidecar, settle how sessions authenticate (see Watch
-items → Login and cost).
 
 ### Milestones
 
 **M0 Setup.** Docs and scaffold, event schema, Markdown → BBCode spike.
 
-**M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ Agent SDK pipeline
+**M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
 exists.
 - One archipelago, one island, one orchestrator (W01, W02, A01).
-- Sidecar starts one Claude Code session via the Agent SDK and forwards hook
-  events over WebSocket (S01, S02).
+- Sidecar launches one `claude` CLI session in a terminal, turns its hook
+  events into generic events over WebSocket, and relays chat and permission
+  answers through a channel (S01, S02).
 - Walk up to chat with a plain-text chat panel wired to the sidecar (W03, C01,
   C02).
 - Subagents as simple logo-on-PC models with ring or spiral placement,
@@ -454,16 +488,26 @@ exists.
 
 ### Watch items
 
-- **Login and cost (before S01/S02).** Per Claude Code's legal and
-  compliance docs (checked 2026-09-29), apps built on the Agent SDK should
-  use an API key (billed per token), and third parties may not offer
-  claude.ai login or route requests through Free/Pro/Max credentials on
-  their users' behalf. The same page says it doesn't prevent a user
-  signing in to the **unmodified** Claude Code binary with their own
-  subscription, and Pro/Max limits assume "ordinary, individual usage of
-  Claude Code and the Agent SDK". Our code must never read, store or pass
-  on Claude credentials; sign-in happens only in Anthropic's own flow
-  (`claude` login). Which route the sidecar uses is being decided.
+- **Anthropic's terms (public release).** The app is meant for free public
+  release (maybe donations later). Per Claude Code's legal and compliance
+  docs (checked 2026-09-29): third parties may not offer claude.ai login,
+  route requests through Free/Pro/Max credentials, or collect, store or
+  intermediate Claude credentials; this doesn't prevent a user signing in
+  to the **unmodified** Claude Code binary with their own subscription.
+  Hence the CLI route (S02): each user installs and signs in to Claude Code
+  themselves; we never bundle, modify or authenticate it. Recheck the terms
+  before each release; for certainty, ask Anthropic (the page points to
+  their sales contact).
+- **Claude branding.** Same page: a product may say in plain text that it
+  runs Claude Code, but may not use the Claude Code or Anthropic names or
+  logos in its own name or logo, or suggest Anthropic built or endorses it.
+  Other use of their logos needs written permission. This affects the "logo
+  model" agents (A01, A02) in a public release.
+- **Channels are a research preview.** Chat and permission answers from the
+  world depend on them (S02). Flags and protocol may change, custom channels
+  need `--dangerously-load-development-channels` (confirmed by the user at
+  startup), and Team/Enterprise organisations block channels unless an
+  admin enables them. Pro/Max users without an organisation can use them.
 
 - Markdown → BBCode rendering (C03) is the biggest UX risk.
 - `icon.svg` is Godot's default icon (CC BY 4.0, not CC0). It is a
@@ -480,5 +524,11 @@ exists.
   `~/.claude/projects/`, and offers no supported way to register a session or
   launch into a folder from outside. The terminal/JSONL store is the
   integration point.
+- **No Agent SDK (not in the near future).** Driving Claude through the
+  Agent SDK gives more control (interrupt, clarifying questions, word-by-word
+  streaming), but Anthropic's terms expect SDK apps to use an API key
+  (billed per token) rather than the user's subscription. We use the CLI
+  route instead (S02). Revisit only if Anthropic confirms subscription use
+  is fine for this kind of app, or an API-key option is wanted.
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
