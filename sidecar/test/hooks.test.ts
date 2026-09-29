@@ -193,6 +193,16 @@ test('parallel spawns pair by agent type; a start with no call belongs to the or
   assert.deepEqual(spawned, [['p', 'plan'], ['e', 'explore'], ['x', null]])
 })
 
+test('an Agent call denied before its subagent started doesn\'t claim a later one', () => {
+  const t = new HookTranslator(CWD)
+  t.translate(hook('PreToolUse', { tool_name: 'Agent', tool_use_id: 'c1', tool_input: { description: 'denied one', subagent_type: 'Explore' } }))
+  t.permissionRequested({ request_id: 'abcde', tool_name: 'Agent', description: '', input_preview: '' }, true)
+  t.permissionAnswered('abcde', 'deny')
+  t.translate(hook('PreToolUse', { tool_name: 'Agent', tool_use_id: 'c2', tool_input: { description: 'real one', subagent_type: 'Explore' } }))
+  const ev = run(t, hook('SubagentStart', { agent_id: 'e', agent_type: 'Explore' }))
+  assert.equal((ev.find((e) => e.type === 'agent.spawned') as any).agent.task, 'real one')
+})
+
 test('Claude Code\'s internal helper agents (never started) are ignored', () => {
   const t = new HookTranslator(CWD)
   const ev = run(t,

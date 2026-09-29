@@ -132,3 +132,25 @@ test('through a session: a stop denies pending permission prompts, so they can\'
     assert.deepEqual(x.fromSidecar, [{ type: 'verdict', request_id: 'qwert', behavior: 'deny' }])
   } finally { await x.close() }
 })
+
+test('through a session: a stop only applies to the turn it was asked in', async () => {
+  const x = await liveSession()
+  try {
+    await x.send(hook('UserPromptSubmit', { prompt: 'go' }))
+    await x.send(hook('SubagentStart', { agent_id: 'bg', agent_type: 'Explore' }))
+    await x.c.command({ type: 'interrupt.request', session: x.id })
+    assert.equal(JSON.parse((await x.send(tool('toolu_1'))).body).continue, false)
+    // The background subagent is still working when the user starts a new
+    // turn: that turn runs normally; the subagent is still stopped.
+    await x.send(hook('UserPromptSubmit', { prompt: 'try again' }))
+    assert.deepEqual(await x.send(tool('toolu_2')), { status: 200, body: '' })
+    assert.equal(JSON.parse((await x.send(tool('toolu_b', { agent_id: 'bg' }))).body).continue, false)
+    assert.deepEqual(await x.send(tool('toolu_4')), { status: 200, body: '' })
+
+    // Stopped while the orchestrator was busy, but its turn ended on its own first.
+    await x.c.command({ type: 'interrupt.request', session: x.id })
+    await x.send(hook('Stop', {}))
+    await x.send(hook('UserPromptSubmit', { prompt: 'and again' }))
+    assert.deepEqual(await x.send(tool('toolu_3')), { status: 200, body: '' })
+  } finally { await x.close() }
+})

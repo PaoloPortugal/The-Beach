@@ -91,7 +91,7 @@ export class HookTranslator {
   private readonly streaming = new Map<Id, string>()
   private readonly userMessages = new Set<Id>()
   /** Agent tool calls, oldest first, each waiting for its SubagentStart. */
-  private readonly spawning: { caller: Id; type: string; task: string }[] = []
+  private readonly spawning: { call: Id; caller: Id; type: string; task: string }[] = []
 
   constructor(cwd: string) {
     this.cwd = cwd
@@ -140,7 +140,7 @@ export class HookTranslator {
     if (!call) return out
     if (call.permission) this.resolvePermission(call.permission, 'deny', 'external', out, false)
     if (call.question) this.resolveQuestion(call.question, 'external', out, false)
-    if (this.openTools.delete(toolUseId)) out.push({ type: 'tool.finished', tool_call: toolUseId, status: 'denied' })
+    this.closeTool(toolUseId, 'denied', out)
     return out
   }
 
@@ -155,9 +155,7 @@ export class HookTranslator {
     this.finishMessages(out)
     this.dropPermissions(MAIN, out)
     for (const [id, call] of [...this.openTools]) {
-      if (call.agent !== MAIN) continue
-      this.openTools.delete(id)
-      out.push({ type: 'tool.finished', tool_call: id, status: 'error', summary: 'Interrupted' })
+      if (call.agent === MAIN) this.closeTool(id, 'error', out, 'Interrupted')
     }
     this.setState(MAIN, 'idle', null, out)
     return out
@@ -167,6 +165,11 @@ export class HookTranslator {
   busy(): boolean {
     for (const state of this.states.values()) if (state === 'working' || state === 'waiting') return true
     return false
+  }
+
+  /** The agents working or waiting. */
+  busyAgents(): Id[] {
+    return [...this.states.keys()].filter((a) => this.isBusy(a))
   }
 
   /** Whether this agent is working or waiting. */
@@ -191,7 +194,7 @@ export class HookTranslator {
     const agent = this.agentOf(p)
     const id = str(p.tool_use_id)
     if (!agent) return out
-    if (id && this.openTools.delete(id)) out.push({ type: 'tool.finished', tool_call: id, status: 'denied' })
+    if (id) this.closeTool(id, 'denied', out)
     this.dropPermissions(agent, out)
     if (agent === MAIN) {
       this.finishMessages(out)
@@ -287,7 +290,7 @@ export class HookTranslator {
     if (!agent || !id || !tool || this.openTools.has(id)) return
     const input = isObject(p.tool_input) ? p.tool_input : {}
     if (tool === 'Agent' || tool === 'Task') {
-      this.spawning.push({ caller: agent, type: str(input.subagent_type) ?? '', task: str(input.description) ?? '' })
+      this.spawning.push({ call: id, caller: agent, type: str(input.subagent_type) ?? '', task: str(input.description) ?? '' })
     }
     this.setState(agent, 'working', null, out)
     const summary = summarizeTool(tool, input, this.cwd)
@@ -300,12 +303,24 @@ export class HookTranslator {
     const id = str(p.tool_use_id)
     const call = id ? this.openTools.get(id) : undefined
     if (!id || !call) return
-    this.openTools.delete(id)
     // It ran, so a prompt it had was allowed, and a question answered, in the terminal.
     if (call.permission) this.resolvePermission(call.permission, 'allow', 'external', out, true)
     if (call.question) this.resolveQuestion(call.question, 'external', out, true)
     const error = status === 'error' ? str(p.error) : undefined
-    out.push({ type: 'tool.finished', tool_call: id, status, ...(error ? { summary: clip(firstLine(error)) } : {}) })
+    this.closeTool(id, status, out, error ? clip(firstLine(error)) : undefined)
+  }
+
+  /**
+   * Ends an open tool call. An Agent call that ends before its subagent
+   * started (denied, failed, stopped) no longer waits for one.
+   */
+  private closeTool(id: Id, status: 'ok' | 'error' | 'denied', out: SessionEvent[], summary?: string) {
+    if (!this.openTools.delete(id)) return
+    if (status !== 'ok') {
+      const i = this.spawning.findIndex((s) => s.call === id)
+      if (i >= 0) this.spawning.splice(i, 1)
+    }
+    out.push({ type: 'tool.finished', tool_call: id, status, ...(summary ? { summary } : {}) })
   }
 
   /**
@@ -364,9 +379,7 @@ export class HookTranslator {
     const call = p.toolCall ? this.openTools.get(p.toolCall) : undefined
     if (call) call.permission = null
     out.push({ type: 'permission.resolved', permission: requestId, decision, by })
-    if (decision === 'deny' && p.toolCall && this.openTools.delete(p.toolCall)) {
-      out.push({ type: 'tool.finished', tool_call: p.toolCall, status: 'denied' })
-    }
+    if (decision === 'deny' && p.toolCall) this.closeTool(p.toolCall, 'denied', out)
     if (!resume) return
     const stillWaiting = [...this.permissions.values()].some((q) => q.agent === p.agent)
     if (!stillWaiting && this.states.get(p.agent) === 'waiting' && this.reasons.get(p.agent) === 'permission') {
