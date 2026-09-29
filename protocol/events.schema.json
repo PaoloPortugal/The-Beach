@@ -194,7 +194,7 @@
       "required": ["code", "message"],
       "properties": {
         "code": {
-          "description": "Machine-readable; Godot shows its own text for codes it knows. transcripts_off: the provider isn't saving transcripts, so some features may not work as intended.",
+          "description": "Machine-readable; Godot shows its own text for codes it knows. transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works).",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },

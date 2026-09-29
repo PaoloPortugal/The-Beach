@@ -446,7 +446,8 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 - `session.notice` tells the user something about a session that isn't an
   agent's state: a `code` (Godot shows its own text for codes it knows)
   and an English fallback `message`. One per code (a new one replaces
-  it); the snapshot lists them in `notices`. Codes: `transcripts_off`.
+  it); the snapshot lists them in `notices`. Codes: `transcripts_off`,
+  `hooks_unavailable`.
   *(Drafted on branch `s02-notices`; the shape awaits the user's
   approval.)*
 
@@ -832,7 +833,10 @@ the world with a **session notice** (user's decision, S02): a generic
 core event `session.notice` carrying a code (`transcripts_off`) and an
 English fallback message, also listed in the snapshot. Godot shows its own
 text for codes it knows. The same mechanism carries other warnings about a
-session (e.g. hooks blocked by `allowedHttpHookUrls`). **The world shows only a short disclaimer** (user's decision), along
+session: `hooks_unavailable` when a world message sent while the
+orchestrator is idle brings no hook at all within 10 s (hooks work: one
+arrives within a second), most likely hooks blocked by the user's
+`allowedHttpHookUrls` (built on branch `s02-hooks-notice`). **The world shows only a short disclaimer** (user's decision), along
 the lines of "Transcript saving is off in Claude Code, so some features
 may not work as intended. Turning it on is recommended." The detailed
 list below is for development, not for the UI. What still works:
