@@ -31,8 +31,8 @@ around it:
 ## Where DESIGN.md went
 
 DESIGN.md was the one-off design brief for the first session. All of its
-content moved into NOTES.md. The original file is retired (deleted) once
-the user approves this mapping.
+content moved into NOTES.md. The user approved this mapping and the original
+file was retired (deleted).
 
 | DESIGN.md section | Now in NOTES.md |
 |---|---|
@@ -49,7 +49,7 @@ the user approves this mapping.
 | Scaling: island growth, LOD, overflow rack | Deferred ideas |
 | Entertainment / downtime | Concept; W03 (movement must allow parkour); Deferred ideas |
 | Architecture: Godot, sidecar, transport, session = island | Architecture; Protocol |
-| Multi-provider design | Architecture (multi-provider rules); S02; Conventions |
+| Multi-provider design | Architecture (multi-provider rules); S02; Conventions. Later revised; see [Provider scopes](2026-09-28-provider-scopes.md) |
 | Session integration: JSONL store, resume | S04 |
 | Session integration: desktop app not supported | S04; Deliberate limitations |
 | Chat panel: streaming, code blocks, tool log | C02, C03, C04 |
