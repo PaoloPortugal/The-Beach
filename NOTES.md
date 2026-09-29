@@ -326,7 +326,8 @@ local WebSocket server Godot connects to. It speaks only the generic
 protocol.
 
 ### S02 Claude provider
-*Planned (v1).* The only place Claude-specific names may appear. It drives
+*Planned (v1).* Gets a throwaway integration spike first (see Milestones →
+M0). The only place Claude-specific names may appear. It drives
 the user's own installed `claude` CLI, signed in with their own account
 through Anthropic's login. Our code never reads, stores or passes on Claude
 credentials, and never modifies or bundles Claude Code.
@@ -469,11 +470,23 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the Markdown → BBCode spike (C03), the last M0 item.
+**Current focus:** the Claude CLI integration spike (S02), then the
+Markdown → BBCode spike (C03). Both are M0.
 
 ### Milestones
 
-**M0 Setup.** Docs and scaffold, event schema, Markdown → BBCode spike.
+**M0 Setup.** Docs and scaffold, event schema, and two throwaway spikes:
+- **Claude CLI integration spike (S02).** Everything in S02 is confirmed
+  from the docs only. Launch a real `claude` with our hook settings and a
+  bare channel, log every hook payload, and check: the launch flags and the
+  channel confirmation prompt; which hooks fire and what they carry (IDs,
+  subagent `agent_id`, `MessageDisplay` batches); chat into the session
+  through the channel; permission relay (world and terminal both live);
+  answering `AskUserQuestion` from a `PreToolUse` hook; `continue: false`
+  stopping at the next step, and whether inside a subagent it stops the
+  subagent or the whole session. Uses a little of the user's subscription.
+  Results go in the dev log and update S02 and the schema if needed.
+- **Markdown → BBCode spike (C03).**
 
 **M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
