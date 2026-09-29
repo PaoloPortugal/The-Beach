@@ -196,8 +196,12 @@ feature that touches them follows these rules, and each is tested:
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
-  which could carry another session's values. User configuration such as
-  `CLAUDE_CONFIG_DIR` is kept. The same goes for anything a store client
+  which could carry another session's values. Remove only a named list of
+  those markers, never everything starting with `CLAUDE`: user
+  configuration such as `CLAUDE_CONFIG_DIR` and
+  `CLAUDE_CODE_SKIP_PROMPT_HISTORY` (transcripts off) must pass through,
+  or we'd silently undo the user's choices. (The S02 spike stripped every
+  `CLAUDE*` variable; don't copy that.) The same goes for anything a store client
   injects into the game (e.g. Steam's `LD_LIBRARY_PATH`, `LD_PRELOAD`
   overlay hooks and `STEAM_*` variables). Exact list settled when building
   S02.
@@ -209,7 +213,9 @@ feature that touches them follows these rules, and each is tested:
 - **Private by default.** Transcripts and events stay on the machine: no
   telemetry, no network calls except those Claude Code makes itself. We
   only read the user's Claude files, never write them, and never edit the
-  user's settings (per-session `--settings` instead).
+  user's settings (per-session `--settings` instead). We never save our
+  own copy of a session's conversation to disk, so a user who turned
+  Claude Code's transcripts off keeps nothing on disk because of us.
 - **Few, pinned dependencies.** Every sidecar dependency is justified,
   version-pinned with a lockfile, updated deliberately, and under a license
   that allows redistribution in an MIT project.
@@ -641,6 +647,34 @@ directly. The transcript's line format isn't a documented interface (see
 Watch items), so this is used for status only and must degrade gracefully:
 without it, the fallback is inferring from the next hook or user message.
 
+**When transcripts are off (user's decision: Claude Code's setting is the
+only control).** Users can turn transcript saving off in Claude Code with
+the `CLAUDE_CODE_SKIP_PROMPT_HISTORY` environment variable (in their
+environment or their settings' `env`); it stops transcripts and prompt
+history in every mode (docs, checked 2026-09-29). `cleanupPeriodDays`
+only shortens how long they're kept (default 30 days, minimum 1). We
+offer no setting of our own and never force saving back on (e.g. never
+`CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
+has no transcript (no file at `transcript_path` once the first reply is
+in; what hooks send in that case is to check when building S02) and tells
+the world, which shows what's limited. How it's told is a protocol
+addition, to agree on when building S02. What still works:
+chat, streaming, tool calls, subagents, permissions and questions
+answered in the world, and stopping from the world (hooks and the
+bridge). What's limited:
+- **Esc and a terminal "No"** aren't seen until the next hook or message,
+  so an agent may look busy, or a permission still pending, for a while.
+  The world labels such states as possibly out of date rather than
+  guessing; a world answer to a prompt the terminal already closed is
+  dropped by Claude Code, harmlessly.
+- **Chat history** is only what the sidecar saw through hooks, kept in
+  memory (never on disk), and lost if the sidecar restarts.
+- **Resuming** isn't possible (Claude Code can't either), and the session
+  won't be in the stored-session list (S04).
+- **Attaching** to an outside session (later) shows nothing from before we
+  joined, and capabilities that need the transcript (e.g. token usage,
+  if hooks don't carry it) aren't declared.
+
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
 Claude wait out each timeout.
@@ -715,7 +749,10 @@ sessions in the same store, so they are resumable from a terminal, and old
 CLI sessions can be listed and resumed here (launched with `--resume`).
 The Claude desktop app's own sessions also write transcripts there; whether
 they should be listed and resumed here is to check when building S04 (see
-Deliberate limitations).
+Deliberate limitations). Sessions run with transcripts off leave nothing to
+list or resume (S02 → When transcripts are off), and Claude Code deletes
+transcripts after `cleanupPeriodDays` (30 by default), so the list only
+reaches that far back.
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its
