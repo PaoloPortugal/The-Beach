@@ -30,3 +30,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [License](2026-09-29-license.md) | docs |
 | 2026-09-29 | [Privacy check](2026-09-29-privacy-check.md) | tooling |
 | 2026-09-29 | [Markdown → BBCode spike](2026-09-29-markdown-spike.md) | C03 |
+| 2026-09-29 | [Windows, macOS and Linux](2026-09-29-multi-platform.md) | docs |

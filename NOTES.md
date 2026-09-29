@@ -57,6 +57,9 @@ designed yet (see Known issues and next steps → Deferred ideas).
   Security rules.
 - **Free public release** is the goal, so everything must hold up on other
   people's machines, not just the developer's.
+- **Windows, macOS and Linux are all first-class.** Every feature is
+  designed for all three from the start; nothing may assume one OS's
+  terminal, paths, shell or installed tools. See Architecture → Platforms.
 
 **Art direction.** Low-poly. Assets are made by the user or come from CC0 packs
 such as Kenney, **never AI-generated**. Kenney packs are the likely source
@@ -152,7 +155,8 @@ flowchart TB
   generation, agent models and state visuals, in-world chat UI.
 - **Sidecar** (TypeScript on Node, open question 6): runs sessions and
   forwards their activity to Godot as generic events. It owns the session
-  registry.
+  registry. Shipped as one self-contained executable per platform, so users
+  don't need Node; Godot starts it (see Platforms).
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists. It launches the user's
   own, unmodified `claude` CLI in a terminal window, receives its hook
@@ -186,12 +190,17 @@ feature that touches them follows these rules, and each is tested:
   allowing. (Verified for hanging, erroring and offline hooks: S02.)
 - **No shell strings.** Processes are launched with argument arrays, never
   by building a shell command from text, so a project path or session name
-  can't inject commands.
+  can't inject commands. This includes terminal windows: a terminal is only
+  ever given the fixed path of our launcher and the path of a session file,
+  never a command line with session data in it (see Platforms).
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
   which could carry another session's values. User configuration such as
-  `CLAUDE_CONFIG_DIR` is kept. Exact list settled when building S02.
+  `CLAUDE_CONFIG_DIR` is kept. The same goes for anything a store client
+  injects into the game (e.g. Steam's `LD_LIBRARY_PATH`, `LD_PRELOAD`
+  overlay hooks and `STEAM_*` variables). Exact list settled when building
+  S02.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -227,6 +236,82 @@ module. Everything else is named generically. Don't build a second provider;
 just don't assume there will only be one. The exact capability and extension
 format is in Protocol → Capabilities and Extensions.
 
+**Platforms (user's decision, 2026-09-29).** Windows, macOS and Linux, all
+first-class (dev log 2026-09-29-multi-platform). Claude Code itself runs on
+all three (macOS 13+, Windows 10 1809+, common Linux distributions), with
+the same `~/.claude` layout. What differs, and how we handle it:
+- **Terminal windows.** A generic **terminal launcher** in the sidecar
+  (not Claude-specific: any CLI provider runs in a terminal) opens the
+  user's terminal on a per-OS default, with fallbacks and a setting to pick
+  another: Windows Terminal, then the classic console on Windows;
+  Terminal.app (iTerm2 selectable) on macOS; the first installed of the
+  common ones (GNOME Terminal, Konsole, xfce4-terminal, kitty, Alacritty,
+  WezTerm, …) on Linux. The terminal runs our **launcher** (a mode of the
+  sidecar executable) with only a session file's path; the launcher reads
+  the arguments from that file and starts the provider's CLI with an
+  argument array in the same terminal. So no terminal ever gets a command
+  line built from text, even where the terminal only accepts a script
+  (macOS). If no terminal can be opened, the world says so.
+- **Node runtime.** The sidecar is built into one self-contained
+  executable per platform and shipped with each Godot export. The same
+  executable runs as the channel bridge (Claude Code starts it by absolute
+  path) and as the launcher, so nothing needs Node installed.
+- **Starting and stopping.** Godot starts the sidecar with an argument
+  array and a pipe; the sidecar exits when that pipe closes, which covers
+  Godot quitting or crashing on every OS (Windows has no graceful stop
+  signal). Launched `claude` sessions keep running on their own.
+- **Finding `claude`.** Apps started from the macOS Dock or a Linux menu
+  don't get the user's shell PATH. Look in PATH, then the documented
+  install locations (native installer `~/.local/bin`, Homebrew, WinGet,
+  apt/dnf, npm global), with a setting to point at it by hand, and a clear
+  message when it isn't found. On Windows, start `claude.exe` directly: an
+  npm `claude.cmd` wrapper needs a shell, so find the real executable
+  behind it instead.
+- **Paths.** Build them with the platform's path functions, never by
+  joining strings with `/` or `\`. Never decode the transcript folder
+  names under `~/.claude/projects` (the encoding loses information, and
+  case sensitivity differs by OS): use `transcript_path` from hooks, and
+  read a stored session's working directory from inside its transcript.
+- **Watching files.** Follow transcripts by polling their size, not with
+  OS file-watch events, which behave differently on each platform.
+- **Fonts.** Don't rely on system fonts being present; ship the fonts the
+  UI needs (the Markdown spike's monospace list is a stand-in). Which
+  fonts is open: most good monospace fonts are under the OFL, not CC0, so
+  ask before adding one.
+- **WSL.** Only native Windows Claude Code in v1 (see Deliberate
+  limitations).
+- **Testing.** Only Windows is available to test on for now; see Watch
+  items → Untested on macOS and Linux.
+
+The game (Godot) follows the same rule:
+- **Rendering (user's decision).** Built for **Forward+**, with Godot's
+  default drivers: Vulkan on Windows and Linux, Metal on macOS. No
+  graphics API is required: when the first choice fails, Godot falls back
+  to Direct3D 12 and then to the **Compatibility renderer** (OpenGL 3.3)
+  on its own (`fallback_to_d3d12`, `fallback_to_opengl3`, both on by
+  default; checked in 4.7.2). The world must stay usable under
+  Compatibility: every effect we use needs a plain fallback there (e.g.
+  simpler water and lighting), and both renderers get checked. No graphics
+  menu: selection is automatic only; for driver trouble, Godot's
+  `--rendering-driver` / `--rendering-method` command-line flags are the
+  escape hatch (goes in the guide once there's something to run). If the
+  game ships on Steam, those become Steam launch options (e.g. "Play
+  (OpenGL)") that Steam offers at start (Watch items → Steam).
+- **Shaders** are written in Godot's shading language only, never
+  API-specific code, so they work under every driver.
+- **Input.** Movement uses physical key positions (WASD works on AZERTY
+  and other layouts); shortcuts use Godot's Ctrl/Cmd auto-remap so they
+  follow each OS's convention.
+- **Paths.** `res://` paths must match the file's exact case (Windows
+  forgives a wrong case, Linux and exported games don't); settings and
+  saves go under `user://`, which Godot maps to each OS's usual place.
+- **Display.** HiDPI stays on (`allow_hidpi`, the default); UI scales
+  with the screen rather than assuming a size. Linux runs on X11 and
+  Wayland.
+- **Exports and plugins.** Export presets for Windows, macOS and Linux.
+  No GDExtension or native plugin in the game unless it ships builds for
+  all three (the Godot AI addon is an editor-only dev tool).
+
 **Layout.** The Godot project is the repo root (`project.godot`). Other
 top-level folders sit beside it:
 
@@ -234,7 +319,7 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands). Has a `.gdignore` so Godot doesn't scan it. |
+| `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands), built into one executable per platform that also runs as the channel bridge and the terminal launcher. Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. `claude-cli/` (Node, for S02) has a `.gdignore`; `markdown/` (Godot, for C03) is visible to Godot so its demo scene runs. |
@@ -489,7 +574,9 @@ Anthropic's login.
 Our code never reads, stores or passes on Claude credentials, and never
 modifies or bundles Claude Code.
 
-**Launch.** It opens a terminal window running `claude` with:
+**Launch.** It opens a terminal window through the terminal launcher
+(Architecture → Platforms; the spike used Windows Terminal directly) and
+starts `claude` with:
 - `--settings <json>`: hooks for this session only, so the user's own
   settings files are never edited;
 - `--session-id <uuid>`: the ID is known before the session starts
@@ -671,8 +758,9 @@ names. Add to this list if it ever has to appear anywhere new.
 
 ## Running it
 
-Nothing runs yet. Once it does: start the sidecar (Node; commands land
-with S01), then open `project.godot` in Godot 4.7.2 and press F5.
+Nothing runs yet. Once it does: open `project.godot` in Godot 4.7.2 and
+press F5; Godot starts the sidecar itself (Architecture → Platforms).
+Building the sidecar needs Node (commands land with S01).
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
@@ -719,8 +807,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M0 is done once the Markdown spike is reviewed; next is
-the M1 v1 slice (where to start is still to be decided).
+**Current focus:** M0 is done, and the architecture now targets Windows,
+macOS and Linux (Architecture → Platforms). Next is the M1 v1 slice
+(where to start is still to be decided).
 
 ### Milestones
 
@@ -741,7 +830,9 @@ exists.
 - One archipelago, one island, one orchestrator (W01, W02, A01).
 - Sidecar launches one `claude` CLI session in a terminal, turns its hook
   events into generic events over WebSocket, and relays chat and permission
-  answers through a channel (S01, S02).
+  answers through a channel (S01, S02). Built for all three platforms
+  (terminal launcher, packaged sidecar, Godot starting it), tested on
+  Windows.
 - Walk up to chat with a plain-text chat panel wired to the sidecar (W03, C01,
   C02).
 - Subagents as simple placeholder models with ring or spiral placement,
@@ -810,6 +901,44 @@ exists.
 - **Markdown → BBCode rendering (C03)** was the biggest UX risk. The
   spike shows it works; what's left is the cost of rendering long
   histories at once (see C03).
+- **Untested on macOS and Linux.** Everything verified so far (S02, C03)
+  ran on Windows 11 only, and only Windows is available to test on. The
+  launch flow (terminal launcher, finding `claude`, the channel
+  confirmation) must be checked on a real Mac and a Linux desktop before a
+  release claims them; until then, say so in the README.
+- **Code signing (public release).** macOS blocks apps that aren't signed
+  and notarized (Gatekeeper), which needs an Apple Developer account (99
+  USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
+  to the Godot export and the sidecar executable. Decide before the first
+  public release.
+- **Steam (likely, not certain).** The user plans to ship on Steam
+  (depots per OS, updates through SteamPipe; the bundled sidecar ships as
+  ordinary game files). Things to check before relying on it:
+  - *Linux sandboxing:* native Linux games may run inside the Steam Linux
+    Runtime container, and Flatpak installs of Steam are sandboxed; either
+    may stop the game from seeing or starting the user's terminal and
+    `claude`. Needs a test; the Linux build might be better offered
+    outside Steam too.
+  - *Environment:* Steam's variables and overlay hooks must not reach the
+    launched terminal and `claude` (Security rules → Clean child
+    environments).
+  - *Proton:* Steam must not run the Windows build through Proton on
+    Linux (it would try to start Windows programs); ship the native Linux
+    build.
+  - *AI disclosure:* Steam's content survey asks about AI, including
+    live-generated content shown in the game; Claude's replies probably
+    count, and the answer must describe our safeguards.
+  - *Signing:* games installed by Steam don't trigger SmartScreen; check
+    Valve's current macOS signing and notarization requirements (see Code
+    signing).
+  - *Steam features* (achievements, overlay) are optional; they'd need a
+    GDExtension with builds for all three platforms (e.g. GodotSteam).
+  - *Testing:* nothing Steam-specific is needed while building. Valve
+    reviews the build and store page before release (it launches, matches
+    the page), and Steam Deck Verified is optional. The risks above are
+    tested by installing a build from a private Steam branch on each OS,
+    which needs a Steamworks account (one-time fee per app); the Linux
+    runtime part can be tried earlier, since that runtime is free.
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,
@@ -837,3 +966,8 @@ exists.
   is fine for this kind of app, or an API-key option is wanted.
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
+- **No WSL in v1 (user's decision).** On Windows, only a native Windows
+  `claude` is supported. Claude Code inside WSL keeps its transcripts,
+  hooks and channel bridge on the Linux side of the WSL boundary, which is
+  a separate project. If no native `claude` is found, the world says that
+  native Windows Claude Code is required. Revisit after v1.

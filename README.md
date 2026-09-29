@@ -24,14 +24,21 @@ you can switch between the world and the terminal whenever you like.
 
 ## Requirements
 
-- [Godot](https://godotengine.org/download) **4.7.2** (standard build; .NET is
-  not needed)
-- [Node.js](https://nodejs.org) for the sidecar (version settled when it's
-  built)
+- **Windows, macOS or Linux.** All three are supported by design; so far
+  it has only been tested on Windows. On Windows, Claude Code must be the
+  native Windows install (not inside WSL).
 - [Claude Code](https://code.claude.com/docs) installed and signed in with
   your own account. The app uses Claude Code's channels (a research
   preview): available on Pro and Max plans, while Team and Enterprise
   organisations need an admin to enable them.
+
+To build from source you also need:
+
+- [Godot](https://godotengine.org/download) **4.7.2** (standard build; .NET is
+  not needed)
+- [Node.js](https://nodejs.org) to build the sidecar (version settled when
+  it's built). Released builds include the sidecar, so players don't need
+  Node.
 
 ## Setup
 
@@ -39,9 +46,9 @@ you can switch between the world and the terminal whenever you like.
 git clone https://github.com/PaoloPortugal/The-Beach.git
 ```
 
-1. Start the sidecar in `sidecar/` *(not implemented yet)*.
+1. Build the sidecar in `sidecar/` *(not implemented yet)*.
 2. Open Godot, choose **Import**, and select `project.godot` at the repo root.
-3. Press **F5** to run.
+3. Press **F5** to run. Godot starts the sidecar itself.
 
 ## Docs
 

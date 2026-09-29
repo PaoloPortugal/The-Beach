@@ -6,7 +6,8 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 Nothing is playable yet. Once it is, this section will explain how to
-start the sidecar and open the world.
+open the world on Windows, macOS or Linux (the app starts its own
+background helper, the sidecar).
 
 ## Contents
 
