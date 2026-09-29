@@ -147,7 +147,9 @@ sequenceDiagram
         Sidecar->>World: question.resolved (by app)
     else handed to the terminal
         User->>World: "answer in the terminal"
-        Sidecar-->>Claude: empty reply to the held hook
+        World->>Sidecar: question.release
+        Sidecar-->>World: ok
+        Sidecar-->>Claude: reply to the held hook: nothing to add
         Claude->>User: question in the terminal
         User->>Claude: answer
         Claude->>Sidecar: PostToolUse AskUserQuestion (with the answer)
