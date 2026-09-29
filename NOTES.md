@@ -197,7 +197,10 @@ feature that touches them follows these rules, and each is tested:
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
   which could carry another session's values. User configuration such as
-  `CLAUDE_CONFIG_DIR` is kept. Exact list settled when building S02.
+  `CLAUDE_CONFIG_DIR` is kept. The same goes for anything a store client
+  injects into the game (e.g. Steam's `LD_LIBRARY_PATH`, `LD_PRELOAD`
+  overlay hooks and `STEAM_*` variables). Exact list settled when building
+  S02.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -291,7 +294,9 @@ The game (Godot) follows the same rule:
   simpler water and lighting), and both renderers get checked. No graphics
   menu: selection is automatic only; for driver trouble, Godot's
   `--rendering-driver` / `--rendering-method` command-line flags are the
-  escape hatch (goes in the guide once there's something to run).
+  escape hatch (goes in the guide once there's something to run). If the
+  game ships on Steam, those become Steam launch options (e.g. "Play
+  (OpenGL)") that Steam offers at start (Watch items → Steam).
 - **Shaders** are written in Godot's shading language only, never
   API-specific code, so they work under every driver.
 - **Input.** Movement uses physical key positions (WASD works on AZERTY
@@ -906,6 +911,28 @@ exists.
   USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
   to the Godot export and the sidecar executable. Decide before the first
   public release.
+- **Steam (likely, not certain).** The user plans to ship on Steam
+  (depots per OS, updates through SteamPipe; the bundled sidecar ships as
+  ordinary game files). Things to check before relying on it:
+  - *Linux sandboxing:* native Linux games may run inside the Steam Linux
+    Runtime container, and Flatpak installs of Steam are sandboxed; either
+    may stop the game from seeing or starting the user's terminal and
+    `claude`. Needs a test; the Linux build might be better offered
+    outside Steam too.
+  - *Environment:* Steam's variables and overlay hooks must not reach the
+    launched terminal and `claude` (Security rules → Clean child
+    environments).
+  - *Proton:* Steam must not run the Windows build through Proton on
+    Linux (it would try to start Windows programs); ship the native Linux
+    build.
+  - *AI disclosure:* Steam's content survey asks about AI, including
+    live-generated content shown in the game; Claude's replies probably
+    count, and the answer must describe our safeguards.
+  - *Signing:* games installed by Steam don't trigger SmartScreen; check
+    Valve's current macOS signing and notarization requirements (see Code
+    signing).
+  - *Steam features* (achievements, overlay) are optional; they'd need a
+    GDExtension with builds for all three platforms (e.g. GodotSteam).
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,

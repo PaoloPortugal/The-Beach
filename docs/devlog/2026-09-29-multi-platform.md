@@ -74,6 +74,21 @@ physical-key movement and Ctrl/Cmd auto-remap, exact-case `res://` paths
 and `user://` for saves, HiDPI on, export presets for all three, and no
 native plugins without builds for all three.
 
+## Steam (same day)
+
+The user plans to ship on Steam, though it isn't certain, and asked
+whether Steam can install the game with its Node dependency. Yes: Steam
+installs the uploaded build folder per OS, and the sidecar executable
+(Node included) is just a file in it. Steam also helps with updates and
+offers per-OS launch options, which covers choosing a renderer without an
+in-game menu. Recorded as a watch item, with what's specific to an app
+that starts other programs: Linux sandboxing (Steam Linux Runtime,
+Flatpak Steam) may block launching the terminal and `claude`; Steam's
+environment and overlay hooks must be stripped from launched processes
+(added to Clean child environments); the native Linux build must be used
+rather than Proton; and Steam's AI content disclosure probably applies to
+showing Claude's replies. No architecture change.
+
 ## Result
 
 NOTES.md gained a Principles line and an Architecture → Platforms section;
