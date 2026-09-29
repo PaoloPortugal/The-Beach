@@ -328,7 +328,7 @@
     },
 
     "message.started": {
-      "description": "Sidecar -> Godot. A chat message begins. User messages are included, so text typed elsewhere (once attaching exists) shows up too.",
+      "description": "Sidecar -> Godot. A chat message begins. User messages are included, so text typed in the terminal shows up too.",
       "type": "object",
       "required": ["type", "session", "seq", "message", "agent", "role"],
       "properties": {
@@ -412,7 +412,7 @@
       "additionalProperties": false
     },
     "permission.resolved": {
-      "description": "Sidecar -> Godot. A permission request was answered, here or elsewhere (by: external, once attaching exists). Godot clears the prompt.",
+      "description": "Sidecar -> Godot. A permission request was answered, here (by: app) or in the terminal (by: external). Godot clears the prompt.",
       "type": "object",
       "required": ["type", "session", "seq", "permission", "decision", "by"],
       "properties": {
