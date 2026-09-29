@@ -431,10 +431,17 @@ export class HookTranslator {
     return this.questions.get(question)?.input ?? null
   }
 
-  /** Answered in the world (the held hook was answered). */
-  questionAnswered(question: Id): SessionEvent[] {
+  /**
+   * Answered in the world (the held hook was answered). With `denied` (a
+   * free reply, or declined by a stop) the question's tool call was denied,
+   * and Claude Code sends no hook for it (seen at checkpoint 2), so it's
+   * closed here.
+   */
+  questionAnswered(question: Id, denied = false): SessionEvent[] {
     const out: SessionEvent[] = []
+    const call = this.questions.get(question)?.toolCall
     this.resolveQuestion(question, 'app', out, true)
+    if (denied && call) this.closeTool(call, 'denied', out)
     return out
   }
 

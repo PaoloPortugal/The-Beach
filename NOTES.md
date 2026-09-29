@@ -781,8 +781,7 @@ a per-session token header. Verified mapping:
   forwarded. Parallel spawns pair an `Agent` call with its subagent by
   agent type, oldest first. Verified live: a turn with a file write, a
   failed read, a background subagent and its hand-back.
-- *Permission relay, built (branch `s02-permissions`; not yet run
-  live).* A prompt reaches the world from the **channel's relay**, not the
+- *Permission relay, built (verified live at checkpoint 2).* A prompt reaches the world from the **channel's relay**, not the
   `PermissionRequest` hook (not registered: questions will need it, plain
   permissions don't). The relay has no tool call or agent, so the sidecar
   ties it to the open tool call of the same tool whose input the relay's
@@ -798,14 +797,12 @@ a per-session token header. Verified mapping:
   (external deny), a fallback until the transcript follower. A subagent's
   prompt resolves that way when the subagent stops. The channel's verdict
   carries no text, so a `note` with the answer follows the verdict as the
-  user's next chat message (user's decision, 2026-09-29), provided Claude
-  reads it before doing any work it would affect: **check in the live
-  run** (after a world deny Claude continues its turn; unknown whether
-  Claude Code delivers the channel message at once or at the turn's end).
-  If it doesn't, the fallback: hold the `PermissionRequest` hook for plain
-  prompts too (as for questions, where the terminal still shows the
-  prompt) and answer a noted deny there with the note as the decision's
-  `message`, which Claude reads as the denied call's result.
+  user's next chat message (user's decision, 2026-09-29). Verified at
+  checkpoint 2: the note arrived 0.1 s after the deny, before Claude did
+  anything else, and Claude followed it (it skipped the second of two
+  commands). Kept in reserve if that ever changes: hold the
+  `PermissionRequest` hook for plain prompts too and answer a noted deny
+  there with the note as the decision's `message`.
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
@@ -951,15 +948,17 @@ it times out, the terminal question simply stays. (Run 1 held `PreToolUse`
 instead, which hid the question from the terminal; rejected, since the
 user must be able to answer in either place.) Questions don't go through
 the channel's permission relay.
-*Built (branch `s02-questions`; not yet run live):* sessions declare
+*Built (verified live at checkpoint 2):* sessions declare
 `questions`. `PermissionRequest` is registered only for `AskUserQuestion`
 (24 h timeout); the question's id is its `tool_use_id` from the
 `PreToolUse` just before, which also names the agent when the held hook
 doesn't. Answers from the world become `answers` keyed by question text;
-a multi-select's labels are joined with ", ", and a free `response` is
-sent as a deny with the user's words as the message (both unverified:
-check in the live run). Claude Code dropping the held hook (timeout,
-exit), or the agent moving on (Esc), resolves the question by external.
+a multi-select's labels are joined with ", " (Claude read "Salt" and
+"Honey" correctly), and a free `response` is sent as a deny with the
+user's words as the message (Claude read it as the answer). A denied
+question call gets no hook, so the sidecar closes it as `denied`. Claude
+Code dropping the held hook (timeout, exit), or the agent moving on
+(Esc), resolves the question by external.
 
 **Stopping (`interrupt` capability, `immediate: false`).** Verified: on
 `interrupt.request` the sidecar answers the session's next `PreToolUse` with
@@ -967,7 +966,7 @@ exit), or the agent moving on (Esc), resolves the question by external.
 alone still let that tool call run. The stop lands before the next tool
 call, not mid-reply or mid-command. Inside a subagent it stops only that
 subagent; the orchestrator is told and carries on.
-*Built (branch `s02-interrupt`; not yet run live):* sessions declare
+*Built (verified live at checkpoint 2):* sessions declare
 `interrupt` with `immediate: false`. A stop stays armed until no agent is
 working or waiting, so it catches the orchestrator's next tool call and
 each busy subagent's. The stopped call is closed as `denied`; the
@@ -1213,10 +1212,22 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** the live
-run (checkpoint 2; `try:claude`'s `/` commands cover it; include a
-deny with a note, to check Claude reads it before carrying on) and the S02 docs
-(Systems section, guide, dev log). After S02: the M1 world, which needs
+**Checkpoint 2 passed (2026-09-29)**, a live run with the user at the
+terminal (Claude Code 2.1.284, Windows, the session in default permission
+mode, since the user's usual `auto` mode asks for nothing): a prompt
+reached the world 0.2 s after its tool call and was allowed there (the
+terminal dialog closed); a deny with a note stopped Claude before its next
+command; single-choice, multi-select and free-text answers from the world
+all reached Claude; a stop from the world denied the next call and nothing
+ran after it; Esc during a reply and "No" in the terminal reached the
+world through the transcript; history was complete; `/exit` ended the
+session. One gap found and fixed: a question answered with free text left
+its tool call open (Claude Code sends no hook for it).
+
+**Next:** the S02 docs (Systems section rewrite, guide section, dev log),
+then S02 is ready to merge. After S02: the M1 world, which needs the
+user's calls on camera, movement, island, ocean, props and the chat panel
+first. After S02: the M1 world, which needs
 the user's calls on camera, movement, island, ocean, props and the chat
 panel first.
 

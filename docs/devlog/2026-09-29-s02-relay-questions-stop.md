@@ -100,3 +100,15 @@ event (code plus English fallback, one per code, in the snapshot's
   queued and could pair with a later subagent. Fixed in review.
 - Bridge `request_id`s are five lowercase letters without "l"; a test using
   `late0` was correctly refused by the bridge server.
+
+## Checkpoint 2 (live run with the user)
+
+Everything above ran against a real `claude` with the user at the
+terminal. The session had to be switched to default permission mode: the
+user's usual `auto` mode allowed the test commands without asking. All
+checks passed (NOTES.md → Known issues and next steps). The open question
+about notes was settled: a note sent after a world deny arrived 0.1 s
+later, before Claude's next step, and Claude followed it. One gap found: a
+question answered with free text is a denied call with no hook of its own,
+so it stayed open in the world until something else closed it; now closed
+as `denied` when answered.
