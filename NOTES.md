@@ -254,7 +254,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Terminal windows.** A generic **terminal launcher** in the sidecar
   (not Claude-specific: any CLI provider runs in a terminal) opens the
   user's terminal on a per-OS default, with fallbacks and a setting to pick
-  another: Windows Terminal, then the classic console on Windows;
+  another: Windows Terminal, then the classic console (started through
+  `conhost.exe`, so the program gets a real console) on Windows;
   Terminal.app (iTerm2 selectable) on macOS; the first installed of the
   common ones (GNOME Terminal, Konsole, xfce4-terminal, kitty, Alacritty,
   WezTerm, …) on Linux. The terminal runs our **launcher** (a mode of the
@@ -809,9 +810,18 @@ doesn't guess:
   reply, or announcing at launch with the orchestrator waiting) is settled
   when building this.
 
-To measure at checkpoint 1: whether the confirmation appears at every
-launch or only the first; whether Claude Code starts the bridge before or
-after its dialogs; and how long a normal startup takes with no dialogs.
+Measured at checkpoint 1 (2026-09-29, Claude Code 2.1.284, Windows):
+- First launch in a new folder: folder trust, then the development-channel
+  confirmation. Second launch in the same folder: only the confirmation.
+  **The confirmation appears at every launch**, so every session needs the
+  user at the terminal once.
+- Claude Code starts the bridge only after its dialogs: the session came
+  up when the user answered the last one (8 s after launch on the second
+  run, with the user answering promptly).
+- A startup with no dialogs can't happen on this route while the
+  confirmation is shown every time, so there is nothing to measure there.
+  "Still starting" is for a user who hasn't answered yet, so it can wait
+  about two minutes.
 
 (Agent Office watches for a `SessionStart` hook that never fires instead;
 our HTTP hooks can't receive `SessionStart`.)
@@ -1020,27 +1030,24 @@ S02 (Claude provider) is in progress on branch `s02-claude-provider`
 after the terminal launcher opens a real `claude`, and at the end with a
 live run.
 
-*Handoff (2026-09-29).* Built and tested (71 `node:test` checks, all
-passing, none against a real `claude` yet): terminal launcher and
-`launch` mode, finding `claude` (minimum 2.1.284), clean environments
-(named markers plus narrow families), the channel bridge (`bridge claude`
-mode: own MCP handshake, link back to the sidecar), and the provider's
-create path (session comes up when the bridge is ready, ends when it
-closes or after 15 min without coming up; world chat goes down the
-bridge). `session.end` answers `not_supported` (S05).
+*Handoff (2026-09-29).* Built and tested (74 `node:test` checks, all
+passing): terminal launcher and `launch` mode, finding `claude` (minimum
+2.1.284), clean environments (named markers plus narrow families), the
+channel bridge (`bridge claude` mode: own MCP handshake, link back to the
+sidecar), and the provider's create path (session comes up when the
+bridge is ready, ends when it closes or after 15 min without coming up;
+world chat goes down the bridge). `session.end` answers `not_supported`
+(S05).
 
-**Next: checkpoint 1, with the user at the screen.** From `sidecar/`, run
-`npm run try:claude -- <empty temp folder>`: it starts the sidecar,
-creates a session (a Windows Terminal tab opens with `claude`), prints
-events with timestamps, and sends typed lines as world chat. Measure
-(S02 → Starting up): which startup prompts appear and in what order; the
-"came up N ms after launch" time; whether a world message reaches Claude;
-that `/exit` ends the session; whether the development-channel
-confirmation appears again on a second launch; and that the transcript is
-written under `~/.claude/projects/` (proves the launched `claude` didn't
-inherit session markers).
+**Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
+folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
+world message reached Claude and it replied, `/exit` ended the session,
+and the transcript was written under `~/.claude/projects/` with our
+session ID (so no session markers were inherited). Startup prompts are in
+S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
+(dev log 2026-09-29-windows-terminals).
 
-After checkpoint 1: HTTP hooks and their translation (S02 → Seeing the
+**Next:** HTTP hooks and their translation (S02 → Seeing the
 session), permission relay and `permission.respond`, the `questions` and
 `interrupt` capabilities, the transcript follower (Esc, terminal "No"),
 session notices (`session.notice` schema entry, transcripts off, the

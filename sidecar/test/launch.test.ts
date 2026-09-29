@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { cleanEnv } from '../src/launch/env.ts'
-import { openTerminal, terminalsFor, TerminalError } from '../src/launch/terminal.ts'
+import { findOnPath, openTerminal, terminalsFor, TerminalError } from '../src/launch/terminal.ts'
 import { takeSessionFile, writeSessionFile } from '../src/launch/launcher.ts'
 
 const here = import.meta.dirname
@@ -46,14 +46,17 @@ test('cleanEnv drops only store overlay preloads', () => {
 
 // ---- terminals ----
 
+const CONHOST = 'C:\\Windows\\System32\\conhost.exe'
+
 function fakeOpen(platform: NodeJS.Platform, installed: string[], argv: string[], extra: { preferred?: string; title?: string } = {}) {
   const started: { file: string; args: string[] }[] = []
   const runDir = tmp()
   const run = openTerminal({ argv, title: extra.title ?? 'T', runDir }, {
     platform,
-    env: {},
+    env: { SystemRoot: 'C:\\Windows' },
     ...(extra.preferred ? { preferred: extra.preferred } : {}),
     which: (name) => (installed.includes(name) ? `/bin/${name}` : null),
+    isProgram: (file) => file === CONHOST,
     start: async (file, args) => { started.push({ file, args }) },
   })
   return { run, started, runDir }
@@ -70,16 +73,41 @@ test('Windows: never hands Windows Terminal a ; or " (it would split them); uses
   for (const bad of ['C:\\a;b\\sidecar.exe', 'C:\\a"b\\sidecar.exe']) {
     const { run, started } = fakeOpen('win32', ['wt.exe'], [bad, 'launch', 'f'])
     assert.equal(await run, 'console')
-    assert.deepEqual(started, [{ file: bad, args: ['launch', 'f'] }])
+    assert.deepEqual(started, [{ file: CONHOST, args: ['--', bad, 'launch', 'f'] }])
   }
   const { run } = fakeOpen('win32', ['wt.exe'], ['C:\\x.exe'], { title: 'a;b' })
   assert.equal(await run, 'console')
 })
 
-test('Windows: falls back to the console without Windows Terminal', async () => {
+test('Windows: falls back to the console, through conhost, without Windows Terminal', async () => {
   const { run, started } = fakeOpen('win32', [], ['C:\\x.exe', 'launch', 'f'])
   assert.equal(await run, 'console')
-  assert.deepEqual(started, [{ file: 'C:\\x.exe', args: ['launch', 'f'] }])
+  assert.deepEqual(started, [{ file: CONHOST, args: ['--', 'C:\\x.exe', 'launch', 'f'] }])
+})
+
+test('Windows: finds Windows Terminal where the Store puts it', async () => {
+  const wt = 'C:\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe'
+  const started: string[] = []
+  const id = await openTerminal({ argv: ['C:\\x.exe'], title: 'T', runDir: tmp() }, {
+    platform: 'win32', env: { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' },
+    which: () => null, isProgram: (f) => f === wt, start: async (file) => { started.push(file) },
+  })
+  assert.equal(id, 'windows-terminal')
+  assert.deepEqual(started, [wt])
+})
+
+// The Store's wt.exe is an app execution alias, which `stat` can't read.
+test('Windows: a real app execution alias counts as a program', { skip: process.platform !== 'win32' }, (t) => {
+  const dir = path.join(process.env.LOCALAPPDATA ?? '', 'Microsoft', 'WindowsApps')
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir) : []
+  if (!names.includes('wt.exe')) return t.skip('Windows Terminal is not installed from the Store')
+  assert.equal(findOnPath('wt.exe', { PATH: dir }), path.join(dir, 'wt.exe'))
+})
+
+test('Windows: no terminal at all is an error', async () => {
+  await assert.rejects(openTerminal({ argv: ['C:\\x.exe'], title: 'T', runDir: tmp() }, {
+    platform: 'win32', env: {}, which: () => null, isProgram: () => false, start: async () => {},
+  }), TerminalError)
 })
 
 test('Linux: first installed terminal, argv passed as separate arguments', async () => {
@@ -106,15 +134,16 @@ test('macOS: the script holds only the single-quoted argv', async () => {
 test('a terminal that fails to start is skipped', async () => {
   const started: string[] = []
   const id = await openTerminal({ argv: ['C:\\x.exe'], title: 'T', runDir: tmp() }, {
-    platform: 'win32', env: {},
+    platform: 'win32', env: { SystemRoot: 'C:\\Windows' },
     which: (n) => (n === 'wt.exe' ? 'C:\\wt.exe' : null),
+    isProgram: (f) => f === CONHOST,
     start: async (file) => {
       started.push(file)
       if (file === 'C:\\wt.exe') throw new Error('ENOENT')
     },
   })
   assert.equal(id, 'console')
-  assert.deepEqual(started, ['C:\\wt.exe', 'C:\\x.exe'])
+  assert.deepEqual(started, ['C:\\wt.exe', CONHOST])
 })
 
 // ---- session file ----

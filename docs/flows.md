@@ -87,7 +87,7 @@ sequenceDiagram
     Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
     Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment)
     Sidecar-->>World: ok { session }
-    Claude->>User: folder trust (first time) and<br/>development channel confirmation
+    Claude->>User: folder trust (first time in a folder) and<br/>development channel confirmation (every launch)
     User->>Claude: accept
     Claude->>Bridge: start it (stdio)
     Bridge->>Sidecar: connect with the session's token
