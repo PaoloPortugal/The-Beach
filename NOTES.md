@@ -789,6 +789,12 @@ a per-session token header. Verified mapping:
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
   `<task-notification>` with its ID).
 
+**History** (built, branch `s02-history`): `session.get_history`
+returns the completed chat messages the sidecar saw through the hooks
+since launch, in memory only (at most 5000, oldest dropped). For a session
+started here that's the whole conversation, with transcripts on or off;
+reading it from the transcript is for resuming (S04).
+
 **Filling the gaps: the transcript.** The sidecar also follows the
 session's transcript (`transcript_path` in every hook), read-only. Claude
 Code writes it live and records what hooks miss, within the same second:
@@ -1124,10 +1130,10 @@ S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 **Next:** live runs of the permission relay, questions, stopping, the
 transcript follower and the transcripts-off notice (built on
 `s02-permissions`, `s02-questions`, `s02-interrupt`, `s02-transcript`,
-`s02-notices`; the `session.notice` shape awaits approval), the "confirm
-in the terminal" startup text (how it reaches a session not yet announced
-is the user's call), history, then the live run (checkpoint 2) and the S02
-docs (Systems section, guide, flows, dev log).
+`s02-notices`, `s02-history`; the `session.notice` shape awaits
+approval), the "confirm in the terminal" startup text (how it reaches a
+session not yet announced is the user's call), then the live run
+(checkpoint 2) and the S02 docs (Systems section, guide, flows, dev log).
 
 ### Milestones
 

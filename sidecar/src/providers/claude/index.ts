@@ -52,6 +52,12 @@ export const TRANSCRIPTS_OFF = {
   message: 'Transcript saving is off in Claude Code, so some features may not work as intended. Turning it on is recommended.',
 }
 
+/**
+ * Most chat messages kept for history (oldest dropped first). In memory
+ * only, never on disk (NOTES.md -> Security rules -> Private by default).
+ */
+export const HISTORY_MAX = 5000
+
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
@@ -247,6 +253,13 @@ class ClaudeSession implements ProviderSession {
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
   private readonly transcript = new TranscriptFollower((s) => this.onTranscript(s))
+  /**
+   * The chat so far, as the world saw it through the hooks: every message
+   * since launch, so the same whether transcripts are on or off.
+   */
+  private readonly history: HistoryMessage[] = []
+  /** Messages started but not yet completed: who and when. */
+  private readonly starting = new Map<string, { agent: string; role: 'user' | 'assistant'; at: string }>()
   /** Whether the transcript has been checked for (once, after the first reply). */
   private transcriptChecked = false
   /** A stop from the world is waiting for the busy agents' next tool calls. */
@@ -374,10 +387,23 @@ class ClaudeSession implements ProviderSession {
 
   private emitAll(events: SessionEvent[]) {
     for (const event of events) {
-      this.host.emit(event)
+      if (this.host.emit(event)) this.remember(event)
       // Answered or dismissed in the terminal: let go of the held hook
       // (Claude Code no longer waits on it; NOTES.md -> S02).
       if (event.type === 'question.resolved' && event.by === 'external') this.release(event.question)
+    }
+  }
+
+  /** Keeps completed chat messages for session.get_history. */
+  private remember(event: SessionEvent) {
+    if (event.type === 'message.started') {
+      this.starting.set(event.message, { agent: event.agent, role: event.role, at: new Date().toISOString() })
+    } else if (event.type === 'message.completed') {
+      const started = this.starting.get(event.message)
+      if (!started) return
+      this.starting.delete(event.message)
+      this.history.push({ message: event.message, ...started, text: event.text })
+      if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX)
     }
   }
 
@@ -458,7 +484,8 @@ class ClaudeSession implements ProviderSession {
     // No documented way to close Claude Code from outside (S05 decides).
     throw new CommandError('not_supported', 'end the session with /exit in its terminal')
   }
+  /** The chat so far, oldest first. */
   async getHistory(): Promise<HistoryMessage[]> {
-    return []
+    return structuredClone(this.history)
   }
 }
