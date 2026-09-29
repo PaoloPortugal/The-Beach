@@ -32,6 +32,7 @@ transcripts are off).
 - Boxes are notes, or group steps: `loop` repeats, `alt` / `else` are
   alternatives, `par` / `and` happen at the same time.
 
+- [0. Starting up](#0-starting-up)
 - [1. Create a session](#1-create-a-session)
 - [2. A chat turn](#2-a-chat-turn)
 - [3. A permission prompt](#3-a-permission-prompt)
@@ -39,6 +40,37 @@ transcripts are off).
 - [5. A subagent](#5-a-subagent)
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
+
+## 0. Starting up
+
+```mermaid
+sequenceDiagram
+    participant World as World (Godot)
+    participant Sidecar
+
+    World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr)
+    Sidecar->>Sidecar: new random token, listen on 127.0.0.1 (free port)
+    Sidecar->>World: stdout: one line {ready, protocol, port, token}
+    World->>Sidecar: WebSocket connect, Authorization: Bearer token
+    Sidecar-->>World: accepted (no Origin, right Host and token)
+    Sidecar->>World: hello (protocol version, providers)
+    loop each live session
+        Sidecar->>World: session.snapshot
+    end
+    Sidecar->>World: sync.completed
+    Note over World,Sidecar: From here on: commands up, events down.<br/>Every command's reply comes before the events it causes.
+    alt the connection drops, the sidecar still runs
+        World->>Sidecar: connect again with the same token
+        Sidecar->>World: hello, snapshots, sync.completed
+    else the game quits or crashes
+        Note over World,Sidecar: The pipe closes; the sidecar exits.<br/>Sessions it launched keep running in their terminals.
+    end
+```
+
+A connection without the token, with an `Origin` header (any web page), or
+with the wrong `Host` is refused before it starts. Events whose `seq` a
+snapshot already covered are ignored; a gap in `seq` makes the world ask
+for `session.get_snapshot`.
 
 ## 1. Create a session
 
@@ -70,8 +102,9 @@ Ending: `/exit` in the terminal (or `session.end` from the world) → the
 Which terminal opens depends on the OS and the user's setting; the
 terminal is only given our launcher and a session file, and the launcher
 starts `claude` with an argument list (NOTES.md → Architecture →
-Platforms). Before any of this, Godot has started the sidecar, which exits
-when Godot does.
+Platforms). Before any of this, Godot has started the sidecar (flow 0).
+`ok { session }` always comes before `session.created`; until the session
+is up, commands for it get `session_starting`.
 
 ## 2. A chat turn
 

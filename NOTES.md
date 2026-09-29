@@ -94,7 +94,7 @@ v1 slice.
 | C05 | Permission approve / deny                 | planned | n/a           | n/a       |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
-| S01 | Sidecar and WebSocket server (v1)         | planned | n/a           | n/a       |
+| S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | planned | n/a           | n/a       |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
 | S04 | List and resume stored sessions           | planned | n/a           | n/a       |
@@ -177,10 +177,11 @@ feature that touches them follows these rules, and each is tested:
   without the right token are rejected. Loopback alone isn't enough: any
   local program could connect.
 - **Reject browsers.** Web pages can open connections to `localhost`, and
-  browsers always send an `Origin` header. Besides requiring the token, the
-  WebSocket server rejects requests whose `Origin` isn't what Godot sends
-  (check what Godot's client sends when building S01), so a malicious site
-  can't drive a session.
+  browsers always send an `Origin` header. Godot's WebSocket client never
+  sends one (its source, and a live Godot 4.7.2, checked in S01), so the
+  WebSocket server refuses any request that has an `Origin` header, even
+  with the right token, and any `Host` other than `127.0.0.1:<port>`
+  (DNS rebinding). A malicious site can't drive a session.
 - **Nothing is approved without the user.** Permissions, questions and
   messages go to the session only as the direct result of the user's
   action in the world. No auto-approve rules, no permissive permission
@@ -325,14 +326,39 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands), built into one executable per platform that also runs as the channel bridge and the terminal launcher. Has a `.gdignore` so Godot doesn't scan it. |
+| `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that will also run as the channel bridge and the terminal launcher (S02). Has a `.gdignore` so Godot doesn't scan it. Files below. |
+| `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. `claude-cli/` (Node, for S02) has a `.gdignore`; `markdown/` (Godot, for C03) is visible to Godot so its demo scene runs. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
-The Godot folder layout (scenes, scripts) and the sidecar file table get
-filled in as the v1 features land.
+**Godot folders (user's decision: by domain).** Scenes and scripts for a
+thing sit together; a provider's UI lives only under `providers/<id>/`, so
+removing a provider means deleting its folders.
+
+| Path | Role |
+|------|------|
+| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). |
+| `world/`, `agents/`, `chat/` | World, agent and chat-panel scenes and scripts (as W, A and C features land). |
+| `providers/<id>/` | One provider's own UI module (extensions). |
+| `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
+
+**Sidecar files** (`sidecar/`):
+
+| Path | Role |
+|------|------|
+| `src/main.ts` | Entry point: picks the executable's mode. |
+| `src/serve.ts` | Server mode: handshake, stdin lifetime. |
+| `src/server.ts` | WebSocket server and its security checks. |
+| `src/registry.ts` | Session registry: state, `seq`, event checks. |
+| `src/commands.ts` | Runs commands from Godot. |
+| `src/protocol.ts` | Protocol types and schema validation. |
+| `src/provider.ts` | The provider interface. |
+| `src/providers/` | One folder per provider (none until S02). |
+| `test/` | `node:test` suites, the fake provider and `dev-fake.ts`. Not shipped. |
+| `scripts/` | Build and packaging. |
+| `licenses/` | Node's license text, for the shipped notices. |
 
 ## Protocol
 
@@ -349,10 +375,20 @@ overview. **Version 1.**
   (`session.create`).
 - Every command has an `id`. The sidecar answers `ok` (with an optional
   `result`) or `error` (`code`, `message`) carrying the same `id`. An `error`
-  without `id` is a protocol-level error.
+  without `id` is a protocol-level error. Error codes are listed in the
+  schema (`error.code`).
+- **Replies come first.** Events a command causes (e.g. `session.created`
+  after `session.create`, `session.ended` after `session.end`) are sent
+  after its reply, never before.
 - Every session-scoped event has `session` and `seq`, a per-session counter.
   A gap in `seq` means Godot missed something and sends
   `session.get_snapshot`.
+
+**Starting.** Godot starts the sidecar with a pipe. The sidecar's stdout
+carries exactly one line, `{"type":"ready","protocol":1,"port":…,"token":…}`;
+Godot connects to `ws://127.0.0.1:<port>/` with `Authorization: Bearer
+<token>`. One client at a time: a new connection replaces the old one
+(close code 4000). Messages from Godot are limited to 4 MiB.
 
 **Connecting.** The sidecar sends `hello` (protocol version, providers), one
 `session.snapshot` per live session, then `sync.completed`. Godot refuses a
@@ -361,7 +397,8 @@ protocol version it doesn't know. A snapshot is a session's full state
 follow. This covers Godot restarting in v1 and attaching to outside
 sessions later (open question 5): both are "send a snapshot, then changes".
 Chat history isn't in the snapshot; Godot asks for it with
-`session.get_history`.
+`session.get_history`. An event whose `seq` is not above the last one Godot
+has for that session (e.g. from a snapshot) is stale and ignored.
 
 **IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
 (e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
@@ -567,9 +604,63 @@ planning → `deny` with the user's feedback as the message. **Untested:**
 needs a short spike before it's built. Rendering the plan depends on C03.
 
 ### S01 Sidecar and WebSocket server
-*Planned (v1).* The sidecar process that hosts the session registry and the
-local WebSocket server Godot connects to. It speaks only the generic
-protocol.
+*Built (v1). Scope: core.* The sidecar process that hosts the session
+registry and the local WebSocket server Godot connects to, and Godot's
+client for it. It speaks only the generic protocol; providers plug in
+through `sidecar/src/provider.ts`. No provider ships yet (S02 adds Claude),
+so on its own it serves an empty world. Dev log 2026-09-29-sidecar-core.
+
+**Sidecar** (`sidecar/src/`, TypeScript on Node 22.21.0, pinned in
+`package.json`):
+- **Server** (`server.ts`): the Security rules above, all tested: loopback
+  only, a new 32-byte token per start (compared in constant time), `Origin`
+  refused, `Host` checked, `/` only, 4 MiB message limit.
+- **Registry** (`registry.ts`) owns each session's state and `seq`, so a
+  snapshot always matches the events sent. Providers report through a
+  `SessionHost` (`announce`, `emit`, `end`); every event is checked against
+  the schema, the session's declared capabilities and extensions, and its
+  state (known agents, pending permissions and questions, `idle` only for
+  the orchestrator and `done` only for subagents). Events that don't fit are
+  dropped and logged without using up a `seq`, so a provider bug never
+  reaches Godot as nonsense or a false gap.
+- **Commands** (`commands.ts`): every message from Godot is checked against
+  the schema (Ajv) and must be a command. Project paths must be absolute
+  existing folders. A session's events are held while a command for it is
+  answered, so replies come first. A session exists from `session.create`
+  but only appears in snapshots, and accepts commands, once its provider
+  announces it (`session_starting` before that); one that never comes up
+  still gets `session.ended`. Unexpected provider errors reach Godot as
+  `provider_error` without details (those stay in the log).
+- **Process** (`serve.ts`, `main.ts`): the startup handshake on stdout,
+  logs on stderr (never session content, since Godot may keep them in its
+  log files), and exit when stdin closes, which covers Godot quitting or
+  crashing on every OS (verified on Windows, including a hard kill of
+  Godot). `main.ts` picks the executable's mode; S02 adds the bridge and
+  launcher modes.
+- **Packaging** (`scripts/`): esbuild bundles to one CommonJS file (Node's
+  single-executable feature runs only CommonJS), which is injected into the
+  official Node binary for each platform (`win-x64`, `linux-x64`,
+  `linux-arm64`, `darwin-x64`, `darwin-arm64`). Other platforms' Node
+  binaries are downloaded from nodejs.org, checked against its SHA-256
+  list, and cached. `THIRD_PARTY_LICENSES.txt` (bundled packages and Node)
+  ships next to the executable. About 86 MB.
+
+**Godot** (`core/sidecar/sidecar_client.gd`, autoload `Sidecar`): starts
+the sidecar, reads the handshake in a thread, connects with the token and
+raises the inbound buffer to 32 MiB (Godot's default of 64 KiB would drop
+a long reply). It tracks `seq` per session: stale events are dropped, and a
+gap sends `session.get_snapshot` once. If the connection drops while the
+sidecar runs, it reconnects; if the sidecar dies, it reports failure
+(`failed` signal). It stops the sidecar by closing the pipe, killing it
+only if it hasn't exited after 3 s. stderr is drained continuously so the
+sidecar never stalls on a full pipe. On Windows, Godot starts it without a
+console window. Which sidecar runs: next to the game executable in exports;
+`node sidecar/src/main.ts` in the editor; `-- --sidecar=<path>` or
+`-- --sidecar-dev-fake` override it (see Running it).
+
+Not yet: the sidecar isn't restarted if it dies (sessions it launched keep
+running, but the world loses them); export presets that copy the executable
+next to the game come with the first export.
 
 ### S02 Claude provider
 *Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
@@ -798,9 +889,31 @@ names. Add to this list if it ever has to appear anywhere new.
 
 ## Running it
 
-Nothing runs yet. Once it does: open `project.godot` in Godot 4.7.2 and
-press F5; Godot starts the sidecar itself (Architecture → Platforms).
-Building the sidecar needs Node (commands land with S01).
+There's no world yet (the first scene comes with W01), but the sidecar
+and Godot's client run. Needs Node **22.21.0** (pinned; packaging refuses
+any other version) and Godot 4.7.2.
+
+In `sidecar/`:
+- `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
+- `npm run dev:fake`: the sidecar with a fake provider that echoes chat,
+  for building the world without Claude.
+- `npm run build`: the bundle, `dist/sidecar.cjs`. To run the process tests
+  against it or a packaged executable, set `SIDECAR_CMD` to a JSON array,
+  e.g. `SIDECAR_CMD='["dist/win-x64/sidecar.exe"]' node --test test/process.test.ts`.
+- `npm run package` (this platform) or `npm run package -- --target
+  linux-x64` (downloads that platform's Node once): `dist/<target>/`.
+  macOS executables must be signed on a Mac before they run
+  (`codesign --sign -`; see Watch items → Code signing).
+
+In Godot, the `Sidecar` autoload starts the sidecar from source (`node`
+must be on PATH). Godot's command line after `--` can change that:
+`--sidecar-dev-fake` (the fake provider) or `--sidecar=<path>` (a packaged
+executable). Headless smoke test, from the repo root:
+
+```
+godot --headless --path . --script res://tests/core/sidecar_client_test.gd
+godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
+```
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
@@ -847,9 +960,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M0 is done, and the architecture now targets Windows,
-macOS and Linux (Architecture → Platforms). Next is the M1 v1 slice
-(where to start is still to be decided).
+**Current focus:** M1, sidecar first (user's decision). S01 (sidecar core,
+WebSocket server, packaging, Godot client) is built and awaiting review;
+next is S02, the Claude provider.
 
 ### Milestones
 
@@ -951,6 +1064,13 @@ exists.
   USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
   to the Godot export and the sidecar executable, and matter most for
   itch.io's browser downloads. Decide before the first public release.
+  The sidecar is a Node binary with our script injected, which breaks
+  Node's own signature (Windows: "signature seems corrupted"; macOS: won't
+  run until re-signed, which needs a Mac). Release builds should strip it
+  and sign with ours (S01).
+- **Large chat histories.** `session.get_history` answers in one message;
+  Godot's client accepts up to 32 MiB (S01). A very long session could
+  exceed that; paging the history is the fix if it happens.
 - **Steam (likely, not certain).** The user plans to ship on Steam
   (depots per OS, updates through SteamPipe; the bundled sidecar ships as
   ordinary game files). Things to check before relying on it:

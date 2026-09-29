@@ -32,3 +32,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Markdown → BBCode spike](2026-09-29-markdown-spike.md) | C03 |
 | 2026-09-29 | [Windows, macOS and Linux](2026-09-29-multi-platform.md) | docs |
 | 2026-09-29 | [When transcripts are off](2026-09-29-transcripts-off.md) | S02, S04 |
+| 2026-09-29 | [Sidecar core](2026-09-29-sidecar-core.md) | S01 |

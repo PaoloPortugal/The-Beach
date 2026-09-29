@@ -1,0 +1,29 @@
+{
+  "name": "sidecar",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Runs AI coding sessions and forwards their activity to the Godot world over a local WebSocket. See NOTES.md -> S01.",
+  "engines": {
+    "node": "22.21.0"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "build": "node scripts/build.ts",
+    "package": "node scripts/package.ts",
+    "dev:fake": "node test/dev-fake.ts"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
+    "postject": "1.0.0-alpha.6",
+    "typescript": "7.0.2"
+  }
+}

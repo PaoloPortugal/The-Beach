@@ -36,9 +36,8 @@ To build from source you also need:
 
 - [Godot](https://godotengine.org/download) **4.7.2** (standard build; .NET is
   not needed)
-- [Node.js](https://nodejs.org) to build the sidecar (version settled when
-  it's built). Released builds include the sidecar, so players don't need
-  Node.
+- [Node.js](https://nodejs.org) **22.21.0** to build the sidecar. Released
+  builds include the sidecar, so players don't need Node.
 
 ## Setup
 
@@ -46,9 +45,13 @@ To build from source you also need:
 git clone https://github.com/PaoloPortugal/The-Beach.git
 ```
 
-1. Build the sidecar in `sidecar/` *(not implemented yet)*.
+1. In `sidecar/`, run `npm ci` (and `npm test` to check it works).
 2. Open Godot, choose **Import**, and select `project.godot` at the repo root.
-3. Press **F5** to run. Godot starts the sidecar itself.
+3. Press **F5** to run. Godot starts the sidecar itself (from source, so
+   `node` must be on your PATH). There's no world to see yet.
+
+More commands (packaging, the fake provider, tests) are in
+[NOTES.md → Running it](NOTES.md#running-it).
 
 ## Docs
 
