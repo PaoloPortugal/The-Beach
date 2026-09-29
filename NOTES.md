@@ -304,8 +304,9 @@ Each one is added to the schema and listed here:
 - **`questions`**: an agent asks the user clarifying questions, a set of
   1+ items, each with options and optional multi-select (Claude's
   AskUserQuestion). `question.asked` / `question.resolved` (`by`: `app` or
-  `external`) and the command `question.answer` (per-item chosen labels or
-  typed text, or one free `response` instead). Pending ones are in the
+  `external`) and the commands `question.answer` (per-item chosen labels or
+  typed text, or one free `response` instead) and `question.release` (hand
+  it to the provider's own interface, e.g. the terminal). Pending ones are in the
   snapshot's `questions`; the agent is `waiting` with reason `question`.
 - **`interrupt`**: the user can stop what the session is doing; the session
   stays open. Command `interrupt.request`. Config
@@ -492,8 +493,9 @@ with a token. Verified:
 **Clarifying questions (`questions` capability).** Verified: a `PreToolUse`
 hook matched to `AskUserQuestion` holds the HTTP request until the user
 answers in the world, then returns `permissionDecision: "allow"` with the
-answers in `updatedInput`; the terminal never shows the question. Replying
-with an empty body instead hands the question to the terminal, and the
+answers in `updatedInput`; the terminal never shows the question. On
+`question.release`, replying with an empty body instead hands the question
+to the terminal, and the
 answer shows up in `PostToolUse`. Per the docs, a timed-out hook also falls
 back to the terminal.
 
