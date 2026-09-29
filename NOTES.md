@@ -933,6 +933,12 @@ exists.
     signing).
   - *Steam features* (achievements, overlay) are optional; they'd need a
     GDExtension with builds for all three platforms (e.g. GodotSteam).
+  - *Testing:* nothing Steam-specific is needed while building. Valve
+    reviews the build and store page before release (it launches, matches
+    the page), and Steam Deck Verified is optional. The risks above are
+    tested by installing a build from a private Steam branch on each OS,
+    which needs a Steamworks account (one-time fee per app); the Linux
+    runtime part can be tried earlier, since that runtime is free.
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,
