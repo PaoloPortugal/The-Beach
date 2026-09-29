@@ -2,7 +2,7 @@
 // protocol's generic vocabulary (NOTES.md -> Multi-provider rules). The core
 // never names a specific tool; providers never touch the WebSocket.
 import type {
-  Agent, EndReason, ErrorCode, ExtensionCommand, HistoryMessage, Id, Project,
+  Agent, EndReason, ErrorCode, ExtensionCommand, HistoryMessage, Id, Notice, Project,
   SessionEvent, StoredSession,
 } from './protocol.ts'
 
@@ -40,6 +40,11 @@ export interface SessionHost {
 
 /** A running session, as the provider controls it. */
 export interface ProviderSession {
+  /**
+   * What the world should tell the user while the session is starting (it
+   * may need them somewhere else first), sent in the create/resume reply.
+   */
+  readonly startupNotice?: Notice
   sendMessage(text: string): Promise<void>
   respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string): Promise<void>
   /** `questions` capability. */

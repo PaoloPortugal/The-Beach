@@ -121,7 +121,8 @@ async function startSession(
     registry.discard(entry)
     throw e
   }
-  return { session: entry.id }
+  const notice = entry.control.startupNotice
+  return { session: entry.id, ...(notice ? { notice } : {}) }
 }
 
 async function runExtension(registry: Registry, cmd: ExtensionCommand): Promise<Result> {

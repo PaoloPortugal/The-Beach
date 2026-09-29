@@ -889,9 +889,13 @@ doesn't guess:
 - If the bridge still hasn't connected after a longer while (about a
   minute or two, set from measurements), the text becomes "Still starting;
   check the terminal." It never claims to know which case it is.
-- How the text reaches a session that isn't announced yet (the create
-  reply, or announcing at launch with the orchestrator waiting) is settled
-  when building this.
+- *Proposal (branch `proposal-startup-notice`, awaiting the user's
+  choice):* the text travels in the `session.create` / `session.resume`
+  reply as `notice` (`confirm_in_terminal`, a provider's
+  `startupNotice`), for Godot's "starting" placeholder. The "Still
+  starting" switch needs no protocol: Godot knows when it sent the
+  command. The alternative was announcing at launch with the orchestrator
+  waiting.
 
 Measured at checkpoint 1 (2026-09-29, Claude Code 2.1.284, Windows):
 - First launch in a new folder: folder trust, then the development-channel

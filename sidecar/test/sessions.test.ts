@@ -26,6 +26,8 @@ async function teardown(s: TestServer, c: Client) {
 async function created(c: Client) {
   const reply = await c.command({ type: 'session.create', provider: 'fake', project })
   assert.equal(reply.type, 'ok', JSON.stringify(reply))
+  // No startup notice from this provider: just the id.
+  assert.deepEqual(Object.keys(reply.result as object), ['session'])
   const id = (reply.result as { session: string }).session
   const ev = await c.next('session.created')
   return { id, ev }

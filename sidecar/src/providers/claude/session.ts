@@ -53,6 +53,16 @@ export const HOOKS_UNAVAILABLE = {
   message: 'Claude Code isn\'t sending this session\'s activity to the world (a setting such as allowedHttpHookUrls may be blocking it). Chat still works; answer prompts and questions in the terminal.',
 }
 
+/**
+ * Until the bridge connects, Claude Code is showing its startup dialogs (the
+ * development-channel confirmation at every launch; NOTES.md -> S02 ->
+ * Starting up), so the world says so. Sent in the create/resume reply.
+ */
+export const CONFIRM_IN_TERMINAL = {
+  code: 'confirm_in_terminal',
+  message: 'Confirm in the Claude Code terminal to start this session.',
+}
+
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
@@ -73,6 +83,7 @@ export interface Launch {
 }
 
 export class ClaudeSession implements ProviderSession {
+  readonly startupNotice = CONFIRM_IN_TERMINAL
   readonly host: SessionHost
   readonly launch: Launch
   link: BridgeLink | null = null
