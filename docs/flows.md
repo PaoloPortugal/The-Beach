@@ -11,6 +11,18 @@ Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
 Code are hooks (HTTP, with the session's token); Bridge is our channel
 bridge (NOTES.md → S02).
 
+**How to read these.** Time runs top to bottom; each arrow is one message.
+- **Solid arrow:** a message. **Dashed arrow:** the reply to an earlier
+  request.
+- **Requests always get a reply, and every reply is drawn**, even when it
+  says nothing. Two kinds of requests: hooks (Claude Code asks the sidecar
+  "anything to add?"; the usual answer is "nothing to add") and commands
+  from the world (answered `ok` or `error`).
+- **Announcements get no reply:** "this happened" messages, such as protocol
+  events to the world, and chat or verdicts passed along through the bridge.
+- Boxes are notes, or group steps: `loop` repeats, `alt` / `else` are
+  alternatives, `par` / `and` happen at the same time.
+
 - [1. Create a session](#1-create-a-session)
 - [2. A chat turn](#2-a-chat-turn)
 - [3. A permission prompt](#3-a-permission-prompt)
@@ -38,6 +50,7 @@ sequenceDiagram
     User->>Claude: accept
     Claude->>Bridge: start it (stdio)
     Bridge->>Sidecar: connect with the session's token
+    Sidecar-->>Bridge: accepted
     Sidecar->>World: session.created (island rises)
     Note over Claude,Sidecar: No start hook: SessionStart doesn't support HTTP hooks,<br/>so the bridge connecting is the "session is up" signal.
 ```
@@ -57,9 +70,11 @@ sequenceDiagram
 
     User->>World: types a message at the orchestrator
     World->>Sidecar: message.send
+    Sidecar-->>World: ok
     Sidecar->>Bridge: chat text
     Bridge->>Claude: channel event
     Claude->>Sidecar: UserPromptSubmit (text wrapped in a channel tag)
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: message.started / .completed (role user, unwrapped)
     Sidecar->>World: agent.state_changed orchestrator → working
     loop each batch of finished lines
@@ -68,6 +83,7 @@ sequenceDiagram
         Sidecar->>World: message.started (first batch), message.delta
     end
     Claude->>Sidecar: Stop (final text)
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: message.completed, orchestrator → idle
 ```
 
@@ -94,10 +110,12 @@ sequenceDiagram
         Bridge->>Sidecar: permission request
     end
     Claude->>Sidecar: PermissionRequest
+    Sidecar-->>Claude: nothing to add (the user decides)
     Sidecar->>World: permission.requested, agent → waiting (permission)
     alt answered in the world
         User->>World: allow or deny
         World->>Sidecar: permission.respond
+        Sidecar-->>World: ok
         Sidecar->>Bridge: verdict (request ID)
         Bridge->>Claude: verdict: terminal dialog closes
         Sidecar->>World: permission.resolved (by app)
@@ -123,6 +141,7 @@ sequenceDiagram
     alt answered in the world
         User->>World: picks options or types an answer
         World->>Sidecar: question.answer
+        Sidecar-->>World: ok
         Sidecar-->>Claude: reply to the held hook: allow + answers
         Note over Claude: The terminal never shows the question.
         Sidecar->>World: question.resolved (by app)
@@ -132,6 +151,7 @@ sequenceDiagram
         Claude->>User: question in the terminal
         User->>Claude: answer
         Claude->>Sidecar: PostToolUse AskUserQuestion (with the answer)
+        Sidecar-->>Claude: nothing to add
         Sidecar->>World: question.resolved (by external)
     end
 ```
@@ -145,18 +165,25 @@ sequenceDiagram
     participant Claude as Claude Code (terminal)
 
     Claude->>Sidecar: PreToolUse Agent (from the orchestrator,<br/>or carries the calling subagent's agent_id)
+    Sidecar-->>Claude: nothing to add
     Claude->>Sidecar: SubagentStart (agent_id, agent_type)
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: agent.spawned (parent inferred from the Agent call)
     Claude->>Sidecar: PostToolUse Agent (runs in the background)
+    Sidecar-->>Claude: nothing to add
     Claude->>Sidecar: Stop
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: orchestrator → idle while the subagent works
     loop the subagent's steps
-        Claude->>Sidecar: Pre/PostToolUse carrying its agent_id
+        Claude->>Sidecar: PreToolUse / PostToolUse carrying its agent_id
+        Sidecar-->>Claude: nothing to add
         Sidecar->>World: tool.started / tool.finished
     end
     Claude->>Sidecar: SubagentStop (its report)
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: subagent → done (runs its report to the parent, disappears)
     Claude->>Sidecar: UserPromptSubmit with a task-notification
+    Sidecar-->>Claude: nothing to add
     Sidecar->>World: orchestrator → working (not shown as a user message)
     Note over Sidecar: Stops or tool hooks for an agent never seen starting come from<br/>Claude Code's internal helpers and are ignored.
 ```
@@ -191,9 +218,12 @@ sequenceDiagram
 
     Claude->>Sidecar: any hook
     alt sidecar hangs
-        Note over Claude: Waits for the hook's timeout (keep reporting hooks short)
-    else sidecar errors or is offline
+        Note over Claude,Sidecar: No reply: Claude Code waits for the hook's timeout<br/>(keep reporting hooks short)
+    else sidecar errors
+        Sidecar-->>Claude: error
         Note over Claude: Treated as "no decision", immediately
+    else sidecar offline
+        Note over Claude,Sidecar: Connection refused: treated as "no decision", immediately
     end
     Claude->>User: normal behaviour: the terminal asks
     Note over User,Claude: Nothing is ever allowed because our side failed.<br/>Hooks resume when the sidecar comes back.
