@@ -38,16 +38,19 @@ const states = (events: SessionEvent[]) => events
 
 test('settings: every reported hook posts to our URL with the token; short timeouts', () => {
   const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64))
-  assert.deepEqual(Object.keys(s.hooks).sort(), ['MessageDisplay', ...REPORTED_HOOKS].sort())
+  assert.deepEqual(Object.keys(s.hooks).sort(), ['MessageDisplay', 'PermissionRequest', ...REPORTED_HOOKS].sort())
   for (const [name, groups] of Object.entries(s.hooks)) {
     const h = (groups as any)[0].hooks[0]
     assert.deepEqual(h, {
-      type: 'http', url: 'http://127.0.0.1:5/hook', timeout: name === 'MessageDisplay' ? 2 : 5,
+      type: 'http', url: 'http://127.0.0.1:5/hook',
+      timeout: name === 'MessageDisplay' ? 2 : name === 'PermissionRequest' ? 86400 : 5,
       headers: { Authorization: `Bearer ${'a'.repeat(64)}` },
     }, name)
   }
-  // Permissions and questions stay in the terminal until the relay is built.
-  assert.ok(!('PermissionRequest' in s.hooks))
+  // PermissionRequest only for questions, which are held; plain prompts
+  // come through the channel's relay.
+  assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '^AskUserQuestion$')
+  assert.equal((s.hooks.PermissionRequest as any).length, 1)
   assert.ok(!('SessionStart' in s.hooks), 'SessionStart can\'t be an HTTP hook')
 })
 

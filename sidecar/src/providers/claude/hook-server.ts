@@ -18,8 +18,10 @@ export interface HookHandlers {
   /**
    * One hook from this session. The returned object, if any, is sent back
    * as the hook's JSON output; nothing means an empty 200 (no decision).
+   * A handler may hold the hook open (a question waiting for the user);
+   * `gone` fires if Claude Code stops waiting first (timeout, exit).
    */
-  onHook(payload: HookPayload): Record<string, unknown> | void | Promise<Record<string, unknown> | void>
+  onHook(payload: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void>
 }
 
 export interface HookLink {
@@ -94,8 +96,10 @@ export class HookServer {
     if (typeof payload !== 'object' || payload === null || typeof (payload as HookPayload).hook_event_name !== 'string') {
       return reply(400)
     }
+    const gone = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) gone.abort() })
     try {
-      const out = await handlers.onHook(payload as HookPayload)
+      const out = await handlers.onHook(payload as HookPayload, gone.signal)
       reply(200, out ?? undefined)
     } catch (e) {
       // Never a decision: Claude Code falls back to its own behaviour.

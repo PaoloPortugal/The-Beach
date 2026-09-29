@@ -19,7 +19,9 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer, type BridgeLink } from './bridge-server.ts'
 import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
-import { HookTranslator, hookSettings, MAIN, type RelayedPermission } from './hooks.ts'
+import {
+  HookTranslator, hookSettings, MAIN, QUESTION_TOOL, questionReply, type RelayedPermission,
+} from './hooks.ts'
 
 /**
  * How long a launched session may take to come up (the user answering the
@@ -86,7 +88,7 @@ export class ClaudeProvider implements Provider {
     const session = new ClaudeSession(host, launch, options.project, name, this.log,
       () => this.forget(launch.runDir), this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)
     session.link = bridges.register(session.bridgeHandlers())
-    session.hookLink = hooks.register({ onHook: (p) => session.onHook(p) })
+    session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
@@ -225,6 +227,8 @@ class ClaudeSession implements ProviderSession {
   private startupTimer: NodeJS.Timeout | null = null
   private disposed = false
   private readonly translator: HookTranslator
+  /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
+  private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
 
   constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
     cleanup: () => void, startupTimeoutMs: number) {
@@ -264,19 +268,39 @@ class ClaudeSession implements ProviderSession {
       native_id: this.launch.nativeId,
       project: this.project,
       title: this.name,
-      capabilities: {},
+      capabilities: { questions: {} },
       extensions: [],
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
   }
 
-  /** One hook from this session's Claude Code. Reports only: never a decision. */
-  onHook(p: HookPayload): void {
+  /**
+   * One hook from this session's Claude Code. Reports only, except a
+   * question, whose hook is held until the user answers in either place.
+   */
+  onHook(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
     if (this.disposed || this.host.ended) return
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
+    if (p.hook_event_name === 'PermissionRequest') {
+      return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
+    }
     this.emitAll(this.translator.translate(p))
+  }
+
+  private holdQuestion(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
+    const asked = this.translator.questionAsked(p)
+    if (!asked) return
+    return new Promise((resolve) => {
+      this.held.set(asked.question, resolve)
+      // Claude Code stopped waiting (the terminal's answer comes as a
+      // PostToolUse first, which releases the hook itself).
+      gone.addEventListener('abort', () => {
+        if (this.held.delete(asked.question)) this.emitAll(this.translator.questionGone(asked.question))
+      })
+      this.emitAll(asked.events)
+    })
   }
 
   /** Claude Code shows a permission prompt, relayed by the bridge. */
@@ -291,7 +315,18 @@ class ClaudeSession implements ProviderSession {
   }
 
   private emitAll(events: SessionEvent[]) {
-    for (const event of events) this.host.emit(event)
+    for (const event of events) {
+      this.host.emit(event)
+      // Answered or dismissed in the terminal: let go of the held hook
+      // (Claude Code no longer waits on it; NOTES.md -> S02).
+      if (event.type === 'question.resolved' && event.by === 'external') this.release(event.question)
+    }
+  }
+
+  private release(question: string, reply?: Record<string, unknown>) {
+    const resolve = this.held.get(question)
+    this.held.delete(question)
+    resolve?.(reply)
   }
 
   /** Claude Code exited, or never came up. */
@@ -308,6 +343,7 @@ class ClaudeSession implements ProviderSession {
     if (this.startupTimer) clearTimeout(this.startupTimer)
     this.link?.unregister()
     this.hookLink?.unregister()
+    for (const q of [...this.held.keys()]) this.release(q)
     this.cleanup()
   }
 
@@ -330,6 +366,20 @@ class ClaudeSession implements ProviderSession {
     }
     this.emitAll(this.translator.permissionAnswered(permission, decision))
   }
+  /** The user answered a question in the world: the held hook gets the answer. */
+  async answerQuestion(question: string, answer: { answers: string[][] } | { response: string }): Promise<void> {
+    const input = this.translator.questionInput(question)
+    if (!input || !this.held.has(question)) {
+      throw new CommandError('provider_error', 'The question is no longer waiting for an answer.')
+    }
+    let reply: Record<string, unknown>
+    try { reply = questionReply(input, answer) } catch (e) {
+      throw new CommandError('invalid_message', (e as Error).message)
+    }
+    this.release(question, reply)
+    this.emitAll(this.translator.questionAnswered(question))
+  }
+
   async end(): Promise<void> {
     // No documented way to close Claude Code from outside (S05 decides).
     throw new CommandError('not_supported', 'end the session with /exit in its terminal')
