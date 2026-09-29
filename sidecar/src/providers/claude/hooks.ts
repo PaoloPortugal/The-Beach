@@ -130,12 +130,51 @@ export class HookTranslator {
     return out
   }
 
+  /** Whether any agent is working or waiting (something a stop would end). */
+  busy(): boolean {
+    for (const state of this.states.values()) if (state === 'working' || state === 'waiting') return true
+    return false
+  }
+
+  /** Whether this agent is working or waiting. */
+  isBusy(agent: Id): boolean {
+    const state = this.states.get(agent)
+    return state === 'working' || state === 'waiting'
+  }
+
+  /** Pending permission prompts (request ids), oldest first. */
+  pendingPermissions(): Id[] {
+    return [...this.permissions.keys()]
+  }
+
+  /**
+   * The sidecar stopped this PreToolUse's call (after translate() saw it):
+   * the call never runs, and the agent's turn ends with no hook of its own,
+   * so the states are set here. The orchestrator is then idle (the user's
+   * move); a subagent is interrupted (error), and the orchestrator is told.
+   */
+  stopped(p: HookPayload): SessionEvent[] {
+    const out: SessionEvent[] = []
+    const agent = this.agentOf(p)
+    const id = str(p.tool_use_id)
+    if (!agent) return out
+    if (id && this.openTools.delete(id)) out.push({ type: 'tool.finished', tool_call: id, status: 'denied' })
+    this.dropPermissions(agent, out)
+    if (agent === MAIN) {
+      this.finishMessages(out)
+      this.setState(MAIN, 'idle', null, out)
+    } else {
+      this.setState(agent, 'error', 'interrupted', out)
+    }
+    return out
+  }
+
   /**
    * The hook's agent: the orchestrator when there's no agent_id, a known
    * subagent, or null for an agent never seen starting (Claude Code's
    * internal helpers, which we ignore).
    */
-  private agentOf(p: HookPayload): Id | null {
+  agentOf(p: HookPayload): Id | null {
     const id = str(p.agent_id)
     if (!id) return MAIN
     return this.states.has(id) ? id : null

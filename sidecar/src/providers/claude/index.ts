@@ -37,6 +37,9 @@ export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
  */
 export const PERMISSION_MATCH_MS = 300
 
+/** What a stopped tool call tells Claude, and what the terminal shows. */
+export const STOP_REASON = 'The user stopped this from the app.'
+
 export interface ClaudeOptions {
   log?: Log
   /** How to start this sidecar in another mode; tests and dev tools override it. */
@@ -227,6 +230,8 @@ class ClaudeSession implements ProviderSession {
   private startupTimer: NodeJS.Timeout | null = null
   private disposed = false
   private readonly translator: HookTranslator
+  /** A stop from the world is waiting for the busy agents' next tool calls. */
+  private stopping = false
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
   private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
 
@@ -268,7 +273,8 @@ class ClaudeSession implements ProviderSession {
       native_id: this.launch.nativeId,
       project: this.project,
       title: this.name,
-      capabilities: { questions: {} },
+      // A stop from the world lands at the next tool call (NOTES.md -> S02).
+      capabilities: { questions: {}, interrupt: { immediate: false } },
       extensions: [],
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
@@ -278,7 +284,7 @@ class ClaudeSession implements ProviderSession {
    * One hook from this session's Claude Code. Reports only, except a
    * question, whose hook is held until the user answers in either place.
    */
-  onHook(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
+  onHook(p: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void> {
     if (this.disposed || this.host.ended) return
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
@@ -287,6 +293,20 @@ class ClaudeSession implements ProviderSession {
       return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
     }
     this.emitAll(this.translator.translate(p))
+    if (!this.stopping) return
+    const agent = this.translator.agentOf(p)
+    let reply: Record<string, unknown> | undefined
+    if (p.hook_event_name === 'PreToolUse' && agent) {
+      // `continue: false` alone still let the call run (spike run 1), so
+      // deny it too.
+      reply = {
+        continue: false, stopReason: STOP_REASON,
+        hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: STOP_REASON },
+      }
+      this.emitAll(this.translator.stopped(p))
+    }
+    if (!this.translator.busy()) this.stopping = false
+    return reply
   }
 
   private holdQuestion(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
@@ -378,6 +398,21 @@ class ClaudeSession implements ProviderSession {
     }
     this.release(question, reply)
     this.emitAll(this.translator.questionAnswered(question))
+  }
+
+  /**
+   * Stop from the world: the busy agents stop at their next tool call (the
+   * current reply or command finishes first). Pending permission prompts
+   * are denied, or they'd block the stop; that never allows anything.
+   */
+  async interrupt(): Promise<void> {
+    if (!this.translator.busy()) return
+    this.stopping = true
+    for (const permission of this.translator.pendingPermissions()) {
+      if (this.link?.send({ type: 'verdict', request_id: permission, behavior: 'deny' })) {
+        this.emitAll(this.translator.permissionAnswered(permission, 'deny'))
+      }
+    }
   }
 
   async end(): Promise<void> {
