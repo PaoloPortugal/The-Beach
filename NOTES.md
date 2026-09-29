@@ -974,7 +974,7 @@ themselves comes later (open question 5, decided); it uses the same hooks
 and channel, which such a session would need to be started with.
 
 ### S04 List and resume sessions
-*Planned.* Claude Code stores transcripts as JSONL under
+*Planned (after v1).* Claude Code stores transcripts as JSONL under
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
 `claude --resume <id>`. Sessions launched from this app are ordinary CLI
 sessions in the same store, so they are resumable from a terminal, and old
@@ -985,6 +985,23 @@ Deliberate limitations). Sessions run with transcripts off leave nothing to
 list or resume (S02 → When transcripts are off), and Claude Code deletes
 transcripts after `cleanupPeriodDays` (30 by default), so the list only
 reaches that far back.
+*Sidecar side built (branch `s04-list-resume`, stacked on the S02
+branches; not yet run live):* `providers/claude/store.ts` lists
+`<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
+(at most 200), reading only each file's first and last 64 KiB: project
+from `cwd`, title from the newest `custom-title` (our `--name`, or a
+`/rename`) else the first user message, `updated_at` from the file time.
+Transcripts record where a session was started (`entrypoint`: `cli`,
+`sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
+for now (open question in the progress report). Sessions running here are
+left out and can't be resumed twice. `session.resume` launches `claude
+--resume <id>` in the session's project folder with our hooks and channel
+(refused with a readable error if the session or its folder is gone), and
+its chat so far is read from the transcript: user messages (typed, or from
+the world: those are stored with `isMeta`, so they're recognised by our
+channel tag) and the text of Claude's replies; tool calls, thinking,
+subagents and injected context are left out. Also: `session.create`'s
+optional `prompt` is now sent as world chat once the session is up.
 
 ### S05 End session
 *Planned.* Ending a session removes it from the registry and sinks its

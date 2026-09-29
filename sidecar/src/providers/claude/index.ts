@@ -20,6 +20,7 @@ import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer, type BridgeLink } from './bridge-server.ts'
 import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
+import { findStored, listStored, projectsDir, readHistory } from './store.ts'
 import {
   HookTranslator, hookSettings, MAIN, QUESTION_TOOL, questionReply, type RelayedPermission,
 } from './hooks.ts'
@@ -75,6 +76,8 @@ export interface ClaudeOptions {
   findClaude?: () => Promise<FoundClaude>
   /** For tests: a shorter startup timeout. */
   startupTimeoutMs?: number
+  /** For tests: Claude Code's projects folder (stored sessions). */
+  projectsDir?: string
 }
 
 /** Everything the launched claude and our side share for one session. */
@@ -89,6 +92,8 @@ export class ClaudeProvider implements Provider {
   private readonly opts: ClaudeOptions
   private readonly log: Log
   private readonly runDirs = new Set<string>()
+  /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
+  private readonly live = new Set<string>()
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
 
@@ -104,20 +109,58 @@ export class ClaudeProvider implements Provider {
   }
 
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
+    const name = options.project.name ?? path.basename(options.project.path)
+    return this.start(host, {
+      project: options.project, name, nativeId: crypto.randomUUID(), resume: false, history: [],
+      ...(options.prompt ? { prompt: options.prompt } : {}),
+    })
+  }
+
+  /**
+   * Resumes a stored session (S04): `claude --resume <id>` in its project
+   * folder, with our hooks and channel like a new one. Its chat so far comes
+   * from the transcript.
+   */
+  async resume(host: SessionHost, nativeId: string): Promise<ProviderSession> {
+    if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
+    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
+    if (!stored) throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.')
+    if (!fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
+      throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
+    }
+    return this.start(host, {
+      project: stored.project, name: stored.title ?? path.basename(stored.project.path),
+      nativeId, resume: true, history: readHistory(stored.file),
+    })
+  }
+
+  /** Terminal sessions in Claude Code's store, newest first; the ones running here are left out. */
+  async listStored(project?: string): Promise<StoredSession[]> {
+    return listStored({
+      dir: this.opts.projectsDir ?? projectsDir(),
+      ...(project ? { project } : {}),
+      exclude: this.live,
+    }).map(({ file: _file, ...s }) => s)
+  }
+
+  private async start(host: SessionHost, o: {
+    project: Project; name: string; nativeId: string; resume: boolean; history: HistoryMessage[]; prompt?: string
+  }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
     const hooks = await this.hookServer()
-    const launch = this.prepare()
-    const name = options.project.name ?? path.basename(options.project.path)
-    const session = new ClaudeSession(host, launch, options.project, name, this.log,
-      () => this.forget(launch.runDir), this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)
+    const launch = this.prepare(o.nativeId)
+    this.live.add(o.nativeId)
+    const session = new ClaudeSession(host, launch, o.project, o.name, this.log,
+      () => { this.forget(launch.runDir); this.live.delete(o.nativeId) },
+      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt)
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
-      '--session-id', launch.nativeId,
-      '--name', name,
+      // A resumed session keeps its id and name.
+      ...(o.resume ? ['--resume', o.nativeId] : ['--session-id', o.nativeId, '--name', o.name]),
       // Our hooks for this session only; the user's settings files are never edited.
       '--settings', settings,
       '--mcp-config', mcpConfig,
@@ -126,22 +169,14 @@ export class ClaudeProvider implements Provider {
       '--dangerously-load-development-channels', `server:${BRIDGE_SERVER_NAME}`,
     ]
     try {
-      await this.launch(launch, found.path, args, options.project.path, name)
+      await this.launch(launch, found.path, args, o.project.path, o.name)
     } catch (e) {
       session.dispose()
       throw e
     }
-    this.log.info(`launched claude ${found.version} for session ${host.id}`)
+    this.log.info(`launched claude ${found.version} for session ${host.id}${o.resume ? ' (resumed)' : ''}`)
     session.startWaiting()
     return session
-  }
-
-  async resume(): Promise<ProviderSession> {
-    throw new CommandError('not_supported', 'resuming sessions comes later (S04)')
-  }
-
-  async listStored(): Promise<StoredSession[]> {
-    return []
   }
 
   async shutdown(): Promise<void> {
@@ -209,11 +244,11 @@ export class ClaudeProvider implements Provider {
   }
 
   /** A private folder for this session's launch file, settings and bridge config. */
-  private prepare(): Launch {
+  private prepare(nativeId: string): Launch {
     const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-session-'))
     fs.chmodSync(runDir, 0o700)
     this.runDirs.add(runDir)
-    return { runDir, nativeId: crypto.randomUUID() }
+    return { runDir, nativeId }
   }
 
   private async launch(launch: Launch, claude: string, args: string[], cwd: string, name: string) {
@@ -271,8 +306,11 @@ class ClaudeSession implements ProviderSession {
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
   private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
 
+  /** A first message to send once the session is up (session.create's prompt). */
+  private prompt: string | null
+
   constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
-    cleanup: () => void, startupTimeoutMs: number) {
+    cleanup: () => void, startupTimeoutMs: number, history: HistoryMessage[] = [], prompt?: string) {
     this.host = host
     this.launch = launch
     this.project = project
@@ -281,11 +319,13 @@ class ClaudeSession implements ProviderSession {
     this.cleanup = cleanup
     this.startupTimeoutMs = startupTimeoutMs
     this.translator = new HookTranslator(project.path)
+    this.history.push(...history)
+    this.prompt = prompt ?? null
   }
 
   bridgeHandlers() {
     return {
-      onReady: () => this.onReady(),
+      onReady: () => { this.onReady(); this.flushPrompt() },
       onPermissionRequest: (p: RelayedPermission) => this.onPermissionRequest(p),
       onClose: () => this.onGone('the bridge closed'),
     }
@@ -314,6 +354,12 @@ class ClaudeSession implements ProviderSession {
       extensions: [],
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
+    this.flushPrompt()
+  }
+
+  /** The world's first message, sent once the session is up and its bridge connected. */
+  private flushPrompt() {
+    if (this.prompt && !this.startupTimer && this.link?.send({ type: 'chat', text: this.prompt })) this.prompt = null
   }
 
   /**
