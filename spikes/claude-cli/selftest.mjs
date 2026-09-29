@@ -58,7 +58,7 @@ check('MessageDisplay answered instantly with no replacement', r.status === 200 
 
 await ctlCall('/stop')
 r = await hookCall({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {} })
-check('stop: next step hook returns continue:false', r.body?.continue === false)
+check('stop: next tool call is denied and the session stops', r.body?.continue === false && r.body?.hookSpecificOutput?.permissionDecision === 'deny')
 r = await hookCall({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {} })
 check('stop applies once', r.body === null)
 
