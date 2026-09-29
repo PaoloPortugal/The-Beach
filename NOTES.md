@@ -909,16 +909,16 @@ exists.
 - **Code signing (public release).** macOS blocks apps that aren't signed
   and notarized (Gatekeeper), which needs an Apple Developer account (99
   USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
-  to the Godot export and the sidecar executable. Decide before the first
-  public release.
+  to the Godot export and the sidecar executable, and matter most for
+  itch.io's browser downloads. Decide before the first public release.
 - **Steam (likely, not certain).** The user plans to ship on Steam
   (depots per OS, updates through SteamPipe; the bundled sidecar ships as
   ordinary game files). Things to check before relying on it:
   - *Linux sandboxing:* native Linux games may run inside the Steam Linux
     Runtime container, and Flatpak installs of Steam are sandboxed; either
     may stop the game from seeing or starting the user's terminal and
-    `claude`. Needs a test; the Linux build might be better offered
-    outside Steam too.
+    `claude`. Needs a test; if it does, the Linux build is offered on
+    itch.io only.
   - *Environment:* Steam's variables and overlay hooks must not reach the
     launched terminal and `claude` (Security rules → Clean child
     environments).
@@ -939,6 +939,21 @@ exists.
     tested by installing a build from a private Steam branch on each OS,
     which needs a Steamworks account (one-time fee per app); the Linux
     runtime part can be tried earlier, since that runtime is free.
+- **itch.io (certain).** The game will be offered on itch.io, uploaded
+  per OS with itch's `butler` tool (patch updates; the itch app updates
+  players automatically). Nothing itch-specific is needed to build for
+  it, but browser downloads differ from Steam installs:
+  - *Signing matters more:* downloaded files carry the browser's
+    "from the internet" mark, so unsigned Windows builds get SmartScreen's
+    warning and un-notarized macOS builds are blocked by Gatekeeper until
+    the user allows them in System Settings (see Code signing).
+  - *Executable permissions:* macOS and Linux builds, including the
+    sidecar executable, must keep their executable flag. `butler` and the
+    itch app keep it; a zip unpacked by hand may not, so the game should
+    check the sidecar's flag at start and restore it or explain.
+  - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
+    is the fallback home for the Linux build if Steam's sandboxing blocks
+    launching the terminal and `claude`.
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,
