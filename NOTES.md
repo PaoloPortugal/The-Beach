@@ -796,9 +796,10 @@ a per-session token header. Verified mapping:
   allowed in the terminal (external); the orchestrator's turn ending or
   the user's next message while it's pending → "No" in the terminal
   (external deny), a fallback until the transcript follower. A subagent's
-  prompt resolves that way when the subagent stops. A `note` with the
-  answer is refused (`not_supported`): the channel's verdict carries no
-  text (open question in the progress report).
+  prompt resolves that way when the subagent stops. The channel's verdict
+  carries no text, so a `note` with the answer follows the verdict as the
+  user's next chat message (proposal branch `proposal-permission-note`,
+  awaiting the user's choice).
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
