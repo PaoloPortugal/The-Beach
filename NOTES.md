@@ -95,9 +95,9 @@ v1 slice.
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
-| S02 | Claude provider (v1)                      | planned | n/a           | n/a       |
+| S02 | Claude provider (v1)                      | in progress | n/a       | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
-| S04 | List and resume stored sessions           | planned | n/a           | n/a       |
+| S04 | List and resume stored sessions           | sidecar side built (branch) | n/a | `sidecar/src/providers/claude/store.ts` |
 | S05 | End session                               | planned | n/a           | n/a       |
 
 ## When a feature lands
