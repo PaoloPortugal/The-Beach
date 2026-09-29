@@ -983,6 +983,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
   Apps only see a new environment variable after they restart, and Godot
   launched from Godot Hub inherits the Hub's environment, so restart the Hub.
 - Update with the dock's **Update** button, never by copying files over it.
+- Port clash: the server's HTTP port (default 8000) is often taken on
+  Windows by Docker or WSL. Change Editor Settings → Plugins → `godot_ai`
+  → Http Port (or the dock's port picker), and the `--port` in the client
+  entry to match (Configure rewrites it); restart Claude Code to reconnect.
 
 ## Open questions
 
@@ -1011,9 +1015,38 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** M1, sidecar first (user's decision). S01 is merged.
-S02 (Claude provider) is in progress on one branch with two review
-checkpoints (user's decision): after the terminal launcher opens a real
-`claude`, and at the end with a live run.
+S02 (Claude provider) is in progress on branch `s02-claude-provider`
+(not merged, not pushed), with two review checkpoints (user's decision):
+after the terminal launcher opens a real `claude`, and at the end with a
+live run.
+
+*Handoff (2026-09-29).* Built and tested (71 `node:test` checks, all
+passing, none against a real `claude` yet): terminal launcher and
+`launch` mode, finding `claude` (minimum 2.1.284), clean environments
+(named markers plus narrow families), the channel bridge (`bridge claude`
+mode: own MCP handshake, link back to the sidecar), and the provider's
+create path (session comes up when the bridge is ready, ends when it
+closes or after 15 min without coming up; world chat goes down the
+bridge). `session.end` answers `not_supported` (S05).
+
+**Next: checkpoint 1, with the user at the screen.** From `sidecar/`, run
+`npm run try:claude -- <empty temp folder>`: it starts the sidecar,
+creates a session (a Windows Terminal tab opens with `claude`), prints
+events with timestamps, and sends typed lines as world chat. Measure
+(S02 → Starting up): which startup prompts appear and in what order; the
+"came up N ms after launch" time; whether a world message reaches Claude;
+that `/exit` ends the session; whether the development-channel
+confirmation appears again on a second launch; and that the transcript is
+written under `~/.claude/projects/` (proves the launched `claude` didn't
+inherit session markers).
+
+After checkpoint 1: HTTP hooks and their translation (S02 → Seeing the
+session), permission relay and `permission.respond`, the `questions` and
+`interrupt` capabilities, the transcript follower (Esc, terminal "No"),
+session notices (`session.notice` schema entry, transcripts off, the
+"confirm in the terminal" startup text and how it reaches a session not
+yet announced), history, then the live run (checkpoint 2) and the S02
+docs (Systems section, guide, flows, dev log).
 
 ### Milestones
 
