@@ -197,15 +197,19 @@ feature that touches them follows these rules, and each is tested:
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
-  which could carry another session's values. Remove only a named list of
-  those markers, never everything starting with `CLAUDE`: user
-  configuration such as `CLAUDE_CONFIG_DIR` and
+  which could carry another session's values. Remove a named list of
+  those markers plus a few **narrow families** by prefix (user's decision,
+  S02), only where every documented variable in the family is one Claude
+  Code sets itself: `CLAUDE_CODE_SESSION_`, `CLAUDE_CODE_CHILD_`,
+  `CLAUDE_CODE_MESSAGING_`, `CLAUDE_CODE_BRIDGE_` (checked against the
+  env-vars docs, 2026-09-29). Never everything starting with `CLAUDE`: user
+  configuration such as `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_EFFORT_LEVEL` and
   `CLAUDE_CODE_SKIP_PROMPT_HISTORY` (transcripts off) must pass through,
   or we'd silently undo the user's choices. (The S02 spike stripped every
   `CLAUDE*` variable; don't copy that.) The same goes for anything a store client
-  injects into the game (e.g. Steam's `LD_LIBRARY_PATH`, `LD_PRELOAD`
-  overlay hooks and `STEAM_*` variables). Exact list settled when building
-  S02.
+  injects into the game (e.g. Steam's `LD_PRELOAD` overlay hooks and its
+  `Steam*` variables). The lists are in `sidecar/src/providers/claude/env.ts`
+  and `sidecar/src/launch/env.ts`, with a test that user settings survive.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -497,6 +501,10 @@ mountains) plug into it.
 across the world to reach an orchestrator. Sorting, grouping and whether to
 add a minimap are open question 3.
 
+*Possible feature, not planned (from Agent Office):* a "go to whoever has
+waited longest" shortcut that jumps straight to the agent that has been
+waiting longest on a permission or question.
+
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
 desk or under an umbrella (look: open question 7). It's the main way you
@@ -772,6 +780,16 @@ bridge). What's limited:
   joined, and capabilities that need the transcript (e.g. token usage,
   if hooks don't carry it) aren't declared.
 
+**A session stuck at startup** (planned, idea from Agent Office). Before
+Claude Code can take input it may be waiting on a screen only the terminal
+shows: folder trust, login, first-run setup, or our development-channel
+confirmation. If the bridge hasn't connected within a short time after
+launch, the sidecar sends a session notice (e.g. `needs_terminal`) so the
+world says "Claude Code is asking you something in its terminal" instead of
+looking stuck; the notice clears when the bridge connects. (Agent Office
+watches for a `SessionStart` hook that never fires; our HTTP hooks can't
+receive `SessionStart`, so the bridge is our signal.)
+
 Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
 `MessageDisplay`; long only for the question hook. A hung sidecar makes
 Claude wait out each timeout.
@@ -1006,6 +1024,12 @@ exists.
 
 ### Deferred ideas (not features yet)
 
+- **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
+  every assistant entry in the transcript records the API's token usage and
+  model, subagent transcripts sit next to it, and Claude Code appends its
+  own cost total when a session ends, which is the figure to trust. Read
+  only, like the rest of the transcript (S02). Not available when
+  transcripts are off.
 - **Agent scaling**, only if agent counts become a problem:
   - *Island growth:* the island footprint grows, or subdivides into a
     mini-archipelago, past some agent count.
