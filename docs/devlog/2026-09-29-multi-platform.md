@@ -53,6 +53,27 @@ most monospace fonts are OFL, not CC0). Code signing (Apple notarization
 needs a paid developer account) is a watch item for the first public
 release.
 
+## Game side (same day)
+
+The user added that the game itself must not depend on one platform's
+graphics API (e.g. DirectX), noting that many games let players choose
+between APIs. Checked Godot 4.7.2's defaults for this project: Forward+,
+Vulkan on Windows and Linux, Metal on macOS, falling back to Direct3D 12
+and then OpenGL automatically. So nothing requires DirectX.
+
+- *Decided (user's):* build for Forward+ and keep the world usable on the
+  Compatibility renderer (OpenGL 3.3) for old GPUs and awkward drivers.
+  Rejected: Forward+ only (locks out machines without Vulkan, Metal or
+  D3D12) and Compatibility only (fewer effects).
+- *Decided (user's):* no graphics API or renderer menu; selection stays
+  automatic, with Godot's command-line flags as the escape hatch.
+  Rejected for now: a settings choice applied on restart.
+
+Conventional rules recorded with it: Godot shading language only,
+physical-key movement and Ctrl/Cmd auto-remap, exact-case `res://` paths
+and `user://` for saves, HiDPI on, export presets for all three, and no
+native plugins without builds for all three.
+
 ## Result
 
 NOTES.md gained a Principles line and an Architecture → Platforms section;

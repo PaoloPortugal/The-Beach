@@ -280,6 +280,33 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Testing.** Only Windows is available to test on for now; see Watch
   items → Untested on macOS and Linux.
 
+The game (Godot) follows the same rule:
+- **Rendering (user's decision).** Built for **Forward+**, with Godot's
+  default drivers: Vulkan on Windows and Linux, Metal on macOS. No
+  graphics API is required: when the first choice fails, Godot falls back
+  to Direct3D 12 and then to the **Compatibility renderer** (OpenGL 3.3)
+  on its own (`fallback_to_d3d12`, `fallback_to_opengl3`, both on by
+  default; checked in 4.7.2). The world must stay usable under
+  Compatibility: every effect we use needs a plain fallback there (e.g.
+  simpler water and lighting), and both renderers get checked. No graphics
+  menu: selection is automatic only; for driver trouble, Godot's
+  `--rendering-driver` / `--rendering-method` command-line flags are the
+  escape hatch (goes in the guide once there's something to run).
+- **Shaders** are written in Godot's shading language only, never
+  API-specific code, so they work under every driver.
+- **Input.** Movement uses physical key positions (WASD works on AZERTY
+  and other layouts); shortcuts use Godot's Ctrl/Cmd auto-remap so they
+  follow each OS's convention.
+- **Paths.** `res://` paths must match the file's exact case (Windows
+  forgives a wrong case, Linux and exported games don't); settings and
+  saves go under `user://`, which Godot maps to each OS's usual place.
+- **Display.** HiDPI stays on (`allow_hidpi`, the default); UI scales
+  with the screen rather than assuming a size. Linux runs on X11 and
+  Wayland.
+- **Exports and plugins.** Export presets for Windows, macOS and Linux.
+  No GDExtension or native plugin in the game unless it ships builds for
+  all three (the Godot AI addon is an editor-only dev tool).
+
 **Layout.** The Godot project is the repo root (`project.godot`). Other
 top-level folders sit beside it:
 
