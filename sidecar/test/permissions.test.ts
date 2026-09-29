@@ -181,20 +181,19 @@ test('through a session: prompt shown in the world, answered there, the verdict 
     assert.equal((req.permission as any).summary, 'Run: echo hi > a.txt')
     assert.equal((await x.c.next('agent.state_changed')).reason, 'permission')
 
-    // A note can't travel with the verdict yet: refused, nothing sent.
-    const noted = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'uxdpy', decision: 'deny', note: 'use b.txt' })
-    assert.equal(noted.code, 'not_supported')
-    assert.deepEqual(x.fromSidecar, [])
-
-    const r = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'uxdpy', decision: 'allow' })
+    // A note follows the verdict as the user's next chat message.
+    const r = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'uxdpy', decision: 'deny', note: 'use b.txt instead' })
     assert.equal(r.type, 'ok')
     const resolved = await x.c.next('permission.resolved')
-    assert.deepEqual([resolved.decision, resolved.by], ['allow', 'app'])
-    for (let i = 0; i < 100 && x.fromSidecar.length === 0; i++) await new Promise((res) => setTimeout(res, 10))
-    assert.deepEqual(x.fromSidecar, [{ type: 'verdict', request_id: 'uxdpy', behavior: 'allow' }])
+    assert.deepEqual([resolved.decision, resolved.by], ['deny', 'app'])
+    for (let i = 0; i < 100 && x.fromSidecar.length < 2; i++) await new Promise((res) => setTimeout(res, 10))
+    assert.deepEqual(x.fromSidecar, [
+      { type: 'verdict', request_id: 'uxdpy', behavior: 'deny' },
+      { type: 'chat', text: 'use b.txt instead' },
+    ])
 
     // Answering again, or an id that was never asked, is refused by the core.
-    const again = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'uxdpy', decision: 'deny' })
+    const again = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'uxdpy', decision: 'allow' })
     assert.equal(again.code, 'invalid_message')
     assert.deepEqual(x.c.invalid, [])
   } finally { await x.close() }

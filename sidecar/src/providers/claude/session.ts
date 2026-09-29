@@ -331,13 +331,14 @@ export class ClaudeSession implements ProviderSession {
    * way (NOTES.md -> Security rules).
    */
   async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string): Promise<void> {
-    // The channel's verdict carries no message (open question: send a note
-    // as a chat message after a deny?). Refuse rather than drop the user's words.
-    if (note) throw new CommandError('not_supported', 'notes with a permission answer are not supported yet')
     if (!this.link?.send({ type: 'verdict', request_id: permission, behavior: decision })) {
       throw new CommandError('provider_error', 'The session is not connected.')
     }
     this.emitAll(this.translator.permissionAnswered(permission, decision))
+    // The channel's verdict carries no message, so a note follows it as the
+    // user's next chat message (it's their own words; Claude reads it once
+    // the answered call is done or denied).
+    if (note?.trim()) this.link.send({ type: 'chat', text: note })
   }
   /** The user answered a question in the world: the held hook gets the answer. */
   async answerQuestion(question: string, answer: { answers: string[][] } | { response: string }): Promise<void> {
