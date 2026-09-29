@@ -1,0 +1,200 @@
+# Flows
+
+Step-by-step diagrams of how the pieces talk to each other, for the Claude
+provider on the CLI route. They show the behaviour verified by the M0
+integration spike (dev log 2026-09-29-claude-cli-spike). NOTES.md stays
+the source of truth: when S02 or the Protocol section changes, update the
+matching flow here in the same branch.
+
+GitHub draws the Mermaid blocks as diagrams. Arrows between World and
+Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
+Code are hooks (HTTP, with the session's token); Bridge is our channel
+bridge (NOTES.md → S02).
+
+- [1. Create a session](#1-create-a-session)
+- [2. A chat turn](#2-a-chat-turn)
+- [3. A permission prompt](#3-a-permission-prompt)
+- [4. A clarifying question](#4-a-clarifying-question)
+- [5. A subagent](#5-a-subagent)
+- [6. Stopping](#6-stopping)
+- [7. When our side fails](#7-when-our-side-fails)
+
+## 1. Create a session
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+    participant Bridge
+
+    User->>World: create a session for a project
+    World->>Sidecar: session.create
+    Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
+    Sidecar->>Claude: open a terminal running claude<br/>(settings, channel, session ID, clean environment)
+    Sidecar-->>World: ok { session }
+    Claude->>User: folder trust (first time) and<br/>development channel confirmation
+    User->>Claude: accept
+    Claude->>Bridge: start it (stdio)
+    Bridge->>Sidecar: connect with the session's token
+    Sidecar->>World: session.created (island rises)
+    Note over Claude,Sidecar: No start hook: SessionStart doesn't support HTTP hooks,<br/>so the bridge connecting is the "session is up" signal.
+```
+
+Ending: `/exit` in the terminal (or `session.end` from the world) → the
+`SessionEnd` hook → `session.ended` (island sinks).
+
+## 2. A chat turn
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Bridge
+    participant Claude as Claude Code (terminal)
+
+    User->>World: types a message at the orchestrator
+    World->>Sidecar: message.send
+    Sidecar->>Bridge: chat text
+    Bridge->>Claude: channel event
+    Claude->>Sidecar: UserPromptSubmit (text wrapped in a channel tag)
+    Sidecar->>World: message.started / .completed (role user, unwrapped)
+    Sidecar->>World: agent.state_changed orchestrator → working
+    loop each batch of finished lines
+        Claude->>Sidecar: MessageDisplay (delta)
+        Sidecar-->>Claude: empty reply, instantly
+        Sidecar->>World: message.started (first batch), message.delta
+    end
+    Claude->>Sidecar: Stop (final text)
+    Sidecar->>World: message.completed, orchestrator → idle
+```
+
+A message typed in the terminal arrives the same way, as plain text
+without the channel tag. A `<task-notification>` prompt is not a user
+message (see flow 5).
+
+## 3. A permission prompt
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Bridge
+    participant Claude as Claude Code (terminal)
+
+    Claude->>Sidecar: PreToolUse (e.g. Bash)
+    Sidecar-->>Claude: empty reply (no decision)
+    par Claude Code asks in both places
+        Claude->>User: permission dialog in the terminal
+    and
+        Claude->>Bridge: permission request (request ID)
+        Bridge->>Sidecar: permission request
+    end
+    Claude->>Sidecar: PermissionRequest
+    Sidecar->>World: permission.requested, agent → waiting (permission)
+    alt answered in the world
+        User->>World: allow or deny
+        World->>Sidecar: permission.respond
+        Sidecar->>Bridge: verdict (request ID)
+        Bridge->>Claude: verdict: terminal dialog closes
+        Sidecar->>World: permission.resolved (by app)
+        Note over Claude: A deny from the world lets Claude continue its turn.
+    else answered in the terminal
+        User->>Claude: allow or "No"
+        Note over Claude,Sidecar: No hook says so. The sidecar infers it: a later tool hook<br/>for that call (allowed) or the next user message ("No" interrupts the turn).
+        Sidecar->>World: permission.resolved (by external)
+    end
+```
+
+## 4. A clarifying question
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+
+    Claude->>Sidecar: PreToolUse AskUserQuestion (request held open)
+    Sidecar->>World: question.asked, agent → waiting (question)
+    alt answered in the world
+        User->>World: picks options or types an answer
+        World->>Sidecar: question.answer
+        Sidecar-->>Claude: reply to the held hook: allow + answers
+        Note over Claude: The terminal never shows the question.
+        Sidecar->>World: question.resolved (by app)
+    else handed to the terminal
+        User->>World: "answer in the terminal"
+        Sidecar-->>Claude: empty reply to the held hook
+        Claude->>User: question in the terminal
+        User->>Claude: answer
+        Claude->>Sidecar: PostToolUse AskUserQuestion (with the answer)
+        Sidecar->>World: question.resolved (by external)
+    end
+```
+
+## 5. A subagent
+
+```mermaid
+sequenceDiagram
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+
+    Claude->>Sidecar: PreToolUse Agent (from the orchestrator,<br/>or carries the calling subagent's agent_id)
+    Claude->>Sidecar: SubagentStart (agent_id, agent_type)
+    Sidecar->>World: agent.spawned (parent inferred from the Agent call)
+    Claude->>Sidecar: PostToolUse Agent (runs in the background)
+    Claude->>Sidecar: Stop
+    Sidecar->>World: orchestrator → idle while the subagent works
+    loop the subagent's steps
+        Claude->>Sidecar: Pre/PostToolUse carrying its agent_id
+        Sidecar->>World: tool.started / tool.finished
+    end
+    Claude->>Sidecar: SubagentStop (its report)
+    Sidecar->>World: subagent → done (runs its report to the parent, disappears)
+    Claude->>Sidecar: UserPromptSubmit with a task-notification
+    Sidecar->>World: orchestrator → working (not shown as a user message)
+    Note over Sidecar: Stops or tool hooks for an agent never seen starting come from<br/>Claude Code's internal helpers and are ignored.
+```
+
+## 6. Stopping
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+
+    User->>World: stop
+    World->>Sidecar: interrupt.request
+    Sidecar-->>World: ok (world shows "stopping after this step")
+    Note over Claude: The current step (reply text or a running command) finishes.
+    Claude->>Sidecar: next PreToolUse
+    Sidecar-->>Claude: deny this call and stop (continue false)
+    Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
+    Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
+    Sidecar->>World: agent.state_changed (orchestrator → idle, or subagent → done)
+```
+
+## 7. When our side fails
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+
+    Claude->>Sidecar: any hook
+    alt sidecar hangs
+        Note over Claude: Waits for the hook's timeout (keep reporting hooks short)
+    else sidecar errors or is offline
+        Note over Claude: Treated as "no decision", immediately
+    end
+    Claude->>User: normal behaviour: the terminal asks
+    Note over User,Claude: Nothing is ever allowed because our side failed.<br/>Hooks resume when the sidecar comes back.
+```
