@@ -29,3 +29,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [NOTES.md sanity check](2026-09-29-notes-sanity-check.md) | docs |
 | 2026-09-29 | [License](2026-09-29-license.md) | docs |
 | 2026-09-29 | [Privacy check](2026-09-29-privacy-check.md) | tooling |
+| 2026-09-29 | [Markdown → BBCode spike](2026-09-29-markdown-spike.md) | C03 |

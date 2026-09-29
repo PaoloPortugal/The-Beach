@@ -237,7 +237,7 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands). Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
-| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry. `claude-cli/` is kept as the reference for building S02, then deleted. Has a `.gdignore`. |
+| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. `claude-cli/` (Node, for S02) has a `.gdignore`; `markdown/` (Godot, for C03) is visible to Godot so its demo scene runs. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 The Godot folder layout (scenes, scripts) and the sidecar file table get
@@ -407,10 +407,29 @@ is a working environment. It needs streaming responses. v1 renders plain text
 wired to the sidecar.
 
 ### C03 Markdown rendering
-*Planned.* Godot's `RichTextLabel` uses BBCode, not Markdown, so rendering
-the model's Markdown well (especially readable code blocks) takes real
-translation work. It is **probably the biggest UX risk in the project**, so it
-gets prototyped early as a throwaway spike, before its full build.
+*Planned. Scope: core* (it renders the generic `message` text). Godot's
+`RichTextLabel` uses BBCode, not Markdown, so the chat panel translates.
+Prototyped in the M0 spike (`spikes/markdown/`, dev log
+2026-09-29-markdown-spike); the user's decisions, verified there:
+- **Converted in Godot by our own GDScript**, from the Markdown the
+  protocol already carries. No protocol change, no dependency.
+- **A message is a stack of controls.** Consecutive prose blocks share one
+  RichTextLabel (selection runs across paragraphs); each **code block is
+  its own panel**: read-only, monospace, language label, Copy button,
+  syntax colours, horizontal scroll instead of wrapping. Quotes nest.
+- **Escaping (Security rules).** Every `[` in message text becomes `[lb]`;
+  links are `[url=<index>]` into a table, so no message text sits inside a
+  tag. Only http(s)/mailto links are clickable, and only after a
+  confirmation showing the full address; images are never loaded. Keep the
+  spike's fuzz test when building this.
+- **Streaming.** Re-parse the whole text after each line batch; keep
+  unchanged parts and update the growing one in place (about 2 ms per
+  batch). An unclosed code fence shows as a block marked "writing…".
+
+To solve when building: rendering a long history at once is slow (about
+80 ms per typical reply, 0.7 s for a 25 KB one, mostly RichTextLabel and
+CodeEdit layout), so build history lazily. Gaps and details are in the dev
+log.
 
 ### C04 Tool-call log
 *Planned.* Some form of log of the tool calls the session made, visible from
@@ -700,7 +719,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the Markdown → BBCode spike (C03), the last M0 item.
+**Current focus:** M0 is done once the Markdown spike is reviewed; next is
+the M1 v1 slice (where to start is still to be decided).
 
 ### Milestones
 
@@ -710,7 +730,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
   questions in both places, stopping, Esc and "No" via the transcript, and
   fail-safe behaviour. Results in S02 and the dev log
   (2026-09-29-claude-cli-spike); code in `spikes/claude-cli/`.*
-- **Markdown → BBCode spike (C03).**
+- **Markdown → BBCode spike (C03).** *Done 2026-09-29: parser and view in
+  GDScript, safe escaping (fuzz-tested), code-block panels, streaming by
+  line batches. Results in C03 and the dev log (2026-09-29-markdown-spike);
+  code in `spikes/markdown/`.*
 
 **M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
@@ -784,7 +807,9 @@ exists.
   need `--dangerously-load-development-channels` (confirmed by the user at
   startup), and Team/Enterprise organisations block channels unless an
   admin enables them. Pro/Max users without an organisation can use them.
-- **Markdown → BBCode rendering (C03)** is the biggest UX risk.
+- **Markdown → BBCode rendering (C03)** was the biggest UX risk. The
+  spike shows it works; what's left is the cost of rendering long
+  histories at once (see C03).
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,
