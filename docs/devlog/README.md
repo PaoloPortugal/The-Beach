@@ -24,3 +24,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Event schema v1](2026-09-29-event-schema.md) | docs |
 | 2026-09-29 | [Sidecar language](2026-09-29-sidecar-language.md) | docs |
 | 2026-09-29 | [Claude CLI route](2026-09-29-claude-cli-route.md) | docs |
+| 2026-09-29 | [Principles and security rules](2026-09-29-principles-security.md) | docs |
