@@ -447,9 +447,8 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   agent's state: a `code` (Godot shows its own text for codes it knows)
   and an English fallback `message`. One per code (a new one replaces
   it); the snapshot lists them in `notices`. Codes: `transcripts_off`,
-  `hooks_unavailable`.
-  *(Drafted on branch `s02-notices`; the shape awaits the user's
-  approval.)*
+  `hooks_unavailable`. *(Shape accepted by the user, 2026-09-29, to be
+  revisited if the world needs more.)*
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -889,13 +888,14 @@ doesn't guess:
 - If the bridge still hasn't connected after a longer while (about a
   minute or two, set from measurements), the text becomes "Still starting;
   check the terminal." It never claims to know which case it is.
-- *Proposal (branch `proposal-startup-notice`, awaiting the user's
-  choice):* the text travels in the `session.create` / `session.resume`
-  reply as `notice` (`confirm_in_terminal`, a provider's
-  `startupNotice`), for Godot's "starting" placeholder. The "Still
-  starting" switch needs no protocol: Godot knows when it sent the
-  command. The alternative was announcing at launch with the orchestrator
-  waiting.
+- *Decided (user's, 2026-09-29):* the text travels in the
+  `session.create` / `session.resume` reply as `notice`
+  (`confirm_in_terminal`, a provider's `startupNotice`). The island is
+  only created once the session is ready (`session.created`); how the
+  world shows a session waiting to start is decided when building the
+  game. The "Still starting" switch needs no protocol: Godot knows when it
+  sent the command. Rejected: announcing at launch with the orchestrator
+  waiting (the island would rise before the session is ready).
 
 Measured at checkpoint 1 (2026-09-29, Claude Code 2.1.284, Windows):
 - First launch in a new folder: folder trust, then the development-channel
@@ -1025,7 +1025,8 @@ from `cwd`, title from the newest `custom-title` (our `--name`, or a
 `/rename`) else the first user message, `updated_at` from the file time.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
-for now (open question in the progress report). Sessions running here are
+for now (user's decision, 2026-09-29); VS Code and desktop sessions are
+possible later. Sessions running here are
 left out and can't be resumed twice. `session.resume` launches `claude
 --resume <id>` in the session's project folder with our hooks and channel
 (refused with a readable error if the session or its folder is gone), and
@@ -1192,11 +1193,10 @@ live). On one straight chain of unmerged branches, in merge order
 questions, stopping, the transcript follower, session notices
 (`transcripts_off`, `hooks_unavailable`), history, `try:claude`'s world
 buttons, the scripted `dev:fake`, S04's sidecar side, and Godot's
-`SessionStore`. Parts were checked against a real `claude` with
+`SessionStore`, and the startup notice in the create/resume reply. Parts were checked against a real `claude` with
 `claude -p`, which needs no channel (dev log
-2026-09-29-s02-relay-questions-stop). Two proposal branches off the top
-(`proposal-permission-note`, `proposal-startup-notice`) await the user's
-choice. `session.end` answers `not_supported` (S05).
+2026-09-29-s02-relay-questions-stop). A proposal branch off the top
+(`proposal-permission-note`) awaits the user's choice. `session.end` answers `not_supported` (S05).
 
 **Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
 folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
@@ -1206,9 +1206,9 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** the user's review of the branches and their answers to the
-open decisions (the `session.notice` shape, the startup text, permission
-notes, stopped subagents, which stored sessions to list), then the live
+**Next:** the user's answers on permission notes and stopped subagents
+(the notice shape, the startup text and CLI-only listing are decided),
+then the live
 run (checkpoint 2; `try:claude`'s `/` commands cover it) and the S02 docs
 (Systems section, guide, dev log). After S02: the M1 world, which needs
 the user's calls on camera, movement, island, ocean, props and the chat
