@@ -74,7 +74,8 @@ v1 slice.
 
 ## When a feature lands
 
-- [ ] Update its `### <ID>` section in Systems (planned intent → how it works).
+- [ ] Update its `### <ID>` section in Systems (planned intent → how it works),
+      including its provider scope.
 - [ ] Update its index row: status, guide section, main code.
 - [ ] Add or update its `<ID>` section in `docs/GUIDE.md` in plain language,
       and add it to the guide's table of contents.
@@ -88,8 +89,9 @@ v1 slice.
 
 ```
 Godot 4 (GDScript)  <--local WebSocket-->  sidecar       -->  provider(s)
-world, player, agents,     generic events    session registry,   Claude provider:
-chat UI                    only              WebSocket server    Agent SDK, hooks, JSONL store
+world, player, agents,     generic core +    session registry,   Claude provider:
+chat UI, provider UI       capabilities +    WebSocket server    Agent SDK, hooks, JSONL store
+                           extensions
 ```
 
 - **Godot** (GDScript): the world, player movement, island and bridge
@@ -105,14 +107,26 @@ chat UI                    only              WebSocket server    Agent SDK, hook
   data model and Godot's scene tree.
 
 **Multi-provider rules.** Only Claude is built, and near-term effort goes into
-making it good, but adding another tool (Codex, Cursor, ...) must only need a
-new adapter:
-- The sidecar defines a provider-agnostic event vocabulary; each provider
-  translates into it. Godot never sees provider-specific events.
-- Generic systems (event types, the protocol, Godot scene and class names for
-  sessions and agents) are never named after Claude. Claude naming lives
-  only in the provider module.
-- Don't build a second provider; just don't assume there will only be one.
+making it good, including Claude-only features (e.g. model choice, usage,
+context window). Adding another tool (Codex, Cursor, ...) must still only need a
+new adapter plus, optionally, its own extension UI. Every feature has one of
+three **provider scopes**:
+- **Core:** every provider must support it (sessions, agents, messages,
+  permissions). Generic events; each provider translates into them.
+- **Capability:** a generic concept that not every provider has (e.g. model
+  choice, token usage, context-window fill). Generic events, gated by a
+  capability the provider declares for the session; Godot shows the UI only
+  when it's declared. Prefer this over an extension whenever the concept
+  plausibly exists elsewhere.
+- **Extension:** truly unique to one provider. Namespaced by provider in the
+  protocol, and handled in Godot by that provider's own UI module, so that
+  removing a provider means deleting its folders and nothing else.
+
+Naming: Claude-specific names appear only in the sidecar's Claude provider
+module, the Claude extension namespace of the protocol, and Godot's Claude UI
+module. Everything else is named generically. Don't build a second provider;
+just don't assume there will only be one. The exact capability and extension
+format is part of the event schema (open question 1).
 
 **Layout.** The Godot project is the repo root (`project.godot`). Other
 top-level folders sit beside it:
@@ -130,8 +144,9 @@ filled in as the v1 features land.
 
 ## Protocol
 
-The contract between Godot and the sidecar, over a local WebSocket. It
-uses **generic names only** and must not assume a maximum number of agents
+The contract between Godot and the sidecar, over a local WebSocket. It has
+a generic core, capability-gated optional features and provider-namespaced
+extensions (see Multi-provider rules), and must not assume a maximum number of agents
 per session. The concrete schema is **not settled yet** (open question 1);
 once it is, it will be written here and in `protocol/events.schema.json`.
 
@@ -253,13 +268,17 @@ island (W04).
 
 ## Conventions
 
-- **A new event type** needs: a schema entry in `protocol/`, a line in the
-  Protocol section, the provider translation in the sidecar, and a Godot
-  handler.
+- **A new feature** first gets its provider scope decided (core, capability
+  or extension; see Multi-provider rules), stated in its Systems section. If
+  it's unclear, ask the user.
+- **A new event type** needs: its scope (core, capability name, or
+  extension namespace), a schema entry in `protocol/`, a line in the Protocol
+  section, the provider translation in the sidecar, and a Godot handler (in
+  the provider's UI module if it's an extension).
 - **A new asset** needs a row in `assets/CREDITS.md` (source, author,
   license). CC0 or made by the user only; never AI-generated.
-- **Provider-specific code** stays in its provider module; anything shared is
-  named generically.
+- **Provider-specific code** stays in its provider module (sidecar) or UI
+  module (Godot); anything shared is named generically.
 
 ### Renaming the project
 

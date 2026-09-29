@@ -33,8 +33,11 @@ branch before merging. Then write the dev-log entry. Follow the
 - "The Beach" is a temporary codename: docs, README and window title only,
   never in code identifiers, class names or the protocol. Every place it
   appears is listed in NOTES.md → Conventions → Renaming the project.
-- Claude-specific naming stays inside the sidecar's Claude provider module.
-  Godot and the protocol only use generic names.
+- **Check every new feature's provider scope**: core, capability or
+  Claude-only extension (see NOTES.md → Architecture → Multi-provider rules).
+  Claude-only features are welcome, but Claude naming stays in the sidecar's
+  Claude provider module, the protocol's Claude extension namespace and
+  Godot's Claude UI module.
 - Art is low-poly, made by the user or CC0 (e.g. Kenney), **never
   AI-generated**. Don't create art assets unless asked for a placeholder.
   Record every asset in `assets/CREDITS.md`.
