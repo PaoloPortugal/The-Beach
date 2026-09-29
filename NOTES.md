@@ -758,10 +758,26 @@ a per-session token header. Verified mapping:
   translation). Tool calls get a one-line summary (e.g. "Run: npm
   install", paths relative to the project); inputs over 64 KiB aren't
   forwarded. Parallel spawns pair an `Agent` call with its subagent by
-  agent type, oldest first. `PermissionRequest` isn't registered yet:
-  until the relay is built, prompts stay in the terminal and the world
-  shows the agent as working meanwhile. Verified live: a turn with a
-  file write, a failed read, a background subagent and its hand-back.
+  agent type, oldest first. Verified live: a turn with a file write, a
+  failed read, a background subagent and its hand-back.
+- *Permission relay, built (branch `s02-permissions`; not yet run
+  live).* A prompt reaches the world from the **channel's relay**, not the
+  `PermissionRequest` hook (not registered: questions will need it, plain
+  permissions don't). The relay has no tool call or agent, so the sidecar
+  ties it to the open tool call of the same tool whose input the relay's
+  preview shows (else the newest one without a prompt), waiting up to
+  300 ms for that call's `PreToolUse`, which arrives on the hook
+  connection about 100 ms earlier. The permission's id is the relay's
+  `request_id`; `permission.respond` sends the verdict down the bridge.
+  Resolving: allowed in the world → `permission.resolved` (app); denied in
+  the world → also `tool.finished` `denied` (Claude Code sends no hook for
+  a denied call); the call's `PostToolUse` or `PostToolUseFailure` →
+  allowed in the terminal (external); the orchestrator's turn ending or
+  the user's next message while it's pending → "No" in the terminal
+  (external deny), a fallback until the transcript follower. A subagent's
+  prompt resolves that way when the subagent stops. A `note` with the
+  answer is refused (`not_supported`): the channel's verdict carries no
+  text (open question in the progress report).
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
@@ -1071,7 +1087,8 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** permission relay and `permission.respond`, the `questions` and
+**Next:** a live run of the permission relay (built on
+`s02-permissions`), the `questions` and
 `interrupt` capabilities, the transcript follower (Esc, terminal "No"),
 session notices (`session.notice` schema entry, transcripts off, the
 "confirm in the terminal" startup text and how it reaches a session not

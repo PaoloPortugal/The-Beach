@@ -158,19 +158,18 @@ sequenceDiagram
     par Claude Code asks in both places
         Claude->>User: permission dialog in the terminal
     and
-        Claude->>Bridge: permission request (request ID)
+        Claude->>Bridge: permission request (request ID, tool, input preview)
         Bridge->>Sidecar: permission request
     end
-    Claude->>Sidecar: PermissionRequest
-    Sidecar-->>Claude: nothing to add (the user decides)
-    Sidecar->>World: permission.requested, agent → waiting (permission)
+    Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits up to 300 ms for its PreToolUse.
+    Sidecar->>World: permission.requested (ID = request ID),<br/>agent → waiting (permission)
     alt answered in the world
         User->>World: allow or deny
         World->>Sidecar: permission.respond
         Sidecar-->>World: ok
         Sidecar->>Bridge: verdict (request ID)
         Bridge->>Claude: verdict: terminal dialog closes
-        Sidecar->>World: permission.resolved (by app)
+        Sidecar->>World: permission.resolved (by app)<br/>(deny: also tool.finished denied, since no hook comes for it)
         Note over Claude: A deny from the world lets Claude continue its turn.
     else allowed in the terminal
         User->>Claude: allow
@@ -185,6 +184,11 @@ sequenceDiagram
         Sidecar->>World: permission.resolved (by external), agent → idle
     end
 ```
+
+Until the transcript follower is built (and when transcripts are off), a
+terminal "No" is noticed when the orchestrator's turn ends or the user
+sends the next message: its prompts resolve as deny, by external. A
+subagent's prompt resolves when that subagent stops.
 
 ## 4. A clarifying question
 
