@@ -360,8 +360,9 @@ removing a provider means deleting its folders.
 | `src/commands.ts` | Runs commands from Godot. |
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
-| `src/providers/` | One folder per provider (none until S02). |
-| `test/` | `node:test` suites, the fake provider and `dev-fake.ts`. Not shipped. |
+| `src/launch/` | Generic: terminal launcher, `launch` mode, clean environments. |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude`, launching it, the channel bridge and the hook endpoint (S02). |
+| `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
 
@@ -705,16 +706,26 @@ Every hook carries `permission_mode`, so the world can show it.
 
 **Seeing the session: HTTP hooks** posted to the sidecar on localhost, with
 a per-session token header. Verified mapping:
-- The session is known to exist from the launch and the bridge connecting.
-  `SessionStart` doesn't support HTTP hooks. `SessionEnd` → session ended
-  (`reason`, e.g. `prompt_input_exit`).
-- `UserPromptSubmit` → user message. Three kinds, told apart by content:
+- The session is known to exist from the launch and the bridge connecting
+  (or its first hook, which also only comes after the startup dialogs).
+  `SessionStart` doesn't support HTTP hooks. It ends when the bridge's
+  connection closes (Claude Code exited), not on `SessionEnd`, which also
+  fires for `/clear` and `resume` while `claude` keeps running, so we don't
+  register it.
+- `UserPromptSubmit` → user message. Four kinds, told apart by content:
   typed in the terminal (plain text); from the world (wrapped in
-  `<channel source="..." ...>`, unwrap for display); and a
-  `<task-notification>` Claude Code injects when a background subagent
-  finishes (not a user message; the orchestrator goes back to working).
-- `MessageDisplay` → assistant text, in batches of whole lines (`index`,
-  `final`, `message_id`). Must be answered instantly with an empty body.
+  `<channel source="world-bridge" ...>`, unwrapped for display); and two
+  that Claude Code injects, which are not user messages (the orchestrator
+  goes back to working): a `<task-notification>` when a background task
+  ends (its `<status>` ends a subagent stopped from the terminal), and a
+  **subagent hand-back** `<agent-message from="<agent_id>">` carrying a
+  subagent's final report (seen live, 2.1.284). Injected prompts reuse the
+  user's `prompt_id`, so it names a user message only the first time.
+- `MessageDisplay` → assistant text, in batches of whole lines
+  (`message_id`, `index`, `final`, and `delta`: only the new text; the docs
+  describe a single `message_text` instead, also accepted). The final batch
+  completes the message with the full text. Must be answered instantly
+  with an empty body.
 - `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, keyed
   by `tool_use_id`. Inside a subagent they carry its `agent_id`.
 - `SubagentStart` / `SubagentStop` → subagents (`agent_id`, `agent_type`;
@@ -740,6 +751,17 @@ a per-session token header. Verified mapping:
   while a command runs, but the open call is known).
 - `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
   → error.
+- *Built (2026-09-29):* `sidecar/src/providers/claude/hook-server.ts` (the
+  endpoint: one per sidecar, loopback, a token per session, `Origin` and
+  foreign `Host` refused, `POST /hook` only, 16 MiB body limit, always an
+  instant empty 200) and `hooks.ts` (the `--settings` file, and the
+  translation). Tool calls get a one-line summary (e.g. "Run: npm
+  install", paths relative to the project); inputs over 64 KiB aren't
+  forwarded. Parallel spawns pair an `Agent` call with its subagent by
+  agent type, oldest first. `PermissionRequest` isn't registered yet:
+  until the relay is built, prompts stay in the terminal and the world
+  shows the agent as working meanwhile. Verified live: a turn with a
+  file write, a failed read, a background subagent and its hand-back.
 - **No hook** when the user answers "No" to a permission in the terminal
   or presses Esc (the turn is interrupted silently), when a stop ends a
   turn, or when a stopped subagent ends (no `SubagentStop`; only the
@@ -1026,18 +1048,19 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** M1, sidecar first (user's decision). S01 is merged.
 S02 (Claude provider) is in progress on branch `s02-claude-provider`
-(not merged, not pushed), with two review checkpoints (user's decision):
+(pushed, not merged), with two review checkpoints (user's decision):
 after the terminal launcher opens a real `claude`, and at the end with a
 live run.
 
-*Handoff (2026-09-29).* Built and tested (74 `node:test` checks, all
+*Handoff (2026-09-29).* Built and tested (94 `node:test` checks, all
 passing): terminal launcher and `launch` mode, finding `claude` (minimum
 2.1.284), clean environments (named markers plus narrow families), the
 channel bridge (`bridge claude` mode: own MCP handshake, link back to the
 sidecar), and the provider's create path (session comes up when the
 bridge is ready, ends when it closes or after 15 min without coming up;
-world chat goes down the bridge). `session.end` answers `not_supported`
-(S05).
+world chat goes down the bridge), and HTTP hooks with their translation
+into messages, tool calls, subagents and agent states (S02 → Seeing the
+session; verified live). `session.end` answers `not_supported` (S05).
 
 **Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
 folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
@@ -1047,8 +1070,7 @@ session ID (so no session markers were inherited). Startup prompts are in
 S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
 (dev log 2026-09-29-windows-terminals).
 
-**Next:** HTTP hooks and their translation (S02 → Seeing the
-session), permission relay and `permission.respond`, the `questions` and
+**Next:** permission relay and `permission.respond`, the `questions` and
 `interrupt` capabilities, the transcript follower (Esc, terminal "No"),
 session notices (`session.notice` schema entry, transcripts off, the
 "confirm in the terminal" startup text and how it reaches a session not

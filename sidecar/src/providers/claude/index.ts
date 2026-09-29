@@ -18,6 +18,8 @@ import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer, type BridgeLink } from './bridge-server.ts'
+import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
+import { HookTranslator, hookSettings, MAIN } from './hooks.ts'
 
 /**
  * How long a launched session may take to come up (the user answering the
@@ -55,6 +57,7 @@ export class ClaudeProvider implements Provider {
   private readonly log: Log
   private readonly runDirs = new Set<string>()
   private bridges: BridgeServer | null = null
+  private hooks: HookServer | null = null
 
   constructor(opts: ClaudeOptions = {}) {
     this.opts = opts
@@ -70,15 +73,20 @@ export class ClaudeProvider implements Provider {
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
+    const hooks = await this.hookServer()
     const launch = this.prepare()
     const name = options.project.name ?? path.basename(options.project.path)
     const session = new ClaudeSession(host, launch, options.project, name, this.log,
       () => this.forget(launch.runDir), this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)
     session.link = bridges.register(session.bridgeHandlers())
+    session.hookLink = hooks.register({ onHook: (p) => session.onHook(p) })
+    const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
       '--session-id', launch.nativeId,
       '--name', name,
+      // Our hooks for this session only; the user's settings files are never edited.
+      '--settings', settings,
       '--mcp-config', mcpConfig,
       // Custom channels need this while channels are a research preview;
       // Claude Code asks the user to confirm it in the terminal.
@@ -106,6 +114,8 @@ export class ClaudeProvider implements Provider {
   async shutdown(): Promise<void> {
     await this.bridges?.close()
     this.bridges = null
+    await this.hooks?.close()
+    this.hooks = null
     for (const dir of this.runDirs) fs.rmSync(dir, { recursive: true, force: true })
     this.runDirs.clear()
   }
@@ -116,9 +126,22 @@ export class ClaudeProvider implements Provider {
     return this.bridges
   }
 
+  private async hookServer(): Promise<HookServer> {
+    if (!this.hooks) this.hooks = new HookServer(this.log)
+    await this.hooks.start()
+    return this.hooks
+  }
+
   private forget(runDir: string) {
     fs.rmSync(runDir, { recursive: true, force: true })
     this.runDirs.delete(runDir)
+  }
+
+  /** The session's hooks, posting to our hook server with the session's token. */
+  private writeSettings(launch: Launch, url: string, token: string): string {
+    const file = path.join(launch.runDir, 'settings.json')
+    fs.writeFileSync(file, JSON.stringify(hookSettings(url, token)), { mode: 0o600 })
+    return file
   }
 
   /**
@@ -185,6 +208,7 @@ class ClaudeSession implements ProviderSession {
   readonly host: SessionHost
   readonly launch: Launch
   link: BridgeLink | null = null
+  hookLink: HookLink | null = null
   private readonly project: Project
   private readonly name: string
   private readonly log: Log
@@ -193,6 +217,7 @@ class ClaudeSession implements ProviderSession {
   private launchedAt = 0
   private startupTimer: NodeJS.Timeout | null = null
   private disposed = false
+  private readonly translator: HookTranslator
 
   constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
     cleanup: () => void, startupTimeoutMs: number) {
@@ -203,6 +228,7 @@ class ClaudeSession implements ProviderSession {
     this.log = log
     this.cleanup = cleanup
     this.startupTimeoutMs = startupTimeoutMs
+    this.translator = new HookTranslator(project.path)
   }
 
   bridgeHandlers() {
@@ -222,7 +248,8 @@ class ClaudeSession implements ProviderSession {
 
   private onReady() {
     if (this.disposed || this.host.ended) return
-    if (this.startupTimer) clearTimeout(this.startupTimer)
+    if (!this.startupTimer) return
+    clearTimeout(this.startupTimer)
     this.startupTimer = null
     // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
     this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
@@ -232,8 +259,17 @@ class ClaudeSession implements ProviderSession {
       title: this.name,
       capabilities: {},
       extensions: [],
-      agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
+      agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
+  }
+
+  /** One hook from this session's Claude Code. Reports only: never a decision. */
+  onHook(p: HookPayload): void {
+    if (this.disposed || this.host.ended) return
+    // Hooks only fire once Claude Code is past its startup dialogs, so a
+    // hook arriving before the bridge's ready also means the session is up.
+    if (this.startupTimer) this.onReady()
+    for (const event of this.translator.translate(p)) this.host.emit(event)
   }
 
   /** Claude Code exited, or never came up. */
@@ -249,6 +285,7 @@ class ClaudeSession implements ProviderSession {
     this.disposed = true
     if (this.startupTimer) clearTimeout(this.startupTimer)
     this.link?.unregister()
+    this.hookLink?.unregister()
     this.cleanup()
   }
 

@@ -100,11 +100,19 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     assert.equal(launch.args[0], '--session-id')
     assert.match(launch.args[1]!, /^[0-9a-f-]{36}$/)
     assert.deepEqual(launch.args.slice(2, 4), ['--name', path.basename(project)])
-    assert.equal(launch.args[4], '--mcp-config')
-    assert.deepEqual(launch.args.slice(6), ['--dangerously-load-development-channels', 'server:world-bridge'])
+    assert.equal(launch.args[4], '--settings')
+    assert.equal(launch.args[6], '--mcp-config')
+    assert.deepEqual(launch.args.slice(8), ['--dangerously-load-development-channels', 'server:world-bridge'])
+    // Hooks for this session only, posting to loopback with a token.
+    const settings = JSON.parse(fs.readFileSync(launch.args[5]!, 'utf8'))
+    const hook = settings.hooks.PreToolUse[0].hooks[0]
+    assert.equal(hook.type, 'http')
+    assert.match(hook.url, /^http:\/\/127\.0\.0\.1:\d+\/hook$/)
+    assert.match(hook.headers.Authorization, /^Bearer [0-9a-f]{64}$/)
+    assert.deepEqual(Object.keys(settings), ['hooks'], 'only hooks; no other setting is changed for the user')
     // The bridge's config: this executable in bridge mode, the link's port
     // and token in the bridge's own environment only.
-    const mcp = JSON.parse(fs.readFileSync(launch.args[5]!, 'utf8'))
+    const mcp = JSON.parse(fs.readFileSync(launch.args[7]!, 'utf8'))
     const bridge = mcp.mcpServers['world-bridge']
     assert.equal(bridge.command, '/sidecar')
     assert.deepEqual(bridge.args, ['bridge', 'claude'])
