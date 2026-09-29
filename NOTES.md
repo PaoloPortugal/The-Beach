@@ -96,8 +96,9 @@ chat UI, provider UI       capabilities +    WebSocket server    Agent SDK, hook
 
 - **Godot** (GDScript): the world, player movement, island and bridge
   generation, agent models and state visuals, in-world chat UI.
-- **Sidecar** (language TBD, open question 6): runs sessions and forwards their activity to Godot
-  as generic events. It owns the session registry.
+- **Sidecar** (TypeScript on Node, open question 6): runs sessions and
+  forwards their activity to Godot as generic events. It owns the session
+  registry.
 - **Provider**: translates one AI tool's native events into the generic
   vocabulary. Only the **Claude provider** exists; it uses the Claude Agent
   SDK (or spawns `claude`), listens to Claude Code hook events (subagent
@@ -135,7 +136,7 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar (empty until its language is chosen). Has a `.gdignore` so Godot doesn't scan it. |
+| `sidecar/` | Sidecar, TypeScript on Node (empty until S01 lands). Has a `.gdignore` so Godot doesn't scan it. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide and dev log. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
@@ -149,7 +150,7 @@ The contract between Godot and the sidecar, over a local WebSocket. It has
 a generic core, capability-gated optional features and provider-namespaced
 extensions (see Multi-provider rules), and must not assume a maximum number of agents
 per session. The full schema is `protocol/events.schema.json` (JSON Schema,
-so either sidecar language can validate against it); this section is the
+so the sidecar and tests can validate against it); this section is the
 overview. **Version 1.**
 
 **Messages.** One JSON object per WebSocket message, with a `type`:
@@ -184,7 +185,7 @@ session after finishing; Godot decides what to show. **States:**
 | State | Orchestrator | Subagent | Meaning |
 |---|---|---|---|
 | `working` | ✓ | ✓ | thinking or running tools |
-| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `input`, ...) |
+| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `question`, `input`, ...) |
 | `idle` | ✓ | | turn finished, the user's move |
 | `done` | | ✓ | result returned; may be resumed (back to `working`) |
 | `error` | ✓ | ✓ | failed or interrupted |
@@ -196,7 +197,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | Sidecar → Godot | Godot → sidecar |
 |---|---|
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
-| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `session.snapshot`, `session.created`, `session.ended` | `session.end`, `session.interrupt`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
 | `tool.started`, `tool.finished` | |
@@ -209,11 +210,19 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   text typed elsewhere shows up once attaching exists.
 - `permission.resolved` has `by`: `app` or `external` (answered elsewhere,
   once attaching exists).
+- `session.interrupt` stops what the session is doing, like Esc in a
+  terminal; the session stays open.
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
 name as the noun (e.g. `usage.updated`) and are only sent when declared.
-None are defined yet; each one is added to the schema and listed here.
+Each one is added to the schema and listed here:
+- **`questions`**: an agent asks the user clarifying questions, a set of
+  1+ items, each with options and optional multi-select (Claude's
+  AskUserQuestion). `question.asked` / `question.resolved` (`by`: `app` or
+  `external`) and the command `question.answer` (per-item chosen labels or
+  typed text, or one free `response` instead). Pending ones are in the
+  snapshot's `questions`; the agent is `waiting` with reason `question`.
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -363,8 +372,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 ## Running it
 
-Nothing runs yet. Once it does: start the sidecar (commands depend on
-open question 6), then open `project.godot` in Godot 4.7.2 and press F5.
+Nothing runs yet. Once it does: start the sidecar (Node; commands land
+with S01), then open `project.godot` in Godot 4.7.2 and press F5.
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
@@ -399,14 +408,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    runs sessions started from inside the app; attaching to sessions already
    running elsewhere comes later. The event schema must allow for attaching
    (joining a session partway through) even though v1 doesn't use it.
-6. **Sidecar language.** Node, Python or something else? The design left
-   Node or Python open; the user is investigating. Only the Claude provider
-   depends heavily on this (it needs a Claude Agent SDK or the `claude` CLI).
+6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. The
+   TypeScript Agent SDK is the more complete one: several hook events we
+   want (session start/end, turn failures, compaction finished) are
+   TypeScript-only.
 
 ## Known issues and next steps
 
-**Current focus:** the Markdown → BBCode spike (C03), the last M0 item. The
-sidecar language (open question 6) is under investigation.
+**Current focus:** the Markdown → BBCode spike (C03), the last M0 item.
+Before building the sidecar, settle how sessions authenticate (see Watch
+items → Login and cost).
 
 ### Milestones
 
@@ -442,6 +453,17 @@ exists.
   they unlock are all undecided on purpose.
 
 ### Watch items
+
+- **Login and cost (before S01/S02).** Per Claude Code's legal and
+  compliance docs (checked 2026-09-29), apps built on the Agent SDK should
+  use an API key (billed per token), and third parties may not offer
+  claude.ai login or route requests through Free/Pro/Max credentials on
+  their users' behalf. The same page says it doesn't prevent a user
+  signing in to the **unmodified** Claude Code binary with their own
+  subscription, and Pro/Max limits assume "ordinary, individual usage of
+  Claude Code and the Agent SDK". Our code must never read, store or pass
+  on Claude credentials; sign-in happens only in Anthropic's own flow
+  (`claude` login). Which route the sidecar uses is being decided.
 
 - Markdown → BBCode rendering (C03) is the biggest UX risk.
 - `icon.svg` is Godot's default icon (CC BY 4.0, not CC0). It is a

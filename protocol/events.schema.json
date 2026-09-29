@@ -20,14 +20,18 @@
     { "$ref": "#/$defs/tool.finished" },
     { "$ref": "#/$defs/permission.requested" },
     { "$ref": "#/$defs/permission.resolved" },
+    { "$ref": "#/$defs/question.asked" },
+    { "$ref": "#/$defs/question.resolved" },
     { "$ref": "#/$defs/session.create" },
     { "$ref": "#/$defs/session.list_stored" },
     { "$ref": "#/$defs/session.resume" },
     { "$ref": "#/$defs/session.end" },
+    { "$ref": "#/$defs/session.interrupt" },
     { "$ref": "#/$defs/session.get_snapshot" },
     { "$ref": "#/$defs/session.get_history" },
     { "$ref": "#/$defs/message.send" },
     { "$ref": "#/$defs/permission.respond" },
+    { "$ref": "#/$defs/question.answer" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -49,7 +53,7 @@
       "enum": ["working", "waiting", "idle", "done", "error"]
     },
     "state_reason": {
-      "description": "Why an agent is waiting or errored, e.g. \"permission\" or \"input\" when waiting. Null otherwise.",
+      "description": "Why an agent is waiting or errored, e.g. \"permission\", \"question\" or \"input\" when waiting. Null otherwise.",
       "type": ["string", "null"]
     },
     "project": {
@@ -93,6 +97,43 @@
       "additionalProperties": false
     },
 
+    "question": {
+      "description": "Clarifying questions an agent asks the user, as one set (questions capability).",
+      "type": "object",
+      "required": ["question", "agent", "items"],
+      "properties": {
+        "question": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["text", "options", "multi_select"],
+            "properties": {
+              "text": { "description": "The question to display.", "type": "string" },
+              "header": { "description": "Short label.", "type": "string" },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["label"],
+                  "properties": {
+                    "label": { "type": "string" },
+                    "description": { "type": "string" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "multi_select": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
     "session": {
       "description": "Full state of one session (one island).",
       "type": "object",
@@ -131,6 +172,11 @@
           "description": "Pending permission requests.",
           "type": "array",
           "items": { "$ref": "#/$defs/permission" }
+        },
+        "questions": {
+          "description": "Pending questions. Present only when the questions capability is declared.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/question" }
         }
       },
       "additionalProperties": false
@@ -380,6 +426,32 @@
       "additionalProperties": false
     },
 
+    "question.asked": {
+      "description": "Sidecar -> Godot (questions capability). An agent asks the user clarifying questions. Its state also changes to waiting with reason \"question\".",
+      "type": "object",
+      "required": ["type", "session", "seq", "question"],
+      "properties": {
+        "type": { "const": "question.asked" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "question": { "$ref": "#/$defs/question" }
+      },
+      "additionalProperties": false
+    },
+    "question.resolved": {
+      "description": "Sidecar -> Godot (questions capability). The questions were answered or dismissed, here or elsewhere. Godot clears them.",
+      "type": "object",
+      "required": ["type", "session", "seq", "question", "by"],
+      "properties": {
+        "type": { "const": "question.resolved" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "question": { "$ref": "#/$defs/id" },
+        "by": { "enum": ["app", "external"] }
+      },
+      "additionalProperties": false
+    },
+
     "session.create": {
       "description": "Godot -> sidecar. Start a new session. Reply result: {\"session\": <id>}; session.created follows.",
       "type": "object",
@@ -423,6 +495,17 @@
       "required": ["type", "id", "session"],
       "properties": {
         "type": { "const": "session.end" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "session.interrupt": {
+      "description": "Godot -> sidecar. Stop what the session is doing, like Esc in a terminal. The session stays open; agent.state_changed events follow.",
+      "type": "object",
+      "required": ["type", "id", "session"],
+      "properties": {
+        "type": { "const": "session.interrupt" },
         "id": { "$ref": "#/$defs/id" },
         "session": { "$ref": "#/$defs/id" }
       },
@@ -474,6 +557,25 @@
         "decision": { "enum": ["allow", "deny"] },
         "note": { "description": "Optional message to the agent, e.g. why it was denied.", "type": "string" }
       },
+      "additionalProperties": false
+    },
+    "question.answer": {
+      "description": "Godot -> sidecar (questions capability). Answer a question set with either answers or a free response. question.resolved follows.",
+      "type": "object",
+      "required": ["type", "id", "session", "question"],
+      "properties": {
+        "type": { "const": "question.answer" },
+        "id": { "$ref": "#/$defs/id" },
+        "session": { "$ref": "#/$defs/id" },
+        "question": { "$ref": "#/$defs/id" },
+        "answers": {
+          "description": "One entry per item, in order: the chosen option labels, or the user's own typed text as a single entry.",
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" } }
+        },
+        "response": { "description": "A free reply instead of answering the items.", "type": "string" }
+      },
+      "oneOf": [{ "required": ["answers"] }, { "required": ["response"] }],
       "additionalProperties": false
     },
 
