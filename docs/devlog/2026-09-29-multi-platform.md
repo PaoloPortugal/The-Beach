@@ -89,6 +89,18 @@ environment and overlay hooks must be stripped from launched processes
 rather than Proton; and Steam's AI content disclosure probably applies to
 showing Claude's replies. No architecture change.
 
+## itch.io (same day)
+
+The user confirmed the game will be offered on itch.io (Steam stays
+likely). Nothing itch-specific is needed to build for it, but browser
+downloads are marked as coming from the internet, so code signing
+matters more there (SmartScreen on Windows, Gatekeeper blocking
+un-notarized macOS apps), and macOS/Linux builds must keep their
+executable flag (`butler` and the itch app keep it; hand-unpacked zips
+may not, so the game should check the sidecar's). itch.io also becomes the
+fallback home for the Linux build if Steam's sandboxing blocks launching
+the terminal. Recorded as a watch item.
+
 ## Result
 
 NOTES.md gained a Principles line and an Architecture → Platforms section;
