@@ -6,13 +6,47 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
+- [The island and the ocean (W01, W02)](#the-island-and-the-ocean-w01-w02)
+- [Moving around (W03)](#moving-around-w03)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
 ## Running it
 
-Nothing is playable yet. Once it is, this section will explain how to
-open the world on Windows, macOS or Linux.
+There's no download yet. For now, open the project in Godot 4.7.2 and
+press F5: you arrive on an island you can walk around. There are no AI
+agents or chat in the world yet.
+
+The game picks its graphics mode by itself. If it won't start or looks
+wrong, you can force the simpler mode by starting it with
+`--rendering-method gl_compatibility`; it looks nearly the same, but
+without the sun's shadows.
+
+## The island and the ocean (W01, W02)
+
+The world is a small low-poly beach island in the ocean: a flat spot in
+the middle, dunes around it, and a sandy beach. Islands are made by the game, so no two look the
+same; for now you get a new one every time you start the game. The ocean
+around it has gentle waves and fades into haze at the horizon.
+
+## Moving around (W03)
+
+You see the world through your character's eyes.
+
+| Do this | Key |
+|---------|-----|
+| Walk | W A S D |
+| Sprint | hold Shift |
+| Jump | Space |
+| Look around | mouse |
+| Free the mouse pointer | Esc (click in the game to take it back) |
+
+The keys follow their position on the keyboard, so on other layouts
+(such as AZERTY) use the keys in the same place.
+
+Jumps are forgiving: pressing jump just before you land, or just after
+you step off an edge, still counts. You can wade into the shallows; go
+too deep and you're put back in the middle of the island.
 
 ## The sidecar (S01)
 
