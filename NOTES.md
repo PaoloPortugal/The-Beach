@@ -1095,9 +1095,11 @@ and channel, which such a session would need to be started with.
 session feature that we can design better later"). Scope: core.*
 `SessionPost` (`world/platform/session_post.gd`), a signpost reading "New
 session" on the spawn platform. Near it (2.2 m), "Press E to start a
-session" appears; E opens the system's folder picker (`FileDialog`,
-native where the OS has one, else Godot's own) and pauses the player
-until it closes. The chosen folder goes to `session.create` with the first
+session" appears; E opens a folder picker (Godot's own `FileDialog`,
+drawn inside the game window, starting in the home folder) and pauses the
+player until it closes (choose, Cancel or Esc). Not the system's native
+picker: that is a separate window, and on Windows alt-tab hid it behind
+the game, which then waited for it with no way back. The chosen folder goes to `session.create` with the first
 provider from `hello` (only one exists; choosing one is for S03 proper).
 A label above the sign tells how starting goes: "Starting…", then the
 reply's notice (Godot's own text for `confirm_in_terminal`: "Confirm in
@@ -1242,13 +1244,13 @@ godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-
 
 The world test checks the island generator, jump assist and the bubble's
 text cut, then runs the world scene with real physics (landing on the
-platform, walking, jumping, the sea respawn), the post (its prompt, a
-refused folder), islands for sessions applied to the store by hand (one
+platform, walking, jumping, the sea respawn), the post (its prompt, the
+picker opening and cancelling, a refused folder), islands for sessions applied to the store by hand (one
 per session, apart, the bubble streaming, the teleport, the chat panel,
 a refused send, the session ending under you), and walking up to chat
 (A01, C01, C02). With `--sidecar-dev-fake` it also starts a session from
-the post and chats with it. The folder picker needs a display, so the
-test calls what it calls. It can't check looks or the mouse: for those, run the game, under both
+the post and chats with it; choosing a folder in the picker is replaced
+by calling `SessionPost.create`, which it calls. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin

@@ -2,8 +2,11 @@ class_name SessionPost
 extends Node3D
 ## A quick way to start a session from the world (S03, temporary until S03
 ## is designed): a signpost on the spawn platform. Near it, "Press E to
-## start a session" appears; E opens the system's folder picker, and the
-## chosen folder becomes the new session's project. The sign above says
+## start a session" appears; E opens a folder picker, and the chosen
+## folder becomes the new session's project. The picker is Godot's own,
+## drawn inside the game window: the system's would be a separate window
+## that alt-tab can hide behind the game, leaving it stuck waiting (it
+## happened on Windows). The sign above says
 ## how starting is going: the session only counts once it's up (the user
 ## may first have to confirm in its terminal), and only then does the world
 ## make its island (see SessionIslands).
@@ -46,12 +49,15 @@ func _ready() -> void:
 		if body is Player:
 			_near = false
 			_refresh_prompt())
-	# A native picker never shows as visible here; it only reports back
-	# through these two signals (so does Godot's own, where there's none).
+	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
 		_done_asking()
 		create(path))
 	_dialog.canceled.connect(_done_asking)
+	# Start in the user's home folder; afterwards it remembers the last one.
+	var home := OS.get_environment("USERPROFILE" if OS.get_name() == "Windows" else "HOME")
+	if not home.is_empty() and DirAccess.dir_exists_absolute(home):
+		_dialog.current_dir = home
 	_say("")
 	_refresh_prompt()
 
@@ -80,6 +86,10 @@ func status_text() -> String:
 
 func prompt_visible() -> bool:
 	return _prompt.visible
+
+
+func picker() -> FileDialog:
+	return _dialog
 
 
 ## Asks the sidecar for a new session in the folder [param path].
