@@ -72,3 +72,12 @@ reliably bring a native dialog back or close it, so the post now uses
 Godot's own picker, drawn inside the game window, where alt-tab can't
 lose it and Esc cancels it. It starts in the home folder. The test now
 opens and cancels it headlessly.
+
+## Live check
+
+Passed with the user and the real `claude` 2.1.284 (Windows, Forward+):
+the picker, confirming in the terminal (the session came up about 12 s
+after launch), the island and teleport, chat from the world and from the
+terminal with streaming, the bubble, a permission waiting in the
+terminal, and `/exit` removing the island and taking the player back to
+the platform. No errors in the game's log.

@@ -1316,8 +1316,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
 built: start a session from the spawn platform's post, get taken to its
 island, and chat with its orchestrator (bubble above its head, full panel
-on E). Next: a live check with the real `claude`, then subagents (A02,
-A04) for the rest of M1. Still open: props (open question 8), and the
+on E). **Live check passed (2026-09-30)** with the user and the real
+`claude` 2.1.284: the picker (after switching to Godot's own), confirming
+in the terminal, the island and teleport, chat both ways with streaming,
+the bubble, a permission waiting in the terminal, and `/exit` taking you
+back to the platform. Next: subagents (A02, A04) for the rest of M1. Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
