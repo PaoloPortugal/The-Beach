@@ -4,11 +4,13 @@ extends SceneTree
 ## real physics: the player lands on the spawn platform, walks, jumps and is
 ## put back when it falls in the sea; the session post; islands for
 ## sessions (applied to the store by hand), each orchestrator's bubble, and
-## walking up to chat in the chat panel (A01, C01, C02).
+## walking up to chat in the chat panel (A01, C01, C02); subagents'
+## placement, coming and going, and state markers (A02, A03, A04).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the post and
-##                                chats with the fake provider
+##                                chats with the fake provider, which
+##                                spawns subagents
 
 var _failed := false
 
@@ -21,6 +23,7 @@ func _run() -> void:
 	_island()
 	_jump_assist()
 	_bubble_text()
+	_placement()
 	await _scene()
 	if not _failed:
 		print("PASS world_test")
@@ -105,6 +108,22 @@ func _bubble_text() -> void:
 	_check(MessageBubble.tail_lines("abcdefghij", 4, 4) == "abcd\nefgh\nij", "a long word is split")
 
 
+func _placement() -> void:
+	_check(AgentPlacement.slots_in_ring(0) == 20 and AgentPlacement.ring_of(20) == Vector2i(1, 0), "placement: 20 on the first ring, then the next")
+	var points: Array[Vector2] = []
+	for slot in 80:
+		points.append(AgentPlacement.slot_position(slot))
+	var closest := INF
+	for i in points.size():
+		for j in i:
+			closest = minf(closest, points[i].distance_to(points[j]))
+	_check(closest > 2.0, "placement: slots at least 2 m apart (closest %.2f m)" % closest)
+	_check(points.all(func(p: Vector2) -> bool: return p.length() > 9.0), "placement: all outside the chat zone")
+	_check(AgentPlacement.slot_position(7) == AgentPlacement.slot_position(7), "placement: a slot is always in the same place")
+	var far := AgentPlacement.slot_position(5000)
+	_check(far.length() > 100.0 and is_finite(far.x), "placement: no maximum")
+
+
 func _scene() -> void:
 	var world: Node3D = load("res://world/world.tscn").instantiate()
 	root.add_child(world)
@@ -137,6 +156,7 @@ func _scene() -> void:
 
 	await _post(world, player)
 	await _sessions(world, player)
+	await _agents(world)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live(world, player)
 
@@ -259,6 +279,87 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(2)
 
 
+func _agent(id: String, parent: String, state: String) -> Dictionary:
+	return {"agent": id, "role": "subagent", "parent": parent, "name": "Explore", "task": "t", "state": state, "reason": null}
+
+
+# Subagents applied to the store by hand.
+func _agents(world: Node3D) -> void:
+	var store: SessionStore = world.store
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	var snap := _snapshot("h4")
+	snap["agents"][0]["state"] = "working"
+	snap["agents"].append(_agent("old", "main", "done"))
+	snap["agents"].append(_agent("s0", "main", "working"))
+	store.apply({"type": "session.snapshot", "session": snap})
+	await _frames(2)
+	var agents := islands.agents("h4")
+	var island := islands.island("h4")
+	var orchestrator := islands.orchestrator("h4")
+	agents.error_linger = 0.5
+	_check(orchestrator.get_node("StateMarker").shown() == "working", "agents: the orchestrator's marker shows it working")
+	_check(agents.subagent("old") == null and agents.subagent("s0") != null, "agents: a finished one isn't shown, a working one is")
+	_check(agents.subagent("s0").shown_state() == "working", "agents: with its marker")
+
+	store.apply({"type": "agent.spawned", "session": "h4", "seq": 2, "agent": _agent("s1", "main", "working")})
+	store.apply({"type": "agent.spawned", "session": "h4", "seq": 3, "agent": _agent("s2", "s1", "working")})
+	await _frames(20)
+	var nodes: Array = ["s0", "s1", "s2"].map(func(a: String) -> Subagent: return agents.subagent(a))
+	_check(nodes.all(func(n: Subagent) -> bool: return n != null) and agents.subagent_count() == 3, "agents: a spawned one appears")
+	var slots := {}
+	var placed := true
+	for n: Subagent in nodes:
+		slots[n.slot] = true
+		var p := n.position
+		var inward := Vector3(-p.x, 0, -p.z).normalized()
+		var forward := n.global_basis.z
+		placed = placed and Vector2(p.x, p.z).length() > 9.0 and absf(p.y - island.height_at(p.x, p.z)) < 0.6
+		placed = placed and forward.dot(inward) > 0.9 and n.worker_position().distance_to(n.global_position) < 0.01
+	_check(slots.size() == 3, "agents: each at its own slot")
+	_check(placed, "agents: around the orchestrator, on the sand, facing it")
+
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 4, "agent": "s1", "state": "waiting", "reason": "permission"})
+	_check(agents.subagent("s1").shown_state() == "waiting", "agents: waiting on you shows the \"!\"")
+
+	# Done: walks its report to its parent (s1, still at its PC), then goes.
+	var s1 := agents.subagent("s1")
+	var s2 := agents.subagent("s2")
+	var s2_slot := s2.slot
+	var start := s2.worker_position().distance_to(s1.worker_position())
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 5, "agent": "s2", "state": "done", "reason": null})
+	_check(s2.is_leaving() and s2.get_node("Worker/Paper").visible and s2.shown_state() == "", "agents: a done one gets up with its paper")
+	await _frames(15)
+	_check(s2.worker_position().distance_to(s1.worker_position()) < start - 0.5, "agents: and walks to whoever called it")
+	await _until(func() -> bool: return agents.subagent("s2") == null, 10.0)
+	_check(agents.subagent("s2") == null and agents.subagent_count() == 2, "agents: and is gone once there")
+	store.apply({"type": "agent.spawned", "session": "h4", "seq": 6, "agent": _agent("s3", "main", "working")})
+	_check(agents.subagent("s3").slot == s2_slot, "agents: a freed slot is reused")
+
+	# Resumed while walking back: back at its PC.
+	var s3 := agents.subagent("s3")
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 7, "agent": "s3", "state": "done", "reason": null})
+	await _frames(10)
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 8, "agent": "s3", "state": "working", "reason": null})
+	await _frames(30)
+	_check(agents.subagent("s3") == s3 and not s3.is_leaving() and s3.worker_position().distance_to(s3.global_position) < 0.01, "agents: resumed on the way back, it returns to its PC")
+
+	# Error: stays in red for a while, then goes; resumed later, it comes back to its slot.
+	var s1_slot := s1.slot
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 9, "agent": "s1", "state": "error", "reason": "interrupted"})
+	_check(s1.shown_state() == "error", "agents: an error shows the \"×\"")
+	await _frames(10)
+	_check(agents.subagent("s1") == s1, "agents: and it stays a while")
+	await _until(func() -> bool: return agents.subagent("s1") == null, 5.0)
+	_check(agents.subagent("s1") == null, "agents: then goes")
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 10, "agent": "s1", "state": "working", "reason": null})
+	_check(agents.subagent("s1") != null and agents.subagent("s1").slot == s1_slot, "agents: resumed later, it comes back to its slot")
+
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 11, "agent": "main", "state": "idle", "reason": null})
+	_check(orchestrator.get_node("StateMarker").shown() == "", "agents: an idle orchestrator shows no marker")
+	store.apply({"type": "session.ended", "session": "h4", "seq": 12, "reason": "exited"})
+	await _frames(2)
+
+
 # With the fake provider: start a session from the post and chat with it.
 func _live(world: Node3D, player: Player) -> void:
 	var post: SessionPost = world.get_node("SpawnPlatform/SessionPost")
@@ -284,6 +385,17 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.shown_messages()[0] == "hello\nworld", "live: your message in the panel")
 	_check(panel.shown_messages().size() == 2 and panel.shown_messages()[1].contains("> world"), "live: the reply streamed into the panel")
 	_check(chat.bubble(id).shown_text().ends_with("(This is the fake provider.)"), "live: and into the bubble")
+
+	# Subagents: the fake provider spawns them, they work and walk back.
+	var agents := islands.agents(id)
+	panel.set_draft("agents 3")
+	panel.send()
+	await _until(func() -> bool: return agents.subagent_count() == 3, 8.0)
+	_check(agents.subagent_count() == 3, "live: three subagents appear")
+	await _until(func() -> bool: return agents.subagent_count() == 0, 30.0)
+	_check(agents.subagent_count() == 0, "live: and all walk back and go when done")
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("reported back"), 8.0)
+	_check(panel.shown_messages()[-1].contains("reported back"), "live: the orchestrator sums up")
 	_press("ui_cancel")
 	await _frames(2)
 

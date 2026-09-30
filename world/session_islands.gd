@@ -1,9 +1,10 @@
 class_name SessionIslands
 extends Node3D
 ## One island per live session, each with its orchestrator bound to the
-## session. A stand-in for W04 (rise / sink) and W05 (archipelagos): an
-## island appears once its session is up and goes when it ends, and
-## islands sit on rings around the spawn platform, reusing free spots.
+## session and its subagents (IslandAgents). A stand-in for W04 (rise /
+## sink) and W05 (archipelagos): an island appears once its session is
+## up and goes when it ends, and islands sit on rings around the spawn
+## platform, reusing free spots.
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
 ## Emitted just before the island is taken away and freed.
@@ -36,6 +37,12 @@ func island(session_id: String) -> Island:
 func orchestrator(session_id: String) -> Orchestrator:
 	var i := island(session_id)
 	return i.get_node("Orchestrator") if i else null
+
+
+## The agents on a session's island (subagents, state markers), or null.
+func agents(session_id: String) -> IslandAgents:
+	var i := island(session_id)
+	return i.get_node("Agents") if i else null
 
 
 ## Where the player lands on a session's island: 6 m in front of the
@@ -76,6 +83,10 @@ func _on_added(id: String, _created: bool) -> void:
 	o.session_id = id
 	o.position = Vector3(0.0, i.height_at(0.0, 0.0), 0.0)
 	i.add_child(o)
+	var agents := IslandAgents.new()
+	agents.name = "Agents"
+	i.add_child(agents)
+	agents.setup(store, id, i, o)
 	i.set_meta("slot", slot)
 	_islands[id] = i
 	_slots[slot] = id
