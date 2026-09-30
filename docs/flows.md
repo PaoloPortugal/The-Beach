@@ -109,6 +109,12 @@ Platforms). Before any of this, Godot has started the sidecar (flow 0).
 `ok { session }` always comes before `session.created`; until the session
 is up, commands for it get `session_starting`.
 
+In the world for now (S03's quick version): the user picks the folder at
+the spawn platform's post, which shows the reply's `notice` until
+`session.created`; then the session's island appears and the player is
+taken there. A session that never comes up gets `session.ended` and the
+post says so (NOTES.md → S03, W01 → Islands for sessions).
+
 ## 2. A chat turn
 
 ```mermaid

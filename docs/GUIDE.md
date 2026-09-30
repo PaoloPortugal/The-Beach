@@ -6,29 +6,51 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
-- [The island and the ocean (W01, W02)](#the-island-and-the-ocean-w01-w02)
+- [Starting a session (S03)](#starting-a-session-s03)
+- [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
+- [The chat (C02)](#the-chat-c02)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: you arrive on an island you can walk around, facing a stand-in
-for the AI agent at a desk. You can't chat with it yet.
+press F5: you arrive on a wooden platform in the open sea, facing a
+"New session" sign.
 
 The game picks its graphics mode by itself. If it won't start or looks
 wrong, you can force the simpler mode by starting it with
 `--rendering-method gl_compatibility`; it looks nearly the same, but
 without the sun's shadows.
 
-## The island and the ocean (W01, W02)
+## Starting a session (S03)
 
-The world is a small low-poly beach island in the ocean: a flat spot in
-the middle, dunes around it, and a sandy beach. Islands are made by the game, so no two look the
-same; for now you get a new one every time you start the game. The ocean
-around it has gentle waves and fades into haze at the horizon.
+This is a quick first version; how you start sessions will be designed
+properly later.
+
+Walk up to the "New session" sign on the platform and **Press E to start
+a session** appears. Press E and pick the project folder you want to work
+in. A terminal window opens with Claude Code in it; the sign above the
+post tells you to confirm there (see Claude Code sessions below). If
+nothing has happened after two minutes it says "Still starting; check the
+terminal." Once you've confirmed, the session's island appears and you're
+taken to it, right in front of its orchestrator.
+
+If the session can't start, the sign says why. One session starts at a
+time.
+
+## The islands and the ocean (W01, W02)
+
+Each session has its own small low-poly beach island: a flat spot in the
+middle where its orchestrator sits, dunes around it, and a sandy beach.
+Islands are made by the game, so no two look the same. An island appears
+once its session is running and disappears when the session ends; if you
+are standing on it then, you're put back on the platform. Islands sit
+around the platform, far apart; for now the only ways between them are
+starting a session and falling in the sea. The ocean has gentle waves and
+fades into haze at the horizon.
 
 ## Moving around (W03)
 
@@ -41,6 +63,7 @@ You see the world through your character's eyes.
 | Jump | Space |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
+| Start a session, next to the "New session" sign | E |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -48,18 +71,38 @@ The keys follow their position on the keyboard, so on other layouts
 
 Jumps are forgiving: pressing jump just before you land, or just after
 you step off an edge, still counts. You can wade into the shallows; go
-too deep and you're put back in the middle of the island.
+too deep and you're put back on the platform (swimming comes later).
 
 ## Talking to the orchestrator (C01)
 
-In the middle of the island, an AI agent sits at a desk: the
-**orchestrator**, the one you talk to. For now it's a plain stand-in
-figure.
+In the middle of each island, an AI agent sits at a desk: the
+**orchestrator** of that session, the one you talk to. For now it's a
+plain stand-in figure.
 
 Walk up to it and **Press E to chat** appears. Press E to open the chat:
 it fills most of the screen and frees your mouse pointer, and you can't
-walk while it's open. Press Esc to close it and carry on walking. The
-chat itself (your conversation and a box to type in) isn't there yet.
+walk while it's open. Press Esc to close it and carry on walking. If the
+session ends while the chat is open, the chat closes.
+
+## The chat (C02)
+
+**Above the orchestrator's head** floats a small window with the last
+thing it said, facing you wherever you stand. It fills in as the reply
+arrives and shows the newest four lines; the full text is in the chat.
+It's part of the world, so it gets smaller as you walk away and hills
+can hide it.
+
+**The chat** (E, next to the orchestrator) shows the whole conversation:
+your messages on the right, the orchestrator's on the left, including
+what was said in the terminal. Replies appear as they're written. You can
+select text to copy it. Type in the box at the bottom: **Enter** sends,
+**Shift+Enter** starts a new line. Your message shows up once the session
+has it; if it can't be sent, the chat says so and gives your text back.
+
+Above the box, a line says what the orchestrator is doing: working, or
+waiting for you. For now, answer permission prompts and questions in the
+terminal; the chat tells you when one is waiting. Messages are shown as
+plain text (formatting comes later), and only the latest 200 at once.
 
 ## The sidecar (S01)
 
@@ -87,8 +130,9 @@ reinstalling the game restores it if it goes missing.
 ## Claude Code sessions (S02)
 
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
-tool. The world itself isn't built yet, so you can't start a session from
-inside the game; this section describes how sessions will behave.
+tool. Parts of the world described here are still being built: chatting
+works (C02), but answering prompts and questions and stopping from the
+world don't have buttons yet, so use the terminal for those for now.
 
 **What you need.** Claude Code installed on your computer (version
 2.1.284 or newer), signed in with your own account. The game never sees
