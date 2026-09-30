@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://chat/chat_controller.gd" id="1_chat"]
+[ext_resource type="PackedScene" path="res://chat/chat_panel.tscn" id="2_panel"]
 
 [node name="ChatController" type="Node"]
 script = ExtResource("1_chat")
@@ -26,23 +27,4 @@ text = "Press E to chat"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Panel" type="PanelContainer" parent="Prompt"]
-visible = false
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 48.0
-offset_top = 48.0
-offset_right = -48.0
-offset_bottom = -48.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Label" type="Label" parent="Prompt/Panel"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "Chat with this session: history and a message box come with C02.
-
-Esc to close"
-horizontal_alignment = 1
-vertical_alignment = 1
+[node name="Panel" parent="Prompt" instance=ExtResource("2_panel")]

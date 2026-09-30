@@ -64,6 +64,15 @@ func agent(session_id: String, agent_id: String) -> Dictionary:
 	return {}
 
 
+## A session's orchestrator (the agent with no parent), or an empty
+## dictionary.
+func orchestrator(session_id: String) -> Dictionary:
+	for a in session(session_id).get("agents", []):
+		if a["role"] == "orchestrator":
+			return a
+	return {}
+
+
 ## The chat so far, oldest first.
 func messages(session_id: String) -> Array[Dictionary]:
 	var s := session(session_id)

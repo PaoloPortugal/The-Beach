@@ -44,6 +44,7 @@ func _by_hand() -> void:
 	store.apply({"type": "agent.spawned", "session": "a", "seq": 2, "agent": {"agent": "s1", "role": "subagent", "parent": "main", "state": "working", "reason": null}})
 	store.apply({"type": "agent.state_changed", "session": "a", "seq": 3, "agent": "main", "state": "waiting", "reason": "permission"})
 	_check(store.agent("a", "s1")["parent"] == "main" and store.agent("a", "main")["reason"] == "permission", "agents spawn and change")
+	_check(store.orchestrator("a")["agent"] == "main" and store.orchestrator("zzz").is_empty(), "finds the orchestrator")
 
 	store.apply({"type": "message.started", "session": "a", "seq": 4, "message": "m1", "agent": "main", "role": "assistant"})
 	store.apply({"type": "message.delta", "session": "a", "seq": 5, "message": "m1", "text": "Hel"})
