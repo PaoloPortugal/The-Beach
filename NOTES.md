@@ -1148,6 +1148,23 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   decides how; `/exit` in the terminal ends it.
 
 **Known gaps.**
+- **Continued conversations cut the world off** (found live,
+  2026-09-30; to fix next, user's call). Pressing Left at the empty
+  prompt opens Claude Code's subagents view, and that moves the
+  conversation into a new session in the same `claude` process: the old
+  transcript gets a `continued-in` entry naming the new session id, and
+  the new transcript fills with a copy of the history on its first
+  message. Claude Code then starts the channel server again for the new
+  session with the old launch's one-time bridge token; the sidecar
+  refuses it (twice, 2 s apart), as its security rules require. After
+  that, world messages are accepted (`ok`) but land in the old
+  conversation's queue and are never answered (silently lost). Text typed
+  in the terminal goes to the new conversation, whose hooks (same token)
+  still reach the sidecar. Later the old bridge closes and the world
+  ends the session although `claude` still runs. Not yet checked: what
+  leaving the subagents view does (another `continued-in`, or back to
+  the old session). The user wants the world to follow the new
+  conversation.
 - `/clear` starts a new Claude conversation in the same terminal (new
   session id and transcript): the sidecar follows the new transcript, but
   the world keeps the old chat and `native_id`.
@@ -1402,9 +1419,14 @@ in the terminal, the island and teleport, chat both ways with streaming,
 the bubble, a permission waiting in the terminal, and `/exit` taking you
 back to the platform. **Subagents (A02, A04) and minimal state markers
 (A03) are built** (2026-09-30), checked headless (by hand and with the
-fake provider) and in screenshots under both renderers; not yet seen
-with a real `claude`. Next: a live check of subagents with the user;
-then the last M1 feature, answering permission prompts and questions in
+fake provider) and in screenshots under both renderers. **Live check
+with the real `claude` (2026-09-30):** two parallel subagents appear,
+work and both walk back and go (after a fix: a walk could stall short
+of its end until the 20 s give-up). It also found that pressing Left in
+the terminal (Claude Code's subagents view) moves the conversation to a
+new session and cuts the world off (S02 → Known gaps, "Continued
+conversations"). Next: fix that (design with the user first); then the
+last M1 feature, answering permission prompts and questions in
 the world (C05 and the `questions` capability's UI, **pulled into M1 by
 the user, 2026-09-30**): the sidecar side is built and tested, only
 Godot's UI is missing; the design questions to ask first are in C05.

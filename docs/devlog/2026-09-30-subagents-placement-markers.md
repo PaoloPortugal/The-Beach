@@ -61,6 +61,19 @@ orchestrator if the parent is itself leaving.
   rings, all three markers, a walking subagent. The first paper (a flat
   slab at head height) was nearly invisible from the side; it is now a
   little bigger and tilted.
-- Not yet seen with a real `claude` (NOTES → S02 → Known gaps: parallel
-  spawns of the same agent type may pair with the wrong task, which
-  would send a walker to the wrong parent).
+- Live with the user and the real `claude` 2.1.284: the first run had
+  one of two parallel Explore subagents linger by the orchestrator. The
+  sidecar was ruled out first: a `claude -p` probe logging every hook,
+  its payloads replayed through `HookTranslator`, and a `try:claude` run
+  (interactive) all gave `done` for both, 0.5 to 1.5 s apart. (Claude
+  Code shows hand-backs in the transcript as "Another Claude session
+  sent a message: <agent-message …>", but the hook's prompt has no such
+  prefix; `parseHandback` is fine.) The cause was the walk: each step
+  was capped at the distance left to 1.4 m, so with 32-bit positions the
+  last step could land a hair short, and the walker crept on until the
+  20 s give-up. Arriving now allows a centimetre, and the tests fail if
+  a walk needs the give-up (they had allowed 10 s and 30 s, which hid
+  it). The second live run: both walked back and went.
+- The same run found that Left in the terminal (Claude Code's subagents
+  view) continues the conversation in a new session and cuts the world
+  off; recorded in NOTES → S02 → Known gaps.
