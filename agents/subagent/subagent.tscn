@@ -1,0 +1,111 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://agents/subagent/subagent.gd" id="1_sub"]
+[ext_resource type="Script" path="res://agents/state_marker.gd" id="2_marker"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.85, 0.47, 0.34, 1)
+
+[sub_resource type="CapsuleMesh" id="Mesh_body"]
+material = SubResource("Mat_body")
+radius = 0.18
+height = 0.8
+
+[sub_resource type="SphereMesh" id="Mesh_head"]
+material = SubResource("Mat_body")
+radius = 0.15
+height = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_paper"]
+albedo_color = Color(0.97, 0.97, 0.94, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_paper"]
+material = SubResource("Mat_paper")
+size = Vector3(0.3, 0.02, 0.22)
+
+[sub_resource type="StandardMaterial3D" id="Mat_desk"]
+albedo_color = Color(0.55, 0.38, 0.24, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_desk"]
+material = SubResource("Mat_desk")
+size = Vector3(0.9, 0.04, 0.5)
+
+[sub_resource type="BoxMesh" id="Mesh_leg"]
+material = SubResource("Mat_desk")
+size = Vector3(0.05, 0.44, 0.05)
+
+[sub_resource type="StandardMaterial3D" id="Mat_monitor"]
+albedo_color = Color(0.18, 0.18, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_monitor"]
+material = SubResource("Mat_monitor")
+size = Vector3(0.42, 0.28, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="Mat_screen"]
+shading_mode = 0
+albedo_color = Color(0.55, 0.8, 0.95, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_screen"]
+material = SubResource("Mat_screen")
+size = Vector3(0.36, 0.22, 0.01)
+
+[sub_resource type="BoxShape3D" id="Shape_solid"]
+size = Vector3(0.9, 0.8, 0.5)
+
+[node name="Subagent" type="Node3D" groups=["subagents"]]
+script = ExtResource("1_sub")
+
+[node name="Worker" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Worker"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.12)
+mesh = SubResource("Mesh_body")
+
+[node name="Head" type="MeshInstance3D" parent="Worker"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.12)
+mesh = SubResource("Mesh_head")
+
+[node name="Paper" type="MeshInstance3D" parent="Worker"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, -0.12)
+visible = false
+mesh = SubResource("Mesh_paper")
+
+[node name="StateMarker" type="Node3D" parent="Worker"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -0.12)
+script = ExtResource("2_marker")
+
+[node name="Pc" type="Node3D" parent="."]
+
+[node name="Desk" type="MeshInstance3D" parent="Pc"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.46, 0.3)
+mesh = SubResource("Mesh_desk")
+
+[node name="LegFL" type="MeshInstance3D" parent="Pc/Desk"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4, -0.24, 0.2)
+mesh = SubResource("Mesh_leg")
+
+[node name="LegFR" type="MeshInstance3D" parent="Pc/Desk"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, -0.24, 0.2)
+mesh = SubResource("Mesh_leg")
+
+[node name="LegBL" type="MeshInstance3D" parent="Pc/Desk"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4, -0.24, -0.2)
+mesh = SubResource("Mesh_leg")
+
+[node name="LegBR" type="MeshInstance3D" parent="Pc/Desk"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, -0.24, -0.2)
+mesh = SubResource("Mesh_leg")
+
+[node name="Monitor" type="MeshInstance3D" parent="Pc"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.64, 0.45)
+mesh = SubResource("Mesh_monitor")
+
+[node name="Screen" type="MeshInstance3D" parent="Pc/Monitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.022)
+mesh = SubResource("Mesh_screen")
+
+[node name="Solid" type="StaticBody3D" parent="Pc"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Pc/Solid"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.3)
+shape = SubResource("Shape_solid")

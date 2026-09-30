@@ -2,7 +2,8 @@ class_name Orchestrator
 extends Node3D
 ## A session's orchestrator (A01): a plain placeholder at a desk until its
 ## look is decided (open question 7). Its chat zone tells the world when
-## the player is close enough to chat (C01).
+## the player is close enough to chat (C01). Its state marker (A03) sits
+## between its head and its message bubble.
 
 signal player_entered(orchestrator: Orchestrator)
 signal player_exited(orchestrator: Orchestrator)
@@ -21,6 +22,11 @@ func _ready() -> void:
 	_zone.body_exited.connect(func(body: Node3D) -> void:
 		if body is Player:
 			player_exited.emit(self))
+
+
+## Shows the orchestrator's state over its head (A03).
+func show_state(state: String) -> void:
+	$StateMarker.show_state(state)
 
 
 ## Just above the orchestrator's head, where its latest message will float
