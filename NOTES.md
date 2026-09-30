@@ -75,7 +75,7 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | built   | W01, W02      | `world/island/` |
+| W01 | Beach island (v1)                         | built   | W01, W02      | `world/island/`, `world/session_islands.gd` |
 | W02 | Ocean (v1)                                | built   | W01, W02      | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
@@ -89,7 +89,7 @@ v1 slice.
 | A04 | Procedural agent placement (v1)           | planned | n/a           | n/a       |
 | A05 | Permission attention cue                  | planned | n/a           | n/a       |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
-| C02 | Chat panel, plain text and streaming (v1) | planned | n/a           | n/a       |
+| C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
 | C05 | Permission approve / deny                 | planned | n/a           | n/a       |
@@ -97,7 +97,7 @@ v1 slice.
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
-| S03 | Create session from the world             | planned | n/a           | n/a       |
+| S03 | Create session from the world             | quick version built | S03 | `world/platform/` |
 | S04 | List and resume stored sessions           | sidecar side built (branch) | n/a | `sidecar/src/providers/claude/store.ts` |
 | S05 | End session                               | planned | n/a           | n/a       |
 
@@ -346,9 +346,9 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `ocean/` (W02), `player/` (W03). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform and its "New session" post, S03). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
-| `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); the chat panel (C02). |
+| `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
 | `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
 
@@ -480,8 +480,9 @@ prefix to that provider's UI module. Their payload schemas go in
 ## Systems
 
 ### W01 Beach island
-*Built (v1). Scope: core.* A beach island, one per session. In v1 there is
-exactly one. Later islands are created and removed dynamically (W04).
+*Built (v1). Scope: core.* A beach island, one per session. Islands come
+and go with their sessions (see Islands for sessions below); W04 adds the
+rise and sink.
 
 *Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
 an element of randomness so islands differ. Props (Kenney kits) are
@@ -505,6 +506,20 @@ The water level is y = 0.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
+
+**Islands for sessions** (user's direction, 2026-09-30; temporary, a
+stand-in for W04 and W05 until bridges and travel are designed).
+`SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
+each live session gets a new random island with an orchestrator (A01)
+bound to it, and loses it when the session ends. An island only appears
+once its session is up (`session.snapshot` or `session.created`), never
+while it is still starting. Islands sit on rings around the spawn
+platform (six per ring, 180 m apart, each ring turned half a step), and a
+new island takes the first free spot. A session you started from the
+world (S03) takes you to its island, 6 m in front of the orchestrator
+(`world.gd` → `teleport`); sessions already running when the world
+connects don't move you. When a session ends, whoever stands on its
+island is put back on the platform.
 
 ### W02 Ocean
 *Built (v1). Scope: core.* The ocean surrounding the islands. Unrelated
@@ -547,17 +562,24 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   a jump still counts if pressed up to 0.12 s before landing or after
   walking off an edge. Each press and each ledge gives one jump only.
 - *Falling in the sea.* The player can wade into the shallows; with the
-  feet 1.2 m under the water it's put back at the spawn point (the middle
-  of the island). A placeholder until swimming (W08).
+  feet 1.2 m under the water it's put back at the spawn point, on the
+  spawn platform. A placeholder until swimming (W08); for now it is also
+  the way back from an island to the platform.
 
-The world scene (`world/world.tscn`, the main scene) puts the island,
-ocean, sun, sky, orchestrator, chat and player together: the orchestrator
-in the island's middle, the player 6 m in front of it, facing it.
+The world scene (`world/world.tscn`, the main scene) puts the spawn
+platform, the islands for sessions, ocean, sun, sky, chat and player
+together. The **spawn platform** (`world/platform/`, user's direction,
+2026-09-30) is a 12 m wooden square at the world's centre, its deck 1 m
+above the water, with the "New session" post (S03). The player starts on
+it, 3 m in front of the post, facing it. `world.gd` creates the
+`SessionStore` and connects the parts: the islands hear of a new session
+first, so its island exists when the post reports it started.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
 as the "new session" feedback. An ended session makes its island sink, and
-the island is then removed.
+the island is then removed. *Until then* islands simply appear and vanish
+(W01 → Islands for sessions).
 
 ### W05 Archipelagos
 *Planned.* Islands of the same project/repo cluster into an archipelago.
@@ -597,9 +619,10 @@ question 7 is settled.
 and a sphere head behind a desk, all Godot primitives (no art assets),
 facing +z. It has a solid collision box and a `ChatZone` (`Area3D`,
 radius 2.5 m) that signals when the player walks in or out (C01), and a
-`MessageAnchor` above its head for the latest-message window (C02). It
-joins the `orchestrators` group. `session_id` is empty until sessions reach
-the world (not bound to `SessionStore` yet).
+`MessageAnchor` above its head where its message bubble floats (C02). It
+joins the `orchestrators` group. One is made per session, in the middle of
+its island, by `SessionIslands` (W01), with `session_id` set to the
+session it belongs to.
 
 ### A02 Subagents
 *Planned (v1).* Small models at little PCs on the island's sand. They
@@ -631,15 +654,17 @@ session.
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
 opens the panel and frees the mouse, Esc closes it.
 
-*Built. Scope: core.* `ChatController` (`chat/`) listens to every
-orchestrator's chat zone. While the player is in one, "Press E to chat"
+*Built. Scope: core.* `ChatController` (`chat/`) listens to the chat zone
+of every orchestrator the world gives it (`watch`, called for each new
+island). While the player is in one, "Press E to chat"
 shows at the bottom of the screen. E (`interact`, physical key) opens that
-orchestrator's chat panel, frees the mouse and turns the player's controls
+orchestrator's chat panel (C02), frees the mouse and turns the player's controls
 off (`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
 back; the controller reads Esc in `_input` and marks it handled, so the
-player's own Esc (free the mouse) doesn't also fire. Until C02 the panel
-is an empty stand-in over almost the whole screen. Checked headless
+player's own Esc (free the mouse) doesn't also fire. An orchestrator that
+leaves the world (its session ended) is forgotten, and its chat closes if
+it was open. Checked headless
 (zone, prompt, open, no walking while open, close) and in the running game
 (the mouse; headless Godot has none).
 
@@ -655,8 +680,51 @@ wired to the sidecar.
   taking up almost all the screen.
 
 This replaces the first direction (the whole panel in the world, popping
-out of the agent). Details (length of the floating message, streaming in
-it, size and look of both) are defined when C02 is built.
+out of the agent).
+
+*Decided (user's, 2026-09-30, as recommended):* the bubble streams and
+shows the newest 4 lines; it is part of the world (smaller with distance,
+hidden by terrain); the full panel is a dark translucent panel with chat
+bubbles and a message box.
+
+*Built (v1). Scope: core* (it reads only the generic `SessionStore`).
+Message text is untrusted (Security rules): it only ever goes into
+`Label`s and `RichTextLabel`s with BBCode off, so it is shown exactly as
+written (tested with an injected `[url]`).
+- **Bubble** (`MessageBubble`, `chat/message_bubble.tscn`): a billboard
+  `Sprite3D` above the orchestrator's `MessageAnchor`, drawing a
+  `SubViewport` with a dark rounded panel and a label (font 40 px at
+  3.5 mm per pixel: text about 14 cm tall, readable from a few metres).
+  It shows the orchestrator's latest reply (role `assistant`, from the
+  orchestrator agent; your messages and subagents' aren't shown), updated
+  on every delta. `tail_lines` word-wraps it at 40 characters, drops blank
+  lines, and keeps the last 4 lines with "…" in front when anything was
+  cut. Hidden until the orchestrator has said something. The bubble's
+  bottom edge sits on the anchor, so it grows upwards.
+- **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
+  screen but a 48 px margin. A header (the session's title, else its
+  project's name, and "Esc to close"), the session's notices (Godot's own
+  text for `transcripts_off` and `hooks_unavailable`), the chat as bubbles
+  (yours on the right in blue, the agent's on the left in grey, each
+  three quarters of the width, text selectable), a status line and the
+  message box. Streaming updates the growing bubble in place and follows
+  the end if you were already at the bottom. At most the last 200
+  messages are shown (the store keeps up to 2000). Status: "Working…",
+  "Waiting for a permission / an answer…: … in the terminal" (answering in
+  the world is C05 and the `questions` capability), "Stopped." after an
+  error, or a failed send.
+- **Sending:** Enter sends (`message.send`), Shift+Enter is a new line;
+  the Send button too. The box clears at once; your message appears when
+  the session reports it (`message.started`, role `user`). A refused send
+  says "Couldn't send: …" and puts the text back if the box is still
+  empty.
+- **History:** the chat so far isn't in the snapshot, so the controller
+  asks for `session.get_history` once per session when its orchestrator
+  appears (this also fills the bubble). An older message arriving lays the
+  panel out again once, deferred, for the whole batch.
+
+Not yet: a Stop button (the `interrupt` capability), Markdown (C03),
+answering permissions and questions (C05), and the tool-call log (C04).
 
 ### C03 Markdown rendering
 *Planned. Scope: core* (it renders the generic `message` text). Godot's
@@ -1015,6 +1083,24 @@ a `claude` terminal (see S02). Attaching to sessions the user started
 themselves comes later (open question 5, decided); it uses the same hooks
 and channel, which such a session would need to be started with.
 
+*Quick version built (user's direction, 2026-09-30: "a quick create
+session feature that we can design better later"). Scope: core.*
+`SessionPost` (`world/platform/session_post.gd`), a signpost reading "New
+session" on the spawn platform. Near it (2.2 m), "Press E to start a
+session" appears; E opens the system's folder picker (`FileDialog`,
+native where the OS has one, else Godot's own) and pauses the player
+until it closes. The chosen folder goes to `session.create` with the first
+provider from `hello` (only one exists; choosing one is for S03 proper).
+A label above the sign tells how starting goes: "Starting…", then the
+reply's notice (Godot's own text for `confirm_in_terminal`: "Confirm in
+the terminal to start this session."), "Still starting; check the
+terminal." after 2 minutes, "Couldn't start a session: …" for a refused
+command, "The session didn't start." if it ends before coming up, or the
+sidecar's failure. One session starts at a time. Once the session is up,
+its island appears (W01 → Islands for sessions) and the player is taken
+there. Still to design: where you start sessions, recent folders, naming,
+choosing a provider, starting several at once.
+
 ### S04 List and resume sessions
 *Planned (after v1).* Claude Code stores transcripts as JSONL under
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
@@ -1098,8 +1184,14 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: an island to walk around (W01–W03) with a placeholder
-orchestrator you can walk up to (A01, C01); no chat yet (C02).
+for the world: you start on the spawn platform; the "New session" post
+starts a session in a folder you pick, and you're taken to its island to
+chat with its orchestrator (S03, W01–W03, A01, C01, C02). That runs the
+real `claude`; to try the world without it, start Godot with
+`-- --sidecar-dev-fake` (e.g. `godot --path . -- --sidecar-dev-fake`, or
+the editor's Project Settings → Editor → Run → Main Run Args), and chat
+drives the fake provider as below. Its sessions still need an existing
+folder, but it doesn't touch it.
 
 In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
@@ -1137,12 +1229,18 @@ godot --headless --path . --script res://tests/core/sidecar_client_test.gd
 godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/world_test.gd
+godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
 ```
 
-The world test checks the island generator and jump assist, then runs the
-world scene with real physics (landing, walking, jumping, the sea
-respawn), and walking up to the orchestrator to open and close the chat
-(A01, C01). It can't check looks or the mouse: for those, run the game, under both
+The world test checks the island generator, jump assist and the bubble's
+text cut, then runs the world scene with real physics (landing on the
+platform, walking, jumping, the sea respawn), the post (its prompt, a
+refused folder), islands for sessions applied to the store by hand (one
+per session, apart, the bubble streaming, the teleport, the chat panel,
+a refused send, the session ending under you), and walking up to chat
+(A01, C01, C02). With `--sidecar-dev-fake` it also starts a session from
+the post and chats with it. The folder picker needs a display, so the
+test calls what it calls. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
@@ -1195,19 +1293,20 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    recorded in W01, W02, W03, A01, C01 and C02:* first-person camera
    (not the third person I recommended); movement, ocean, placeholder
    orchestrator and "Press E to chat" as recommended; the island
-   generated with some randomness (noise). Still open: the props (Kenney
-   Pirate, Nature and Furniture kits were the suggestion) and the chat
-   panel's details (it's in the world, facing you, not the screen-space
-   panel I recommended).
+   generated with some randomness (noise). The chat's details were decided
+   with C02 (a bubble in the world, a near-full-screen panel). Still open:
+   the props (Kenney Pirate, Nature and Furniture kits were the
+   suggestion).
 
 ## Known issues and next steps
 
 **Current focus:** M1. S01 and S02 are built and merged. On branch
-`m1-world`: W01–W03, A01 (placeholder) and C01 are built: an island to
-walk around, with an orchestrator to walk up to. Next is the chat panel
-(C02), wired to the sidecar, and how a session reaches the world. The M1
-world's feel is decided (open question 8) apart from props and the chat
-panel's details.
+`m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
+built: start a session from the spawn platform's post, get taken to its
+island, and chat with its orchestrator (bubble above its head, full panel
+on E). Next: a live check with the real `claude`, then subagents (A02,
+A04) for the rest of M1. Still open: props (open question 8), and the
+proper designs for starting sessions (S03) and travel (W06, W07).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
 provider (S02), S04's list and resume, the scripted `dev:fake` for
@@ -1355,6 +1454,17 @@ exists.
   off under Compatibility (`world/world.gd`). Recheck on Godot updates and
   on other GPUs; if it's a Godot bug, report it and remove the fallback
   once fixed.
+- **Depth pre-pass off.** Under Forward+ (Godot 4.7.2, Vulkan, AMD
+  Radeon), an island placed away from the world's origin showed large
+  black, striped triangles: the depth pre-pass and the colour pass
+  computed slightly different depths, so the colour pass skipped those
+  pixels. Not lighting (it stayed with the sun and shadows off), and
+  gone with the pre-pass off, so `project.godot` sets
+  `rendering/driver/depth_prepass/enable=false` for every GPU (other
+  vendors couldn't be tested; islands will move with W04 anyway). The cost
+  is some overdraw, small for this low-poly world. Recheck on Godot
+  updates; if it's a Godot bug, report it and turn the pre-pass back on
+  once fixed (dev log 2026-09-30-chat-panel-session-islands).
 - **Untested on macOS and Linux.** Everything verified so far (S02, C03)
   ran on Windows 11 only, and only Windows is available to test on. The
   launch flow (terminal launcher, finding `claude`, the channel
