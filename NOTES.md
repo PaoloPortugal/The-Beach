@@ -1407,7 +1407,8 @@ with a real `claude`. Next: a live check of subagents with the user;
 then the last M1 feature, answering permission prompts and questions in
 the world (C05 and the `questions` capability's UI, **pulled into M1 by
 the user, 2026-09-30**): the sidecar side is built and tested, only
-Godot's UI is missing; the design questions to ask first are in C05. Still open: props (open question 8), and the
+Godot's UI is missing; the design questions to ask first are in C05.
+Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
