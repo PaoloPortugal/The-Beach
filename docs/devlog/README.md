@@ -35,3 +35,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Sidecar core](2026-09-29-sidecar-core.md) | S01 |
 | 2026-09-29 | [Agent Office (a similar project)](2026-09-29-agent-office.md) | docs |
 | 2026-09-29 | [Windows terminals and S02 checkpoint 1](2026-09-29-windows-terminals.md) | S02 |
+| 2026-09-29 | [S02: permissions, questions, stopping, transcript, notices, history](2026-09-29-s02-relay-questions-stop.md) | S02 |

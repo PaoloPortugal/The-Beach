@@ -1,0 +1,230 @@
+class_name SessionStore
+extends RefCounted
+## Godot's copy of every live session (NOTES.md → Protocol), kept up to date
+## from the sidecar's events. The world and the chat panel read it and listen
+## to its signals instead of parsing protocol messages themselves.
+##
+## Provider-neutral: it only knows the generic protocol. Extension messages
+## are passed on untouched through [signal extension_event], for the
+## provider's own UI module.
+##
+## [codeblock]
+## var store := SessionStore.new()
+## store.attach(Sidecar)
+## store.session_added.connect(func(id, created): ...)
+## [/codeblock]
+
+## A session appeared: [param created] is true for a new one (the island
+## rises), false for one that already existed (placed as is).
+signal session_added(session: String, created: bool)
+signal session_removed(session: String, reason: String)
+signal agent_added(session: String, agent: String)
+## An agent's [code]state[/code] or [code]reason[/code] changed.
+signal agent_changed(session: String, agent: String)
+## A chat message started, grew, or completed.
+signal message_changed(session: String, message: String)
+signal tool_changed(session: String, tool_call: String)
+signal permissions_changed(session: String)
+signal questions_changed(session: String)
+signal notices_changed(session: String)
+## A provider extension message ([code]ext.<provider>.<name>[/code]).
+signal extension_event(session: String, msg: Dictionary)
+
+## Chat messages kept per session; the oldest go first.
+const MAX_MESSAGES := 2000
+## Finished tool calls kept per session, for the tool-call log (C04).
+const MAX_TOOLS := 500
+
+## Session id → the protocol's session object (agents, permissions,
+## questions, notices, ...), plus [code]messages[/code] (id → message) and
+## [code]message_order[/code] (ids, oldest first), and [code]tools[/code]
+## (tool call id → call) and [code]tool_order[/code].
+var sessions := {}
+
+var _seen_since_sync := {}
+
+
+## Follows a [SidecarClient]: every event, and each (re)connect's snapshots.
+func attach(client: SidecarClient) -> void:
+	client.event_received.connect(apply)
+	client.sync_started.connect(func() -> void: _seen_since_sync.clear())
+	client.synced.connect(func(_providers: Array) -> void: _on_synced())
+
+
+## The session, or an empty dictionary.
+func session(id: String) -> Dictionary:
+	return sessions.get(id, {})
+
+
+## One agent of a session, or an empty dictionary.
+func agent(session_id: String, agent_id: String) -> Dictionary:
+	for a in session(session_id).get("agents", []):
+		if a["agent"] == agent_id:
+			return a
+	return {}
+
+
+## The chat so far, oldest first.
+func messages(session_id: String) -> Array[Dictionary]:
+	var s := session(session_id)
+	var out: Array[Dictionary] = []
+	for id in s.get("message_order", []):
+		out.append(s["messages"][id])
+	return out
+
+
+## Fills in the chat from [code]session.get_history[/code]'s messages. Ones
+## already known (seen live) are kept as they are.
+func load_history(session_id: String, history: Array) -> void:
+	var s := session(session_id)
+	if s.is_empty():
+		return
+	var order: Array = []
+	for m in history:
+		var id: String = m["message"]
+		if not s["messages"].has(id):
+			s["messages"][id] = {
+				"message": id, "agent": m["agent"], "role": m["role"],
+				"text": m["text"], "at": m["at"], "complete": true,
+			}
+			order.append(id)
+	s["message_order"] = order + s["message_order"]
+	_trim_messages(s)
+	for id in order:
+		message_changed.emit(session_id, id)
+
+
+## Applies one event from the sidecar.
+func apply(msg: Dictionary) -> void:
+	var type: String = msg.get("type", "")
+	if type == "session.snapshot" or type == "session.created":
+		_put_session(msg["session"], type == "session.created")
+		return
+	var id: String = msg.get("session", "")
+	if type.begins_with("ext."):
+		extension_event.emit(id, msg)
+		return
+	var s := session(id)
+	if s.is_empty():
+		return
+	match type:
+		"session.ended":
+			sessions.erase(id)
+			session_removed.emit(id, msg["reason"])
+		"session.notice":
+			var notice: Dictionary = msg["notice"]
+			var notices: Array = s["notices"]
+			notices.assign(notices.filter(func(n: Dictionary) -> bool: return n["code"] != notice["code"]))
+			notices.append(notice)
+			notices_changed.emit(id)
+		"agent.spawned":
+			s["agents"].append(msg["agent"])
+			agent_added.emit(id, msg["agent"]["agent"])
+		"agent.state_changed":
+			var a := agent(id, msg["agent"])
+			if not a.is_empty():
+				a["state"] = msg["state"]
+				a["reason"] = msg["reason"]
+				agent_changed.emit(id, msg["agent"])
+		"message.started":
+			var m := {
+				"message": msg["message"], "agent": msg["agent"], "role": msg["role"],
+				"text": "", "at": Time.get_datetime_string_from_system(true), "complete": false,
+			}
+			if not s["messages"].has(m["message"]):
+				s["message_order"].append(m["message"])
+			s["messages"][m["message"]] = m
+			_trim_messages(s)
+			message_changed.emit(id, m["message"])
+		"message.delta":
+			var m: Dictionary = s["messages"].get(msg["message"], {})
+			if not m.is_empty():
+				m["text"] += msg["text"]
+				message_changed.emit(id, msg["message"])
+		"message.completed":
+			var m: Dictionary = s["messages"].get(msg["message"], {})
+			if not m.is_empty():
+				m["text"] = msg["text"]
+				m["complete"] = true
+				message_changed.emit(id, msg["message"])
+		"tool.started":
+			var call := {
+				"tool_call": msg["tool_call"], "agent": msg["agent"], "tool": msg["tool"],
+				"summary": msg["summary"], "status": "running",
+			}
+			if msg.has("input"):
+				call["input"] = msg["input"]
+			s["tools"][call["tool_call"]] = call
+			s["tool_order"].append(call["tool_call"])
+			_trim_tools(s)
+			tool_changed.emit(id, call["tool_call"])
+		"tool.finished":
+			var call: Dictionary = s["tools"].get(msg["tool_call"], {})
+			if not call.is_empty():
+				call["status"] = msg["status"]
+				if msg.has("summary"):
+					call["result"] = msg["summary"]
+				tool_changed.emit(id, msg["tool_call"])
+		"permission.requested":
+			s["permissions"].append(msg["permission"])
+			permissions_changed.emit(id)
+		"permission.resolved":
+			var list: Array = s["permissions"]
+			list.assign(list.filter(func(p: Dictionary) -> bool: return p["permission"] != msg["permission"]))
+			permissions_changed.emit(id)
+		"question.asked":
+			s["questions"].append(msg["question"])
+			questions_changed.emit(id)
+		"question.resolved":
+			var list: Array = s["questions"]
+			list.assign(list.filter(func(q: Dictionary) -> bool: return q["question"] != msg["question"]))
+			questions_changed.emit(id)
+
+
+func _put_session(snapshot: Dictionary, created: bool) -> void:
+	var id: String = snapshot["session"]
+	var old := session(id)
+	var s := snapshot.duplicate(true)
+	s["seq"] = int(s["seq"])
+	if not s.has("questions"):
+		s["questions"] = []
+	if not s.has("notices"):
+		s["notices"] = []
+	# A snapshot replaces the state, but the chat and tool log are ours.
+	s["messages"] = old.get("messages", {})
+	s["message_order"] = old.get("message_order", [])
+	s["tools"] = old.get("tools", {})
+	s["tool_order"] = old.get("tool_order", [])
+	var known := not old.is_empty()
+	sessions[id] = s
+	_seen_since_sync[id] = true
+	if known:
+		# Everything may have changed (a resync after a gap).
+		for a in s["agents"]:
+			agent_changed.emit(id, a["agent"])
+		permissions_changed.emit(id)
+		questions_changed.emit(id)
+		notices_changed.emit(id)
+	else:
+		session_added.emit(id, created)
+
+
+## After a (re)connect's snapshots: sessions the sidecar no longer has
+## ended while we weren't listening.
+func _on_synced() -> void:
+	for id in sessions.keys():
+		if not _seen_since_sync.has(id):
+			sessions.erase(id)
+			session_removed.emit(id, "exited")
+
+
+func _trim_messages(s: Dictionary) -> void:
+	var order: Array = s["message_order"]
+	while order.size() > MAX_MESSAGES:
+		s["messages"].erase(order.pop_front())
+
+
+func _trim_tools(s: Dictionary) -> void:
+	var order: Array = s["tool_order"]
+	while order.size() > MAX_TOOLS:
+		s["tools"].erase(order.pop_front())

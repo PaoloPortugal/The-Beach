@@ -17,9 +17,15 @@ import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
-import { BridgeServer, type BridgeLink } from './bridge-server.ts'
-import { HookServer, type HookLink, type HookPayload } from './hook-server.ts'
-import { HookTranslator, hookSettings, MAIN } from './hooks.ts'
+import { BridgeServer } from './bridge-server.ts'
+import { HookServer } from './hook-server.ts'
+import { findStored, listStored, projectsDir, readHistory } from './store.ts'
+import { hookSettings } from './hooks.ts'
+import { ClaudeSession, HOOKS_CHECK_MS, type Launch } from './session.ts'
+
+export {
+  HISTORY_MAX, HOOKS_CHECK_MS, HOOKS_UNAVAILABLE, PERMISSION_MATCH_MS, STOP_REASON, TRANSCRIPT_CHECK_MS, TRANSCRIPTS_OFF,
+} from './session.ts'
 
 /**
  * How long a launched session may take to come up (the user answering the
@@ -27,6 +33,16 @@ import { HookTranslator, hookSettings, MAIN } from './hooks.ts'
  * user chose Exit at a startup prompt, nothing else would tell us.
  */
 export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
+
+/**
+ * The terminal window's title. The name can come from a stored session's
+ * transcript (anything the user once typed), and Windows Terminal parses its
+ * own command line, so only plain printable text goes in, short.
+ */
+export function terminalTitle(name: string): string {
+  const clean = name.replace(/[\u0000-\u001f\u007f-\u009f;"\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+  return `Claude Code - ${clean || 'session'}`
+}
 
 export interface ClaudeOptions {
   log?: Log
@@ -42,13 +58,12 @@ export interface ClaudeOptions {
   findClaude?: () => Promise<FoundClaude>
   /** For tests: a shorter startup timeout. */
   startupTimeoutMs?: number
+  /** For tests: Claude Code's projects folder (stored sessions). */
+  projectsDir?: string
+  /** For tests: how long a world message waits for its first hook. */
+  hooksCheckMs?: number
 }
 
-/** Everything the launched claude and our side share for one session. */
-interface Launch {
-  runDir: string
-  nativeId: string
-}
 
 export class ClaudeProvider implements Provider {
   readonly id = 'claude'
@@ -56,6 +71,8 @@ export class ClaudeProvider implements Provider {
   private readonly opts: ClaudeOptions
   private readonly log: Log
   private readonly runDirs = new Set<string>()
+  /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
+  private readonly live = new Set<string>()
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
 
@@ -71,20 +88,58 @@ export class ClaudeProvider implements Provider {
   }
 
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
+    const name = options.project.name ?? path.basename(options.project.path)
+    return this.start(host, {
+      project: options.project, name, nativeId: crypto.randomUUID(), resume: false, history: [],
+      ...(options.prompt ? { prompt: options.prompt } : {}),
+    })
+  }
+
+  /**
+   * Resumes a stored session (S04): `claude --resume <id>` in its project
+   * folder, with our hooks and channel like a new one. Its chat so far comes
+   * from the transcript.
+   */
+  async resume(host: SessionHost, nativeId: string): Promise<ProviderSession> {
+    if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
+    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
+    if (!stored) throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.')
+    if (!path.isAbsolute(stored.project.path) || !fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
+      throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
+    }
+    return this.start(host, {
+      project: stored.project, name: stored.title ?? path.basename(stored.project.path),
+      nativeId, resume: true, history: readHistory(stored.file),
+    })
+  }
+
+  /** Terminal sessions in Claude Code's store, newest first; the ones running here are left out. */
+  async listStored(project?: string): Promise<StoredSession[]> {
+    return listStored({
+      dir: this.opts.projectsDir ?? projectsDir(),
+      ...(project ? { project } : {}),
+      exclude: this.live,
+    }).map(({ file: _file, ...s }) => s)
+  }
+
+  private async start(host: SessionHost, o: {
+    project: Project; name: string; nativeId: string; resume: boolean; history: HistoryMessage[]; prompt?: string
+  }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
     const hooks = await this.hookServer()
-    const launch = this.prepare()
-    const name = options.project.name ?? path.basename(options.project.path)
-    const session = new ClaudeSession(host, launch, options.project, name, this.log,
-      () => this.forget(launch.runDir), this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)
+    const launch = this.prepare(o.nativeId)
+    this.live.add(o.nativeId)
+    const session = new ClaudeSession(host, launch, o.project, o.name, this.log,
+      () => { this.forget(launch.runDir); this.live.delete(o.nativeId) },
+      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
     session.link = bridges.register(session.bridgeHandlers())
-    session.hookLink = hooks.register({ onHook: (p) => session.onHook(p) })
+    session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
-      '--session-id', launch.nativeId,
-      '--name', name,
+      // A resumed session keeps its id and name.
+      ...(o.resume ? ['--resume', o.nativeId] : ['--session-id', o.nativeId, '--name', o.name]),
       // Our hooks for this session only; the user's settings files are never edited.
       '--settings', settings,
       '--mcp-config', mcpConfig,
@@ -93,22 +148,14 @@ export class ClaudeProvider implements Provider {
       '--dangerously-load-development-channels', `server:${BRIDGE_SERVER_NAME}`,
     ]
     try {
-      await this.launch(launch, found.path, args, options.project.path, name)
+      await this.launch(launch, found.path, args, o.project.path, o.name)
     } catch (e) {
       session.dispose()
       throw e
     }
-    this.log.info(`launched claude ${found.version} for session ${host.id}`)
+    this.log.info(`launched claude ${found.version} for session ${host.id}${o.resume ? ' (resumed)' : ''}`)
     session.startWaiting()
     return session
-  }
-
-  async resume(): Promise<ProviderSession> {
-    throw new CommandError('not_supported', 'resuming sessions comes later (S04)')
-  }
-
-  async listStored(): Promise<StoredSession[]> {
-    return []
   }
 
   async shutdown(): Promise<void> {
@@ -176,11 +223,11 @@ export class ClaudeProvider implements Provider {
   }
 
   /** A private folder for this session's launch file, settings and bridge config. */
-  private prepare(): Launch {
+  private prepare(nativeId: string): Launch {
     const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-session-'))
     fs.chmodSync(runDir, 0o700)
     this.runDirs.add(runDir)
-    return { runDir, nativeId: crypto.randomUUID() }
+    return { runDir, nativeId }
   }
 
   private async launch(launch: Launch, claude: string, args: string[], cwd: string, name: string) {
@@ -190,7 +237,7 @@ export class ClaudeProvider implements Provider {
     const open = this.opts.openTerminal ?? openTerminal
     try {
       const used = await open(
-        { argv, title: `Claude Code - ${name}`.replace(/[;"]/g, ' '), runDir: launch.runDir },
+        { argv, title: terminalTitle(name), runDir: launch.runDir },
         { ...(this.opts.terminal ? { preferred: this.opts.terminal } : {}) },
       )
       this.log.info(`opened ${used}`)
@@ -201,107 +248,5 @@ export class ClaudeProvider implements Provider {
       }
       throw e
     }
-  }
-}
-
-class ClaudeSession implements ProviderSession {
-  readonly host: SessionHost
-  readonly launch: Launch
-  link: BridgeLink | null = null
-  hookLink: HookLink | null = null
-  private readonly project: Project
-  private readonly name: string
-  private readonly log: Log
-  private readonly cleanup: () => void
-  private readonly startupTimeoutMs: number
-  private launchedAt = 0
-  private startupTimer: NodeJS.Timeout | null = null
-  private disposed = false
-  private readonly translator: HookTranslator
-
-  constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
-    cleanup: () => void, startupTimeoutMs: number) {
-    this.host = host
-    this.launch = launch
-    this.project = project
-    this.name = name
-    this.log = log
-    this.cleanup = cleanup
-    this.startupTimeoutMs = startupTimeoutMs
-    this.translator = new HookTranslator(project.path)
-  }
-
-  bridgeHandlers() {
-    return {
-      onReady: () => this.onReady(),
-      onPermissionRequest: () => { /* the permission relay comes with the hooks */ },
-      onClose: () => this.onGone('the bridge closed'),
-    }
-  }
-
-  /** Called once the terminal is open: the user now answers the startup prompts. */
-  startWaiting() {
-    this.launchedAt = Date.now()
-    this.startupTimer = setTimeout(() => this.onGone('it never came up'), this.startupTimeoutMs)
-    this.startupTimer.unref()
-  }
-
-  private onReady() {
-    if (this.disposed || this.host.ended) return
-    if (!this.startupTimer) return
-    clearTimeout(this.startupTimer)
-    this.startupTimer = null
-    // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
-    this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
-    this.host.announce({
-      native_id: this.launch.nativeId,
-      project: this.project,
-      title: this.name,
-      capabilities: {},
-      extensions: [],
-      agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
-    })
-  }
-
-  /** One hook from this session's Claude Code. Reports only: never a decision. */
-  onHook(p: HookPayload): void {
-    if (this.disposed || this.host.ended) return
-    // Hooks only fire once Claude Code is past its startup dialogs, so a
-    // hook arriving before the bridge's ready also means the session is up.
-    if (this.startupTimer) this.onReady()
-    for (const event of this.translator.translate(p)) this.host.emit(event)
-  }
-
-  /** Claude Code exited, or never came up. */
-  private onGone(why: string) {
-    if (this.disposed) return
-    this.log.info(`session ${this.host.id} is gone: ${why}`)
-    this.dispose()
-    this.host.end('exited')
-  }
-
-  dispose() {
-    if (this.disposed) return
-    this.disposed = true
-    if (this.startupTimer) clearTimeout(this.startupTimer)
-    this.link?.unregister()
-    this.hookLink?.unregister()
-    this.cleanup()
-  }
-
-  async sendMessage(text: string): Promise<void> {
-    if (!this.link?.send({ type: 'chat', text })) {
-      throw new CommandError('provider_error', 'The session is not connected.')
-    }
-  }
-  async respondPermission(): Promise<void> {
-    throw new CommandError('not_supported', 'not built yet')
-  }
-  async end(): Promise<void> {
-    // No documented way to close Claude Code from outside (S05 decides).
-    throw new CommandError('not_supported', 'end the session with /exit in its terminal')
-  }
-  async getHistory(): Promise<HistoryMessage[]> {
-    return []
   }
 }

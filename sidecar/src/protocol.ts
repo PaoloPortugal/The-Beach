@@ -40,6 +40,8 @@ export interface QuestionItem {
 
 export interface Question { question: Id; agent: Id; items: QuestionItem[] }
 
+export interface Notice { code: string; message: string }
+
 export interface Session {
   session: Id
   seq: number
@@ -54,6 +56,7 @@ export interface Session {
   agents: Agent[]
   permissions: Permission[]
   questions?: Question[]
+  notices: Notice[]
 }
 
 export interface HistoryMessage {
@@ -86,6 +89,7 @@ export type SessionEvent =
   | { type: 'permission.resolved'; permission: Id; decision: 'allow' | 'deny'; by: 'app' | 'external' }
   | { type: 'question.asked'; question: Question }
   | { type: 'question.resolved'; question: Id; by: 'app' | 'external' }
+  | { type: 'session.notice'; notice: Notice }
   | { type: `ext.${string}`; [key: string]: unknown }
 
 export type EndReason = 'user' | 'exited' | 'error'
