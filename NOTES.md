@@ -92,7 +92,7 @@ v1 slice.
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
-| C05 | Permission approve / deny                 | planned | n/a           | n/a       |
+| C05 | Permission approve / deny (v1)            | planned (M1) | n/a      | n/a       |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
@@ -822,8 +822,30 @@ log.
 the chat panel.
 
 ### C05 Permission approve / deny
-*Planned.* Answer permission requests from inside the world. They are
-sent to the sidecar as approve/deny.
+*Planned (v1: pulled into M1 by the user, 2026-09-30, together with the
+`questions` capability's UI).* Answer permission requests from inside the
+world. They are sent to the sidecar as approve/deny. The sidecar side of
+both is built and tested (S02 → Permissions, Clarifying questions); only
+Godot's UI is missing. Scope: core for permissions (`permission.respond`),
+the `questions` capability for questions (shown only for sessions that
+declare it).
+
+*To ask the user before building* (my recommendations, not yet
+answered):
+- *Where:* a card in the chat panel between the chat and the message
+  box, covering subagents' prompts too (naming the agent). Alternatives:
+  a HUD pop-up anywhere, or a card floating at the waiting agent.
+- *Permission card:* the summary with a Details toggle (raw input as
+  plain text), Allow and Deny, an optional note; no keyboard shortcut
+  for Allow, so Enter in the chat can never allow by accident.
+  "Don't ask again" and mode switches wait for C06.
+- *Questions:* one card with every item: options as buttons (single) or
+  checkboxes (multi) with their descriptions, an "Other…" field per item,
+  Send once every item is answered, and "Reply in your own words
+  instead" (a free `response`). Alternatives: one item at a time, or
+  options only.
+- *Several pending:* one at a time, oldest first, "1 of 3 waiting".
+  Alternative: all stacked.
 
 ### C06 Permission mode control
 *Planned (after v1). Scope: capability `permission_modes`* (other tools have
@@ -1381,11 +1403,11 @@ the bubble, a permission waiting in the terminal, and `/exit` taking you
 back to the platform. **Subagents (A02, A04) and minimal state markers
 (A03) are built** (2026-09-30), checked headless (by hand and with the
 fake provider) and in screenshots under both renderers; not yet seen
-with a real `claude`. That completes the M1 slice's features. Next: a
-live check of subagents with the user; then, if the user wants it in
-M1, answering permission prompts and questions in the world (C05 and
-the `questions` capability: the sidecar side is built and tested, only
-Godot's UI is missing). Still open: props (open question 8), and the
+with a real `claude`. Next: a live check of subagents with the user;
+then the last M1 feature, answering permission prompts and questions in
+the world (C05 and the `questions` capability's UI, **pulled into M1 by
+the user, 2026-09-30**): the sidecar side is built and tested, only
+Godot's UI is missing; the design questions to ask first are in C05. Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
@@ -1448,8 +1470,9 @@ exists.
   C02).
 - Subagents as simple placeholder models with ring or spiral placement,
   appearing and disappearing on spawn and finish events (A02, A04).
-- Permission prompts and questions can still be answered in the terminal
-  in v1; answering them in the world is C05 and the `questions` capability.
+- Permission prompts and questions answered in the world (C05 and the
+  `questions` capability's UI; added to M1 by the user, 2026-09-30).
+  They can still be answered in the terminal too.
 - Not in v1: bridges, teleport menu, multiple islands or archipelagos,
   minigames and parkour, Markdown polish, any second provider.
 
