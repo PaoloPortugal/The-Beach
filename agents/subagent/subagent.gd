@@ -105,7 +105,9 @@ func _physics_process(delta: float) -> void:
 	var target: Vector3 = _walk_to.call()
 	var from := _worker.global_position
 	var to := Vector2(target.x - from.x, target.z - from.z)
-	if to.length() <= ARRIVE_DISTANCE or _walk_time > MAX_WALK_TIME:
+	# The last step lands on ARRIVE_DISTANCE only to float precision, maybe
+	# a hair short, so arriving allows a centimetre.
+	if to.length() <= ARRIVE_DISTANCE + 0.01 or _walk_time > MAX_WALK_TIME:
 		set_physics_process(false)
 		_vanish()
 		return
