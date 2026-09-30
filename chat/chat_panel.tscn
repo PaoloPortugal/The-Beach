@@ -1,0 +1,90 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://chat/chat_panel.gd" id="1_panel"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.08, 0.11, 0.94)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxEmpty" id="Style_scroll"]
+
+[node name="ChatPanel" type="PanelContainer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 48.0
+offset_top = 48.0
+offset_right = -48.0
+offset_bottom = -48.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Style_panel")
+script = ExtResource("1_panel")
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text_overrun_behavior = 3
+
+[node name="Hint" type="Label" parent="Layout/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "Esc to close"
+
+[node name="Notices" type="Label" parent="Layout"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.8, 0.45, 1)
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
+[node name="Scroll" type="ScrollContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("Style_scroll")
+horizontal_scroll_mode = 0
+
+[node name="Messages" type="VBoxContainer" parent="Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Status" type="Label" parent="Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+
+[node name="Compose" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Input" type="TextEdit" parent="Layout/Compose"]
+custom_minimum_size = Vector2(0, 84)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+placeholder_text = "Message (Enter to send, Shift+Enter for a new line)"
+wrap_mode = 1
+
+[node name="Send" type="Button" parent="Layout/Compose"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Send"
