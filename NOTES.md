@@ -586,6 +586,14 @@ the island is then removed. *Until then* islands simply appear and vanish
 Whether that goes strictly by repo path or allows manual naming and arranging is
 open question 2.
 
+*Direction (user's, 2026-09-30; for later, not M1):* both. Archipelagos
+(clusters) are defined by the user: creating a session asks which
+existing archipelago it joins, or makes a new one. Sessions in the same
+repository are grouped into the same archipelago automatically. Details
+(how a cluster is named, stored and shown, what counts as the same
+repository, whether the automatic choice can be overridden) are decided
+when W05 is built, together with S03's proper design.
+
 ### W06 Bridges
 *Planned.* Walkable bridges connect islands within an archipelago, for
 physical movement and the feel of the world. Build it as a general
@@ -1270,8 +1278,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 1. ~~**Event schema.**~~ *Decided:* version 1 is in Protocol and
    `protocol/events.schema.json`.
-2. **Archipelago clustering.** Strictly by repo path, or can projects be
-   manually named or arranged?
+2. ~~**Archipelago clustering.**~~ *Mostly decided (user's, 2026-09-30),
+   recorded in W05:* user-defined clusters chosen when creating a session,
+   plus automatic grouping of sessions from the same repository. Details
+   come with W05.
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
