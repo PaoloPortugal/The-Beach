@@ -40,3 +40,4 @@ reading; look things up by feature ID.
 | 2026-09-30 | [Island, ocean and first-person movement](2026-09-30-island-ocean-movement.md) | W01, W02, W03 |
 | 2026-09-30 | [Placeholder orchestrator and walking up to chat](2026-09-30-orchestrator-walk-up-chat.md) | A01, C01, C02, W08 |
 | 2026-09-30 | [Chat panel, quick session start, an island per session](2026-09-30-chat-panel-session-islands.md) | C02, S03, W01, W03, A01 |
+| 2026-09-30 | [Subagents, placement and state markers](2026-09-30-subagents-placement-markers.md) | A02, A03, A04 |

@@ -84,9 +84,9 @@ v1 slice.
 | W07 | Teleport menu                             | planned | n/a           | n/a       |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
-| A02 | Subagents spawn / despawn (v1)            | planned | n/a           | n/a       |
-| A03 | Agent state indicators                    | planned | n/a           | n/a       |
-| A04 | Procedural agent placement (v1)           | planned | n/a           | n/a       |
+| A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
+| A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
+| A04 | Procedural agent placement (v1)           | built   | A02           | `agents/agent_placement.gd` |
 | A05 | Permission attention cue                  | planned | n/a           | n/a       |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
@@ -647,6 +647,26 @@ straight line to its parent (the orchestrator, or a parent subagent still
 there) with a white paper over its head, and shrinks away on arrival; no
 throw and no path-finding yet. A resumed subagent pops back in at its PC.
 
+*Placeholder built. Scope: core* (only the generic agent tree:
+`agent.spawned`, `agent.state_changed`, `parent`). `Subagent`
+(`agents/subagent/`): a capsule body and sphere head at a little desk
+with a monitor, all primitives, facing +z. Only the PC is solid; the
+body can be walked through. `IslandAgents` (`agents/island_agents.gd`),
+made by `SessionIslands` for each island at its middle, follows the
+session's agents in `SessionStore`:
+- `working` or `waiting`: the subagent pops in at a free slot (A04), or
+  back at its PC if it was leaving.
+- `done`: its PC shrinks away, and it walks at 3 m/s in a straight line
+  towards its parent, following it if it moves, with a white paper over
+  its head, standing on the ground as it goes. The parent is the calling
+  subagent if that one is still at its PC, else the orchestrator. It
+  shrinks away 1.4 m from it (or after 20 s, wherever it is).
+- `error`: it shows the error marker (A03) for `error_linger` (10 s),
+  then shrinks away with its PC.
+- A resumed subagent gets its old slot back if it is still free.
+- Subagents already done or errored when the island appears (a session
+  running before the world connected) aren't shown.
+
 ### A03 Agent state indicators
 *Planned.* A visible state on each agent, from the protocol's state enum
 (see Protocol): working, waiting on the user (e.g. a permission prompt),
@@ -657,6 +677,14 @@ A small marker floats over every agent, orchestrator included: working, a
 slowly spinning yellow diamond; waiting on you, a bouncing orange "!";
 idle and done, nothing; error, a red "×". An errored or interrupted
 subagent stays at its PC in red for about 10 s, then shrinks away.
+
+*Minimal version built. Scope: core.* `AgentStateMarker`
+(`agents/state_marker.gd`): unshaded boxes, turned to face the camera
+around the vertical axis. The orchestrator's sits between its head and
+its message bubble (the bubble's anchor moved up to 2.45 m for it);
+`IslandAgents` sets it from the orchestrator's state. The marker doesn't
+say why an agent waits (`reason`); the chat's status line does, for the
+orchestrator.
 
 ### A04 Procedural agent placement
 *Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
@@ -669,6 +697,17 @@ orchestrator from about 10 m out (outside the chat zone), slots about
 3 m apart along each ring, a little jitter, every agent facing the
 orchestrator and standing on the sand. More rings as needed, no maximum.
 An agent keeps its slot while it's there; a freed slot is reused.
+
+*Built. Scope: core.* `AgentPlacement` (`agents/agent_placement.gd`):
+ring *k* has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...),
+every other ring turned half a step. Each slot is moved up to 0.4 m in
+each direction by a random number seeded from the slot, so a slot is
+always in the same place. `IslandAgents` gives a new subagent the first
+free slot on land (ground above 0.3 m); slots in the sea are skipped
+until the rings are past any shore (1.5 × the island's radius), so
+there is still no maximum. A subagent stands at the lower of the ground
+heights under it and under its PC, so on a dune it sinks in a little
+rather than float.
 
 ### A05 Permission attention cue
 *Planned.* A pending permission prompt or question is shown on the
@@ -1339,7 +1378,14 @@ on E). **Live check passed (2026-09-30)** with the user and the real
 `claude` 2.1.284: the picker (after switching to Godot's own), confirming
 in the terminal, the island and teleport, chat both ways with streaming,
 the bubble, a permission waiting in the terminal, and `/exit` taking you
-back to the platform. Next: subagents (A02, A04) for the rest of M1. Still open: props (open question 8), and the
+back to the platform. **Subagents (A02, A04) and minimal state markers
+(A03) are built** (2026-09-30), checked headless (by hand and with the
+fake provider) and in screenshots under both renderers; not yet seen
+with a real `claude`. That completes the M1 slice's features. Next: a
+live check of subagents with the user; then, if the user wants it in
+M1, answering permission prompts and questions in the world (C05 and
+the `questions` capability: the sidecar side is built and tested, only
+Godot's UI is missing). Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
