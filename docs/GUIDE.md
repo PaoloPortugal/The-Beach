@@ -11,6 +11,7 @@ here; each section is labelled with its feature ID.
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
+- [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
@@ -103,6 +104,28 @@ Above the box, a line says what the orchestrator is doing: working, or
 waiting for you. For now, answer permission prompts and questions in the
 terminal; the chat tells you when one is waiting. Messages are shown as
 plain text (formatting comes later), and only the latest 200 at once.
+
+## Subagents (A02, A03, A04)
+
+When the orchestrator hands work to **subagents**, they appear around it
+on its island: smaller stand-in figures, each at a little desk with a
+computer, facing the orchestrator. The first ones sit in a ring about
+10 m out; more rings are added as more of them arrive. Each one keeps its
+place while it works.
+
+When a subagent finishes, its desk goes and it walks back to whoever
+asked for the work, a sheet of paper over its head, and disappears when
+it gets there. If it's asked to carry on later, it comes back to its
+desk. Subagents that finished before you opened the world aren't shown.
+
+**What they're doing** shows as a small sign above each agent, the
+orchestrator included:
+- a spinning **yellow diamond**: working;
+- a bouncing **orange "!"**: waiting for you (for now, answer it in the
+  terminal);
+- a **red "×"**: something went wrong, or it was stopped. A subagent
+  stays like this for about 10 seconds, then disappears;
+- nothing: the orchestrator is done with its turn and it's your move.
 
 ## The sidecar (S01)
 
