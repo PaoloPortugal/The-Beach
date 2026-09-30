@@ -2,7 +2,7 @@ extends SceneTree
 ## Headless test for the M1 world: the island generator (W01), jump
 ## assist (W03), then the world scene itself with real physics: the player
 ## lands on the island, walks, jumps and is put back when it falls in the
-## sea.
+## sea; then walking up to the orchestrator to chat (A01, C01).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 
@@ -98,15 +98,16 @@ func _scene() -> void:
 	var player: Player = world.get_node("Player")
 	var island: Island = world.get_node("Island")
 	var spawn := player.spawn_point
-	_check(is_equal_approx(spawn.y, island.height_at(0, 0) + 0.1), "spawns on the middle of the island")
+	_check(is_equal_approx(spawn.y, island.height_at(0, 0) + 0.1), "spawns on the flat middle of the island")
 
 	await _frames(30)
 	_check(player.is_on_floor() and absf(player.global_position.y - island.height_at(0, 0)) < 0.2, "lands on the island")
 
+	var before := player.global_position
 	Input.action_press("move_forward")
 	await _frames(30)
 	Input.action_release("move_forward")
-	var walked := Vector2(player.global_position.x, player.global_position.z).length()
+	var walked := Vector2(player.global_position.x - before.x, player.global_position.z - before.z).length()
 	_check(walked > 1.5, "walks (%.2f m in 0.5 s)" % walked)
 
 	await _frames(30)
@@ -121,8 +122,56 @@ func _scene() -> void:
 	await _frames(2)
 	_check(player.global_position.is_equal_approx(spawn) or player.global_position.distance_to(spawn) < 0.2, "falling in the sea puts it back at the spawn")
 
+	await _chat(world, player)
+
 	world.queue_free()
 	await _frames(1)
+
+
+func _chat(world: Node3D, player: Player) -> void:
+	var orchestrator: Orchestrator = world.get_node("Orchestrator")
+	var chat: ChatController = world.get_node("ChatController")
+	var island: Island = world.get_node("Island")
+	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "the orchestrator stands in the middle")
+	await _frames(5)
+	_check(not chat.prompt_visible(), "no chat prompt at the spawn (6 m away)")
+
+	_press("interact")
+	await _frames(2)
+	_check(not chat.is_open(), "E does nothing far from the orchestrator")
+
+	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
+	await _frames(5)
+	_check(chat.prompt_visible(), "walking close shows \"Press E to chat\"")
+
+	_press("interact")
+	await _frames(2)
+	_check(chat.is_open() and not chat.prompt_visible(), "E opens the chat and hides the prompt")
+	# Headless Godot has no mouse (its mode always reads visible), so the
+	# mouse capture is checked in the running game, not here.
+	_check(not player.controls_enabled, "the chat pauses the player")
+	var at := player.global_position
+	Input.action_press("move_forward")
+	await _frames(20)
+	Input.action_release("move_forward")
+	_check(player.global_position.distance_to(at) < 0.05, "no walking while chatting")
+
+	_press("ui_cancel")
+	await _frames(2)
+	_check(not chat.is_open() and chat.prompt_visible(), "Esc closes the chat; the prompt is back")
+	_check(player.controls_enabled, "Esc gives the controls back")
+
+	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 6.0)
+	await _frames(5)
+	_check(not chat.prompt_visible(), "walking away hides the prompt")
+
+
+func _press(action: String) -> void:
+	for pressed in [true, false]:
+		var event := InputEventAction.new()
+		event.action = action
+		event.pressed = pressed
+		Input.parse_input_event(event)
 
 
 func _frames(n: int) -> void:

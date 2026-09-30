@@ -15,6 +15,9 @@ extends CharacterBody3D
 @export var respawn_depth := -1.2
 
 var spawn_point := Vector3.ZERO
+## Off while something else has the keyboard and mouse (the chat, C01):
+## no walking, jumping or looking, and a click doesn't capture the mouse.
+var controls_enabled := true
 
 var _jump := JumpAssist.new()
 
@@ -26,6 +29,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not controls_enabled:
+		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
 		rotate_y(-event.screen_relative.x * mouse_sensitivity)
@@ -43,10 +48,13 @@ func _physics_process(delta: float) -> void:
 	var on_floor := is_on_floor()
 	if not on_floor:
 		velocity += get_gravity() * delta
-	if _jump.step(delta, on_floor, Input.is_action_just_pressed("jump")):
+	var jump_pressed := controls_enabled and Input.is_action_just_pressed("jump")
+	if _jump.step(delta, on_floor, jump_pressed):
 		velocity.y = jump_velocity
 
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input := Vector2.ZERO
+	if controls_enabled:
+		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var target := global_basis * Vector3(input.x, 0.0, input.y)
 	target *= sprint_speed if Input.is_action_pressed("sprint") else walk_speed
 	var accel := ground_accel if on_floor else air_accel
