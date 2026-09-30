@@ -89,6 +89,10 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     const project = fs.mkdtempSync(path.join(os.tmpdir(), 'proj;x '))
     const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: project } })
     assert.equal(r.type, 'ok', JSON.stringify(r))
+    // Until it's up, the world tells the user to confirm in the terminal.
+    assert.deepEqual((r.result as any).notice, {
+      code: 'confirm_in_terminal', message: 'Confirm in the Claude Code terminal to start this session.',
+    })
     assert.equal(opened.length, 1)
     const [exe, mode, file] = opened[0]!.argv
     assert.equal(exe, '/sidecar')
@@ -123,6 +127,16 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     assert.ok(!launch.args.some((a) => a.startsWith('--permission-mode') || a.includes('dangerously-skip')))
     await c.close()
   } finally { await s.close(); await p.shutdown() }
+})
+
+test('terminal titles are plain printable text, short, whatever the session name holds', async () => {
+  const { terminalTitle } = await import('../src/providers/claude/index.ts')
+  assert.equal(terminalTitle('my-project'), 'Claude Code - my-project')
+  const nasty = 'fix it"; wt new-tab calc\r\n\t\u0007\u009b[31m \\ back\\slash' + 'x'.repeat(200)
+  const t = terminalTitle(nasty)
+  assert.ok(!/[\u0000-\u001f\u007f-\u009f;"\\]/.test(t), JSON.stringify(t))
+  assert.ok(t.length <= 'Claude Code - '.length + 60)
+  assert.equal(terminalTitle('\n\n'), 'Claude Code - session')
 })
 
 test('create reports a missing claude or terminal as a readable error', async () => {

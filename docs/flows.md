@@ -40,6 +40,7 @@ transcripts are off).
 - [5. A subagent](#5-a-subagent)
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
+- [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
 
 ## 0. Starting up
 
@@ -158,19 +159,18 @@ sequenceDiagram
     par Claude Code asks in both places
         Claude->>User: permission dialog in the terminal
     and
-        Claude->>Bridge: permission request (request ID)
+        Claude->>Bridge: permission request (request ID, tool, input preview)
         Bridge->>Sidecar: permission request
     end
-    Claude->>Sidecar: PermissionRequest
-    Sidecar-->>Claude: nothing to add (the user decides)
-    Sidecar->>World: permission.requested, agent → waiting (permission)
+    Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits up to 300 ms for its PreToolUse.
+    Sidecar->>World: permission.requested (ID = request ID),<br/>agent → waiting (permission)
     alt answered in the world
         User->>World: allow or deny
         World->>Sidecar: permission.respond
         Sidecar-->>World: ok
         Sidecar->>Bridge: verdict (request ID)
         Bridge->>Claude: verdict: terminal dialog closes
-        Sidecar->>World: permission.resolved (by app)
+        Sidecar->>World: permission.resolved (by app)<br/>(deny: also tool.finished denied, since no hook comes for it)
         Note over Claude: A deny from the world lets Claude continue its turn.
     else allowed in the terminal
         User->>Claude: allow
@@ -185,6 +185,12 @@ sequenceDiagram
         Sidecar->>World: permission.resolved (by external), agent → idle
     end
 ```
+
+The "No" line names the call's `tool_use_id`, so the sidecar resolves that
+exact prompt and closes the call as `denied`. When transcripts are off, a
+terminal "No" is only noticed when the orchestrator's turn ends or the user
+sends the next message: its prompts resolve as deny, by external. A
+subagent's prompt resolves when that subagent stops.
 
 ## 4. A clarifying question
 
@@ -218,6 +224,11 @@ sequenceDiagram
         Sidecar->>World: question.resolved (by external)
     end
 ```
+
+A free-text `response` from the world is sent as a deny carrying the
+user's words. If Claude Code drops the held hook (it timed out, or
+`claude` exited), or the turn ends with the question open (Esc), the
+question resolves by external.
 
 ## 5. A subagent
 
@@ -266,12 +277,14 @@ sequenceDiagram
         User->>World: stop
         World->>Sidecar: interrupt.request
         Sidecar-->>World: ok (world shows "stopping after this step")
+        Sidecar->>Claude: pending permission prompts: deny (through the bridge)
         Note over Claude: The current step (reply text or a running command) finishes.
-        Claude->>Sidecar: next PreToolUse
+        Claude->>Sidecar: next PreToolUse (of each busy agent)
         Sidecar-->>Claude: deny this call and stop (continue false)
         Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
         Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
-        Sidecar->>World: agent.state_changed (orchestrator → idle, or subagent → done)
+        Sidecar->>World: tool.finished (denied), agent.state_changed<br/>(orchestrator → idle, subagent → error "interrupted")
+        Note over Sidecar: The stop stays armed until no agent is working or waiting.
     else Esc in the terminal
         User->>Claude: Esc (stops at once, even mid-reply)
         Note over Claude: No hook fires.
@@ -300,4 +313,34 @@ sequenceDiagram
     end
     Claude->>User: normal behaviour: the terminal asks
     Note over User,Claude: Nothing is ever allowed because our side failed.<br/>Hooks resume when the sidecar comes back.
+```
+
+If the user's settings only allow other hook URLs (`allowedHttpHookUrls`),
+no hook ever arrives and nothing reports an error. The sidecar notices when
+a world message sent while the orchestrator is idle brings no hook within
+10 s, and sends `session.notice` (`hooks_unavailable`); chat still works
+through the bridge.
+
+## 8. Resuming a stored session (S04)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Store as Transcripts
+    participant Claude as Claude Code (terminal)
+
+    User->>World: open the list of earlier sessions
+    World->>Sidecar: session.list_stored (optionally one project)
+    Store->>Sidecar: each file's first and last 64 KiB (read-only):<br/>folder, where it started, name, first message
+    Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
+    User->>World: pick one
+    World->>Sidecar: session.resume (native_id)
+    Store->>Sidecar: its whole transcript: the chat so far
+    Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel
+    Sidecar-->>World: ok { session }
+    Note over Claude,Sidecar: From here it's flow 1: the confirmation, the bridge<br/>connects, session.created. The session keeps its id.
+    World->>Sidecar: session.get_history
+    Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
 ```

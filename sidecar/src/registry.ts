@@ -133,6 +133,7 @@ export class Registry {
       agents: structuredClone(intro.agents),
       permissions: [],
       ...('questions' in intro.capabilities ? { questions: [] } : {}),
+      notices: [],
     }
     const msg = { type: 'session.created', session: state }
     const checked = checkMessage(msg)
@@ -225,6 +226,13 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       if (!agent(e.question.agent)) return `unknown agent ${e.question.agent}`
       if (qs.some((q) => q.question === e.question.question)) return 'question already pending'
       qs.push(structuredClone(e.question))
+      return null
+    }
+    case 'session.notice': {
+      const i = s.notices.findIndex((n) => n.code === e.notice.code)
+      if (i >= 0 && s.notices[i]!.message === e.notice.message) return 'notice already shown'
+      if (i >= 0) s.notices[i] = { ...e.notice }
+      else s.notices.push({ ...e.notice })
       return null
     }
     case 'question.resolved': {
