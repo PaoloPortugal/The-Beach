@@ -1161,10 +1161,29 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   conversation's queue and are never answered (silently lost). Text typed
   in the terminal goes to the new conversation, whose hooks (same token)
   still reach the sidecar. Later the old bridge closes and the world
-  ends the session although `claude` still runs. Not yet checked: what
-  leaving the subagents view does (another `continued-in`, or back to
-  the old session). The user wants the world to follow the new
+  ends the session although `claude` still runs. Re-run 2026-09-30
+  (Claude Code 2.1.285): the same, and leaving the subagents view writes
+  no second `continued-in` and doesn't go back: terminal input stays in
+  the new session. The new transcript appeared about 6 s after the
+  `continued-in`, before any message, and the refused reconnects came
+  8 s and 9 s after it. The user wants the world to follow the new
   conversation.
+  *Fix decided (user, 2026-09-30), not built yet:* first a short live
+  test of whether Claude Code re-reads `mcp.json` when it restarts the
+  channel server. If it does, rotate the bridge token in that file after
+  each connect (every token stays single-use). If not, accept exactly
+  one reconnect with the same token per `continued-in` seen in the
+  followed transcript, only while the original bridge is still
+  connected and within a short window (about 30 s). Keep those checks
+  with rotation too. Once accepted: chat and verdicts go to the new
+  bridge, `native_id` and the followed transcript switch, the world gets
+  a session notice, and only the current bridge closing ends the
+  session. In every case, `message.send` and `permission.respond`
+  return a clear error while the current conversation has no live
+  bridge, instead of losing messages silently. `/clear` gets the same
+  treatment (switch `native_id` and show a notice on a hook with a new
+  `session_id`); check in the same live run whether it restarts the
+  channel server too.
 - `/clear` starts a new Claude conversation in the same terminal (new
   session id and transcript): the sidecar follows the new transcript, but
   the world keeps the old chat and `native_id`.
@@ -1425,7 +1444,8 @@ work and both walk back and go (after a fix: a walk could stall short
 of its end until the 20 s give-up). It also found that pressing Left in
 the terminal (Claude Code's subagents view) moves the conversation to a
 new session and cuts the world off (S02 → Known gaps, "Continued
-conversations"). Next: fix that (design with the user first); then the
+conversations"). Next: fix that (design decided with the user,
+2026-09-30; see that entry, starting with a short live test); then the
 last M1 feature, answering permission prompts and questions in
 the world (C05 and the `questions` capability's UI, **pulled into M1 by
 the user, 2026-09-30**): the sidecar side is built and tested, only
