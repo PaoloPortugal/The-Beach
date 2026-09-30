@@ -330,8 +330,8 @@ func _agents(world: Node3D) -> void:
 	_check(s2.is_leaving() and s2.get_node("Worker/Paper").visible and s2.shown_state() == "", "agents: a done one gets up with its paper")
 	await _frames(15)
 	_check(s2.worker_position().distance_to(s1.worker_position()) < start - 0.5, "agents: and walks to whoever called it")
-	await _until(func() -> bool: return agents.subagent("s2") == null, 10.0)
-	_check(agents.subagent("s2") == null and agents.subagent_count() == 2, "agents: and is gone once there")
+	await _until(func() -> bool: return agents.subagent("s2") == null, 3.0)
+	_check(agents.subagent("s2") == null and agents.subagent_count() == 2, "agents: and is gone once there (not only after giving up)")
 	store.apply({"type": "agent.spawned", "session": "h4", "seq": 6, "agent": _agent("s3", "main", "working")})
 	_check(agents.subagent("s3").slot == s2_slot, "agents: a freed slot is reused")
 
@@ -354,9 +354,17 @@ func _agents(world: Node3D) -> void:
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 10, "agent": "s1", "state": "working", "reason": null})
 	_check(agents.subagent("s1") != null and agents.subagent("s1").slot == s1_slot, "agents: resumed later, it comes back to its slot")
 
-	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 11, "agent": "main", "state": "idle", "reason": null})
+	# Walks to the orchestrator, 10+ m away, in about 4 s: every one of
+	# them gets there (a walk that never quite arrives gives up only
+	# after 20 s).
+	for a in ["s0", "s1", "s3"]:
+		store.apply({"type": "agent.state_changed", "session": "h4", "seq": 11, "agent": a, "state": "done", "reason": null})
+	await _until(func() -> bool: return agents.subagent_count() == 0, 8.0)
+	_check(agents.subagent_count() == 0, "agents: all walk to the orchestrator and go (%d left)" % agents.subagent_count())
+
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 12, "agent": "main", "state": "idle", "reason": null})
 	_check(orchestrator.get_node("StateMarker").shown() == "", "agents: an idle orchestrator shows no marker")
-	store.apply({"type": "session.ended", "session": "h4", "seq": 12, "reason": "exited"})
+	store.apply({"type": "session.ended", "session": "h4", "seq": 13, "reason": "exited"})
 	await _frames(2)
 
 
@@ -392,7 +400,7 @@ func _live(world: Node3D, player: Player) -> void:
 	panel.send()
 	await _until(func() -> bool: return agents.subagent_count() == 3, 8.0)
 	_check(agents.subagent_count() == 3, "live: three subagents appear")
-	await _until(func() -> bool: return agents.subagent_count() == 0, 30.0)
+	await _until(func() -> bool: return agents.subagent_count() == 0, 18.0)
 	_check(agents.subagent_count() == 0, "live: and all walk back and go when done")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("reported back"), 8.0)
 	_check(panel.shown_messages()[-1].contains("reported back"), "live: the orchestrator sums up")
