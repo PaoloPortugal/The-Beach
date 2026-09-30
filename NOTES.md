@@ -640,16 +640,35 @@ throws the report to it, and disappears. A resumed subagent (back to
 `working`) reappears. Chat is orchestrator-only for now; whether to talk to
 subagents directly is open question 4.
 
+*Decided (user's, 2026-09-30), for M1:* the placeholder is a smaller
+orchestrator (the same primitives at about 60 % size) at a little box PC.
+It pops in at its PC when spawned. When done, it gets up and walks in a
+straight line to its parent (the orchestrator, or a parent subagent still
+there) with a white paper over its head, and shrinks away on arrival; no
+throw and no path-finding yet. A resumed subagent pops back in at its PC.
+
 ### A03 Agent state indicators
 *Planned.* A visible state on each agent, from the protocol's state enum
 (see Protocol): working, waiting on the user (e.g. a permission prompt),
 idle (orchestrator), done (subagent) or error.
+
+*Decided (user's, 2026-09-30):* a minimal version comes into M1 with A02.
+A small marker floats over every agent, orchestrator included: working, a
+slowly spinning yellow diamond; waiting on you, a bouncing orange "!";
+idle and done, nothing; error, a red "×". An errored or interrupted
+subagent stays at its PC in red for about 10 s, then shrinks away.
 
 ### A04 Procedural agent placement
 *Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
 or grid with jitter) rather than hardcoded spots, and it handles about 20–30 per
 island. Nothing may assume a fixed maximum agent count. Options for larger
 counts are in Deferred ideas.
+
+*Decided (user's, 2026-09-30):* rings with fixed slots. Rings around the
+orchestrator from about 10 m out (outside the chat zone), slots about
+3 m apart along each ring, a little jitter, every agent facing the
+orchestrator and standing on the sand. More rings as needed, no maximum.
+An agent keeps its slot while it's there; a freed slot is reused.
 
 ### A05 Permission attention cue
 *Planned.* A pending permission prompt or question is shown on the
