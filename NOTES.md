@@ -480,13 +480,25 @@ prefix to that provider's UI module. Their payload schemas go in
 *Planned (v1).* A static beach island, one per session. In v1 there is
 exactly one. Later islands are created and removed dynamically (W04).
 
+*Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
+an element of randomness (e.g. Perlin-style noise; Godot's `FastNoiseLite`
+has it built in) so islands differ. The exact method is to look into when
+building it. Props (Kenney kits) are decided later.
+
 ### W02 Ocean
 *Planned (v1).* The ocean surrounding the islands. Unrelated projects get
 their own area of it (W05).
 
+*Decided (user's, 2026-09-30):* a flat-shaded low-poly water shader with
+gentle waves.
+
 ### W03 Player movement
 *Planned (v1).* On-foot movement for walking up to agents. Keep it capable
 enough to support parkour later; don't make it so plain that it rules parkour out.
+
+*Decided (user's, 2026-09-30):* first-person camera. A `CharacterBody3D`
+with walk, sprint and jump from the start, plus coyote time and jump
+buffering.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
@@ -518,6 +530,9 @@ waiting longest on a permission or question.
 desk or under an umbrella (look: open question 7). It's the main way you
 interact with a session (see C01).
 
+*Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
+question 7 is settled.
+
 ### A02 Subagents
 *Planned (v1).* Small models at little PCs on the island's sand. They
 appear when the orchestrator spawns them. When one finishes (`done`), it
@@ -545,10 +560,17 @@ relevant island and agent, so a waiting agent visibly draws your attention.
 *Planned (v1).* Walking up to an orchestrator opens the chat panel for its
 session.
 
+*Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
+opens the panel and frees the mouse, Esc closes it.
+
 ### C02 Chat panel
 *Planned (v1: plain text).* A core feature, not an afterthought, because this
 is a working environment. It needs streaming responses. v1 renders plain text
 wired to the sidecar.
+
+*Direction (user's, 2026-09-30):* a panel in the world, not a screen
+overlay: it pops out of the agent and always faces you. Details (size,
+distance, readability, how it animates) are defined when C02 is built.
 
 ### C03 Markdown rendering
 *Planned. Scope: core* (it renders the generic `message` text). Godot's
@@ -1075,33 +1097,20 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    their logos in a product without permission (Watch items → Claude
    branding), so a public release needs an original look. Decide before
    modelling the agents (A01, A02).
-8. **The M1 world's feel** (W01, W02, W03, A01, C01, C02). To settle
-   before building them; my recommendations (2026-09-29), for the user
-   to decide when M1 starts:
-   - *Camera:* third person, orbiting with the mouse, over the shoulder
-     (you see your character for parkour later, and the agents around
-     you).
-   - *Movement:* `CharacterBody3D` with walk, sprint and jump from the
-     start, plus coyote time and jump buffering (keeps parkour possible).
-   - *Island:* a generated low-poly mesh (code, so it can grow and change
-     per session later), dressed with Kenney props.
-   - *Ocean:* a flat-shaded low-poly water shader with gentle waves.
-   - *Props:* Kenney Pirate Kit (CC0, 70 models, including islands, boats
-     and characters), plus Nature Kit and Furniture Kit if they fit.
-   - *Orchestrator:* a plain placeholder at a desk until question 7 is
-     settled.
-   - *Opening the chat:* walk close, "Press E to chat" appears, E opens the
-     panel and frees the mouse, Esc closes it.
-   - *Chat panel:* a screen-space panel on the right, with the world
-     still visible and running behind it.
+8. ~~**The M1 world's feel**~~ *Mostly decided (user's, 2026-09-30),
+   recorded in W01, W02, W03, A01, C01 and C02:* first-person camera
+   (not the third person I recommended); movement, ocean, placeholder
+   orchestrator and "Press E to chat" as recommended; the island
+   generated with some randomness (noise). Still open: the props (Kenney
+   Pirate, Nature and Furniture kits were the suggestion) and the chat
+   panel's details (it's in the world, facing you, not the screen-space
+   panel I recommended).
 
 ## Known issues and next steps
 
-**Current focus:** M1. S01 and S02 are built (S02 passed both review
-checkpoints, the second a live run with the user); S02's branches merge to
-`main` with the user's approval. Next is the M1 world (W01, W02, W03, A01,
-C01, C02), which needs the user's calls on camera, movement, island,
-ocean, props and the chat panel first (open question 8).
+**Current focus:** M1. S01 and S02 are built and merged. The M1 world
+(W01, W02, W03, A01, C01, C02) is on branch `m1-world`; its feel is
+decided (open question 8) apart from props and the chat panel's details.
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
 provider (S02), S04's list and resume, the scripted `dev:fake` for
