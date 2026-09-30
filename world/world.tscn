@@ -1,9 +1,11 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://world/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://world/island/island.gd" id="2_island"]
 [ext_resource type="PackedScene" path="res://world/ocean/ocean.tscn" id="3_ocean"]
 [ext_resource type="PackedScene" path="res://world/player/player.tscn" id="4_player"]
+[ext_resource type="PackedScene" path="res://agents/orchestrator/orchestrator.tscn" id="5_orch"]
+[ext_resource type="PackedScene" path="res://chat/chat_controller.tscn" id="6_chat"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.32, 0.56, 0.86, 1)
@@ -46,3 +48,8 @@ script = ExtResource("2_island")
 [node name="Ocean" parent="." instance=ExtResource("3_ocean")]
 
 [node name="Player" parent="." instance=ExtResource("4_player")]
+
+[node name="Orchestrator" parent="." instance=ExtResource("5_orch")]
+
+[node name="ChatController" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_chat")]
+player = NodePath("../Player")
