@@ -8,14 +8,15 @@ here; each section is labelled with its feature ID.
 - [Running it](#running-it)
 - [The island and the ocean (W01, W02)](#the-island-and-the-ocean-w01-w02)
 - [Moving around (W03)](#moving-around-w03)
+- [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: you arrive on an island you can walk around. There are no AI
-agents or chat in the world yet.
+press F5: you arrive on an island you can walk around, facing a stand-in
+for the AI agent at a desk. You can't chat with it yet.
 
 The game picks its graphics mode by itself. If it won't start or looks
 wrong, you can force the simpler mode by starting it with
@@ -40,6 +41,7 @@ You see the world through your character's eyes.
 | Jump | Space |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
+| Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts
 (such as AZERTY) use the keys in the same place.
@@ -47,6 +49,17 @@ The keys follow their position on the keyboard, so on other layouts
 Jumps are forgiving: pressing jump just before you land, or just after
 you step off an edge, still counts. You can wade into the shallows; go
 too deep and you're put back in the middle of the island.
+
+## Talking to the orchestrator (C01)
+
+In the middle of the island, an AI agent sits at a desk: the
+**orchestrator**, the one you talk to. For now it's a plain stand-in
+figure.
+
+Walk up to it and **Press E to chat** appears. Press E to open the chat:
+it fills most of the screen and frees your mouse pointer, and you can't
+walk while it's open. Press Esc to close it and carry on walking. The
+chat itself (your conversation and a box to type in) isn't there yet.
 
 ## The sidecar (S01)
 

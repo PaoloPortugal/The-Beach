@@ -82,12 +82,13 @@ v1 slice.
 | W05 | Archipelagos (project clustering)         | planned | n/a           | n/a       |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
 | W07 | Teleport menu                             | planned | n/a           | n/a       |
-| A01 | Orchestrator (v1)                         | planned | n/a           | n/a       |
+| W08 | Swimming and seabed                       | planned | n/a           | n/a       |
+| A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | planned | n/a           | n/a       |
 | A03 | Agent state indicators                    | planned | n/a           | n/a       |
 | A04 | Procedural agent placement (v1)           | planned | n/a           | n/a       |
 | A05 | Permission attention cue                  | planned | n/a           | n/a       |
-| C01 | Walk up to chat (v1)                      | planned | n/a           | n/a       |
+| C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
 | C02 | Chat panel, plain text and streaming (v1) | planned | n/a           | n/a       |
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
@@ -346,7 +347,8 @@ removing a provider means deleting its folders.
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
 | `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `ocean/` (W02), `player/` (W03). |
-| `agents/`, `chat/` | Agent and chat-panel scenes and scripts (as A and C features land). |
+| `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
+| `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); the chat panel (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
 | `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
 
@@ -546,11 +548,11 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   walking off an edge. Each press and each ledge gives one jump only.
 - *Falling in the sea.* The player can wade into the shallows; with the
   feet 1.2 m under the water it's put back at the spawn point (the middle
-  of the island). A placeholder until there's swimming or a better answer.
+  of the island). A placeholder until swimming (W08).
 
 The world scene (`world/world.tscn`, the main scene) puts the island,
-ocean, sun, sky and player together and spawns the player on the island's
-middle.
+ocean, sun, sky, orchestrator, chat and player together: the orchestrator
+in the island's middle, the player 6 m in front of it, facing it.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
@@ -577,6 +579,12 @@ add a minimap are open question 3.
 waited longest" shortcut that jumps straight to the agent that has been
 waiting longest on a permission or question.
 
+### W08 Swimming and seabed
+*Planned (user's request, 2026-09-30).* Swim instead of being put back on
+the island when you wade too deep (W03's placeholder), and a seabed worth
+seeing: varied depths (shallows, drop-offs, deeper water) rather than one
+flat sea floor, which also means the water can't stay opaque everywhere.
+
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
 desk or under an umbrella (look: open question 7). It's the main way you
@@ -584,6 +592,14 @@ interact with a session (see C01).
 
 *Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
 question 7 is settled.
+
+*Placeholder built. Scope: core.* `agents/orchestrator/`: a capsule body
+and a sphere head behind a desk, all Godot primitives (no art assets),
+facing +z. It has a solid collision box and a `ChatZone` (`Area3D`,
+radius 2.5 m) that signals when the player walks in or out (C01), and a
+`MessageAnchor` above its head for the latest-message window (C02). It
+joins the `orchestrators` group. `session_id` is empty until sessions reach
+the world (not bound to `SessionStore` yet).
 
 ### A02 Subagents
 *Planned (v1).* Small models at little PCs on the island's sand. They
@@ -615,14 +631,32 @@ session.
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
 opens the panel and frees the mouse, Esc closes it.
 
+*Built. Scope: core.* `ChatController` (`chat/`) listens to every
+orchestrator's chat zone. While the player is in one, "Press E to chat"
+shows at the bottom of the screen. E (`interact`, physical key) opens that
+orchestrator's chat panel, frees the mouse and turns the player's controls
+off (`Player.controls_enabled`: no walking, jumping, looking, or
+click-to-capture). Esc closes it, captures the mouse and gives the controls
+back; the controller reads Esc in `_input` and marks it handled, so the
+player's own Esc (free the mouse) doesn't also fire. Until C02 the panel
+is an empty stand-in over almost the whole screen. Checked headless
+(zone, prompt, open, no walking while open, close) and in the running game
+(the mouse; headless Godot has none).
+
 ### C02 Chat panel
 *Planned (v1: plain text).* A core feature, not an afterthought, because this
 is a working environment. It needs streaming responses. v1 renders plain text
 wired to the sidecar.
 
-*Direction (user's, 2026-09-30):* a panel in the world, not a screen
-overlay: it pops out of the agent and always faces you. Details (size,
-distance, readability, how it animates) are defined when C02 is built.
+*Direction (user's, 2026-09-30, revised the same day):* two parts.
+- *Latest message, always visible:* a small window flying above each
+  orchestrator, always facing you, showing the last message it sent.
+- *Full chat panel on interact (C01):* the history and the message box,
+  taking up almost all the screen.
+
+This replaces the first direction (the whole panel in the world, popping
+out of the agent). Details (length of the floating message, streaming in
+it, size and look of both) are defined when C02 is built.
 
 ### C03 Markdown rendering
 *Planned. Scope: core* (it renders the generic `message` text). Godot's
@@ -1064,8 +1098,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: an island to walk around (W01–W03), with no agents or chat
-yet.
+for the world: an island to walk around (W01–W03) with a placeholder
+orchestrator you can walk up to (A01, C01); no chat yet (C02).
 
 In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
@@ -1107,7 +1141,8 @@ godot --headless --path . --script res://tests/world/world_test.gd
 
 The world test checks the island generator and jump assist, then runs the
 world scene with real physics (landing, walking, jumping, the sea
-respawn). It can't check looks: for those, run the game, under both
+respawn), and walking up to the orchestrator to open and close the chat
+(A01, C01). It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
@@ -1168,8 +1203,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** M1. S01 and S02 are built and merged. On branch
-`m1-world`: W01, W02 and W03 are built (an island to walk around); next
-are the orchestrator and walking up to chat (A01, C01, C02). The M1
+`m1-world`: W01–W03, A01 (placeholder) and C01 are built: an island to
+walk around, with an orchestrator to walk up to. Next is the chat panel
+(C02), wired to the sidecar, and how a session reaches the world. The M1
 world's feel is decided (open question 8) apart from props and the chat
 panel's details.
 
