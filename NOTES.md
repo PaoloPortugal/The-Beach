@@ -1222,7 +1222,10 @@ all reached Claude; a stop from the world denied the next call and nothing
 ran after it; Esc during a reply and "No" in the terminal reached the
 world through the transcript; history was complete; `/exit` ended the
 session. One gap found and fixed: a question answered with free text left
-its tool call open (Claude Code sends no hook for it).
+its tool call open (Claude Code sends no hook for it). Re-checked in a
+second session: the stop (the terminal shows "The user stopped this from
+the app."), Esc before any output and mid-reply (after 23 streamed
+batches; the partial message is completed), and "No" on a dialog.
 
 **Next:** the S02 docs (Systems section rewrite, guide section, dev log),
 then S02 is ready to merge. After S02: the M1 world, which needs the
