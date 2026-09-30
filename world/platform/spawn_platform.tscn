@@ -99,4 +99,3 @@ title = "Choose the session's project folder"
 ok_button_text = "Select This Folder"
 file_mode = 2
 access = 2
-use_native_dialog = true

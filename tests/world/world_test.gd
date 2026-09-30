@@ -151,7 +151,13 @@ func _post(world: Node3D, player: Player) -> void:
 	player.global_position = Vector3(0, 1.1, -1.2)
 	await _frames(5)
 	_check(post.prompt_visible(), "near the post: \"Press E to start a session\"")
-	# The folder picker needs a display; create() is what it calls.
+	_press("interact")
+	await _frames(2)
+	_check(post.picker().visible and not player.controls_enabled and not post.prompt_visible(), "E opens the folder picker, in the game window, and pauses the player")
+	post.picker().get_cancel_button().pressed.emit()
+	await _frames(2)
+	_check(not post.picker().visible and player.controls_enabled and post.prompt_visible(), "cancelling it gives the controls back")
+	# Choosing a folder ends in create().
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "the sidecar is up")

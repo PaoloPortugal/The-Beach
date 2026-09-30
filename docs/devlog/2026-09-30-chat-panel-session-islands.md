@@ -59,11 +59,16 @@ vanished when the sidecar finished connecting, which is correct (the
 store drops sessions the sidecar doesn't have after a sync); scratch
 scripts now wait for the sidecar first.
 
-## Native folder picker
+## The folder picker: native, then Godot's own
 
-A native `FileDialog` never becomes visible as a Godot window; it only
-reports back through `dir_selected` and `canceled` (Godot's source). So
-the post gives the controls back on those two signals, not on
-visibility. The picker can't run headless; the test calls
-`SessionPost.create` directly. Not yet checked by hand in the running
-game.
+First version: the system's native picker (`use_native_dialog`). A native
+`FileDialog` never becomes visible as a Godot window; it only reports
+back through `dir_selected` and `canceled` (Godot's source), so the post
+gave the controls back on those. In the live test with the user, alt-tab
+while the Windows picker was open left the game stuck: tabbing back
+showed the game, not the picker, and the game kept waiting for it (the
+log showed no error; the process was still responding). Godot can't
+reliably bring a native dialog back or close it, so the post now uses
+Godot's own picker, drawn inside the game window, where alt-tab can't
+lose it and Esc cancels it. It starts in the home folder. The test now
+opens and cancels it headlessly.
