@@ -37,3 +37,4 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Windows terminals and S02 checkpoint 1](2026-09-29-windows-terminals.md) | S02 |
 | 2026-09-29 | [S02: permissions, questions, stopping, transcript, notices, history](2026-09-29-s02-relay-questions-stop.md) | S02 |
 | 2026-09-30 | [M1 world feel](2026-09-30-m1-world-feel.md) | W01, W02, W03, A01, C01, C02 |
+| 2026-09-30 | [Island, ocean and first-person movement](2026-09-30-island-ocean-movement.md) | W01, W02, W03 |

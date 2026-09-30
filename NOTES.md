@@ -75,9 +75,9 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | planned | n/a           | n/a       |
-| W02 | Ocean (v1)                                | planned | n/a           | n/a       |
-| W03 | Player movement (v1)                      | planned | n/a           | n/a       |
+| W01 | Beach island (v1)                         | built   | W01, W02      | `world/island/` |
+| W02 | Ocean (v1)                                | built   | W01, W02      | `world/ocean/` |
+| W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
 | W05 | Archipelagos (project clustering)         | planned | n/a           | n/a       |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
@@ -345,7 +345,8 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/`, `agents/`, `chat/` | World, agent and chat-panel scenes and scripts (as W, A and C features land). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `ocean/` (W02), `player/` (W03). |
+| `agents/`, `chat/` | Agent and chat-panel scenes and scripts (as A and C features land). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
 | `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
 
@@ -477,28 +478,79 @@ prefix to that provider's UI module. Their payload schemas go in
 ## Systems
 
 ### W01 Beach island
-*Planned (v1).* A static beach island, one per session. In v1 there is
+*Built (v1). Scope: core.* A beach island, one per session. In v1 there is
 exactly one. Later islands are created and removed dynamically (W04).
 
 *Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
-an element of randomness (e.g. Perlin-style noise; Godot's `FastNoiseLite`
-has it built in) so islands differ. The exact method is to look into when
-building it. Props (Kenney kits) are decided later.
+an element of randomness so islands differ. Props (Kenney kits) are
+decided later.
+
+**How it works.** `IslandGenerator` (`world/island/island_generator.gd`)
+turns a seed into a height field; `Island` (`island.gd`, a
+`StaticBody3D`) builds its mesh and a matching `ConcavePolygonShape3D`.
+The water level is y = 0.
+- *Shape.* A flat middle (radius 7 m, 2 m above the water) for the
+  orchestrator, sloping down to a shoreline about 30 m out, then to the
+  sea floor (-4 m). Perlin noise (`FastNoiseLite`), sampled around a
+  circle so the outline closes, moves the shoreline by up to about ±30 %.
+  A second Perlin noise adds dunes between the middle and the beach; they
+  fade out before the beach so the shoreline stays clean (no holes or
+  stray islets).
+- *Low-poly look.* A 2 m grid with jittered vertices and alternating
+  diagonals, one normal per triangle (flat shading), and one colour per
+  triangle by height: seabed, wet sand, sand, grass on dune tops. The
+  colours are sRGB (`vertex_color_is_srgb`).
+- *Seed.* `island_seed` 0 (the default) picks a new island every run and
+  prints its seed; any other value pins it. Later the seed can come from
+  the session so its island stays the same.
 
 ### W02 Ocean
-*Planned (v1).* The ocean surrounding the islands. Unrelated projects get
-their own area of it (W05).
+*Built (v1). Scope: core.* The ocean surrounding the islands. Unrelated
+projects get their own area of it (W05).
 
 *Decided (user's, 2026-09-30):* a flat-shaded low-poly water shader with
 gentle waves.
 
+**How it works.** `world/ocean/`: an 800 m plane cut into 4 m cells.
+The shader (`ocean.gdshader`) moves the vertices with three sine waves in
+world space (about ±0.35 m, 14 m long) and lights each triangle flat from
+screen-space derivatives; wave crests are lighter. The plane follows the
+camera in whole cells (`ocean.gd`), so the waves don't jump when it
+moves. Its edge is hidden by depth fog (`world/world.tscn`) that is
+complete at 390 m, in the same colour as the sky's horizon and ground,
+so the horizon is seamless. The water is opaque; you don't see the sea
+floor. Plain enough for the Compatibility renderer.
+
 ### W03 Player movement
-*Planned (v1).* On-foot movement for walking up to agents. Keep it capable
-enough to support parkour later; don't make it so plain that it rules parkour out.
+*Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
+it capable enough to support parkour later; don't make it so plain that it
+rules parkour out.
 
 *Decided (user's, 2026-09-30):* first-person camera. A `CharacterBody3D`
 with walk, sprint and jump from the start, plus coyote time and jump
 buffering.
+
+**How it works.** `Player` (`world/player/`): a capsule 1.8 m tall with
+the camera at 1.6 m (FOV 80). No body is drawn.
+- *Controls.* WASD (physical keys, so they sit in the same place on
+  AZERTY), Shift to sprint, Space to jump, mouse to look (pitch clamped
+  just short of straight up and down). The mouse is captured at start; Esc
+  frees it and a click captures it again. The input actions are in
+  `project.godot`, written by hand: godot-ai can't bind physical keys (dev
+  log 2026-09-30-island-ocean-movement).
+- *Feel.* Walk 5 m/s, sprint 8.5 m/s, reached quickly on the ground
+  (acceleration 50 m/s²) and slowly in the air (12 m/s²). A jump is
+  5.5 m/s up, about 1.5 m high.
+- *Coyote time and jump buffering* (`JumpAssist`, `jump_assist.gd`):
+  a jump still counts if pressed up to 0.12 s before landing or after
+  walking off an edge. Each press and each ledge gives one jump only.
+- *Falling in the sea.* The player can wade into the shallows; with the
+  feet 1.2 m under the water it's put back at the spawn point (the middle
+  of the island). A placeholder until there's swimming or a better answer.
+
+The world scene (`world/world.tscn`, the main scene) puts the island,
+ocean, sun, sky and player together and spawns the player on the island's
+middle.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
@@ -1010,9 +1062,10 @@ names. Add to this list if it ever has to appear anywhere new.
 
 ## Running it
 
-There's no world yet (the first scene comes with W01), but the sidecar
-and Godot's client run. Needs Node **22.21.0** (pinned; packaging refuses
-any other version) and Godot 4.7.2.
+Needs Node **22.21.0** (pinned; packaging refuses any other version) and
+Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
+for the world: an island to walk around (W01–W03), with no agents or chat
+yet.
 
 In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
@@ -1049,7 +1102,13 @@ executable). Headless smoke test, from the repo root:
 godot --headless --path . --script res://tests/core/sidecar_client_test.gd
 godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
+godot --headless --path . --script res://tests/world/world_test.gd
 ```
+
+The world test checks the island generator and jump assist, then runs the
+world scene with real physics (landing, walking, jumping, the sea
+respawn). It can't check looks: for those, run the game, under both
+renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
@@ -1108,9 +1167,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M1. S01 and S02 are built and merged. The M1 world
-(W01, W02, W03, A01, C01, C02) is on branch `m1-world`; its feel is
-decided (open question 8) apart from props and the chat panel's details.
+**Current focus:** M1. S01 and S02 are built and merged. On branch
+`m1-world`: W01, W02 and W03 are built (an island to walk around); next
+are the orchestrator and walking up to chat (A01, C01, C02). The M1
+world's feel is decided (open question 8) apart from props and the chat
+panel's details.
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
 provider (S02), S04's list and resume, the scripted `dev:fake` for
@@ -1251,6 +1312,13 @@ exists.
 - **Markdown → BBCode rendering (C03)** was the biggest UX risk. The
   spike shows it works; what's left is the cost of rendering long
   histories at once (see C03).
+- **Compatibility renderer and sun shadows.** Under Compatibility (Godot
+  4.7.2, Windows, AMD Radeon, OpenGL 3.3), any directional-light shadow
+  washes the island out to pure white, in every shadow mode and even with
+  the sun at 0.3 energy; Forward+ is fine. The world turns sun shadows
+  off under Compatibility (`world/world.gd`). Recheck on Godot updates and
+  on other GPUs; if it's a Godot bug, report it and remove the fallback
+  once fixed.
 - **Untested on macOS and Linux.** Everything verified so far (S02, C03)
   ran on Windows 11 only, and only Windows is available to test on. The
   launch flow (terminal launcher, finding `claude`, the channel
