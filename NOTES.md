@@ -95,7 +95,7 @@ v1 slice.
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
-| S02 | Claude provider (v1)                      | in progress | n/a       | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
+| S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | planned | n/a           | n/a       |
 | S04 | List and resume stored sessions           | sidecar side built (branch) | n/a | `sidecar/src/providers/claude/store.ts` |
 | S05 | End session                               | planned | n/a           | n/a       |
@@ -674,8 +674,8 @@ console window. Which sidecar runs: next to the game executable in exports;
 `node sidecar/src/main.ts` in the editor; `-- --sidecar=<path>` or
 `-- --sidecar-dev-fake` override it (see Running it).
 
-**Session store** (`core/sessions/session_store.gd`, `SessionStore`, built
-on branch `core-session-store`): a plain class (no autoload) that the world
+**Session store** (`core/sessions/session_store.gd`, `SessionStore`,
+built with S02): a plain class (no autoload) that the world
 creates and `attach`es to the client. It applies every event to its copy
 of each session (the protocol's session object, plus the chat so far and a
 tool-call log, capped at 2000 messages and 500 calls per session) and emits
@@ -694,316 +694,212 @@ running, but the world loses them); export presets that copy the executable
 next to the game come with the first export.
 
 ### S02 Claude provider
-*Planned (v1).* Verified by the M0 integration spike (Claude Code 2.1.284,
-Windows; dev log 2026-09-29-claude-cli-spike). Diagrams: `docs/flows.md`.
-The only place Claude-specific names may appear. It drives the user's own
-installed `claude` CLI, signed in with their own account through
-Anthropic's login.
-Our code never reads, stores or passes on Claude credentials, and never
-modifies or bundles Claude Code.
+*Built (v1). Scope: core* (a provider; sessions declare the `questions`
+and `interrupt` capabilities, no extension yet). Code:
+`sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
+`session.ts` runs one session, `hooks.ts` and `hook-server.ts`, `bridge.ts`
+and `bridge-server.ts`, `transcript.ts`) and the generic
+`sidecar/src/launch/`. Diagrams: `docs/flows.md`. Dev logs:
+2026-09-29-claude-cli-spike, -windows-terminals,
+-s02-relay-questions-stop. The only place Claude-specific names may
+appear. It drives the user's own installed `claude` (minimum 2.1.284),
+signed in with their own account; our code never reads, stores or passes
+on Claude credentials, and never modifies or bundles Claude Code.
 
-**Launch.** It opens a terminal window through the terminal launcher
-(Architecture → Platforms; the spike used Windows Terminal directly) and
-starts `claude` with:
-- `--settings <json>`: hooks for this session only, so the user's own
+**Launch.** A terminal window opens through the terminal launcher
+(Architecture → Platforms) and starts `claude` in the project folder with:
+- `--session-id <uuid>` (it becomes `native_id`) and `--name`, or
+  `--resume <id>` for a stored session (S04; the id stays the same);
+- `--settings <file>`: our hooks for this session only, so the user's own
   settings files are never edited;
-- `--session-id <uuid>`: the ID is known before the session starts
-  (becomes `native_id`); verified;
-- `--mcp-config` plus `--dangerously-load-development-channels server:<name>`:
-  registers our channel. While channels are a research preview, custom
-  channels need this flag, and Claude Code asks the user to confirm it in the
-  terminal at startup (plus folder trust the first time). So the terminal
-  must be visible, at least at launch;
-- `--name`: the session's display name;
-- a **clean environment** (see Security rules). Inherited session
-  markers make `claude` treat itself as nested and turn transcript saving
-  off, and leak another session's values. Verified: with them removed, the
-  transcript is written live.
+- `--mcp-config` plus `--dangerously-load-development-channels
+  server:world-bridge`: our channel. Custom channels need this flag while
+  channels are a research preview;
+- a **clean environment** (Security rules): inherited session markers make
+  `claude` treat itself as nested and stop saving transcripts.
 
-It passes no permission mode unless the user picks one at launch (C06):
-by default the session uses the user's own (the spike ran in the user's
-default `auto` mode, where prompts are rare).
-Every hook carries `permission_mode`, so the world can show it.
+No permission mode is chosen for the user (C06 will let them pick one at
+launch); every hook carries `permission_mode`. With the common `auto` mode
+Claude Code rarely asks for permission at all.
 
-**Seeing the session: HTTP hooks** posted to the sidecar on localhost, with
-a per-session token header. Verified mapping:
-- The session is known to exist from the launch and the bridge connecting
-  (or its first hook, which also only comes after the startup dialogs).
-  `SessionStart` doesn't support HTTP hooks. It ends when the bridge's
-  connection closes (Claude Code exited), not on `SessionEnd`, which also
-  fires for `/clear` and `resume` while `claude` keeps running, so we don't
-  register it.
-- `UserPromptSubmit` → user message. Four kinds, told apart by content:
-  typed in the terminal (plain text); from the world (wrapped in
-  `<channel source="world-bridge" ...>`, unwrapped for display); and two
-  that Claude Code injects, which are not user messages (the orchestrator
-  goes back to working): a `<task-notification>` when a background task
-  ends (its `<status>` ends a subagent stopped from the terminal), and a
-  **subagent hand-back** `<agent-message from="<agent_id>">` carrying a
-  subagent's final report (seen live, 2.1.284). Injected prompts reuse the
-  user's `prompt_id`, so it names a user message only the first time.
-- `MessageDisplay` → assistant text, in batches of whole lines
-  (`message_id`, `index`, `final`, and `delta`: only the new text; the docs
-  describe a single `message_text` instead, also accepted). The final batch
-  completes the message with the full text. Must be answered instantly
-  with an empty body.
-- `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, keyed
-  by `tool_use_id`. Inside a subagent they carry its `agent_id`.
-- `SubagentStart` / `SubagentStop` → subagents (`agent_id`, `agent_type`;
-  stop carries `last_assistant_message`, the report). Subagents run in the
+**Starting up: confirm in the terminal** (user's decision, idea from Agent
+Office). Claude Code shows folder trust the first time in a folder, and the
+development-channel confirmation **at every launch** (checkpoint 1). Its
+bridge only starts after those dialogs, so until it connects we hear
+nothing and can't tell why. The `session.create` / `session.resume` reply
+carries `notice: confirm_in_terminal` ("Confirm in the Claude Code
+terminal to start this session.") for Godot's "starting" placeholder; if
+nothing has come up after about two minutes, Godot says "Still starting;
+check the terminal" on its own (it knows when it asked). The island is only
+created once the session is ready (`session.created`); how the world shows
+a session waiting to start is decided when building the game (user's
+decision). The session counts as up when the bridge connects, or at its
+first hook; it counts as gone if neither happens within 15 min (the user
+chose Exit at a dialog).
+
+**Talking to the session: the channel bridge.** A channel is an MCP server
+Claude Code starts as a subprocess; ours is the sidecar executable in
+`bridge claude` mode (our own few MCP messages, not the SDK; Watch items).
+It connects back to the sidecar over loopback with the session's token.
+- **Chat:** the world's message is pushed as a channel event wrapped in
+  `<channel source="world-bridge" ...>`; Claude treats it as the user's
+  and replies normally (no reply tool). The optional `prompt` of
+  `session.create` is sent this way once the session is up.
+- **Permission relay:** Claude Code sends each permission prompt to the
+  bridge (with a five-letter `request_id`) while the terminal shows its
+  dialog; a verdict from the world closes that dialog.
+
+**Seeing the session: HTTP hooks** posted to one loopback endpoint per
+sidecar (`POST /hook`, a token per session, `Origin` and foreign `Host`
+refused, 16 MiB limit), always answered at once with no decision (except
+questions and stops, below). Timeouts: 5 s for hooks that only report, 2 s
+for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
+2.1.284's payloads, which differ from the docs in places):
+- `UserPromptSubmit` → a user message: typed in the terminal, or from the
+  world (unwrapped from the channel tag). Two kinds Claude Code injects are
+  not user messages (the orchestrator goes back to working): a
+  `<task-notification>` when a background task ends (its status ends a
+  subagent stopped from the terminal), and a **subagent hand-back**
+  `<agent-message from="…">` carrying a subagent's final report. Injected
+  prompts reuse the user's `prompt_id`, so it names a message only once.
+- `MessageDisplay` → assistant text in batches of whole lines (`delta`
+  holds only the new text; the final batch completes the message).
+- `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, with a
+  one-line summary ("Run: npm install", paths relative to the project);
+  inputs over 64 KiB aren't forwarded. A call that is never run gets no
+  hook of its own (denied, stopped, or a question answered with free
+  text), so the sidecar closes it as `denied`.
+- `SubagentStart` / `SubagentStop` → subagents. `SubagentStart` doesn't
+  name the parent: it's the agent whose `Agent` tool call came just
+  before (paired by agent type, oldest first). Subagents run in the
   background by default, so the orchestrator is often `idle` while they
-  work. Claude Code also runs **internal helper agents** that fire
-  `SubagentStop` and tool hooks with an empty `agent_type` and no
-  `SubagentStart`: ignore any agent never seen starting. **Gap:**
-  `SubagentStart` doesn't name the parent; infer it from the `Agent` tool
-  call just before (whose hook carries the caller's `agent_id` if it's a
-  subagent). Reliable one at a time; recheck for parallel spawns.
-- `PermissionRequest` → permission requested (also `Notification` with
-  `permission_prompt` about 6 s later).
-- `Notification` also says when Claude Code waits on the user for other
-  reasons (hooks docs, checked 2026-09-29; not yet seen live):
-  `elicitation_dialog` / `elicitation_url_dialog` (one of the user's MCP
-  servers asks something in the terminal) and `agent_needs_input` → the
-  agent is `waiting` with reason `input`, until the next hook shows it
-  moving again (`elicitation_complete` / `elicitation_response` for
-  elicitations). `idle_prompt` only repeats that the turn is over.
-- A long operation is not a waiting state: after `PreToolUse` and before
-  its `PostToolUse`, the agent is working on that tool call (no hook fires
-  while a command runs, but the open call is known).
-- `Stop` → orchestrator idle, with `last_assistant_message`. `StopFailure`
-  → error.
-- *Built (2026-09-29):* `sidecar/src/providers/claude/hook-server.ts` (the
-  endpoint: one per sidecar, loopback, a token per session, `Origin` and
-  foreign `Host` refused, `POST /hook` only, 16 MiB body limit, always an
-  instant empty 200) and `hooks.ts` (the `--settings` file, and the
-  translation). Tool calls get a one-line summary (e.g. "Run: npm
-  install", paths relative to the project); inputs over 64 KiB aren't
-  forwarded. Parallel spawns pair an `Agent` call with its subagent by
-  agent type, oldest first. Verified live: a turn with a file write, a
-  failed read, a background subagent and its hand-back.
-- *Permission relay, built (verified live at checkpoint 2).* A prompt reaches the world from the **channel's relay**, not the
-  `PermissionRequest` hook (not registered: questions will need it, plain
-  permissions don't). The relay has no tool call or agent, so the sidecar
-  ties it to the open tool call of the same tool whose input the relay's
-  preview shows (else the newest one without a prompt), waiting up to
-  300 ms for that call's `PreToolUse`, which arrives on the hook
-  connection about 100 ms earlier. The permission's id is the relay's
-  `request_id`; `permission.respond` sends the verdict down the bridge.
-  Resolving: allowed in the world → `permission.resolved` (app); denied in
-  the world → also `tool.finished` `denied` (Claude Code sends no hook for
-  a denied call); the call's `PostToolUse` or `PostToolUseFailure` →
-  allowed in the terminal (external); the orchestrator's turn ending or
-  the user's next message while it's pending → "No" in the terminal
-  (external deny), a fallback until the transcript follower. A subagent's
-  prompt resolves that way when the subagent stops. The channel's verdict
-  carries no text, so a `note` with the answer follows the verdict as the
-  user's next chat message (user's decision, 2026-09-29). Verified at
-  checkpoint 2: the note arrived 0.1 s after the deny, before Claude did
-  anything else, and Claude followed it (it skipped the second of two
-  commands). Kept in reserve if that ever changes: hold the
-  `PermissionRequest` hook for plain prompts too and answer a noted deny
-  there with the note as the decision's `message`.
-- **No hook** when the user answers "No" to a permission in the terminal
-  or presses Esc (the turn is interrupted silently), when a stop ends a
-  turn, or when a stopped subagent ends (no `SubagentStop`; only the
-  `<task-notification>` with its ID).
+  work. Claude Code's **internal helper agents** fire hooks with no
+  `SubagentStart`: anything from an agent never seen starting is ignored.
+- `Notification`: `elicitation_dialog`, `elicitation_url_dialog` and
+  `agent_needs_input` → `waiting` (reason `input`) until it moves again
+  (from the docs; not yet seen live). `permission_prompt` and
+  `idle_prompt` add nothing.
+- `Stop` → orchestrator `idle` (completing any reply cut short);
+  `StopFailure` → `error` with the error type.
+- Not registered: `SessionStart` (can't be an HTTP hook) and `SessionEnd`
+  (it also fires for `/clear` while `claude` keeps running). A session
+  ends when its bridge's connection closes (Claude Code exited).
 
-**History** (built, branch `s02-history`): `session.get_history`
-returns the completed chat messages the sidecar saw through the hooks
-since launch, in memory only (at most 5000, oldest dropped). For a session
-started here that's the whole conversation, with transcripts on or off;
-reading it from the transcript is for resuming (S04).
+**Filling the gaps: the transcript.** Esc and a "No" in the terminal fire
+no hook, but Claude Code writes them to the transcript within the second.
+The sidecar follows the `transcript_path` the hooks name, read-only, from
+its end, every 250 ms (moving to the new file after `/clear`): a tool
+result with `toolUseResult: "User rejected tool use"` resolves that call's
+prompt as denied (by external), and `[Request interrupted by user]` (Esc,
+or after a "No") leaves the orchestrator idle, its running calls closed as
+interrupted. The line format isn't a documented interface (Watch items),
+so it's used for status only; without it, the fallback is the next hook or
+message.
 
-**Filling the gaps: the transcript.** The sidecar also follows the
-session's transcript (`transcript_path` in every hook), read-only. Claude
-Code writes it live and records what hooks miss, within the same second:
-Esc adds a user entry `[Request interrupted by user]`; a terminal "No"
-adds a tool result marked as an error with `toolUseResult: "User rejected
-tool use"` and then `[Request interrupted by user for tool use]`. So the
-world shows the agent idle and the permission resolved (`by: external`)
-right away. After a stop it causes itself, the sidecar sets the states
-directly. The transcript's line format isn't a documented interface (see
-Watch items), so this is used for status only and must degrade gracefully:
-without it, the fallback is inferring from the next hook or user message.
-*Built (branch `s02-transcript`):* `providers/claude/transcript.ts`
-follows the `transcript_path` the hooks name (and moves to the new file
-after `/clear`), from its end at that moment, polling every 250 ms. A "No"
-is a tool result with `is_error` and `toolUseResult: "User rejected tool
-use"` (also `toolDenialKind: "user-rejected"`) naming the call's
-`tool_use_id`, so it resolves that exact prompt; `[Request interrupted by
-user]` (Esc) and `[... for tool use]` (after a "No") leave the orchestrator
-idle, closing its running calls as interrupted. Checked against the spike's
-real transcript: exactly its one "No" and two interruptions. Subagent
-transcripts aren't followed.
+**Permissions** (C05's sidecar side). The relayed prompt names no tool
+call or agent, so the sidecar ties it to the open call of that tool whose
+input the relay's preview shows (else the newest without a prompt),
+waiting up to 300 ms for its `PreToolUse` (it arrives on the other
+connection about 100 ms earlier). The world gets `permission.requested`
+(id = `request_id`) with the right agent, summary and input, and the agent
+is `waiting` (reason `permission`). `permission.respond` sends the verdict
+down the bridge. Resolved: in the world (`by: app`); "Yes" in the
+terminal through the call's `PostToolUse`; "No" through the transcript
+(`by: external`); and, as a fallback, when the agent's turn ends or the
+user types next. A `note` follows the verdict as the user's next chat
+message (user's decision): it arrives before Claude's next step, and
+Claude follows it (checkpoint 2). If that ever changes: hold
+`PermissionRequest` for plain prompts too and put the note in the deny's
+`message`.
+
+**Clarifying questions (`questions` capability).** `PermissionRequest` is
+registered for `AskUserQuestion` only and held open while **the terminal
+shows the question too**; whichever side answers first wins (spike run 3;
+holding `PreToolUse` instead hid it from the terminal, rejected). The
+question's id is its `tool_use_id`. Answered in the world: the held hook
+returns `allow` with `answers` keyed by question text (a multi-select's
+labels joined with ", "), or, for a free reply, a deny carrying the
+user's words, which Claude reads as the answer. Answered in the terminal:
+its `PostToolUse` arrives and the sidecar releases the held hook
+(`by: external`). If Claude Code drops the held hook, or the turn ends,
+the question resolves by external.
+
+**Stopping (`interrupt` capability, `immediate: false`).** A stop answers
+the next `PreToolUse` of each agent busy when it was asked with
+`continue: false` **and** a deny (`continue: false` alone still let the
+call run). The stop lands before the next tool call, not mid-reply or
+mid-command; the terminal shows "The user stopped this from the app."
+No hook follows, so the sidecar sets the states: the orchestrator `idle`,
+a subagent `error` with reason `interrupted` (user's decision). Calls
+issued in the same batch as the stopped one still arrive, so a stopped
+agent's calls are stopped too until a new turn; the user's next turn is
+never caught. Pending prompts are denied and held questions declined when
+the stop is asked, or they'd block it (user's decision, for now; it never
+allows anything). A stop with nothing running does nothing.
+
+**Session notices.** `transcripts_off`: no file at `transcript_path` a
+second after the first reply (with `CLAUDE_CODE_SKIP_PROMPT_HISTORY`, hooks
+still name a path but nothing is written). `hooks_unavailable`: a world
+message sent while the orchestrator is idle brings no hook within 10 s
+(most likely the user's `allowedHttpHookUrls`, which makes hooks vanish
+with no error; chat still works).
 
 **When transcripts are off (user's decision: Claude Code's setting is the
-only control).** Users can turn transcript saving off in Claude Code with
-the `CLAUDE_CODE_SKIP_PROMPT_HISTORY` environment variable (in their
-environment or their settings' `env`); it stops transcripts and prompt
-history in every mode (docs, checked 2026-09-29). `cleanupPeriodDays`
-only shortens how long they're kept (default 30 days, minimum 1). We
-offer no setting of our own and never force saving back on (e.g. never
-`CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`). The sidecar notices a session
-has no transcript (no file at `transcript_path` about a second after the
-first reply ends: with saving off, hooks still name a path but nothing is
-written there; probed with `claude -p`, 2.1.284) and tells
-the world with a **session notice** (user's decision, S02): a generic
-core event `session.notice` carrying a code (`transcripts_off`) and an
-English fallback message, also listed in the snapshot. Godot shows its own
-text for codes it knows. The same mechanism carries other warnings about a
-session: `hooks_unavailable` when a world message sent while the
-orchestrator is idle brings no hook at all within 10 s (hooks work: one
-arrives within a second), most likely hooks blocked by the user's
-`allowedHttpHookUrls` (built on branch `s02-hooks-notice`). Probed with
-`claude -p` and `allowedHttpHookUrls: ["https://example.com/*"]`: the
-session runs normally, not one hook arrives, and nothing reports an
-error, so without this notice the world would just look idle. **The world shows only a short disclaimer** (user's decision), along
-the lines of "Transcript saving is off in Claude Code, so some features
-may not work as intended. Turning it on is recommended." The detailed
-list below is for development, not for the UI. What still works:
-chat, streaming, tool calls, subagents, permissions and questions
-answered in the world, and stopping from the world (hooks and the
-bridge). What's limited:
-- **Esc and a terminal "No"** aren't seen until the next hook or message,
-  so an agent may look busy, or a permission still pending, for a while.
-  The world labels such states as possibly out of date rather than
-  guessing; a world answer to a prompt the terminal already closed is
+only control).** We offer no setting of our own and never force saving
+back on (e.g. never `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE`);
+`cleanupPeriodDays` only shortens how long they're kept. **The world shows
+only a short disclaimer** (user's decision), the `transcripts_off`
+notice. For development, what's limited:
+- **Esc and a terminal "No"** aren't seen until the next hook or message;
+  the world labels such states as possibly out of date rather than
+  guessing. A world answer to a prompt the terminal already closed is
   dropped by Claude Code, harmlessly.
-- **Chat history** is only what the sidecar saw through hooks, kept in
-  memory (never on disk), and lost if the sidecar restarts.
-- **Resuming** isn't possible (Claude Code can't either), and the session
-  won't be in the stored-session list (S04).
-- **Attaching** to an outside session (later) shows nothing from before we
-  joined, and capabilities that need the transcript (e.g. token usage,
-  if hooks don't carry it) aren't declared.
+- **Chat history** is only what the sidecar saw (as always for a session
+  started here), and it's lost if the sidecar restarts.
+- **Resuming** isn't possible, and the session isn't listed (S04).
+- **Attaching** (later) shows nothing from before we joined.
 
-**Starting up: confirm in the terminal** (planned; user's decision, idea
-from Agent Office). Until the bridge connects we hear nothing from Claude
-Code, and nothing tells us why: it may be showing folder trust, login,
-first-run setup or the development-channel confirmation, or simply be
-starting slowly (updating, starting the user's other MCP servers).
-`SessionStart` can't reach HTTP hooks, and the docs don't say whether it
-fires before or after the trust dialog. But while channels are a research
-preview, the development-channel confirmation appears at launch, so every
-session we start needs the user in the terminal at least once. So the world
-doesn't guess:
-- From launch, it says "Confirm in the Claude Code terminal to start this
-  session." When the bridge connects, that becomes the rising island.
-- If the bridge still hasn't connected after a longer while (about a
-  minute or two, set from measurements), the text becomes "Still starting;
-  check the terminal." It never claims to know which case it is.
-- *Decided (user's, 2026-09-29):* the text travels in the
-  `session.create` / `session.resume` reply as `notice`
-  (`confirm_in_terminal`, a provider's `startupNotice`). The island is
-  only created once the session is ready (`session.created`); how the
-  world shows a session waiting to start is decided when building the
-  game. The "Still starting" switch needs no protocol: Godot knows when it
-  sent the command. Rejected: announcing at launch with the orchestrator
-  waiting (the island would rise before the session is ready).
+**History.** `session.get_history` returns the completed messages the
+sidecar saw through the hooks since launch (for a resumed session, first
+what the transcript held), in memory only, at most 5000.
 
-Measured at checkpoint 1 (2026-09-29, Claude Code 2.1.284, Windows):
-- First launch in a new folder: folder trust, then the development-channel
-  confirmation. Second launch in the same folder: only the confirmation.
-  **The confirmation appears at every launch**, so every session needs the
-  user at the terminal once.
-- Claude Code starts the bridge only after its dialogs: the session came
-  up when the user answered the last one (8 s after launch on the second
-  run, with the user answering promptly).
-- A startup with no dialogs can't happen on this route while the
-  confirmation is shown every time, so there is nothing to measure there.
-  "Still starting" is for a user who hasn't answered yet, so it can wait
-  about two minutes.
-
-(Agent Office watches for a `SessionStart` hook that never fires instead;
-our HTTP hooks can't receive `SessionStart`.)
-
-Hook timeouts: short (about 5 s) for hooks that only report, 2 s for
-`MessageDisplay`; long only for the question hook. A hung sidecar makes
-Claude wait out each timeout.
-
-**Talking to the session: a channel.** A channel is an MCP server that
-Claude Code itself starts as a subprocess and talks to over stdio, so ours
-is a tiny **channel bridge** script shipped with the sidecar: `claude`
-starts it, and it connects back to the sidecar over a local connection
-with a token. Verified:
-- Chat: the user's message is pushed as a channel event; Claude treats it
-  as the user's message (the bridge's instructions say so) and replies
-  normally, so no reply tool is needed.
-- Permission relay: the prompt reaches the bridge (with a 5-letter
-  `request_id`) at the same time as the terminal dialog. Answering from the
-  world closes the terminal dialog. A deny from the world lets Claude
-  continue its turn; a "No" in the terminal interrupts it.
-
-**Clarifying questions (`questions` capability).** Verified (run 3): in
-the terminal a question is a permission-style prompt, so `PreToolUse`
-passes it through and the `PermissionRequest` hook for `AskUserQuestion`
-is held while **the terminal shows the question at the same time**. Answer
-in the world: the held hook returns `decision: { behavior: "allow",
-updatedInput: { questions, answers } }` and the terminal's menu closes as
-answered. Answer in the terminal: the answer arrives in `PostToolUse`.
-Claude Code doesn't close our held request then, so the sidecar releases
-it itself on that `PostToolUse` (same question) and sends
-`question.resolved` (`by: external`). That hook needs a long `timeout`; if
-it times out, the terminal question simply stays. (Run 1 held `PreToolUse`
-instead, which hid the question from the terminal; rejected, since the
-user must be able to answer in either place.) Questions don't go through
-the channel's permission relay.
-*Built (verified live at checkpoint 2):* sessions declare
-`questions`. `PermissionRequest` is registered only for `AskUserQuestion`
-(24 h timeout); the question's id is its `tool_use_id` from the
-`PreToolUse` just before, which also names the agent when the held hook
-doesn't. Answers from the world become `answers` keyed by question text;
-a multi-select's labels are joined with ", " (Claude read "Salt" and
-"Honey" correctly), and a free `response` is sent as a deny with the
-user's words as the message (Claude read it as the answer). A denied
-question call gets no hook, so the sidecar closes it as `denied`. Claude
-Code dropping the held hook (timeout, exit), or the agent moving on
-(Esc), resolves the question by external.
-
-**Stopping (`interrupt` capability, `immediate: false`).** Verified: on
-`interrupt.request` the sidecar answers the session's next `PreToolUse` with
-`continue: false` **and** `permissionDecision: "deny"`. `continue: false`
-alone still let that tool call run. The stop lands before the next tool
-call, not mid-reply or mid-command. Inside a subagent it stops only that
-subagent; the orchestrator is told and carries on.
-*Built (verified live at checkpoint 2):* sessions declare
-`interrupt` with `immediate: false`. A stop stays armed until no agent is
-working or waiting, so it catches the orchestrator's next tool call and
-each busy subagent's. The stopped call is closed as `denied`; the
-orchestrator goes `idle`, a subagent `error` with reason `interrupted`
-(Protocol: error covers interrupted; user's decision, 2026-09-29). A stop with nothing running does
-nothing. Pending permission prompts are denied through the bridge when the
-stop is requested (user's decision, 2026-09-29, for now), and held questions are declined (a deny carrying the
-stop reason), or they would block it (safe: it never allows). The stop
-applies only to the agents busy when it was asked, each once, so the
-user's next turn is never caught by it. Checked with `claude -p` (no
-channel needed): calls issued in the same batch as the stopped one still
-arrive and ran; so a stopped agent's further calls are stopped too
-(silently) until the next prompt starts a new turn, and then nothing ran
-and no `Stop` hook followed, as in the spike. The same run checked the
-hook translation with real payloads: a foreground subagent under the
-orchestrator, its tool calls, the reply and idle, all schema-valid.
-
-**Fail-safe (verified).** With the hook server hanging, returning errors,
-or offline, Claude Code fell back to its own terminal prompt every time and
-nothing was allowed. Hooks resume when the server comes back.
+**Fail-safe (verified).** With the hook endpoint hanging, erroring or
+offline, Claude Code fell back to its own terminal prompts every time and
+nothing was allowed; hooks resume when it comes back.
 
 **Terminal-only on this route.** No documented way exists to do these
-from outside, so they stay in the terminal (the world sees their effects
-through hooks where there are any). Typing keystrokes into the terminal was
-considered and rejected (dev log 2026-09-29-claude-cli-route).
-- An immediate stop from the world (the world's stop lands at the next
-  step; Esc in the terminal is immediate).
+from outside, so they stay in the terminal. Typing keystrokes into the
+terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
+- An immediate stop (the world's stop lands at the next step; Esc in the
+  terminal is immediate).
 - Prompts only the terminal shows: folder trust, MCP server consent, the
   development-channel confirmation.
-- Built-in slash commands: session-changing ones (`/model`, `/effort`,
-  `/compact`, `/clear`, `/rewind`, `/permissions`, `/mcp`, `/config`, ...)
-  and screens (`/context`, `/usage`, `/diff`, `/help`, ...). Some have
-  launch-time equivalents: model, effort, name and permission mode can be
-  chosen when creating or resuming a session. Chat messages from the world
-  starting with `/` reach Claude as plain text, not as commands.
+- Built-in slash commands, session-changing ones (`/model`, `/compact`,
+  `/clear`, `/permissions`, ...) and screens (`/context`, `/usage`, ...).
+  Model, effort, name and permission mode can be chosen at launch
+  instead. World messages starting with `/` reach Claude as plain text.
 - Switching permission mode with no prompt open (C06 covers switching at
   launch and while answering a prompt).
+- Ending the session: `session.end` answers `not_supported` until S05
+  decides how; `/exit` in the terminal ends it.
+
+**Known gaps.**
+- `/clear` starts a new Claude conversation in the same terminal (new
+  session id and transcript): the sidecar follows the new transcript, but
+  the world keeps the old chat and `native_id`.
+- A subagent's final report isn't sent to the world (no protocol field;
+  A02's "throws the report" could use it).
+- Parallel spawns of the same agent type may pair with the wrong task.
+- Not yet seen live: questions and permission prompts from subagents,
+  and the `Notification` waiting cases.
+
+**Verified.** The spike (three runs); checkpoint 1 (launch, chat, `/exit`,
+startup dialogs; two Windows terminal bugs fixed); checkpoint 2 with the
+user (permissions in both places, a note, all three question kinds, the
+stop and its terminal wording, Esc before and during a reply, a terminal
+"No", history, `/exit`); and `claude -p` probes, which need no channel
+(hook translation with real payloads, the stop's batch behaviour,
+transcripts off, `allowedHttpHookUrls`, `--resume`).
 
 ### S03 Create session
 *Planned.* A "create new session" command from Godot; the sidecar launches
@@ -1023,8 +919,9 @@ Deliberate limitations). Sessions run with transcripts off leave nothing to
 list or resume (S02 → When transcripts are off), and Claude Code deletes
 transcripts after `cleanupPeriodDays` (30 by default), so the list only
 reaches that far back.
-*Sidecar side built (branch `s04-list-resume`, stacked on the S02
-branches; not yet run live):* `providers/claude/store.ts` lists
+*Sidecar side built with S02 (the world's list and resume UI come later;
+a resume from the world hasn't been run live yet, only `--resume` itself
+with `claude -p`):* `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
 (at most 200), reading only each file's first and last 64 KiB: project
 from `cwd`, title from the newest `custom-title` (our `--name`, or a
@@ -1178,31 +1075,42 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    their logos in a product without permission (Watch items → Claude
    branding), so a public release needs an original look. Decide before
    modelling the agents (A01, A02).
+8. **The M1 world's feel** (W01, W02, W03, A01, C01, C02). To settle
+   before building them; my recommendations (2026-09-29), for the user
+   to decide when M1 starts:
+   - *Camera:* third person, orbiting with the mouse, over the shoulder
+     (you see your character for parkour later, and the agents around
+     you).
+   - *Movement:* `CharacterBody3D` with walk, sprint and jump from the
+     start, plus coyote time and jump buffering (keeps parkour possible).
+   - *Island:* a generated low-poly mesh (code, so it can grow and change
+     per session later), dressed with Kenney props.
+   - *Ocean:* a flat-shaded low-poly water shader with gentle waves.
+   - *Props:* Kenney Pirate Kit (CC0, 70 models, including islands, boats
+     and characters), plus Nature Kit and Furniture Kit if they fit.
+   - *Orchestrator:* a plain placeholder at a desk until question 7 is
+     settled.
+   - *Opening the chat:* walk close, "Press E to chat" appears, E opens the
+     panel and frees the mouse, Esc closes it.
+   - *Chat panel:* a screen-space panel on the right, with the world
+     still visible and running behind it.
 
 ## Known issues and next steps
 
-**Current focus:** M1, sidecar first (user's decision). S01 is merged.
-S02 (Claude provider) is in progress. Its first part (launcher, bridge,
-hooks) was merged on 2026-09-29 with the user's approval; the rest goes on
-follow-up branches (`s02-*`). Two review checkpoints (user's decision):
-after the terminal launcher opens a real `claude`, and at the end with a
-live run.
+**Current focus:** M1. S01 and S02 are built (S02 passed both review
+checkpoints, the second a live run with the user); S02's branches merge to
+`main` with the user's approval. Next is the M1 world (W01, W02, W03, A01,
+C01, C02), which needs the user's calls on camera, movement, island,
+ocean, props and the chat panel first (open question 8).
 
-*Handoff (2026-09-29, after an unattended session).* On `main`:
-terminal launcher and `launch` mode, finding `claude` (minimum 2.1.284),
-clean environments, the channel bridge, the provider's create path, and
-HTTP hooks with their translation (S02 → Seeing the session; verified
-live). On one straight chain of unmerged branches, in merge order
-(`s02-permissions` → `s02-questions` → `s02-interrupt` →
-`s02-transcript` → `s02-notices` → `s02-history` → `s02-live-tools` →
-`s04-list-resume` → `s02-hooks-notice` → `core-session-store`; 139
-`node:test` checks plus 3 Godot headless tests): the permission relay,
-questions, stopping, the transcript follower, session notices
-(`transcripts_off`, `hooks_unavailable`), history, `try:claude`'s world
-buttons, the scripted `dev:fake`, S04's sidecar side, and Godot's
-`SessionStore`, and the startup notice in the create/resume reply. Parts were checked against a real `claude` with
-`claude -p`, which needs no channel (dev log
-2026-09-29-s02-relay-questions-stop). `session.end` answers `not_supported` (S05).
+*Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
+provider (S02), S04's list and resume, the scripted `dev:fake` for
+building the world without `claude`, and Godot's `SessionStore`, the data
+layer the world and chat panel will read. 139 `node:test` checks and 3
+Godot headless tests. `try:claude` drives a real session like the world
+would (NOTES → Running it). Parts can be checked against a real `claude`
+without the user through `claude -p` (dev log
+2026-09-29-s02-relay-questions-stop).
 
 **Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
 folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
@@ -1227,12 +1135,7 @@ second session: the stop (the terminal shows "The user stopped this from
 the app."), Esc before any output and mid-reply (after 23 streamed
 batches; the partial message is completed), and "No" on a dialog.
 
-**Next:** the S02 docs (Systems section rewrite, guide section, dev log),
-then S02 is ready to merge. After S02: the M1 world, which needs the
-user's calls on camera, movement, island, ocean, props and the chat panel
-first. After S02: the M1 world, which needs
-the user's calls on camera, movement, island, ocean, props and the chat
-panel first.
+**Next:** the M1 world (see Current focus).
 
 ### Milestones
 
