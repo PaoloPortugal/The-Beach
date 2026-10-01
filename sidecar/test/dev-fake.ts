@@ -3,7 +3,8 @@
 // sidecar/). Chat drives it; a message containing one of these words acts
 // out that part of a session, anything else is echoed back:
 //   permission   a tool call waits on a permission prompt (answer it: C05)
-//   question     a clarifying question (questions capability)
+//   question     a clarifying question, two items: one choice, then several
+//                (questions capability)
 //   agents [n]   the orchestrator spawns n subagents (default 3) that work
 //                in the background and report back (A02, A04)
 //   notice       a session notice (transcripts off)
@@ -111,6 +112,9 @@ class ScriptedSession extends FakeSession {
       this.emit({ type: 'question.asked', question: { question: tool, agent: 'main', items: [{
         text: 'Which fruit do you prefer?', header: 'Fruit', multi_select: false,
         options: [{ label: 'Apple', description: 'Crisp' }, { label: 'Banana', description: 'Sweet' }],
+      }, {
+        text: 'What goes with it?', header: 'Toppings', multi_select: true,
+        options: [{ label: 'Honey' }, { label: 'Yoghurt', description: 'Plain' }, { label: 'Nuts' }],
       }] } })
       this.state('main', 'waiting', 'question')
     })

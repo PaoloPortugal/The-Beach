@@ -62,6 +62,20 @@ func _by_hand() -> void:
 	store.apply({"type": "permission.resolved", "session": "a", "seq": 10, "permission": "p1", "decision": "allow", "by": "app"})
 	_check(store.session("a")["permissions"].is_empty(), "permission resolved")
 
+	# Pending requests in the order they came, across both kinds.
+	var question := {"question": "q1", "agent": "main", "items": [{"text": "?", "options": [], "multi_select": false}]}
+	store.apply({"type": "question.asked", "session": "b", "seq": 2, "question": question})
+	store.apply({"type": "permission.requested", "session": "b", "seq": 3, "permission": {"permission": "p2", "agent": "main", "tool": "Bash", "summary": "Run: ls"}})
+	var kinds := func() -> Array: return store.pending("b").map(func(c: Dictionary) -> String: return "%s %s" % [c["kind"], c["item"][c["kind"]]])
+	_check(kinds.call() == ["question q1", "permission p2"], "pending: oldest first, both kinds")
+	var resync := _snapshot("b", 4)
+	resync["permissions"] = [{"permission": "p2", "agent": "main", "tool": "Bash", "summary": "Run: ls"}, {"permission": "p3", "agent": "main", "tool": "Bash", "summary": "Run: pwd"}]
+	resync["questions"] = [question]
+	store.apply({"type": "session.snapshot", "session": resync})
+	_check(kinds.call() == ["question q1", "permission p2", "permission p3"], "a resync keeps their order; new ones go last")
+	store.apply({"type": "question.resolved", "session": "b", "seq": 5, "question": "q1", "by": "external"})
+	_check(kinds.call() == ["permission p2", "permission p3"], "a resolved one leaves the queue")
+
 	store.apply({"type": "session.notice", "session": "a", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	store.apply({"type": "session.notice", "session": "a", "seq": 12, "notice": {"code": "transcripts_off", "message": "y"}})
 	var notices: Array = store.session("a")["notices"]

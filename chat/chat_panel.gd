@@ -2,7 +2,8 @@ class_name ChatPanel
 extends PanelContainer
 ## The full chat panel (C02), opened by walking up to an orchestrator (C01):
 ## the session's chat so far, streaming as it arrives, and a message box.
-## Plain text only in v1 (Markdown is C03). Message text is untrusted
+## Pending permission prompts and questions are answered on its card
+## (C05, [PendingCard]). Plain text only in v1 (Markdown is C03). Message text is untrusted
 ## (NOTES.md → Security rules): it goes into labels with BBCode off, so it
 ## is shown exactly as written.
 
@@ -32,6 +33,7 @@ var _send_error := ""
 @onready var _notices: Label = $Layout/Notices
 @onready var _scroll: ScrollContainer = $Layout/Scroll
 @onready var _messages: VBoxContainer = $Layout/Scroll/Messages
+@onready var _pending: PendingCard = $Layout/Pending
 @onready var _status: Label = $Layout/Status
 @onready var _input: TextEdit = $Layout/Compose/Input
 
@@ -45,6 +47,7 @@ func _ready() -> void:
 func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store = p_store
 	sidecar = p_sidecar
+	_pending.setup(store, sidecar)
 	store.message_changed.connect(_on_message_changed)
 	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
@@ -57,6 +60,7 @@ func open(p_session_id: String) -> void:
 	_send_error = ""
 	visible = true
 	_rebuild()
+	_pending.show_session(session_id)
 	_refresh_status()
 	_input.grab_focus()
 
@@ -64,6 +68,7 @@ func open(p_session_id: String) -> void:
 func close() -> void:
 	session_id = ""
 	visible = false
+	_pending.show_session("")
 	_clear()
 
 
@@ -82,6 +87,11 @@ func shown_messages() -> Array[String]:
 	for row in _messages.get_children():
 		out.append((row.get_meta("label") as RichTextLabel).text)
 	return out
+
+
+## The card for pending permission prompts and questions.
+func pending_card() -> PendingCard:
+	return _pending
 
 
 func status_text() -> String:
@@ -234,9 +244,9 @@ func _refresh_status() -> void:
 		"waiting":
 			match agent.get("reason"):
 				"permission":
-					_status.text = "Waiting for a permission: answer it in the terminal."
+					_status.text = "Waiting for a permission: answer it above or in the terminal."
 				"question":
-					_status.text = "Waiting for an answer: reply to the question in the terminal."
+					_status.text = "Waiting for an answer: answer the question above or in the terminal."
 				_:
 					_status.text = "Waiting for you in the terminal."
 		"error":
