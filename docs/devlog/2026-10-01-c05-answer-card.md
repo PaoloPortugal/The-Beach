@@ -53,5 +53,11 @@ only selects, and Send answers, so a misclick never reaches Claude.
 - Screenshots of the card (permission with Details, question items 1
   and 2) from a throwaway windowed script. Found and fixed: `choose()` on
   a checkbox didn't tick it on screen (a real click did).
+- The user tried it in the game with `--sidecar-dev-fake`: Godot logged
+  "freed ... while a signal is being emitted" on clicking an option or
+  Back (the card redrew itself inside the button's signal and freed the
+  button). Fixed with `remove_child` + `queue_free`; the world test now
+  clicks through the buttons' signals (Godot errors don't fail it, so
+  read its output). Re-checked by the user: works.
 - Not yet: a live check with the real `claude`, and the Compatibility
   renderer. Unticked checkboxes are faint in Godot's default theme.
