@@ -190,6 +190,19 @@ use in Claude Code: in its `auto` mode it rarely asks at all.
 commands (such as `/model` or `/clear`), and switching permission mode
 outside a prompt. Ending a session is `/exit` in the terminal for now.
 
+**Starting over with `/clear`.** If you type `/clear` in the terminal,
+Claude starts a fresh conversation in the same session. It stays on the
+same island; the chat shows a note that a new conversation started and
+that Claude no longer remembers what was said above it.
+
+**Not available in sessions started from the world.** Claude Code's
+agent view (pressing Left at an empty prompt), `/bg` and `/fork`. They
+would move your conversation to a background session the world can't
+follow, so the game turns them off for its own sessions; your other
+Claude Code sessions are unaffected. If a conversation ever does move
+anyway, the chat says so: carry on in the terminal, since messages and
+answers from the world can't reach it.
+
 **Transcripts.** Claude Code saves each conversation (its transcript) on
 your computer; the game reads it to notice things like Esc and to show
 earlier chats. If you've turned transcript saving off in Claude Code, the
@@ -201,3 +214,5 @@ conversations on disk.
 **If the world stays quiet.** If a company or personal setting in Claude
 Code blocks the game from following the session, the world says so. You
 can still chat from the world; answer Claude's prompts in the terminal.
+If the world can't reach the session at all for a moment, sending from
+the world says so instead of losing your message; use the terminal.
