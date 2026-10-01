@@ -1177,6 +1177,26 @@ carry the conversation's `session_id`. A hook with a different one
   naming the same conversation (one session resumes another's), each
   island still talks to its own terminal; only the stale `native_id`
   label differs.
+- **Known bug (live re-check, 2026-10-01): `/clear` is taken for
+  `/resume`.** Claude Code writes the `/clear` command itself into the new
+  transcript as a user entry (`<command-name>/clear</command-name>`, not
+  `isMeta`), and `readHistory` counts it as chat. The same entries show
+  up in any history `readHistory` builds (S04 resume too). And the world
+  only learns of either switch at the next prompt.
+- **Decided (user's, 2026-10-01): use the `SessionStart` hook instead of
+  the transcript check.** Documented (hooks reference, checked
+  2026-10-01): it fires right after `/clear` (`source: "clear"`, in the
+  background) and `/resume` inside a session (`source: "resume"`; the
+  switch waits for it), with the new `session_id` and `transcript_path`.
+  It allows only `command` and `mcp_tool` hooks, not `http`. So: a
+  `command` hook in **exec form** (`command` plus an `args` array: no
+  shell, so it keeps Security rules → No shell strings), running our own
+  sidecar executable in a small relay mode that forwards the hook's
+  stdin JSON to the session's hook server with its token, short timeout.
+  If it fails, nothing breaks: the first hook from the new id still
+  switches (classify that fallback by whether the transcript holds a
+  reply from Claude, not any user entry). Also make `readHistory` skip
+  local-command entries. To build next (handoff, 2026-10-01).
 - **A moved conversation**: the followed transcript has a `continued-in`
   (written before the new session starts, so the sidecar reads the
   transcript first). The world can't reach it (no channel), so it gets
@@ -1579,8 +1599,10 @@ permission prompts and questions in the world (C05 and the `questions`
 capability's UI), is **built (2026-10-01)**, design decided with the
 user, and **live-checked with the user and the real `claude` 2.1.285
 (2026-10-01)**; after the check the note goes with a deny only, like
-Claude Code's prompt (C05). M1 reviewed (below); next: re-checking
-`/resume` live, then merging M1 to `main` (ask the user first).
+Claude Code's prompt (C05). M1 reviewed (below); next: `/clear` and
+`/resume` through the `SessionStart` hook (S02 → Following the
+conversation), its live check, then merging M1 to `main` (ask the user
+first).
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
@@ -1590,9 +1612,10 @@ work for now; the whole UI is to be designed properly later.
 *M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
 is retried on opening the chat, and replies lost with a dropped
 connection come back as errors (the C05 card stayed disabled). Then `/resume`
-in the terminal, live-checked: it was taken for `/clear`; now it has its
-own notice and the world shows the resumed conversation's chat (S02 →
-Following the conversation). Open: a re-check of that; the bubble re-wraps the whole
+in the terminal, live-checked: it was taken for `/clear`. A transcript
+check fixed `/resume` but broke `/clear` (re-check); the user chose the
+`SessionStart` hook instead, to build next (S02 → Following the
+conversation). Open: that; the bubble re-wraps the whole
 reply on each streamed batch (fine at today's lengths); C05 polish
 (faint checkboxes, Deny's pressed look, Compatibility renderer).
 
