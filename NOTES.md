@@ -433,7 +433,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | Sidecar → Godot | Godot → sidecar |
 |---|---|
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
-| `session.snapshot`, `session.created`, `session.ended`, `session.notice` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
 | `tool.started`, `tool.finished` | |
@@ -441,6 +441,10 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 
 - `session.snapshot` places an island as is; `session.created` plays the rise
   animation.
+- `session.updated` carries only the session's own fields that changed
+  (for now only `native_id`: the provider started a new conversation in
+  the same session and project, e.g. Claude Code's `/clear`; user's
+  decision, 2026-10-01). The session, its island and its chat so far stay.
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
   text typed in the terminal shows up in the world.
@@ -450,8 +454,12 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   agent's state: a `code` (Godot shows its own text for codes it knows)
   and an English fallback `message`. One per code (a new one replaces
   it); the snapshot lists them in `notices`. Codes: `transcripts_off`,
-  `hooks_unavailable`. *(Shape accepted by the user, 2026-09-29, to be
-  revisited if the world needs more.)*
+  `hooks_unavailable`, `conversation_cleared` (a new conversation started
+  in the session; it remembers nothing of the chat before),
+  `conversation_moved` (the conversation went on somewhere the world
+  can't reach; continue it in the provider's own window). *(Shape
+  accepted by the user, 2026-09-29, to be revisited if the world needs
+  more.)*
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -770,7 +778,8 @@ written (tested with an injected `[url]`).
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
   project's name, and "Esc to close"), the session's notices (Godot's own
-  text for `transcripts_off` and `hooks_unavailable`), the chat as bubbles
+  text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`
+  and `conversation_moved`), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
   three quarters of the width, text selectable), a status line and the
   message box. Streaming updates the growing bubble in place and follows
@@ -945,7 +954,8 @@ of each session (the protocol's session object, plus the chat so far and a
 tool-call log, capped at 2000 messages and 500 calls per session) and emits
 fine-grained signals (`session_added` with `created` for the rise
 animation, `agent_changed`, `message_changed`, `permissions_changed`,
-`questions_changed`, `notices_changed`, ...). Extension messages pass
+`questions_changed`, `notices_changed`, `session_changed` with the
+fields a `session.updated` changed, ...). Extension messages pass
 through untouched (`extension_event`) for the provider's UI module.
 `load_history` puts `session.get_history`'s messages before the live ones.
 A snapshot (resync) replaces the state but keeps the chat. After a
@@ -965,17 +975,24 @@ and `interrupt` capabilities, no extension yet). Code:
 and `bridge-server.ts`, `transcript.ts`) and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md`. Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
--s02-relay-questions-stop. The only place Claude-specific names may
-appear. It drives the user's own installed `claude` (minimum 2.1.284),
-signed in with their own account; our code never reads, stores or passes
-on Claude credentials, and never modifies or bundles Claude Code.
+-s02-relay-questions-stop, 2026-10-01-agent-view-clear. The only place
+Claude-specific names may appear. It drives the user's own installed
+`claude` (minimum 2.1.284), signed in with their own account; our code
+never reads, stores or passes on Claude credentials, and never modifies
+or bundles Claude Code.
 
 **Launch.** A terminal window opens through the terminal launcher
 (Architecture → Platforms) and starts `claude` in the project folder with:
 - `--session-id <uuid>` (it becomes `native_id`) and `--name`, or
   `--resume <id>` for a stored session (S04; the id stays the same);
 - `--settings <file>`: our hooks for this session only, so the user's own
-  settings files are never edited;
+  settings files are never edited, and `disableAgentView: true`. Agent
+  view (Left at an empty prompt, `/bg`, `/fork`) moves the conversation
+  into a background session: new `claude` processes with a new session
+  id, our settings and MCP config but no channel flag, so the world
+  would lose it (user's decision, 2026-10-01; dev log
+  2026-10-01-agent-view-clear). Only sessions started from the world
+  are affected;
 - `--mcp-config` plus `--dangerously-load-development-channels
   server:world-bridge`: our channel. Custom channels need this flag while
   channels are a research preview;
@@ -1056,9 +1073,38 @@ its end, every 250 ms (moving to the new file after `/clear`): a tool
 result with `toolUseResult: "User rejected tool use"` resolves that call's
 prompt as denied (by external), and `[Request interrupted by user]` (Esc,
 or after a "No") leaves the orchestrator idle, its running calls closed as
-interrupted. The line format isn't a documented interface (Watch items),
-so it's used for status only; without it, the fallback is the next hook or
-message.
+interrupted. A `continued-in` entry (Claude Code 2.1.285) means the
+conversation went on in another session (see Following the
+conversation). The line format isn't a documented interface (Watch
+items), so it's used for status only; without it, the fallback is the
+next hook or message.
+
+**Following the conversation** (user's decisions, 2026-10-01). Hooks
+carry the conversation's `session_id`. A hook with a different one
+(our settings, so our token) is one of two things
+(`ClaudeSession.ownConversation`):
+- **`/clear`**: a new conversation in the same process and folder, same
+  bridge. The world follows it on the same island (same project, so the
+  island still houses related work): `native_id` switches, the world
+  gets `session.updated` and the `conversation_cleared` notice, and the
+  old id becomes a stored, resumable session (S04). The chat so far
+  stays in the world.
+- **A moved conversation**: the followed transcript has a `continued-in`
+  (written before the new session starts, so the sidecar reads the
+  transcript first). The world can't reach it (no channel), so it gets
+  the `conversation_moved` notice, the moved conversation's hooks are
+  ignored and the terminal handles everything; `message.send`,
+  `permission.respond` and `interrupt.request` answer `provider_error`
+  ("This conversation moved to another Claude Code session; continue it
+  in the terminal."). With agent view off this shouldn't happen; it's
+  the safety net.
+
+A hook with an id that isn't a UUID, or whose transcript is in another
+folder than the first hook's, is ignored (and logged). Hooks without a
+`session_id` count as the followed conversation. Whenever the bridge
+isn't connected, `message.send` and `permission.respond` say so ("The
+world can't reach this conversation right now ...; use the terminal.")
+instead of losing the message.
 
 **Permissions** (C05's sidecar side). The relayed prompt names no tool
 call or agent, so the sidecar ties it to the open call of that tool whose
@@ -1106,7 +1152,8 @@ second after the first reply (with `CLAUDE_CODE_SKIP_PROMPT_HISTORY`, hooks
 still name a path but nothing is written). `hooks_unavailable`: a world
 message sent while the orchestrator is idle brings no hook within 10 s
 (most likely the user's `allowedHttpHookUrls`, which makes hooks vanish
-with no error; chat still works).
+with no error; chat still works). `conversation_cleared` and
+`conversation_moved`: see Following the conversation.
 
 **When transcripts are off (user's decision: Claude Code's setting is the
 only control).** We offer no setting of our own and never force saving
@@ -1142,51 +1189,24 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   `/clear`, `/permissions`, ...) and screens (`/context`, `/usage`, ...).
   Model, effort, name and permission mode can be chosen at launch
   instead. World messages starting with `/` reach Claude as plain text.
+  `/clear` typed in the terminal is followed (Following the conversation).
+- Off in the terminal too, for sessions started from the world: agent
+  view (Left at an empty prompt does nothing), `/bg` (not recognised) and
+  `/fork` (see Launch).
 - Switching permission mode with no prompt open (C06 covers switching at
   launch and while answering a prompt).
 - Ending the session: `session.end` answers `not_supported` until S05
   decides how; `/exit` in the terminal ends it.
 
 **Known gaps.**
-- **Continued conversations cut the world off** (found live,
-  2026-09-30; to fix next, user's call). Pressing Left at the empty
-  prompt opens Claude Code's subagents view, and that moves the
-  conversation into a new session in the same `claude` process: the old
-  transcript gets a `continued-in` entry naming the new session id, and
-  the new transcript fills with a copy of the history on its first
-  message. Claude Code then starts the channel server again for the new
-  session with the old launch's one-time bridge token; the sidecar
-  refuses it (twice, 2 s apart), as its security rules require. After
-  that, world messages are accepted (`ok`) but land in the old
-  conversation's queue and are never answered (silently lost). Text typed
-  in the terminal goes to the new conversation, whose hooks (same token)
-  still reach the sidecar. Later the old bridge closes and the world
-  ends the session although `claude` still runs. Re-run 2026-09-30
-  (Claude Code 2.1.285): the same, and leaving the subagents view writes
-  no second `continued-in` and doesn't go back: terminal input stays in
-  the new session. The new transcript appeared about 6 s after the
-  `continued-in`, before any message, and the refused reconnects came
-  8 s and 9 s after it. The user wants the world to follow the new
+- **`/fork <prompt>` untested** with agent view off (`/fork` alone
+  asks for arguments). If it still moves the conversation, the
+  `conversation_moved` path covers it (Following the conversation).
+  Watch for it, and for other ways Claude Code may add to move a
   conversation.
-  *Fix decided (user, 2026-09-30), not built yet:* first a short live
-  test of whether Claude Code re-reads `mcp.json` when it restarts the
-  channel server. If it does, rotate the bridge token in that file after
-  each connect (every token stays single-use). If not, accept exactly
-  one reconnect with the same token per `continued-in` seen in the
-  followed transcript, only while the original bridge is still
-  connected and within a short window (about 30 s). Keep those checks
-  with rotation too. Once accepted: chat and verdicts go to the new
-  bridge, `native_id` and the followed transcript switch, the world gets
-  a session notice, and only the current bridge closing ends the
-  session. In every case, `message.send` and `permission.respond`
-  return a clear error while the current conversation has no live
-  bridge, instead of losing messages silently. `/clear` gets the same
-  treatment (switch `native_id` and show a notice on a hook with a new
-  `session_id`); check in the same live run whether it restarts the
-  channel server too.
-- `/clear` starts a new Claude conversation in the same terminal (new
-  session id and transcript): the sidecar follows the new transcript, but
-  the world keeps the old chat and `native_id`.
+- A moved conversation stays out of reach: the world can't follow it
+  (no channel in the new processes), only say so. The session ends when
+  the original `claude` exits.
 - A subagent's final report isn't sent to the world (no protocol field;
   A02's "throws the report" could use it).
 - Parallel spawns of the same agent type may pair with the wrong task.
@@ -1199,7 +1219,13 @@ user (permissions in both places, a note, all three question kinds, the
 stop and its terminal wording, Esc before and during a reply, a terminal
 "No", history, `/exit`); and `claude -p` probes, which need no channel
 (hook translation with real payloads, the stop's batch behaviour,
-transcripts off, `allowedHttpHookUrls`, `--resume`).
+transcripts off, `allowedHttpHookUrls`, `--resume`, `disableAgentView`
+in `--settings`). Live with the user, 2026-10-01 (Claude Code 2.1.285):
+with agent view off, Left, `/bg` and `/fork` started no background
+session and no new process; `/clear` started a new transcript in the
+same process with no new bridge connection, the world got
+`session.updated` and the notice, and a world message after it reached
+the new conversation and was answered.
 
 ### S03 Create session
 *Planned.* A "create new session" command from Godot; the sidecar launches
@@ -1442,10 +1468,11 @@ fake provider) and in screenshots under both renderers. **Live check
 with the real `claude` (2026-09-30):** two parallel subagents appear,
 work and both walk back and go (after a fix: a walk could stall short
 of its end until the 20 s give-up). It also found that pressing Left in
-the terminal (Claude Code's subagents view) moves the conversation to a
-new session and cuts the world off (S02 → Known gaps, "Continued
-conversations"). Next: fix that (design decided with the user,
-2026-09-30; see that entry, starting with a short live test); then the
+the terminal moved the conversation to a new session and cut the world
+off. **Fixed (2026-10-01, live-checked with the user):** that was Claude
+Code's agent view, now off for world sessions, and `/clear` is followed
+on the same island (S02 → Launch, Following the conversation; dev log
+2026-10-01-agent-view-clear). Next: the
 last M1 feature, answering permission prompts and questions in
 the world (C05 and the `questions` capability's UI, **pulled into M1 by
 the user, 2026-09-30**): the sidecar side is built and tested, only

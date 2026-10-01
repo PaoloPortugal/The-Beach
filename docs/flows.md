@@ -41,6 +41,7 @@ transcripts are off).
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
 - [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
+- [9. /clear: a new conversation in the session](#9-clear-a-new-conversation-in-the-session)
 
 ## 0. Starting up
 
@@ -100,7 +101,12 @@ sequenceDiagram
 Ending: `/exit` in the terminal (or `session.end` from the world) →
 Claude Code exits and its bridge's connection closes → `session.ended`
 (island sinks). Not the `SessionEnd` hook: it also fires for `/clear`,
-when `claude` keeps running.
+when `claude` keeps running (flow 9).
+
+Our settings file also turns Claude Code's agent view off
+(`disableAgentView`), so Left at an empty prompt, `/bg` and `/fork` can't
+move the conversation into a background session the world can't reach
+(NOTES.md → S02 → Launch).
 
 Which terminal opens depends on the OS and the user's setting; the
 terminal is only given our launcher and a session file, and the launcher
@@ -350,3 +356,40 @@ sequenceDiagram
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
 ```
+
+## 9. /clear: a new conversation in the session
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+    participant Log as Transcript
+
+    User->>Claude: /clear
+    Note over Claude: Same process, same folder, same bridge:<br/>a new session id and a new transcript.
+    User->>Claude: next message (typed in the terminal or sent from the world)
+    Claude->>Sidecar: UserPromptSubmit (the new session_id)
+    Sidecar->>Log: poll the followed transcript: no continued-in
+    Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>it's /clear. native_id switches; the old id becomes stored (resumable).
+    Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
+    Sidecar-->>Claude: nothing to add
+    Sidecar->>World: the turn as usual (flow 2), from the new transcript too
+```
+
+The island and the chat so far stay; the world says a new conversation
+started and that Claude no longer remembers the chat above (NOTES.md →
+S02 → Following the conversation).
+
+**A moved conversation.** If the followed transcript gets a
+`continued-in` entry instead (the conversation went on in another
+session, which agent view used to do), the sidecar sends
+`session.notice` (`conversation_moved`) and ignores the new session's
+hooks: the terminal handles everything. From then on `message.send`,
+`permission.respond` and `interrupt.request` get `error`
+(`provider_error`, "This conversation moved to another Claude Code
+session; continue it in the terminal."). Separately, whenever the bridge
+isn't connected, `message.send` and `permission.respond` get
+`provider_error` saying the world can't reach the conversation right
+now, rather than losing the message.
