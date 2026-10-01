@@ -839,22 +839,24 @@ Godot's UI is missing. Scope: core for permissions (`permission.respond`),
 the `questions` capability for questions (shown only for sessions that
 declare it).
 
-*To ask the user before building* (my recommendations, not yet
-answered):
+*Decided (user's, 2026-10-01):*
 - *Where:* a card in the chat panel between the chat and the message
-  box, covering subagents' prompts too (naming the agent). Alternatives:
-  a HUD pop-up anywhere, or a card floating at the waiting agent.
+  box, covering subagents' prompts too (naming the agent). (Not a HUD
+  pop-up or a card at the waiting agent; A05 is the in-world cue.)
 - *Permission card:* the summary with a Details toggle (raw input as
   plain text), Allow and Deny, an optional note; no keyboard shortcut
   for Allow, so Enter in the chat can never allow by accident.
   "Don't ask again" and mode switches wait for C06.
-- *Questions:* one card with every item: options as buttons (single) or
-  checkboxes (multi) with their descriptions, an "Other…" field per item,
-  Send once every item is answered, and "Reply in your own words
-  instead" (a free `response`). Alternatives: one item at a time, or
-  options only.
+- *Questions:* **one item at a time** ("Question 1 of 2"; not all items
+  on one card, which was my recommendation, nor options only). Options
+  are buttons with their descriptions; a click on a single-choice option
+  moves straight on to the next item. Multi-select (checkboxes) and the
+  per-item "Other…" field need Next. Back returns to an earlier item. No
+  "Reply in your own words instead" (a free `response`); "Other…" covers
+  typing your own answer. *My pick (an implementation detail, to confirm
+  at review):* on the last item a click selects and shows Send rather
+  than sending at once, so a misclick never answers Claude.
 - *Several pending:* one at a time, oldest first, "1 of 3 waiting".
-  Alternative: all stacked.
 
 ### C06 Permission mode control
 *Planned (after v1). Scope: capability `permission_modes`* (other tools have
