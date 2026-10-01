@@ -75,7 +75,7 @@ Hooks without a `session_id` count as the followed conversation.
   `session_store_test` (new `session.updated` check), `sidecar_client_test`,
   `world_test` pass. `dev:fake` gained a `clear` word.
 - `claude -p` with `disableAgentView` in `--settings`: accepted, runs.
-- Live with the user (11:55–11:59): the session came up; Left, `/bg`
+- Live with the user (11:55–11:59): the session came up; Left (did nothing: no agent view), `/bg`
   (not recognised) and `/fork` (asked for arguments) started no
   background session and no new process; `/clear` in the foreground
   session started a new transcript in the same process with no new
