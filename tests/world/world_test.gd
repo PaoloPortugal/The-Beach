@@ -1,10 +1,11 @@
 extends SceneTree
-## Headless test for the M1 world: the island generator (W01), jump
-## assist (W03) and the bubble's text cut (C02), then the world scene with
+## Headless test for the M1 world: the island generator (W01) and jump
+## assist (W03), then the world scene with
 ## real physics: the player lands on the spawn platform, walks, jumps and is
 ## put back when it falls in the sea; the session post; islands for
 ## sessions (applied to the store by hand), each orchestrator's bubble, and
-## walking up to chat in the chat panel (A01, C01, C02); subagents'
+## walking up to chat in the chat panel (A01, C01, C02), both rendering
+## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
@@ -22,7 +23,6 @@ func _initialize() -> void:
 func _run() -> void:
 	_island()
 	_jump_assist()
-	_bubble_text()
 	_placement()
 	await _scene()
 	if not _failed:
@@ -97,15 +97,6 @@ func _jump_assist() -> void:
 	for i in 20:
 		j.step(dt, false, false)
 	_check(not j.step(dt, false, true), "no coyote jump long after leaving the floor")
-
-
-func _bubble_text() -> void:
-	_check(MessageBubble.tail_lines("", 40, 4) == "", "no text, no bubble")
-	_check(MessageBubble.tail_lines("Hello there.", 40, 4) == "Hello there.", "short text as is")
-	_check(MessageBubble.tail_lines("aaa bbb ccc", 7, 4) == "aaa bbb\nccc", "wraps at word boundaries")
-	_check(MessageBubble.tail_lines("one\n\n\ntwo\n", 40, 4) == "one\ntwo", "blank lines dropped")
-	_check(MessageBubble.tail_lines("l1\nl2\nl3\nl4\nl5\nl6", 40, 4) == "…l3\nl4\nl5\nl6", "keeps the last lines, marked cut")
-	_check(MessageBubble.tail_lines("abcdefghij", 4, 4) == "abcd\nefgh\nij", "a long word is split")
 
 
 func _placement() -> void:
@@ -226,6 +217,17 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(bubble.visible and bubble.shown_text() == "Looking at it.", "the bubble streams the reply")
 	store.apply({"type": "message.delta", "session": "h1", "seq": 6, "message": "a1", "text": "two\nthree\nfour\nfive\n"})
 	_check(bubble.shown_text() == "…two\nthree\nfour\nfive", "and keeps its newest lines")
+	bubble.show_text("**Bold** and `code`")
+	_check(bubble.shown_text() == "Bold and code", "the bubble renders Markdown")
+	bubble.show_text("```py\nx = 1\n\ny = 2\n```")
+	_check(bubble.shown_text() == "x = 1\ny = 2", "code shows in the bubble, without blank lines")
+	bubble.show_text("word ".repeat(80))
+	_check(bubble.shown_text().begins_with("…word") and bubble.shown_text().count("\n") == 3, "a long paragraph wraps and keeps 4 lines")
+	_check(bubble.get_node("Viewport/Panel/Box/Clip/Text").size.x <= MessageBubble.MAX_WIDTH, "no wider than its limit")
+	bubble.show_text("[url=https://x]click[/url]")
+	_check(bubble.shown_text() == "[url=https://x]click[/url]", "the bubble shows markup as written")
+	bubble.show_text("  \n")
+	_check(not bubble.visible, "blank text hides it")
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 7, "agent": "main", "state": "working", "reason": null})
 
 	world.teleport("h1")
@@ -250,6 +252,23 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "message.completed", "session": "h1", "seq": 8, "message": "a1", "text": "Done. [url=https://x]click[/url]"})
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 9, "agent": "main", "state": "idle", "reason": null})
 	_check(panel.shown_messages()[1] == "Done. [url=https://x]click[/url]" and panel.status_text() == "", "it updates in place; text is shown as written, not as markup")
+	store.apply({"type": "message.started", "session": "h1", "seq": 81, "message": "a2", "agent": "main", "role": "assistant"})
+	store.apply({"type": "message.completed", "session": "h1", "seq": 82, "message": "a2", "text": "# Fixed\n\n**Done**, see [docs](https://example.com):\n\n```gd\nvar x := 1\n```"})
+	_check(panel.shown_messages()[2] == "Fixed\n \nDone, see docs:\nvar x := 1", "Markdown is rendered in the panel")
+	var view: MarkdownView = panel._rows["a2"]
+	_check(view.get_child_count() == 2 and view.get_child(1).has_meta("code"), "a code block gets its own panel")
+	(view.get_child(0) as RichTextLabel).meta_clicked.emit("0")
+	_check(panel.link_asked() == "https://example.com", "a link asks before opening, showing its address")
+	# A real key: the dialog has the focus, so a key goes to it.
+	for pressed in [true, false]:
+		var esc := InputEventKey.new()
+		esc.keycode = KEY_ESCAPE
+		esc.physical_keycode = KEY_ESCAPE
+		esc.pressed = pressed
+		Input.parse_input_event(esc)
+	await _until(func() -> bool: return panel.link_asked().is_empty(), 2.0)
+	await _frames(2)
+	_check(chat.is_open() and panel.link_asked() == "", "Esc closes the question, not the chat")
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 10, "agent": "main", "state": "waiting", "reason": "permission"})
 	_check(panel.status_text().contains("above or in the terminal"), "a permission wait points to the card and the terminal")
 	store.apply({"type": "session.notice", "session": "h1", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
@@ -284,6 +303,18 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.replace_history("h1", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}])
 	await _frames(1)
 	_check(panel.shown_messages() == ["earlier"], "a replaced chat is laid out again")
+	# A long chat: the newest messages at once, the older ones a few per frame.
+	var long_chat: Array = []
+	var expected: Array[String] = []
+	for k in 150:
+		long_chat.append({"message": "l%d" % k, "agent": "main", "role": "assistant", "text": "**%d**\n\n```\ncode %d\n```" % [k, k], "at": "2026-09-29T08:00:00Z"})
+		expected.append("%d\ncode %d" % [k, k])
+	# The live message that isn't in this history stays at the end.
+	expected.append("earlier")
+	store.replace_history("h1", long_chat)
+	_check(panel.is_loading() and panel.shown_messages() == expected.slice(expected.size() - panel.shown_messages().size()), "a long chat shows its newest messages first")
+	await _until(func() -> bool: return not panel.is_loading(), 20.0)
+	_check(panel.shown_messages() == expected, "then all of it, in order")
 	# /clear: the sidecar's history is empty, so the window clears at once.
 	store.apply({"type": "session.updated", "session": "h1", "seq": 23, "native_id": "n3"})
 	store.apply({"type": "session.notice", "session": "h1", "seq": 24, "notice": {"code": "conversation_cleared", "message": "x"}})
