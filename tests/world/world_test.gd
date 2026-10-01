@@ -2,14 +2,14 @@ extends SceneTree
 ## Headless test for the M1 world: the island generator (W01) and jump
 ## assist (W03), then the world scene with
 ## real physics: the player lands on the spawn platform, walks, jumps and is
-## put back when it falls in the sea; the session post; islands for
+## put back when it falls in the sea; the sessions menu; islands for
 ## sessions (applied to the store by hand), each orchestrator's bubble, and
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
-##   ... -- --sidecar-dev-fake    also starts a session from the post and
+##   ... -- --sidecar-dev-fake    also starts a session from the menu and
 ##                                chats with the fake provider, which
 ##                                spawns subagents
 
@@ -145,7 +145,7 @@ func _scene() -> void:
 	await _frames(2)
 	_check(player.global_position.distance_to(spawn) < 0.2, "falling in the sea puts it back on the platform")
 
-	await _post(world, player)
+	await _menu(world, player)
 	await _sessions(world, player)
 	await _agents(world)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
@@ -155,29 +155,35 @@ func _scene() -> void:
 	await _frames(1)
 
 
-func _post(world: Node3D, player: Player) -> void:
-	var post: SessionPost = world.get_node("SpawnPlatform/SessionPost")
+func _menu(world: Node3D, player: Player) -> void:
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
 	await _frames(5)
-	_check(not post.prompt_visible(), "no session prompt at the spawn")
-	player.global_position = Vector3(0, 1.1, -1.2)
-	await _frames(5)
-	_check(post.prompt_visible(), "near the post: \"Press E to start a session\"")
-	_press("interact")
+	_check(menu.hint_visible() and not menu.is_open(), "no sessions yet: \"Press Tab for sessions\"")
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_check(menu.is_open() and not player.controls_enabled and not menu.hint_visible(), "Tab opens the sessions menu and pauses the player")
+	_check(menu.entries()[0] == "+ New session…" and "Resume" in menu.entries(), "with New session and a list to resume")
+	menu.choose("+ New session")
 	await _frames(2)
-	_check(post.picker().visible and not player.controls_enabled and not post.prompt_visible(), "E opens the folder picker, in the game window, and pauses the player")
-	post.picker().get_cancel_button().pressed.emit()
+	_check(menu.picker().visible, "New session opens the folder picker, in the game window")
+	menu.picker().get_cancel_button().pressed.emit()
 	await _frames(2)
-	_check(not post.picker().visible and player.controls_enabled and post.prompt_visible(), "cancelling it gives the controls back")
-	# Choosing a folder ends in create().
+	_check(menu.is_open() and not menu.picker().visible and not player.controls_enabled, "cancelling it goes back to the menu")
+	_press("ui_cancel")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "Esc closes the menu")
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_press("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and player.controls_enabled, "and so does Tab")
+	# Choosing a folder ends in the launcher's create().
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "the sidecar is up")
-	post.create(OS.get_user_data_dir().path_join("no-such-folder"))
-	await _until(func() -> bool: return post.status_text().begins_with("Couldn't"), 5.0)
-	_check(post.status_text().contains("does not exist") and post.pending == "", "a missing folder is refused, and the sign says so")
-	player.respawn()
-	await _frames(5)
-	_check(not post.prompt_visible(), "walking away hides it")
+	menu.launcher.create(OS.get_user_data_dir().path_join("no-such-folder"))
+	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
+	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
 
 
 func _snapshot(id: String) -> Dictionary:
@@ -503,18 +509,19 @@ func _agents(world: Node3D) -> void:
 	await _frames(2)
 
 
-# With the fake provider: start a session from the post and chat with it.
+# With the fake provider: start a session from the menu and chat with it,
+# then resume a stored one.
 func _live(world: Node3D, player: Player) -> void:
-	var post: SessionPost = world.get_node("SpawnPlatform/SessionPost")
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var chat: ChatController = world.get_node("ChatController")
 	var sidecar: SidecarClient = root.get_node("Sidecar")
-	post.create(OS.get_user_data_dir())
+	menu.launcher.create(OS.get_user_data_dir())
 	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
 	var id: String = world.store.sessions.keys()[0]
 	await _frames(20)
 	var orchestrator := islands.orchestrator(id)
-	_check(orchestrator != null and post.status_text() == "", "live: the session is up, with its island")
+	_check(orchestrator != null and menu.notice_text() == "", "live: the session is up, with its island")
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and it takes you there")
 
 	_check(chat.history_loaded(id), "live: its history is loaded")
@@ -566,6 +573,32 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return islands.island(id) == null, 5.0)
 	await _frames(2)
 	_check(islands.island(id) == null and player.global_position.distance_to(player.spawn_point) < 0.5, "live: ending it sinks the island and brings you back")
+
+	# S04: resume a stored session from the menu.
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.entries().any(func(e: String) -> bool: return e.begins_with("Add a save system")), 5.0)
+	var listed := menu.entries()
+	_check(listed.size() == 5 and listed[2].begins_with("Fix the player") and listed[3].begins_with("Add a save system") and listed[3].contains("my-game") and listed[3].ends_with("1 d ago"), "live: stored sessions listed newest first, with project and age")
+	menu.search("SAVE")
+	_check(menu.entries() == ["+ New session…", "Resume", listed[3]], "live: the search filters them")
+	menu.choose("Add a save system")
+	_check(not menu.is_open() and menu.notice_text() == "Starting…", "live: choosing one resumes it")
+	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
+	var resumed: String = world.store.sessions.keys()[0]
+	await _until(func() -> bool: return chat.history_loaded(resumed), 5.0)
+	await _frames(5)
+	_check(islands.orchestrator(resumed) != null and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: its island comes back and you're taken there")
+	_check(chat.bubble(resumed).shown_text() == "Resumed Add a save system.", "live: with its chat so far")
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.entries().size() == 6, 5.0)
+	var now := menu.entries()
+	_check(now[1] == "Running" and now[2].begins_with("Add a save system") and not now.slice(3).any(func(e: String) -> bool: return e.begins_with("Add a save")), "live: now under Running, not Resume")
+	player.respawn()
+	menu.choose("Add a save system")
+	await _frames(5)
+	_check(not menu.is_open() and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: a running one takes you to its island")
+	sidecar.send_command("session.end", {"session": resumed})
+	await _until(func() -> bool: return islands.island(resumed) == null, 5.0)
 
 
 func _press(action: String) -> void:

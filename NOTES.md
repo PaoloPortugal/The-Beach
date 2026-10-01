@@ -83,6 +83,7 @@ v1 slice.
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
 | W07 | Teleport menu                             | planned | n/a           | n/a       |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
+| W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -630,6 +631,13 @@ waiting longest on a permission or question.
 the island when you wade too deep (W03's placeholder), and a seabed worth
 seeing: varied depths (shallows, drop-offs, deeper water) rather than one
 flat sea floor, which also means the water can't stay opaque everywhere.
+
+### W09 Day/night cycle and weather
+*Planned (user's request, 2026-10-01).* The sun moves through a day and
+night cycle, and the weather changes (e.g. clouds, rain, wind on the
+waves). Not a provider feature: world only. Undesigned: the day's length
+(real time or faster), whether weather is random or reacts to anything,
+and what night looks like (readable islands and bubbles, lights).
 
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
@@ -1644,7 +1652,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C03 Markdown rendering (chosen by the user as the
+**Current focus:** the "many sessions" milestone (user's choice,
+2026-10-01). First feature on branch `s04-resume`: the **sessions menu**
+(Tab anywhere: new session, jump to a running one, resume a stored one;
+the "New session" post is removed), code and tests done, docs not yet.
+The menu is a **placeholder** (user's, 2026-10-01): it must be properly
+designed later, like all UI. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
 and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
