@@ -516,7 +516,17 @@ func _live(world: Node3D, player: Player) -> void:
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var chat: ChatController = world.get_node("ChatController")
 	var sidecar: SidecarClient = root.get_node("Sidecar")
-	menu.launcher.create(OS.get_user_data_dir())
+	# The real way in: Tab, New session, the picker's own "select" button.
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	menu.choose("+ New session")
+	await _frames(2)
+	menu.picker().current_dir = OS.get_user_data_dir()
+	await _frames(2)
+	menu.picker().get_ok_button().pressed.emit()
+	await _frames(2)
+	_check(not menu.is_open() and not menu.picker().visible, "live: choosing a folder closes the picker and the menu")
+	_check(player.controls_enabled, "live: and gives the controls back (headless has no mouse to check)")
 	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
 	var id: String = world.store.sessions.keys()[0]
 	await _frames(20)
