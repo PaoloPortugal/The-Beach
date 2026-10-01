@@ -244,9 +244,10 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 9, "agent": "main", "state": "idle", "reason": null})
 	_check(panel.shown_messages()[1] == "Done. [url=https://x]click[/url]" and panel.status_text() == "", "it updates in place; text is shown as written, not as markup")
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 10, "agent": "main", "state": "waiting", "reason": "permission"})
-	_check(panel.status_text().contains("terminal"), "a permission wait points to the terminal")
+	_check(panel.status_text().contains("above or in the terminal"), "a permission wait points to the card and the terminal")
 	store.apply({"type": "session.notice", "session": "h1", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	_check(panel.get_node("Layout/Notices").visible, "notices show")
+	await _card(store, panel)
 
 	# Sending to a session the sidecar doesn't have: refused, text kept.
 	panel.set_draft("hello")
@@ -267,7 +268,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	# The session ends while you're on its island, with the chat open.
 	_press("interact")
 	await _frames(2)
-	store.apply({"type": "session.ended", "session": "h1", "seq": 12, "reason": "exited"})
+	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
 	await _frames(2)
 	_check(islands.island("h1") == null and not chat.is_open() and player.controls_enabled, "an ended session's island goes, and its chat closes")
 	_check(player.global_position.distance_to(player.spawn_point) < 0.5, "whoever stood on it is back on the platform")
@@ -277,6 +278,54 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "session.ended", "session": "h2", "seq": 2, "reason": "exited"})
 	store.apply({"type": "session.ended", "session": "h3", "seq": 2, "reason": "exited"})
 	await _frames(2)
+
+
+# C05: the card for permission prompts and questions, on session h1 (which
+# the sidecar doesn't have, so its answers are refused).
+func _card(store: SessionStore, panel: ChatPanel) -> void:
+	var card := panel.pending_card()
+	_check(not card.visible, "card: hidden with nothing pending")
+	store.apply({"type": "permission.requested", "session": "h1", "seq": 12, "permission": {
+		"permission": "p1", "agent": "main", "tool": "Bash", "summary": "Run: [b]rm[/b] x", "input": {"command": "rm x"}}})
+	var sub := _agent("s1", "main", "working")
+	sub["name"] = "Explore"
+	store.apply({"type": "agent.spawned", "session": "h1", "seq": 13, "agent": sub})
+	store.apply({"type": "question.asked", "session": "h1", "seq": 14, "question": {"question": "q1", "agent": "s1", "items": [
+		{"text": "Which fruit?", "header": "Fruit", "multi_select": false, "options": [{"label": "Apple", "description": "Crisp"}, {"label": "Banana"}]},
+		{"text": "What goes with it?", "multi_select": true, "options": [{"label": "Honey"}, {"label": "Nuts"}]},
+	]}})
+	_check(card.visible and card.header_text() == "The orchestrator asks to use Bash:" and card.count_text() == "1 of 2 waiting", "card: the oldest request first, with how many wait")
+	var buttons := card.find_children("*", "Button", true, false)
+	var allow: Button = buttons.filter(func(b: Button) -> bool: return b.text == "Allow")[0]
+	_check(allow.focus_mode == Control.FOCUS_NONE, "card: no key can press Allow")
+	_check(card.find_children("*", "Label", true, false).any(func(l: Label) -> bool: return l.text == "Run: [b]rm[/b] x"), "card: the summary is shown as written")
+	card.set_note("not that one")
+	card.respond("deny")
+	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	_check(card.error_text().begins_with("Couldn't answer") and card.current()["kind"] == "permission", "card: a refused answer says so and stays")
+	store.apply({"type": "permission.resolved", "session": "h1", "seq": 15, "permission": "p1", "decision": "allow", "by": "external"})
+	_check(card.header_text() == "Subagent Explore asks:" and card.count_text() == "" and card.error_text() == "", "card: answered in the terminal, the next one shows, naming its agent")
+	_check(card.step() == 0, "card: questions start at the first item")
+	card.next()
+	_check(card.step() == 0, "card: no Next before an answer")
+	card.choose("Banana")
+	_check(card.step() == 1, "card: a single choice moves straight on")
+	card.choose("Honey")
+	card.choose("Nuts")
+	card.choose("Honey")
+	_check(card.step() == 1, "card: checkboxes don't move on")
+	card.back()
+	card.set_other("Mango")
+	card.next()
+	_check(card.step() == 1, "card: Back, your own words, then Next")
+	panel.close()
+	panel.open("h1")
+	_check(panel.pending_card().step() == 1, "card: progress survives closing the chat")
+	card.send_answers()
+	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	_check(card.error_text().begins_with("Couldn't answer"), "card: Send on the last item")
+	store.apply({"type": "question.resolved", "session": "h1", "seq": 16, "question": "q1", "by": "external"})
+	_check(not card.visible, "card: hidden again when nothing waits")
 
 
 func _agent(id: String, parent: String, state: String) -> Dictionary:
@@ -404,6 +453,25 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(agents.subagent_count() == 0, "live: and all walk back and go when done")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("reported back"), 8.0)
 	_check(panel.shown_messages()[-1].contains("reported back"), "live: the orchestrator sums up")
+
+	# C05: answering a permission prompt and a question on the card.
+	var card := panel.pending_card()
+	panel.set_draft("permission")
+	panel.send()
+	await _until(func() -> bool: return card.visible, 8.0)
+	_check(card.visible and card.header_text() == "The orchestrator asks to use Bash:", "live: a permission prompt on the card")
+	card.respond("allow")
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("Installed"), 8.0)
+	_check(not card.visible and panel.shown_messages()[-1].contains("Installed"), "live: allowed from the card")
+	panel.set_draft("question")
+	panel.send()
+	await _until(func() -> bool: return card.visible, 8.0)
+	card.choose("Banana")
+	card.choose("Honey")
+	card.choose("Nuts")
+	card.send_answers()
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("picked"), 8.0)
+	_check(not card.visible and panel.shown_messages()[-1].contains("Banana; Honey, Nuts"), "live: a two-item question answered from the card")
 	_press("ui_cancel")
 	await _frames(2)
 

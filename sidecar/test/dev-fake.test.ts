@@ -45,7 +45,7 @@ test('dev:fake: echo, permission, question, agents, notice and stop all play out
     await say('a question')
     const q = await c.next('question.asked', 5000)
     const qid = (q.question as any).question
-    assert.equal((await c.command({ type: 'question.answer', session, question: qid, answers: [['Banana']] })).type, 'ok')
+    assert.equal((await c.command({ type: 'question.answer', session, question: qid, answers: [['Banana'], ['Honey', 'Nuts']] })).type, 'ok')
     assert.match(String((await c.next((m) => m.type === 'message.completed' && /picked/.test(String(m.text)), 5000)).text), /Banana/)
     await c.next(idle, 5000)
 
