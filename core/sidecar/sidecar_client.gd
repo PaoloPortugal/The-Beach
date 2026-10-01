@@ -77,7 +77,9 @@ func _exit_tree() -> void:
 
 ## Sends a command. [param fields] are its fields without [code]type[/code]
 ## and [code]id[/code]. [param on_reply] gets the [code]ok[/code] or
-## [code]error[/code] reply. Returns the command id, or "" if not connected.
+## [code]error[/code] reply; if the connection drops first, an
+## [code]error[/code] with code [code]disconnected[/code] (the command may
+## or may not have arrived). Returns the command id, or "" if not connected.
 func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
 	if status != Status.READY and status != Status.SYNCING:
 		return ""
@@ -265,6 +267,8 @@ func _poll_socket() -> void:
 		WebSocketPeer.STATE_CLOSED:
 			var code := _ws.get_close_code()
 			_ws = null
+			# The replies on their way are lost with the connection.
+			_drop_pending()
 			if _pid > 0 and OS.is_process_running(_pid):
 				# The sidecar is alive: connect again (it replaces the old link).
 				push_warning("Sidecar connection closed (code %d); reconnecting." % code)
@@ -333,6 +337,16 @@ func _is_stale(msg: Dictionary) -> bool:
 		send_command("session.get_snapshot", {"session": id})
 	_seq[id] = seq
 	return false
+
+
+# Answers every command still waiting for a reply with an error, so no
+# caller waits forever (a card stuck on "sending", say).
+func _drop_pending() -> void:
+	var waiting := _pending
+	_pending = {}
+	for id in waiting:
+		(waiting[id] as Callable).call({"type": "error", "id": id, "code": "disconnected",
+			"message": "the connection to the sidecar dropped, so it may not have arrived."})
 
 
 func _fail(reason: String) -> void:

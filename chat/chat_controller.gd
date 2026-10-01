@@ -19,7 +19,7 @@ var sidecar: SidecarClient
 var _near: Array[Orchestrator] = []
 var _open: Orchestrator = null
 var _bubbles := {} # session id → MessageBubble
-var _history_asked := {} # session id → true
+var _history := {} # session id → "asking" or "loaded"
 
 @onready var _prompt: Label = $Prompt/Label
 @onready var _panel: ChatPanel = $Prompt/Panel
@@ -54,12 +54,7 @@ func watch(orchestrator: Orchestrator) -> void:
 	bubble.global_position = orchestrator.message_anchor()
 	_bubbles[id] = bubble
 	_show_latest(id)
-	# The chat so far isn't in the snapshot: fetch it once per session.
-	if not _history_asked.has(id):
-		_history_asked[id] = true
-		sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
-			if reply.get("type") == "ok":
-				store.load_history(id, reply["result"]["messages"]))
+	_fetch_history(id)
 
 
 func is_open() -> bool:
@@ -112,6 +107,7 @@ func _input(event: InputEvent) -> void:
 
 func open(orchestrator: Orchestrator) -> void:
 	_open = orchestrator
+	_fetch_history(orchestrator.session_id)
 	_panel.open(orchestrator.session_id)
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -131,6 +127,27 @@ func close() -> void:
 
 func _refresh_prompt() -> void:
 	_prompt.visible = _open == null and not _near.is_empty()
+
+
+# The chat so far isn't in the snapshot: fetch it once per session. If
+# that fails (an error, or no connection), opening the chat tries again.
+func _fetch_history(id: String) -> void:
+	if id.is_empty() or _history.has(id):
+		return
+	_history[id] = "asking"
+	var sent := sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok":
+			_history[id] = "loaded"
+			store.load_history(id, reply["result"]["messages"])
+		else:
+			_history.erase(id))
+	if sent.is_empty():
+		_history.erase(id)
+
+
+## Whether a session's chat history has been loaded.
+func history_loaded(id: String) -> bool:
+	return _history.get(id) == "loaded"
 
 
 # The orchestrator's newest reply goes in its bubble.
