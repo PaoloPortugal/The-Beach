@@ -16,7 +16,7 @@ import { connect, RecordingLog, testServer } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 const hook = (name: string, fields: Record<string, unknown> = {}) =>
-  ({ session_id: 's', transcript_path: 'x', cwd: CWD, hook_event_name: name, ...fields })
+  ({ transcript_path: 'x', cwd: CWD, hook_event_name: name, ...fields })
 const bash = (id: string, command: string, extra: Record<string, unknown> = {}) =>
   hook('PreToolUse', { tool_name: 'Bash', tool_input: { command, description: 'd' }, tool_use_id: id, ...extra })
 const relayed = (request_id: string, command: string) => ({

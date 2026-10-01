@@ -1,0 +1,15 @@
+LIVE CHECK: /clear clears the chat window
+
+1. Post (E) > C:\Users\paolo\sandbox\notes-app.
+   Confirm the dev channel in the terminal.
+2. Chat from the world: "Say hi." Wait for
+   the reply. Keep the chat panel open.
+3. Terminal: /clear. Do NOT send anything.
+   Expected at once: the chat window empties,
+   the bubble clears, and the /clear notice
+   mentions /resume.
+4. Chat from the world: "hello". Expected:
+   only this exchange in the window.
+5. /exit in the terminal.
+
+Tell Claude what you saw; paste red errors.

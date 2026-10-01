@@ -11,6 +11,7 @@ import type { HistoryMessage, Project, StoredSession } from '../../protocol.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
 import { writeSessionFile } from '../../launch/launcher.ts'
+import { writeRelayFile } from '../../launch/relay.ts'
 import { selfCommand } from '../../launch/self.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
@@ -130,9 +131,11 @@ export class ClaudeProvider implements Provider {
     const hooks = await this.hookServer()
     const launch = this.prepare(o.nativeId)
     this.live.add(o.nativeId)
-    const session = new ClaudeSession(host, launch, o.project, o.name, this.log,
-      () => { this.forget(launch.runDir); this.live.delete(o.nativeId) },
+    const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.name, this.log,
+      () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
+    // After /clear the old conversation is stored, not running: it may be listed and resumed.
+    session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
@@ -184,10 +187,17 @@ export class ClaudeProvider implements Provider {
     this.runDirs.delete(runDir)
   }
 
-  /** The session's hooks, posting to our hook server with the session's token. */
+  /**
+   * The session's hooks, posting to our hook server with the session's
+   * token. SessionStart runs this executable in relay mode, which finds the
+   * URL and token in a relay file, so they're never on a command line.
+   */
   private writeSettings(launch: Launch, url: string, token: string): string {
+    const relayFile = path.join(launch.runDir, 'relay.json')
+    writeRelayFile(relayFile, { url, token })
+    const relay = (this.opts.selfCommand ?? selfCommand)('relay', relayFile)
     const file = path.join(launch.runDir, 'settings.json')
-    fs.writeFileSync(file, JSON.stringify(hookSettings(url, token)), { mode: 0o600 })
+    fs.writeFileSync(file, JSON.stringify(hookSettings(url, token, relay)), { mode: 0o600 })
     return file
   }
 

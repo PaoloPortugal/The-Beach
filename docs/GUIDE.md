@@ -6,13 +6,155 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
+- [Starting a session (S03)](#starting-a-session-s03)
+- [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
+- [Moving around (W03)](#moving-around-w03)
+- [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
+- [The chat (C02)](#the-chat-c02)
+- [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
+- [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
 ## Running it
 
-Nothing is playable yet. Once it is, this section will explain how to
-open the world on Windows, macOS or Linux.
+There's no download yet. For now, open the project in Godot 4.7.2 and
+press F5: you arrive on a wooden platform in the open sea, facing a
+"New session" sign.
+
+The game picks its graphics mode by itself. If it won't start or looks
+wrong, you can force the simpler mode by starting it with
+`--rendering-method gl_compatibility`; it looks nearly the same, but
+without the sun's shadows.
+
+## Starting a session (S03)
+
+This is a quick first version; how you start sessions will be designed
+properly later.
+
+Walk up to the "New session" sign on the platform and **Press E to start
+a session** appears. Press E and pick the project folder you want to work
+in. A terminal window opens with Claude Code in it; the sign above the
+post tells you to confirm there (see Claude Code sessions below). If
+nothing has happened after two minutes it says "Still starting; check the
+terminal." Once you've confirmed, the session's island appears and you're
+taken to it, right in front of its orchestrator.
+
+If the session can't start, the sign says why. One session starts at a
+time.
+
+## The islands and the ocean (W01, W02)
+
+Each session has its own small low-poly beach island: a flat spot in the
+middle where its orchestrator sits, dunes around it, and a sandy beach.
+Islands are made by the game, so no two look the same. An island appears
+once its session is running and disappears when the session ends; if you
+are standing on it then, you're put back on the platform. Islands sit
+around the platform, far apart; for now the only ways between them are
+starting a session and falling in the sea. The ocean has gentle waves and
+fades into haze at the horizon.
+
+## Moving around (W03)
+
+You see the world through your character's eyes.
+
+| Do this | Key |
+|---------|-----|
+| Walk | W A S D |
+| Sprint | hold Shift |
+| Jump | Space |
+| Look around | mouse |
+| Free the mouse pointer | Esc (click in the game to take it back) |
+| Start a session, next to the "New session" sign | E |
+| Chat, next to the orchestrator | E (Esc closes the chat) |
+
+The keys follow their position on the keyboard, so on other layouts
+(such as AZERTY) use the keys in the same place.
+
+Jumps are forgiving: pressing jump just before you land, or just after
+you step off an edge, still counts. You can wade into the shallows; go
+too deep and you're put back on the platform (swimming comes later).
+
+## Talking to the orchestrator (C01)
+
+In the middle of each island, an AI agent sits at a desk: the
+**orchestrator** of that session, the one you talk to. For now it's a
+plain stand-in figure.
+
+Walk up to it and **Press E to chat** appears. Press E to open the chat:
+it fills most of the screen and frees your mouse pointer, and you can't
+walk while it's open. Press Esc to close it and carry on walking. If the
+session ends while the chat is open, the chat closes.
+
+## The chat (C02)
+
+**Above the orchestrator's head** floats a small window with the last
+thing it said, facing you wherever you stand. It fills in as the reply
+arrives and shows the newest four lines; the full text is in the chat.
+It's part of the world, so it gets smaller as you walk away and hills
+can hide it.
+
+**The chat** (E, next to the orchestrator) shows the whole conversation:
+your messages on the right, the orchestrator's on the left, including
+what was said in the terminal. Replies appear as they're written. You can
+select text to copy it. Type in the box at the bottom: **Enter** sends,
+**Shift+Enter** starts a new line. Your message shows up once the session
+has it; if it can't be sent, the chat says so and gives your text back.
+
+Above the box, a line says what the orchestrator is doing: working, or
+waiting for you. When it waits on a permission or a question, a card
+above that line lets you answer it (see below). Messages are shown as
+plain text (formatting comes later), and only the latest 200 at once.
+
+## Answering Claude's requests (C05)
+
+When Claude, or one of its subagents, asks your permission or asks you a
+question, a card with an orange border appears in the chat, just above
+the message box. It says who is asking. If several are waiting, you see
+the oldest first, with "1 of 3 waiting"; the next one shows once you've
+answered. You can still answer in the terminal instead: whichever you
+answer first counts, and the card goes away.
+
+**A permission.** The card shows what Claude wants to do (for example
+"Run: npm install"). **Details** shows exactly what it would run or
+change. **Allow** answers at once. **Deny** opens the note field below
+it: type why you said no or what to do instead (or leave it empty) and
+press **Send**. Claude gets the note as your next message. As in Claude
+Code's own prompt, only a "no" takes a note: if you change your mind and
+press Allow, the note isn't sent.
+
+**A question.** Questions come one at a time ("Question 1 of 2").
+Click an option to answer and move on to the next. When you may pick
+several, tick them and press **Next**. To answer in your own words, type
+in **Other…** and press **Next**. **Back** takes you to an earlier
+question. On the last one, nothing is sent until you press **Send**.
+
+Allow, Deny and Send only work with a click: no key presses them, so
+pressing Enter in the chat can never answer for you. If you close the
+chat, the card keeps what you've typed or picked so far. If an answer
+can't be delivered, the card says why; answer in the terminal then.
+
+## Subagents (A02, A03, A04)
+
+When the orchestrator hands work to **subagents**, they appear around it
+on its island: smaller stand-in figures, each at a little desk with a
+computer, facing the orchestrator. The first ones sit in a ring about
+10 m out; more rings are added as more of them arrive. Each one keeps its
+place while it works.
+
+When a subagent finishes, its desk goes and it walks back to whoever
+asked for the work, a sheet of paper over its head, and disappears when
+it gets there. If it's asked to carry on later, it comes back to its
+desk. Subagents that finished before you opened the world aren't shown.
+
+**What they're doing** shows as a small sign above each agent, the
+orchestrator included:
+- a spinning **yellow diamond**: working;
+- a bouncing **orange "!"**: waiting for you (answer it in the chat or
+  the terminal);
+- a **red "×"**: something went wrong, or it was stopped. A subagent
+  stays like this for about 10 seconds, then disappears;
+- nothing: the orchestrator is done with its turn and it's your move.
 
 ## The sidecar (S01)
 
@@ -40,8 +182,9 @@ reinstalling the game restores it if it goes missing.
 ## Claude Code sessions (S02)
 
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
-tool. The world itself isn't built yet, so you can't start a session from
-inside the game; this section describes how sessions will behave.
+tool. Parts of the world described here are still being built: chatting
+(C02) and answering prompts and questions (C05) work, but stopping from
+the world doesn't have a button yet, so use the terminal for that.
 
 **What you need.** Claude Code installed on your computer (version
 2.1.284 or newer), signed in with your own account. The game never sees
@@ -76,6 +219,25 @@ use in Claude Code: in its `auto` mode it rarely asks at all.
 commands (such as `/model` or `/clear`), and switching permission mode
 outside a prompt. Ending a session is `/exit` in the terminal for now.
 
+**Starting over with `/clear`.** If you type `/clear` in the terminal,
+Claude starts a fresh conversation in the same session. It stays on the
+same island, and the chat window clears right away, with a note that a
+new conversation started. The earlier conversation isn't lost: `/resume`
+in the terminal brings it back.
+
+**Switching with `/resume`.** If you type `/resume` in the terminal and
+pick an earlier conversation, the island stays and the chat changes to
+that conversation's right away, with a note saying so. Messages from the
+world then go to that conversation.
+
+**Not available in sessions started from the world.** Claude Code's
+agent view (pressing Left at an empty prompt), `/bg` and `/fork`. They
+would move your conversation to a background session the world can't
+follow, so the game turns them off for its own sessions; your other
+Claude Code sessions are unaffected. If a conversation ever does move
+anyway, the chat says so: carry on in the terminal, since messages and
+answers from the world can't reach it.
+
 **Transcripts.** Claude Code saves each conversation (its transcript) on
 your computer; the game reads it to notice things like Esc and to show
 earlier chats. If you've turned transcript saving off in Claude Code, the
@@ -87,3 +249,5 @@ conversations on disk.
 **If the world stays quiet.** If a company or personal setting in Claude
 Code blocks the game from following the session, the world says so. You
 can still chat from the world; answer Claude's prompts in the terminal.
+If the world can't reach the session at all for a moment, sending from
+the world says so instead of losing your message; use the terminal.

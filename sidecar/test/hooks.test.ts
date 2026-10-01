@@ -36,10 +36,13 @@ const states = (events: SessionEvent[]) => events
 
 // ---- settings ----
 
+const RELAY = ['/sidecar', 'relay', '/run/relay.json']
+
 test('settings: every reported hook posts to our URL with the token; short timeouts', () => {
-  const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64))
-  assert.deepEqual(Object.keys(s.hooks).sort(), ['MessageDisplay', 'PermissionRequest', ...REPORTED_HOOKS].sort())
+  const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64), RELAY)
+  assert.deepEqual(Object.keys(s.hooks).sort(), ['MessageDisplay', 'PermissionRequest', 'SessionStart', ...REPORTED_HOOKS].sort())
   for (const [name, groups] of Object.entries(s.hooks)) {
+    if (name === 'SessionStart') continue
     const h = (groups as any)[0].hooks[0]
     assert.deepEqual(h, {
       type: 'http', url: 'http://127.0.0.1:5/hook',
@@ -51,7 +54,25 @@ test('settings: every reported hook posts to our URL with the token; short timeo
   // come through the channel's relay.
   assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '^AskUserQuestion$')
   assert.equal((s.hooks.PermissionRequest as any).length, 1)
-  assert.ok(!('SessionStart' in s.hooks), 'SessionStart can\'t be an HTTP hook')
+})
+
+test('settings: SessionStart (clear and resume only) runs the relay in exec form: no shell, no token on the command line', () => {
+  const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64), RELAY)
+  const groups = s.hooks.SessionStart as any[]
+  assert.equal(groups.length, 1)
+  for (const source of ['clear', 'resume']) assert.match(source, new RegExp(groups[0].matcher))
+  for (const source of ['startup', 'compact', 'fork']) assert.doesNotMatch(source, new RegExp(groups[0].matcher))
+  // Exec form: with `args`, Claude Code spawns `command` directly with that
+  // argv, no shell (hooks reference). SessionStart can't be an HTTP hook.
+  assert.deepEqual(groups[0].hooks, [{ type: 'command', command: '/sidecar', args: ['relay', '/run/relay.json'], timeout: 5 }])
+  assert.ok(!JSON.stringify(groups).includes('a'.repeat(64)), 'the token stays in the relay file')
+  assert.throws(() => hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64), []))
+})
+
+test('settings: agent view is off, so the conversation can\'t move to a background session', () => {
+  const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64), RELAY)
+  assert.deepEqual(Object.keys(s).sort(), ['disableAgentView', 'hooks'])
+  assert.equal(s.disableAgentView, true)
 })
 
 // ---- translation ----
@@ -363,6 +384,7 @@ test('hook endpoint: oversized bodies are cut off; a failing handler is a 500, n
 test('hooks from a launched session reach Godot as valid events', async () => {
   let settingsFile = ''
   let mcpConfig = ''
+  let nativeId = ''
   const p = new ClaudeProvider({
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
@@ -371,6 +393,7 @@ test('hooks from a launched session reach Godot as valid events', async () => {
       const launch = JSON.parse(fs.readFileSync(req.argv[2]!, 'utf8'))
       settingsFile = launch.args[launch.args.indexOf('--settings') + 1]
       mcpConfig = launch.args[launch.args.indexOf('--mcp-config') + 1]
+      nativeId = launch.args[launch.args.indexOf('--session-id') + 1]
       return 'fake'
     },
   })
@@ -383,7 +406,8 @@ test('hooks from a launched session reach Godot as valid events', async () => {
     const id = (r.result as { session: string }).session
     const h = JSON.parse(fs.readFileSync(settingsFile, 'utf8')).hooks.UserPromptSubmit[0].hooks[0]
     const port = Number(new URL(h.url).port)
-    const send = (payload: object) => post(port, JSON.stringify(payload), { authorization: h.headers.Authorization })
+    // The launched conversation's own hooks carry its session id.
+    const send = (payload: object) => post(port, JSON.stringify({ ...payload, session_id: nativeId }), { authorization: h.headers.Authorization })
 
     // A hook before the bridge's ready still means the session is up.
     assert.equal((await send(hook('UserPromptSubmit', { prompt_id: 'u', prompt: '<channel source="world-bridge" sender="user">\nhi\n</channel>' }))).status, 200)

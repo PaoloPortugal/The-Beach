@@ -35,6 +35,11 @@ test('signals: ordinary errors, user text that merely mentions it, subagents and
   assert.deepEqual(signalsIn(JSON.stringify({ type: 'user', isSidechain: true, message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } })), [])
   assert.deepEqual(signalsIn(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } })), [])
   assert.deepEqual(signalsIn('not json'), [])
+  // A conversation moved to another session (seen live, 2.1.285).
+  const CONTINUED = '{"type":"continued-in","timestamp":"2026-10-01T11:29:01.003Z","sessionId":"c5c192c8-4583-4d49-83ea-83f7e6e5acb0","continuedInSessionId":"96033ade-7ef9-4542-a7ba-abbf1bf5ebbd"}'
+  assert.deepEqual(signalsIn(CONTINUED), [{ kind: 'continued', sessionId: '96033ade-7ef9-4542-a7ba-abbf1bf5ebbd' }])
+  assert.deepEqual(signalsIn(JSON.stringify({ type: 'continued-in', continuedInSessionId: '../../x' })), [])
+  assert.deepEqual(signalsIn(JSON.stringify({ type: 'continued-in' })), [])
   assert.deepEqual(signalsIn('null'), [])
 })
 

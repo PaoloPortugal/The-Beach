@@ -51,9 +51,12 @@ func _run() -> void:
 	# A dropped connection while the sidecar runs: the client reconnects and syncs again.
 	var syncs := [0]
 	sidecar.synced.connect(func(_p: Array) -> void: syncs[0] += 1)
+	var lost := [{}]
+	sidecar.send_command("session.list_stored", {"provider": "nope"}, func(r: Dictionary) -> void: lost[0] = r)
 	sidecar._ws.close()
 	await _until(func() -> bool: return syncs[0] == 1, 10.0)
 	_check(syncs[0] == 1 and sidecar.status == SidecarClient.Status.READY, "reconnects after a dropped connection")
+	_check(lost[0].get("type") == "error" and lost[0].get("code") == "disconnected", "a reply lost with the connection comes back as an error")
 	reply = await _command(sidecar, "session.list_stored", {"provider": "nope"})
 	_check(reply.get("code") == "unknown_provider", "commands work after reconnecting")
 

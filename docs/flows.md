@@ -8,8 +8,9 @@ matching flow here in the same branch.
 
 GitHub draws the Mermaid blocks as diagrams. Arrows between World and
 Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
-Code are hooks (HTTP, with the session's token); Bridge is our channel
-bridge (NOTES.md → S02).
+Code are hooks (HTTP, with the session's token; `SessionStart` goes
+through Relay, our executable run as a command hook, flow 9); Bridge is
+our channel bridge (NOTES.md → S02).
 
 The terminal and the world are two windows onto the same session: you can
 switch between them at any point, and whichever answers first wins.
@@ -41,6 +42,7 @@ transcripts are off).
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
 - [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
+- [9. /clear or /resume: another conversation in the session](#9-clear-or-resume-another-conversation-in-the-session)
 
 ## 0. Starting up
 
@@ -94,13 +96,18 @@ sequenceDiagram
     Bridge->>Sidecar: connect with the session's token
     Sidecar-->>Bridge: accepted
     Sidecar->>World: session.created (island rises)
-    Note over Claude,Sidecar: No start hook: SessionStart doesn't support HTTP hooks,<br/>so the bridge connecting is the "session is up" signal.
+    Note over Claude,Sidecar: No start hook: SessionStart runs only for /clear and /resume (flow 9),<br/>so the bridge connecting is the "session is up" signal.
 ```
 
 Ending: `/exit` in the terminal (or `session.end` from the world) →
 Claude Code exits and its bridge's connection closes → `session.ended`
 (island sinks). Not the `SessionEnd` hook: it also fires for `/clear`,
-when `claude` keeps running.
+when `claude` keeps running (flow 9).
+
+Our settings file also turns Claude Code's agent view off
+(`disableAgentView`), so Left at an empty prompt, `/bg` and `/fork` can't
+move the conversation into a background session the world can't reach
+(NOTES.md → S02 → Launch).
 
 Which terminal opens depends on the OS and the user's setting; the
 terminal is only given our launcher and a session file, and the launcher
@@ -108,6 +115,12 @@ starts `claude` with an argument list (NOTES.md → Architecture →
 Platforms). Before any of this, Godot has started the sidecar (flow 0).
 `ok { session }` always comes before `session.created`; until the session
 is up, commands for it get `session_starting`.
+
+In the world for now (S03's quick version): the user picks the folder at
+the spawn platform's post, which shows the reply's `notice` until
+`session.created`; then the session's island appears and the player is
+taken there. A session that never comes up gets `session.ended` and the
+post says so (NOTES.md → S03, W01 → Islands for sessions).
 
 ## 2. A chat turn
 
@@ -185,6 +198,11 @@ sequenceDiagram
         Sidecar->>World: permission.resolved (by external), agent → idle
     end
 ```
+
+In the world, "allow or deny" and "picks options or types an answer"
+(flow 4) happen on the card in the chat panel (NOTES.md → C05): one
+request at a time, oldest first; it moves on when `permission.resolved`
+or `question.resolved` arrives, whichever side answered.
 
 The "No" line names the call's `tool_use_id`, so the sidecar resolves that
 exact prompt and closes the call as `denied`. When transcripts are off, a
@@ -344,3 +362,60 @@ sequenceDiagram
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
 ```
+
+## 9. /clear or /resume: another conversation in the session
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+    participant Relay as Relay (our executable)
+    participant Log as Transcript
+
+    User->>Claude: /clear (or /resume an earlier conversation)
+    Note over Claude: Same process, same folder, same bridge:<br/>another session id and its transcript.
+    Claude->>Relay: SessionStart (source clear or resume, the new session_id):<br/>a command hook, exec form, no shell; JSON on stdin
+    Relay->>Sidecar: POST /hook with the session's token (from the relay file)
+    Sidecar->>Log: poll the followed transcript: no continued-in
+    Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>followed. native_id switches; the old id becomes stored (resumable).
+    alt source resume
+        Sidecar->>Log: read the resumed transcript's chat (slash commands left out)
+        Note over Sidecar: that chat becomes the session's history
+        Sidecar->>World: session.updated (native_id), session.notice (conversation_resumed)
+    else source clear
+        Note over Sidecar: the history starts empty
+        Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
+    end
+    Sidecar-->>Relay: nothing to add
+    Relay-->>Claude: exit 0, nothing on stdout
+    Note over Claude: /resume waited for the hook (at most 5 s);<br/>/clear didn't.
+    World->>Sidecar: session.get_history
+    Sidecar-->>World: ok (the history): replaces the world's chat
+    User->>Claude: next message (typed in the terminal or sent from the world)
+    Sidecar->>World: the turn as usual (flow 2), from the new transcript too
+```
+
+The island stays. After `/clear` the world's chat window clears, and
+the notice says the earlier conversation can be brought back with
+`/resume`; after `/resume` the chat becomes the
+resumed conversation's (NOTES.md → S02 → Following the conversation).
+
+**If the relay fails** (it always exits 0, so Claude Code carries on),
+the world learns of the switch at the new conversation's first hook
+instead: a `UserPromptSubmit` with the new `session_id` goes through the
+same checks, and it counts as `/resume` if the new transcript holds a
+reply from Claude, else `/clear`.
+
+**A moved conversation.** If the followed transcript gets a
+`continued-in` entry instead (the conversation went on in another
+session, which agent view used to do), the sidecar sends
+`session.notice` (`conversation_moved`) and ignores the new session's
+hooks: the terminal handles everything. From then on `message.send`,
+`permission.respond` and `interrupt.request` get `error`
+(`provider_error`, "This conversation moved to another Claude Code
+session; continue it in the terminal."). Separately, whenever the bridge
+isn't connected, `message.send` and `permission.respond` get
+`provider_error` saying the world can't reach the conversation right
+now, rather than losing the message.

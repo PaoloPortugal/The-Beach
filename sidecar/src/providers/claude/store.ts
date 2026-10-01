@@ -24,6 +24,14 @@ export const LIST_MAX = 200
 /** A transcript larger than this isn't read for history (too slow for the world to wait on). */
 const HISTORY_MAX_BYTES = 64 * 1024 * 1024
 
+/**
+ * Slash commands run in the terminal (/clear, /resume, /model ...) and
+ * their output, which Claude Code writes as user entries (not always
+ * isMeta; 2.1.285): `<command-name>/clear</command-name>`, then a system
+ * local_command entry, after an isMeta `<local-command-caveat>`. Not chat.
+ */
+const LOCAL_COMMAND = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Claude Code's projects folder, following CLAUDE_CONFIG_DIR like Claude Code does. */
@@ -76,7 +84,7 @@ function userText(e: Record<string, unknown>): string | null {
   }
   if (text === null) return null
   const t = text.trim()
-  if (parseTaskNotification(t) || parseHandback(t) || /^\[Request interrupted by user/.test(t)) return null
+  if (parseTaskNotification(t) || parseHandback(t) || /^\[Request interrupted by user/.test(t) || LOCAL_COMMAND.test(t)) return null
   const unwrapped = unwrapChannel(t)
   // Claude Code's own injected context is marked meta; a world message is
   // too, but it's the user's (it arrives through our channel).
@@ -159,6 +167,20 @@ export function findStored(nativeId: string, dir = projectsDir()): StoredInfo | 
     if (fs.existsSync(file)) return describe(file)
   }
   return null
+}
+
+/**
+ * Whether a transcript holds a reply from Claude (an assistant entry of the
+ * main conversation): an earlier conversation, not one /clear just started.
+ * False if the file can't be read.
+ */
+export function hasReply(file: string): boolean {
+  let text: string
+  try {
+    if (fs.statSync(file).size > HISTORY_MAX_BYTES) return true
+    text = fs.readFileSync(file, 'utf8')
+  } catch { return false }
+  return lines(text, false).some((e) => e.type === 'assistant' && e.isSidechain !== true)
 }
 
 /**

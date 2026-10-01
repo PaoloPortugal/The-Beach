@@ -27,6 +27,13 @@ signal tool_changed(session: String, tool_call: String)
 signal permissions_changed(session: String)
 signal questions_changed(session: String)
 signal notices_changed(session: String)
+## Some of the session's own fields changed (e.g. [code]native_id[/code]
+## after the provider started a new conversation in it); [param fields]
+## names them.
+signal session_changed(session: String, fields: Array)
+## The chat was replaced as a whole ([method replace_history]): lay it out
+## again.
+signal messages_replaced(session: String)
 ## A provider extension message ([code]ext.<provider>.<name>[/code]).
 signal extension_event(session: String, msg: Dictionary)
 
@@ -37,8 +44,10 @@ const MAX_TOOLS := 500
 
 ## Session id → the protocol's session object (agents, permissions,
 ## questions, notices, ...), plus [code]messages[/code] (id → message) and
-## [code]message_order[/code] (ids, oldest first), and [code]tools[/code]
-## (tool call id → call) and [code]tool_order[/code].
+## [code]message_order[/code] (ids, oldest first), [code]tools[/code]
+## (tool call id → call) and [code]tool_order[/code], and
+## [code]pending_order[/code] ([code][kind, id][/code] per pending permission
+## and question, oldest first; read it through [method pending]).
 var sessions := {}
 
 var _seen_since_sync := {}
@@ -62,6 +71,30 @@ func agent(session_id: String, agent_id: String) -> Dictionary:
 		if a["agent"] == agent_id:
 			return a
 	return {}
+
+
+## A session's orchestrator (the agent with no parent), or an empty
+## dictionary.
+func orchestrator(session_id: String) -> Dictionary:
+	for a in session(session_id).get("agents", []):
+		if a["role"] == "orchestrator":
+			return a
+	return {}
+
+
+## What the session waits on the user for, oldest first: permission
+## prompts and questions, each as [code]{"kind": "permission" or
+## "question", "item": <the protocol's object>}[/code]. A snapshot doesn't
+## say which of the two kinds came first, so a snapshot's permissions count
+## as older than its questions.
+func pending(session_id: String) -> Array[Dictionary]:
+	var s := session(session_id)
+	var out: Array[Dictionary] = []
+	for key in s.get("pending_order", []):
+		var item := _find(s, key[0], key[1])
+		if not item.is_empty():
+			out.append({"kind": key[0], "item": item})
+	return out
 
 
 ## The chat so far, oldest first.
@@ -94,6 +127,35 @@ func load_history(session_id: String, history: Array) -> void:
 		message_changed.emit(session_id, id)
 
 
+## Replaces the chat with [code]session.get_history[/code]'s messages,
+## after the provider switched conversations ([code]native_id[/code]
+## changed). Messages that arrived since the switch and aren't in
+## [param history] are kept after it (a reply still streaming, say).
+func replace_history(session_id: String, history: Array) -> void:
+	var s := session(session_id)
+	if s.is_empty():
+		return
+	var before: Array = s.get("chat_before_switch", [])
+	var messages := {}
+	var order: Array = []
+	for m in history:
+		var id: String = m["message"]
+		messages[id] = {
+			"message": id, "agent": m["agent"], "role": m["role"],
+			"text": m["text"], "at": m["at"], "complete": true,
+		}
+		order.append(id)
+	for id in s["message_order"]:
+		if not before.has(id) and not messages.has(id):
+			messages[id] = s["messages"][id]
+			order.append(id)
+	s["messages"] = messages
+	s["message_order"] = order
+	s.erase("chat_before_switch")
+	_trim_messages(s)
+	messages_replaced.emit(session_id)
+
+
 ## Applies one event from the sidecar.
 func apply(msg: Dictionary) -> void:
 	var type: String = msg.get("type", "")
@@ -117,6 +179,17 @@ func apply(msg: Dictionary) -> void:
 			notices.assign(notices.filter(func(n: Dictionary) -> bool: return n["code"] != notice["code"]))
 			notices.append(notice)
 			notices_changed.emit(id)
+		"session.updated":
+			var fields := []
+			for key in msg:
+				if key not in ["type", "session", "seq"]:
+					s[key] = msg[key]
+					fields.append(key)
+			if "native_id" in fields:
+				# Messages from now on belong to the new conversation, whatever
+				# replace_history() brings.
+				s["chat_before_switch"] = s["message_order"].duplicate()
+			session_changed.emit(id, fields)
 		"agent.spawned":
 			s["agents"].append(msg["agent"])
 			agent_added.emit(id, msg["agent"]["agent"])
@@ -167,17 +240,21 @@ func apply(msg: Dictionary) -> void:
 				tool_changed.emit(id, msg["tool_call"])
 		"permission.requested":
 			s["permissions"].append(msg["permission"])
+			s["pending_order"].append(["permission", msg["permission"]["permission"]])
 			permissions_changed.emit(id)
 		"permission.resolved":
 			var list: Array = s["permissions"]
 			list.assign(list.filter(func(p: Dictionary) -> bool: return p["permission"] != msg["permission"]))
+			s["pending_order"].erase(["permission", msg["permission"]])
 			permissions_changed.emit(id)
 		"question.asked":
 			s["questions"].append(msg["question"])
+			s["pending_order"].append(["question", msg["question"]["question"]])
 			questions_changed.emit(id)
 		"question.resolved":
 			var list: Array = s["questions"]
 			list.assign(list.filter(func(q: Dictionary) -> bool: return q["question"] != msg["question"]))
+			s["pending_order"].erase(["question", msg["question"]])
 			questions_changed.emit(id)
 
 
@@ -190,6 +267,16 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 		s["questions"] = []
 	if not s.has("notices"):
 		s["notices"] = []
+	# Keep the order we saw them in; ones new in the snapshot go last.
+	var order: Array = []
+	for key in old.get("pending_order", []):
+		if _find(s, key[0], key[1]).size() > 0:
+			order.append(key)
+	for kind in ["permission", "question"]:
+		for item in s[kind + "s"]:
+			if not order.has([kind, item[kind]]):
+				order.append([kind, item[kind]])
+	s["pending_order"] = order
 	# A snapshot replaces the state, but the chat and tool log are ours.
 	s["messages"] = old.get("messages", {})
 	s["message_order"] = old.get("message_order", [])
@@ -216,6 +303,14 @@ func _on_synced() -> void:
 		if not _seen_since_sync.has(id):
 			sessions.erase(id)
 			session_removed.emit(id, "exited")
+
+
+# A pending permission or question ([param kind]) by id, or {}.
+static func _find(s: Dictionary, kind: String, id: String) -> Dictionary:
+	for item in s[kind + "s"]:
+		if item[kind] == id:
+			return item
+	return {}
 
 
 func _trim_messages(s: Dictionary) -> void:

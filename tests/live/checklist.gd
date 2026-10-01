@@ -1,0 +1,64 @@
+extends CanvasLayer
+## Dev tool for live checks, not a feature: shows the steps of the current
+## test (checklist.txt next to this file) in the top-left corner, over
+## everything, and reloads them when the file changes. The world adds it
+## only when the game starts with `-- --checklist`. F1 hides it down to a
+## small tab and shows it again.
+
+const FILE := "res://tests/live/checklist.txt"
+
+var _modified := 0
+var _text := ""
+var _hidden := false
+
+@onready var _label: Label = $Panel/Text
+@onready var _tab: PanelContainer = _make_tab()
+
+
+func _ready() -> void:
+	var timer := Timer.new()
+	timer.wait_time = 0.5
+	timer.timeout.connect(_reload)
+	add_child(timer)
+	timer.start()
+	_reload()
+
+
+# The small "F1: checklist" tab shown while the list is hidden.
+func _make_tab() -> PanelContainer:
+	var tab := PanelContainer.new()
+	tab.position = Vector2(8, 8)
+	tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tab.add_theme_stylebox_override("panel", $Panel.get_theme_stylebox("panel"))
+	var label := Label.new()
+	label.text = "F1: checklist"
+	label.add_theme_font_size_override("font_size", 14)
+	tab.add_child(label)
+	tab.visible = false
+	add_child(tab)
+	return tab
+
+
+func _input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo and key.keycode == KEY_F1:
+		get_viewport().set_input_as_handled()
+		_hidden = not _hidden
+		_show()
+
+
+func _show() -> void:
+	# Two panels, swapped: resizing one panel to fit didn't grow it back
+	# (the wrapped text isn't measured yet when it's resized).
+	_label.text = _text + "\n\n(F1 to hide)"
+	$Panel.visible = not _hidden
+	_tab.visible = _hidden
+
+
+func _reload() -> void:
+	var modified := FileAccess.get_modified_time(FILE)
+	if modified == _modified:
+		return
+	_modified = modified
+	_text = FileAccess.get_file_as_string(FILE).strip_edges()
+	_show()

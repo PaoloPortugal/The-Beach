@@ -2,6 +2,7 @@
 // transcript say, turned into the session's events, and the world's answers,
 // stops and messages sent back. The provider (index.ts) launches it.
 import fs from 'node:fs'
+import path from 'node:path'
 import type { ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
 import type { HistoryMessage, Project, SessionEvent } from '../../protocol.ts'
@@ -9,7 +10,8 @@ import type { Log } from '../../log.ts'
 import type { BridgeLink } from './bridge-server.ts'
 import type { HookLink, HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
-import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, type RelayedPermission } from './hooks.ts'
+import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, unwrapChannel, type RelayedPermission } from './hooks.ts'
+import { hasReply, readHistory } from './store.ts'
 
 /**
  * How long a relayed permission prompt waits for its tool call's
@@ -63,6 +65,32 @@ export const CONFIRM_IN_TERMINAL = {
   message: 'Confirm in the Claude Code terminal to start this session.',
 }
 
+/** The notice when /clear starts a new conversation in the session (the chat window is cleared with it). */
+export const CONVERSATION_CLEARED = {
+  code: 'conversation_cleared',
+  message: 'A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.',
+}
+
+/** The notice when /resume in the terminal switches the session to an earlier conversation. */
+export const CONVERSATION_RESUMED = {
+  code: 'conversation_resumed',
+  message: 'This session switched to an earlier conversation (/resume). The chat now shows that conversation.',
+}
+
+/** The notice when the conversation moved to another Claude Code session (user's wording, 2026-10-01). */
+export const CONVERSATION_MOVED = {
+  code: 'conversation_moved',
+  message: 'This conversation moved to another Claude Code session. Continue it in the terminal; the world can no longer send to it.',
+}
+
+/** Why the world can't send to a conversation that moved. */
+export const MOVED_ERROR = 'This conversation moved to another Claude Code session; continue it in the terminal.'
+/** Why the world can't send while the bridge isn't connected. */
+export const UNREACHABLE_ERROR = 'The world can\'t reach this conversation right now (its channel to Claude Code is closed); use the terminal.'
+
+/** Claude Code's session ids are UUIDs. */
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
@@ -88,6 +116,17 @@ export class ClaudeSession implements ProviderSession {
   readonly launch: Launch
   link: BridgeLink | null = null
   hookLink: HookLink | null = null
+  /**
+   * Claude's id for the conversation the world follows (native_id). It
+   * changes when /clear starts a new conversation in the same process.
+   */
+  nativeId: string
+  /** Called when nativeId changes, so the provider knows which ids are live. */
+  onNativeId: ((from: string, to: string) => void) | null = null
+  /** The conversation went on in this other session, out of the world's reach. */
+  private movedTo: string | null = null
+  /** The project's transcript folder, from the first hook: a new conversation must be in the same one. */
+  private transcriptDir: string | null = null
   private readonly project: Project
   private readonly name: string
   private readonly log: Log
@@ -137,6 +176,7 @@ export class ClaudeSession implements ProviderSession {
     hooksCheckMs = HOOKS_CHECK_MS) {
     this.host = host
     this.launch = launch
+    this.nativeId = launch.nativeId
     this.project = project
     this.name = name
     this.log = log
@@ -171,7 +211,7 @@ export class ClaudeSession implements ProviderSession {
     // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
     this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
     this.host.announce({
-      native_id: this.launch.nativeId,
+      native_id: this.nativeId,
       project: this.project,
       title: this.name,
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
@@ -193,10 +233,14 @@ export class ClaudeSession implements ProviderSession {
    */
   onHook(p: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void> {
     if (this.disposed || this.host.ended) return
+    // Comes through the relay (a command hook), not as one of the HTTP
+    // hooks the checks below are about.
+    if (p.hook_event_name === 'SessionStart') return this.sessionStarted(p)
     this.hooksSeen = true
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
     if (this.startupTimer) this.onReady()
+    if (!this.ownConversation(p)) return
     this.transcript.follow(p.transcript_path)
     if (p.hook_event_name === 'Stop' && !this.transcriptChecked) this.checkTranscript(p.transcript_path)
     if (p.hook_event_name === 'PermissionRequest') {
@@ -219,6 +263,108 @@ export class ClaudeSession implements ProviderSession {
     }
     for (const a of [...this.stopping]) if (!this.translator.isBusy(a)) this.stopping.delete(a)
     return reply
+  }
+
+  /**
+   * SessionStart, relayed: Claude Code says at once that /clear started a
+   * new conversation or /resume switched to an earlier one, with its id and
+   * transcript (NOTES.md -> S02 -> Following the conversation). Our own
+   * launch (startup, or --resume with the same id) and compaction change
+   * nothing; the settings only ask for clear and resume anyway.
+   */
+  private sessionStarted(p: HookPayload): void {
+    const source = p.source
+    if (source !== 'clear' && source !== 'resume') return
+    // Not up yet: nothing to switch (the fallback below still would).
+    if (this.startupTimer || p.session_id === this.nativeId || !this.acceptNew(p)) return
+    const file = p.transcript_path as string
+    // /resume: the resumed conversation's chat, all of it (no prompt has
+    // woken it yet). /clear: an empty chat.
+    this.switchTo(p.session_id as string, file, source === 'resume' ? readHistory(file) : null)
+    this.transcript.follow(file)
+  }
+
+  /**
+   * Whether a hook belongs to the conversation the world follows. A hook
+   * from another conversation of this session (our settings, so our token)
+   * is either /clear or /resume, a new or an earlier conversation in the
+   * same process, which the world follows (same project, same island;
+   * user's decisions), or a conversation that moved elsewhere (agent view,
+   * which we turn off), which it can't: those hooks are ignored, so the
+   * terminal handles everything. SessionStart normally reports the switch
+   * first; if its relay failed, the new conversation's first hook does.
+   */
+  private ownConversation(p: HookPayload): boolean {
+    const id = p.session_id
+    const file = p.transcript_path
+    if (id === undefined || id === this.nativeId) {
+      if (this.transcriptDir === null && typeof file === 'string' && path.isAbsolute(file)) this.transcriptDir = path.dirname(file)
+      return true
+    }
+    if (!this.acceptNew(p)) return false
+    // The fallback: a transcript with a reply from Claude is an earlier
+    // conversation (/resume); one /clear started has none yet.
+    this.switchTo(id as string, file as string, hasReply(file as string) ? earlierChat(file as string, p) : null)
+    return true
+  }
+
+  /**
+   * Whether a hook from another conversation of this session is one the
+   * world can follow: not moved away, a real session id, and a transcript
+   * in this project's folder.
+   */
+  private acceptNew(p: HookPayload): boolean {
+    const id = p.session_id
+    const file = p.transcript_path
+    // A move writes continued-in to our transcript before the new session
+    // starts; read it now in case the next poll hasn't come yet.
+    this.transcript.poll()
+    if (this.movedTo !== null || typeof id !== 'string' || !SESSION_ID.test(id)) return false
+    // A transcript in another folder isn't this project's (never seen).
+    if (typeof file !== 'string' || !path.isAbsolute(file) ||
+        (this.transcriptDir !== null && path.dirname(file) !== this.transcriptDir)) {
+      this.log.warn(`session ${this.host.id}: ignored a hook from another project's conversation`)
+      return false
+    }
+    return true
+  }
+
+  /**
+   * The world now follows conversation `id`. `resumed` is its chat after
+   * /resume, which becomes the history; null after /clear, when the
+   * history empties, so the world's chat window clears too (user's
+   * decisions, 2026-10-01; the old conversation stays resumable).
+   */
+  private switchTo(id: string, file: string, resumed: HistoryMessage[] | null) {
+    const from = this.nativeId
+    this.nativeId = id
+    this.transcriptDir ??= path.dirname(file)
+    if (resumed) {
+      this.history.splice(0, this.history.length, ...resumed.slice(-HISTORY_MAX))
+      this.log.info(`session ${this.host.id}: it switched to an earlier conversation (/resume)`)
+    } else {
+      this.history.length = 0
+      this.log.info(`session ${this.host.id}: a new conversation started in it (/clear)`)
+    }
+    // After the history: the world reloads it on session.updated.
+    this.host.emit({ type: 'session.updated', native_id: id })
+    this.host.emit({ type: 'session.notice', notice: resumed ? CONVERSATION_RESUMED : CONVERSATION_CLEARED })
+    this.onNativeId?.(from, id)
+  }
+
+  /** The conversation went on in another session (a continued-in in its transcript). */
+  private onMoved(to: string) {
+    if (this.movedTo !== null || to === this.nativeId) return
+    this.movedTo = to
+    this.log.info(`session ${this.host.id}: its conversation moved to another Claude Code session`)
+    this.host.emit({ type: 'session.notice', notice: CONVERSATION_MOVED })
+  }
+
+  /** Throws unless the world can send to the conversation it follows. */
+  private reachable(): BridgeLink {
+    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
+    if (!this.link?.connected) throw new CommandError('provider_error', UNREACHABLE_ERROR)
+    return this.link
   }
 
   private holdQuestion(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
@@ -249,6 +395,7 @@ export class ClaudeSession implements ProviderSession {
 
   private onTranscript(s: TranscriptSignal) {
     if (this.disposed || this.host.ended) return
+    if (s.kind === 'continued') return this.onMoved(s.sessionId)
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
@@ -312,9 +459,7 @@ export class ClaudeSession implements ProviderSession {
   }
 
   async sendMessage(text: string): Promise<void> {
-    if (!this.link?.send({ type: 'chat', text })) {
-      throw new CommandError('provider_error', 'The session is not connected.')
-    }
+    if (!this.reachable().send({ type: 'chat', text })) throw new CommandError('provider_error', UNREACHABLE_ERROR)
     if (!this.hooksSeen && !this.hooksChecked && !this.translator.busy()) {
       this.hooksChecked = true
       this.hooksCheck = setTimeout(() => {
@@ -331,14 +476,15 @@ export class ClaudeSession implements ProviderSession {
    * way (NOTES.md -> Security rules).
    */
   async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string): Promise<void> {
-    if (!this.link?.send({ type: 'verdict', request_id: permission, behavior: decision })) {
-      throw new CommandError('provider_error', 'The session is not connected.')
+    const link = this.reachable()
+    if (!link.send({ type: 'verdict', request_id: permission, behavior: decision })) {
+      throw new CommandError('provider_error', UNREACHABLE_ERROR)
     }
     this.emitAll(this.translator.permissionAnswered(permission, decision))
     // The channel's verdict carries no message, so a note follows it as the
     // user's next chat message (it's their own words; Claude reads it once
     // the answered call is done or denied).
-    if (note?.trim()) this.link.send({ type: 'chat', text: note })
+    if (note?.trim()) link.send({ type: 'chat', text: note })
   }
   /** The user answered a question in the world: the held hook gets the answer. */
   async answerQuestion(question: string, answer: { answers: string[][] } | { response: string }): Promise<void> {
@@ -361,6 +507,8 @@ export class ClaudeSession implements ProviderSession {
    * allows anything.
    */
   async interrupt(): Promise<void> {
+    // The stop lands through this conversation's hooks, which a moved one no longer sends.
+    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
     for (const permission of this.translator.pendingPermissions()) {
       if (this.link?.send({ type: 'verdict', request_id: permission, behavior: 'deny' })) {
@@ -381,4 +529,17 @@ export class ClaudeSession implements ProviderSession {
   async getHistory(): Promise<HistoryMessage[]> {
     return structuredClone(this.history)
   }
+}
+
+/**
+ * The chat already in a conversation's transcript when the world first
+ * hears from it, without the prompt that woke it (that one arrives as a
+ * live message). Empty for a new conversation, or without a transcript.
+ */
+function earlierChat(file: string, p: HookPayload): HistoryMessage[] {
+  const chat = readHistory(file)
+  const last = chat.at(-1)
+  if (p.hook_event_name === 'UserPromptSubmit' && typeof p.prompt === 'string' &&
+      last?.role === 'user' && last.text === unwrapChannel(p.prompt.trim())) chat.pop()
+  return chat
 }
