@@ -1,18 +1,19 @@
-LIVE CHECK: C05 note on Deny only
+LIVE CHECK: /resume inside a world session
 
-1. New session in C:\Users\paolo\sandbox\notes-app.
-   Terminal mode must be "default" (Shift+Tab).
-2. Chat: "Create note1.txt containing hi."
-   The note field and Send are greyed out.
-   Press Deny: they unlock. Type
-   "call it note2.txt instead", press Allow.
-   note1.txt is made, the note is NOT sent.
-3. Chat: "Create note3.txt containing hi."
-   Deny, type "call it note4.txt instead", Send.
-   Claude should follow the note
-   (Allow the card for note4.txt).
-4. Chat: "Create note5.txt containing hi."
-   Deny, leave the note empty, Send: plain deny.
-5. /exit in the terminal.
+Setup: one older conversation in notes-app
+(any from today is fine).
 
-Paste any red console errors to Claude.
+1. Post (E) > C:\Users\paolo\sandbox\notes-app.
+   Confirm the dev channel in the terminal.
+2. Chat from the world: "Say hi." Claude answers.
+3. Terminal: /resume, pick an OLDER conversation.
+4. Watch the chat panel: which notice appears?
+   (expected today: the /clear one, wrongly)
+5. Chat from the world: "What did we talk
+   about?" Does it reach the resumed one?
+6. Optional: start a second session, then
+   /resume the FIRST one's conversation in it.
+   Do both islands show the same replies?
+7. /exit in the terminal(s).
+
+Tell Claude what you saw; paste red errors.
