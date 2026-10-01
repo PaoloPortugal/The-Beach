@@ -14,7 +14,7 @@ import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 const hook = (name: string, fields: Record<string, unknown> = {}) =>
-  ({ session_id: 's', transcript_path: 'x', cwd: CWD, hook_event_name: name, ...fields })
+  ({ transcript_path: 'x', cwd: CWD, hook_event_name: name, ...fields })
 const tool = (id: string, extra: object = {}) =>
   hook('PreToolUse', { tool_name: 'Read', tool_input: { file_path: path.join(CWD, 'a') }, tool_use_id: id, ...extra })
 

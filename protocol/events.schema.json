@@ -12,6 +12,7 @@
     { "$ref": "#/$defs/session.created" },
     { "$ref": "#/$defs/session.ended" },
     { "$ref": "#/$defs/session.notice" },
+    { "$ref": "#/$defs/session.updated" },
     { "$ref": "#/$defs/agent.spawned" },
     { "$ref": "#/$defs/agent.state_changed" },
     { "$ref": "#/$defs/message.started" },
@@ -194,7 +195,7 @@
       "required": ["code", "message"],
       "properties": {
         "code": {
-          "description": "Machine-readable; Godot shows its own text for codes it knows. confirm_in_terminal: the provider needs the user in its own window to start the session (create/resume replies only). transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works).",
+          "description": "Machine-readable; Godot shows its own text for codes it knows. confirm_in_terminal: the provider needs the user in its own window to start the session (create/resume replies only). transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works). conversation_cleared: a new conversation started in the session (it remembers nothing of the chat before). conversation_moved: the conversation went on somewhere the world can't reach; continue it in the provider's own window.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
@@ -330,6 +331,20 @@
         "session": { "$ref": "#/$defs/id" },
         "seq": { "$ref": "#/$defs/seq" },
         "notice": { "$ref": "#/$defs/notice" }
+      },
+      "additionalProperties": false
+    },
+
+    "session.updated": {
+      "description": "Sidecar -> Godot. Some of the session's own fields changed; only the changed ones are sent. native_id: the provider started a new conversation in the same session (e.g. Claude Code's /clear), same project.",
+      "type": "object",
+      "required": ["type", "session", "seq"],
+      "minProperties": 4,
+      "properties": {
+        "type": { "const": "session.updated" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "native_id": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },

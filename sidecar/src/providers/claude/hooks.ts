@@ -30,8 +30,15 @@ export const REPORTED_HOOKS = [
   'SubagentStart', 'SubagentStop', 'Notification', 'Stop', 'StopFailure',
 ] as const
 
-/** The `--settings` JSON for one session: every hook posts to `url` with its token. */
-export function hookSettings(url: string, token: string): { hooks: Record<string, unknown> } {
+/**
+ * The `--settings` JSON for one session: every hook posts to `url` with its
+ * token, and agent view is off (user's decision, 2026-10-01). Agent view
+ * (Left at an empty prompt, /bg, /fork) moves the conversation into a
+ * background session: a new process under Claude Code's supervisor, with
+ * a new session id and without our channel flag, so the world could no
+ * longer talk to it (NOTES.md -> S02 -> Launch).
+ */
+export function hookSettings(url: string, token: string): { hooks: Record<string, unknown>; disableAgentView: true } {
   const hook = (timeout: number) => [{
     hooks: [{ type: 'http', url, timeout, headers: { Authorization: `Bearer ${token}` } }],
   }]
@@ -40,7 +47,7 @@ export function hookSettings(url: string, token: string): { hooks: Record<string
   // Questions only: plain permission prompts come through the channel's
   // relay, and holding them here would hold up the terminal's own answer.
   hooks.PermissionRequest = [{ matcher: `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
-  return { hooks }
+  return { hooks, disableAgentView: true }
 }
 
 /** Longest tool summary, in characters. */

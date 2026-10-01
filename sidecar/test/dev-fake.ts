@@ -7,6 +7,7 @@
 //   agents [n]   the orchestrator spawns n subagents (default 3) that work
 //                in the background and report back (A02, A04)
 //   notice       a session notice (transcripts off)
+//   clear        a new conversation in the session, like /clear (S02)
 // A stop from the world (interrupt capability) ends whatever is running.
 import { serve } from '../src/serve.ts'
 import { FakeProvider, FakeSession } from './fake-provider.ts'
@@ -59,6 +60,7 @@ class ScriptedSession extends FakeSession {
     else if (word.includes('question')) void this.questionTurn()
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
     else if (word.includes('notice')) void this.noticeTurn()
+    else if (/\bclear\b/.test(word)) void this.clearTurn()
     else void this.echoTurn(text)
   }
 
@@ -162,6 +164,16 @@ class ScriptedSession extends FakeSession {
       message: 'Transcript saving is off in Claude Code, so some features may not work as intended. Turning it on is recommended.',
     } })
     return this.finish('I sent a notice for this session.')
+  }
+
+  private async clearTurn() {
+    this.state('main', 'idle')
+    await sleep(300)
+    this.emit({ type: 'session.updated', native_id: crypto.randomUUID() })
+    this.emit({ type: 'session.notice', notice: {
+      code: 'conversation_cleared',
+      message: 'A new conversation started in this session (/clear). Claude no longer remembers the chat above.',
+    } })
   }
 
   override interrupt = async () => {

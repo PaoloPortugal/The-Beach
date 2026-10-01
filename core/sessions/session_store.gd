@@ -27,6 +27,10 @@ signal tool_changed(session: String, tool_call: String)
 signal permissions_changed(session: String)
 signal questions_changed(session: String)
 signal notices_changed(session: String)
+## Some of the session's own fields changed (e.g. [code]native_id[/code]
+## after the provider started a new conversation in it); [param fields]
+## names them.
+signal session_changed(session: String, fields: Array)
 ## A provider extension message ([code]ext.<provider>.<name>[/code]).
 signal extension_event(session: String, msg: Dictionary)
 
@@ -126,6 +130,13 @@ func apply(msg: Dictionary) -> void:
 			notices.assign(notices.filter(func(n: Dictionary) -> bool: return n["code"] != notice["code"]))
 			notices.append(notice)
 			notices_changed.emit(id)
+		"session.updated":
+			var fields := []
+			for key in msg:
+				if key not in ["type", "session", "seq"]:
+					s[key] = msg[key]
+					fields.append(key)
+			session_changed.emit(id, fields)
 		"agent.spawned":
 			s["agents"].append(msg["agent"])
 			agent_added.emit(id, msg["agent"]["agent"])

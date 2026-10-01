@@ -1,7 +1,7 @@
 // Following a session's transcript (NOTES.md -> S02 -> Filling the gaps):
 // read-only, for what hooks miss. Esc and a "No" in the terminal fire no
 // hook, but Claude Code writes them to the transcript within the same
-// second. The line format isn't a documented interface, so this only ever
+// second; so is a conversation moving to another session. The line format isn't a documented interface, so this only ever
 // updates status, and everything still works (later) without it: no
 // transcript (saving is off), a missing file, or lines we don't recognise.
 import fs from 'node:fs'
@@ -19,13 +19,24 @@ export type TranscriptSignal =
   | { kind: 'rejected'; toolUseId: string }
   /** The orchestrator's turn was interrupted (Esc, or after a "No"). */
   | { kind: 'interrupted' }
+  /**
+   * The conversation went on in another session (`continued-in`, seen
+   * when agent view moved it to a background session; 2.1.285).
+   */
+  | { kind: 'continued'; sessionId: string }
 
+/** Claude Code's session ids are UUIDs. */
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const INTERRUPTED = /^\[Request interrupted by user( for tool use)?\]$/
 
-/** The signals in one transcript line (2.1.284's format). Exported for tests. */
+/** The signals in one transcript line (2.1.284's format; continued-in from 2.1.285). Exported for tests. */
 export function signalsIn(line: string): TranscriptSignal[] {
   let e: Record<string, unknown>
   try { e = JSON.parse(line) } catch { return [] }
+  if (typeof e === 'object' && e !== null && e.type === 'continued-in') {
+    const id = e.continuedInSessionId
+    return typeof id === 'string' && SESSION_ID.test(id) ? [{ kind: 'continued', sessionId: id }] : []
+  }
   // Subagents' own entries (their transcripts are separate files anyway).
   if (typeof e !== 'object' || e === null || e.type !== 'user' || e.isSidechain === true) return []
   const content = (e.message as { content?: unknown } | undefined)?.content
