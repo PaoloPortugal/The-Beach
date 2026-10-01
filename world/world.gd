@@ -38,6 +38,9 @@ func _ready() -> void:
 			_player.respawn())
 	_post.session_started.connect(teleport)
 	store.attach(Sidecar)
+	# Dev tool: the current live check's steps, top left (NOTES → Running it).
+	if "--checklist" in OS.get_cmdline_user_args():
+		add_child(load("res://tests/live/checklist.tscn").instantiate())
 
 
 ## Puts the player on a session's island, facing its orchestrator.
