@@ -59,5 +59,36 @@ only selects, and Send answers, so a misclick never reaches Claude.
   button). Fixed with `remove_child` + `queue_free`; the world test now
   clicks through the buttons' signals (Godot errors don't fail it, so
   read its output). Re-checked by the user: works.
-- Not yet: a live check with the real `claude`, and the Compatibility
-  renderer. Unticked checkboxes are faint in Godot's default theme.
+- Not yet: the Compatibility renderer. Unticked checkboxes are faint in
+  Godot's default theme.
+
+## Live check (user, `claude` 2.1.285, 2026-10-01)
+
+Passed, no Godot errors. Two dead ends on the way:
+- The first run asked for `node --version`, `echo hello` and `date`.
+  Claude Code runs read-only commands without asking, even in default
+  mode, so no permission card came up; Claude then "asked" through
+  AskUserQuestion, which tested the question card instead. The redo used
+  `mkdir`, a Write and `rmdir`, which always ask.
+- A subagent told to ask through AskUserQuestion couldn't: Claude Code
+  doesn't give subagents that tool. Only their permission prompts reach
+  the card (checked: a subagent's Write named it).
+
+Checked: Details and Allow; Deny with a note on a Write, after which
+Claude made the file under the name in the note (Claude Code adds to
+the deny that the user's next message may hold a correction); "Yes" in
+the terminal took the card away; the two-item question (option click
+moving on, Back, Other…, checkboxes, Send); `/exit`. The user confirmed
+my pick: on the last item a click only selects and Send answers.
+
+## Note on Deny only (user, after the live check)
+
+The card offered the note with Allow too. The user asked to match Claude
+Code, whose prompt takes text only on No: the note and a Send button are
+locked until Deny is pressed; Send denies with the note; Allow answers
+at once and never sends it (a typed note is kept, locked). The user
+also asked that if Claude Code ever lets a channel deny with a message,
+we drop the follow-up-message workaround and use theirs (NOTES → Watch
+items). The world test clicks through it (locked, Deny unlocks, Allow
+locks again keeping the note, Send denies); screenshots of the three
+states from a throwaway windowed script.

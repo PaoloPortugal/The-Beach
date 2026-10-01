@@ -117,9 +117,11 @@ answer first counts, and the card goes away.
 
 **A permission.** The card shows what Claude wants to do (for example
 "Run: npm install"). **Details** shows exactly what it would run or
-change. Press **Allow** or **Deny**. You can type a note first, such as
-why you said no or what to do instead; Claude gets it as your next
-message.
+change. **Allow** answers at once. **Deny** opens the note field below
+it: type why you said no or what to do instead (or leave it empty) and
+press **Send**. Claude gets the note as your next message. As in Claude
+Code's own prompt, only a "no" takes a note: if you change your mind and
+press Allow, the note isn't sent.
 
 **A question.** Questions come one at a time ("Question 1 of 2").
 Click an option to answer and move on to the next. When you may pick
