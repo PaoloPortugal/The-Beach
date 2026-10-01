@@ -1576,6 +1576,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    launches sessions from inside the app; attaching to sessions already
    running elsewhere comes later. The event schema must allow for attaching
    (joining a session partway through) even though v1 doesn't use it.
+   *Note for attaching (user's, 2026-10-01):* `/clear` and `/resume` must
+   be followed in attached sessions too. Today everything that follows a
+   session (the HTTP hooks, the `SessionStart` relay and its relay file
+   with the token, `disableAgentView`) comes from the `--settings` file
+   we pass at launch (S02), and the channel from our launch flags. A
+   session started elsewhere has none of these, so attaching must give
+   it the same hooks, the relay included, and test both switches there.
 6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
@@ -1623,7 +1630,7 @@ Claude Code's prompt (C05). M1 reviewed (below). `/clear` and `/resume`
 now reach the world at once through the `SessionStart` hook (S02 →
 Following the conversation), **live-checked with the user
 (2026-10-01)**; after the check `/clear` also clears the world's chat
-window. Next: merging M1 to `main` (ask the user first).
+window (re-checked live). Next: merging M1 to `main` (ask the user first).
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
