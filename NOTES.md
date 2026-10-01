@@ -1603,8 +1603,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M1. S01 and S02 are built and merged. On branch
-`m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
+**Current focus:** M1 is done and **merged to `main` (2026-10-01)**.
+What comes after v1 isn't chosen yet (Milestones → After v1): ask the
+user. M1 in short: S01 and S02 were merged first. On branch `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
 built: start a session from the spawn platform's post, get taken to its
 island, and chat with its orchestrator (bubble above its head, full panel
 on E). **Live check passed (2026-09-30)** with the user and the real
@@ -1630,7 +1631,7 @@ Claude Code's prompt (C05). M1 reviewed (below). `/clear` and `/resume`
 now reach the world at once through the `SessionStart` hook (S02 →
 Following the conversation), **live-checked with the user
 (2026-10-01)**; after the check `/clear` also clears the world's chat
-window (re-checked live). Next: merging M1 to `main` (ask the user first).
+window (re-checked live). Merged to `main` 2026-10-01.
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
@@ -1679,7 +1680,7 @@ second session: the stop (the terminal shows "The user stopped this from
 the app."), Esc before any output and mid-reply (after 23 streamed
 batches; the partial message is completed), and "No" on a dialog.
 
-**Next:** the M1 world (see Current focus).
+**Next:** see Current focus.
 
 ### Milestones
 
@@ -1694,7 +1695,7 @@ batches; the partial message is completed), and "No" on a dialog.
   line batches. Results in C03 and the dev log (2026-09-29-markdown-spike);
   code in `spikes/markdown/`.*
 
-**M1 v1 slice.** The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
+**M1 v1 slice.** *Done, merged to `main` 2026-10-01.* The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
 exists.
 - One archipelago, one island, one orchestrator (W01, W02, A01).
@@ -1797,6 +1798,15 @@ exists.
   ever lets a channel (or another route we use) send a deny with a
   message, drop this workaround and use theirs. Check the channels
   reference on each Claude Code update.
+- **Agent view and background sessions.** *Decided (user's, 2026-10-01):*
+  agent view stays off for world sessions (S02 → Launch). Background
+  sessions keep our settings and MCP config (so, most likely, our hooks
+  and the `SessionStart` relay), but not the development-channel flag,
+  so the world could at best watch them (and maybe answer permissions by
+  holding `PermissionRequest` for every tool), never chat: no hook can
+  send a new user message. Revisit if Claude Code passes channel flags
+  to background sessions, or adds another documented way to send them
+  input. Check on each Claude Code update.
 - **Markdown → BBCode rendering (C03)** was the biggest UX risk. The
   spike shows it works; what's left is the cost of rendering long
   histories at once (see C03).
