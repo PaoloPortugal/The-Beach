@@ -385,7 +385,7 @@ sequenceDiagram
         Note over Sidecar: that chat becomes the session's history
         Sidecar->>World: session.updated (native_id), session.notice (conversation_resumed)
     else source clear
-        Note over Sidecar: the history keeps the chat so far
+        Note over Sidecar: the history starts empty
         Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
     end
     Sidecar-->>Relay: nothing to add
@@ -397,8 +397,9 @@ sequenceDiagram
     Sidecar->>World: the turn as usual (flow 2), from the new transcript too
 ```
 
-The island stays. After `/clear` the chat so far stays, and the world
-says Claude no longer remembers it; after `/resume` the chat becomes the
+The island stays. After `/clear` the world's chat window clears, and
+the notice says the earlier conversation can be brought back with
+`/resume`; after `/resume` the chat becomes the
 resumed conversation's (NOTES.md → S02 → Following the conversation).
 
 **If the relay fails** (it always exits 0, so Claude Code carries on),

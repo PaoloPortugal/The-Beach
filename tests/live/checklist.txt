@@ -1,21 +1,15 @@
-LIVE CHECK: /clear and /resume via SessionStart
+LIVE CHECK: /clear clears the chat window
 
 1. Post (E) > C:\Users\paolo\sandbox\notes-app.
    Confirm the dev channel in the terminal.
 2. Chat from the world: "Say hi." Wait for
    the reply. Keep the chat panel open.
 3. Terminal: /clear. Do NOT send anything.
-   Expected at once: the /clear notice; the
-   chat above stays.
-4. Terminal: /resume, pick an OLDER
-   conversation with some chat in it. Do NOT
-   send anything. Expected at once: the
-   /resume notice replaces the /clear one,
-   and the panel shows that conversation's
-   chat (no "/clear" or "/resume" lines in it).
-5. Chat from the world: "What did we talk
-   about?" Expected: Claude answers about
-   that older conversation.
-6. /exit in the terminal.
+   Expected at once: the chat window empties,
+   the bubble clears, and the /clear notice
+   mentions /resume.
+4. Chat from the world: "hello". Expected:
+   only this exchange in the window.
+5. /exit in the terminal.
 
 Tell Claude what you saw; paste red errors.

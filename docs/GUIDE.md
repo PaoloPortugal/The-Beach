@@ -221,8 +221,9 @@ outside a prompt. Ending a session is `/exit` in the terminal for now.
 
 **Starting over with `/clear`.** If you type `/clear` in the terminal,
 Claude starts a fresh conversation in the same session. It stays on the
-same island; the chat right away shows a note that a new conversation
-started and that Claude no longer remembers what was said above it.
+same island, and the chat window clears right away, with a note that a
+new conversation started. The earlier conversation isn't lost: `/resume`
+in the terminal brings it back.
 
 **Switching with `/resume`.** If you type `/resume` in the terminal and
 pick an earlier conversation, the island stays and the chat changes to
