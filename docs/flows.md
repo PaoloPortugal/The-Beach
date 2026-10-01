@@ -8,8 +8,9 @@ matching flow here in the same branch.
 
 GitHub draws the Mermaid blocks as diagrams. Arrows between World and
 Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
-Code are hooks (HTTP, with the session's token); Bridge is our channel
-bridge (NOTES.md → S02).
+Code are hooks (HTTP, with the session's token; `SessionStart` goes
+through Relay, our executable run as a command hook, flow 9); Bridge is
+our channel bridge (NOTES.md → S02).
 
 The terminal and the world are two windows onto the same session: you can
 switch between them at any point, and whichever answers first wins.
@@ -95,7 +96,7 @@ sequenceDiagram
     Bridge->>Sidecar: connect with the session's token
     Sidecar-->>Bridge: accepted
     Sidecar->>World: session.created (island rises)
-    Note over Claude,Sidecar: No start hook: SessionStart doesn't support HTTP hooks,<br/>so the bridge connecting is the "session is up" signal.
+    Note over Claude,Sidecar: No start hook: SessionStart runs only for /clear and /resume (flow 9),<br/>so the bridge connecting is the "session is up" signal.
 ```
 
 Ending: `/exit` in the terminal (or `session.end` from the world) →
@@ -370,31 +371,41 @@ sequenceDiagram
     participant World as World (Godot)
     participant Sidecar
     participant Claude as Claude Code (terminal)
+    participant Relay as Relay (our executable)
     participant Log as Transcript
 
     User->>Claude: /clear (or /resume an earlier conversation)
     Note over Claude: Same process, same folder, same bridge:<br/>another session id and its transcript.
-    User->>Claude: next message (typed in the terminal or sent from the world)
-    Claude->>Sidecar: UserPromptSubmit (the new session_id)
+    Claude->>Relay: SessionStart (source clear or resume, the new session_id):<br/>a command hook, exec form, no shell; JSON on stdin
+    Relay->>Sidecar: POST /hook with the session's token (from the relay file)
     Sidecar->>Log: poll the followed transcript: no continued-in
     Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>followed. native_id switches; the old id becomes stored (resumable).
-    Sidecar->>Log: read the new transcript's chat
-    alt it has chat: /resume
+    alt source resume
+        Sidecar->>Log: read the resumed transcript's chat (slash commands left out)
         Note over Sidecar: that chat becomes the session's history
         Sidecar->>World: session.updated (native_id), session.notice (conversation_resumed)
-    else empty: /clear
+    else source clear
         Note over Sidecar: the history keeps the chat so far
         Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
     end
+    Sidecar-->>Relay: nothing to add
+    Relay-->>Claude: exit 0, nothing on stdout
+    Note over Claude: /resume waited for the hook (at most 5 s);<br/>/clear didn't.
     World->>Sidecar: session.get_history
-    Sidecar->>World: ok (the history): replaces the world's chat
-    Sidecar-->>Claude: nothing to add
+    Sidecar-->>World: ok (the history): replaces the world's chat
+    User->>Claude: next message (typed in the terminal or sent from the world)
     Sidecar->>World: the turn as usual (flow 2), from the new transcript too
 ```
 
 The island stays. After `/clear` the chat so far stays, and the world
 says Claude no longer remembers it; after `/resume` the chat becomes the
 resumed conversation's (NOTES.md → S02 → Following the conversation).
+
+**If the relay fails** (it always exits 0, so Claude Code carries on),
+the world learns of the switch at the new conversation's first hook
+instead: a `UserPromptSubmit` with the new `session_id` goes through the
+same checks, and it counts as `/resume` if the new transcript holds a
+reply from Claude, else `/clear`.
 
 **A moved conversation.** If the followed transcript gets a
 `continued-in` entry instead (the conversation went on in another

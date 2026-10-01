@@ -194,7 +194,9 @@ feature that touches them follows these rules, and each is tested:
   by building a shell command from text, so a project path or session name
   can't inject commands. This includes terminal windows: a terminal is only
   ever given the fixed path of our launcher and the path of a session file,
-  never a command line with session data in it (see Platforms).
+  never a command line with session data in it (see Platforms). Likewise
+  the command hook Claude Code runs (S02): exec form, our executable's
+  path and a relay file's, no shell.
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
@@ -332,7 +334,7 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that will also run as the channel bridge and the terminal launcher (S02). Has a `.gdignore` so Godot doesn't scan it. Files below. |
+| `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher and a hook relay (S02). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
@@ -363,7 +365,7 @@ removing a provider means deleting its folders.
 | `src/commands.ts` | Runs commands from Godot. |
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
-| `src/launch/` | Generic: terminal launcher, `launch` mode, clean environments. |
+| `src/launch/` | Generic: terminal launcher, `launch` mode, `relay` mode (command hooks), clean environments. |
 | `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions (S04). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
@@ -994,8 +996,8 @@ so on its own it serves an empty world. Dev log 2026-09-29-sidecar-core.
   logs on stderr (never session content, since Godot may keep them in its
   log files), and exit when stdin closes, which covers Godot quitting or
   crashing on every OS (verified on Windows, including a hard kill of
-  Godot). `main.ts` picks the executable's mode; S02 adds the bridge and
-  launcher modes.
+  Godot). `main.ts` picks the executable's mode; S02 adds the bridge,
+  launcher and relay modes.
 - **Packaging** (`scripts/`): esbuild bundles to one CommonJS file (Node's
   single-executable feature runs only CommonJS), which is injected into the
   official Node binary for each platform (`win-x64`, `linux-x64`,
@@ -1134,9 +1136,21 @@ for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
   `idle_prompt` add nothing.
 - `Stop` → orchestrator `idle` (completing any reply cut short);
   `StopFailure` → `error` with the error type.
-- Not registered: `SessionStart` (can't be an HTTP hook) and `SessionEnd`
-  (it also fires for `/clear` while `claude` keeps running). A session
-  ends when its bridge's connection closes (Claude Code exited).
+- `SessionStart` → a `/clear` or `/resume` (see Following the
+  conversation). It can't be an HTTP hook, so it's a **command hook in
+  exec form** (`command` plus `args`: spawned directly, no shell; Security
+  rules → No shell strings) running our own executable in **`relay`
+  mode** (`<sidecar> relay <relay file>`; `src/launch/relay.ts`). The
+  relay file, in the session's private run folder, holds the hook URL
+  and token, so neither is on a command line. The relay reads the hook's
+  stdin JSON, posts it to `POST /hook` with the token, and always exits
+  0 within 2 s, printing nothing (a SessionStart hook's stdout would
+  become Claude's context); Claude Code's own timeout for it is 5 s.
+  Matcher `^(clear|resume)$`: our own launch (`startup`) and compaction
+  don't run it.
+- Not registered: `SessionEnd` (it also fires for `/clear` while `claude`
+  keeps running). A session ends when its bridge's connection closes
+  (Claude Code exited).
 
 **Filling the gaps: the transcript.** Esc and a "No" in the terminal fire
 no hook, but Claude Code writes them to the transcript within the second.
@@ -1163,40 +1177,36 @@ carry the conversation's `session_id`. A hook with a different one
   stays in the world.
 - **`/resume`** (an earlier conversation in the same process and
   folder; user's decision, M1 review, 2026-10-01): followed the same
-  way, but the new conversation's transcript already holds chat. The
-  sidecar reads it (`readHistory`, without the prompt that woke it, which
-  arrives live), makes it the session's history, and sends the
-  `conversation_resumed` notice instead. Godot reloads the history on
-  every `native_id` change and replaces its chat with it: after `/clear`
-  that's the same chat, after `/resume` the resumed conversation's. A
-  transcript without chat (or none: transcripts off) counts as `/clear`.
-  The world only learns of the switch at the conversation's first hook
-  (a prompt), not at `/resume` itself. Live-checked 2026-10-01 (before
-  this fix): a resume was followed and world chat reached the resumed
-  conversation, but with the `/clear` notice. If two islands end up
-  naming the same conversation (one session resumes another's), each
-  island still talks to its own terminal; only the stale `native_id`
-  label differs.
-- **Known bug (live re-check, 2026-10-01): `/clear` is taken for
-  `/resume`.** Claude Code writes the `/clear` command itself into the new
-  transcript as a user entry (`<command-name>/clear</command-name>`, not
-  `isMeta`), and `readHistory` counts it as chat. The same entries show
-  up in any history `readHistory` builds (S04 resume too). And the world
-  only learns of either switch at the next prompt.
-- **Decided (user's, 2026-10-01): use the `SessionStart` hook instead of
-  the transcript check.** Documented (hooks reference, checked
-  2026-10-01): it fires right after `/clear` (`source: "clear"`, in the
-  background) and `/resume` inside a session (`source: "resume"`; the
-  switch waits for it), with the new `session_id` and `transcript_path`.
-  It allows only `command` and `mcp_tool` hooks, not `http`. So: a
-  `command` hook in **exec form** (`command` plus an `args` array: no
-  shell, so it keeps Security rules → No shell strings), running our own
-  sidecar executable in a small relay mode that forwards the hook's
-  stdin JSON to the session's hook server with its token, short timeout.
-  If it fails, nothing breaks: the first hook from the new id still
-  switches (classify that fallback by whether the transcript holds a
-  reply from Claude, not any user entry). Also make `readHistory` skip
-  local-command entries. To build next (handoff, 2026-10-01).
+  way, but the world's chat becomes the resumed conversation's: the
+  sidecar reads its transcript (`readHistory`), makes that the session's
+  history, and sends the `conversation_resumed` notice instead. Godot
+  reloads the history on every `native_id` change and replaces its chat
+  with it: after `/clear` that's the same chat, after `/resume` the
+  resumed conversation's. If two islands end up naming the same
+  conversation (one session resumes another's), each island still talks
+  to its own terminal; only the stale `native_id` label differs.
+- **How the sidecar hears of it: `SessionStart`** (user's decision,
+  2026-10-01, after a transcript check took `/clear` for `/resume`; dev
+  log 2026-10-01-m1-review). Claude Code fires it right after `/clear`
+  (`source: "clear"`, in the background) and on `/resume` inside a
+  session (`source: "resume"`; the switch waits for it, hence the short
+  timeouts), with the new `session_id` and `transcript_path` (hooks
+  reference, checked 2026-10-01). Through the relay (Seeing the session)
+  the world switches **at once**, before any new message: on `resume`
+  the history becomes the whole transcript's chat; on `clear` it stays.
+  The same checks as below apply (our token, a UUID, a transcript in the
+  same folder, not moved); a `SessionStart` naming the followed id (our
+  own `--resume`) or arriving before the session is up changes nothing.
+- **Fallback:** if the relay failed, the new conversation's first hook
+  (a prompt) still switches, as before. It's a resume if the transcript
+  holds a reply from Claude (an assistant entry); `/clear`'s new
+  transcript has none yet. The prompt that woke a resumed conversation
+  is left out of its history (it arrives live).
+- **Slash commands aren't chat.** Claude Code writes commands run in the
+  terminal into the transcript as user entries (`<command-name>/clear
+  </command-name>`, not always `isMeta`, after an `isMeta`
+  `<local-command-caveat>`, followed by their `<local-command-stdout>`).
+  `readHistory` and S04's listing skip them.
 - **A moved conversation**: the followed transcript has a `continued-in`
   (written before the new session starts, so the sidecar reads the
   transcript first). The world can't reach it (no channel), so it gets
@@ -1300,7 +1310,8 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   `/clear`, `/permissions`, ...) and screens (`/context`, `/usage`, ...).
   Model, effort, name and permission mode can be chosen at launch
   instead. World messages starting with `/` reach Claude as plain text.
-  `/clear` typed in the terminal is followed (Following the conversation).
+  `/clear` and `/resume` typed in the terminal are followed (Following the
+  conversation).
 - Off in the terminal too, for sessions started from the world: agent
   view (Left at an empty prompt does nothing), `/bg` (not recognised) and
   `/fork` (see Launch).
@@ -1331,7 +1342,11 @@ stop and its terminal wording, Esc before and during a reply, a terminal
 "No", history, `/exit`); and `claude -p` probes, which need no channel
 (hook translation with real payloads, the stop's batch behaviour,
 transcripts off, `allowedHttpHookUrls`, `--resume`, `disableAgentView`
-in `--settings`). Live with the user, 2026-10-01 (Claude Code 2.1.285):
+in `--settings`). `claude -p --resume` probes (2.1.285, 2026-10-01): Claude Code ran the
+`SessionStart` exec-form hook from an absolute path with spaces (node
+from source, and the packaged executable), the relay reached the hook
+endpoint, `startup` didn't run it, and Claude saw no added context.
+Live with the user, 2026-10-01 (Claude Code 2.1.285):
 with agent view off, Left, `/bg` and `/fork` started no background
 session and no new process; `/clear` started a new transcript in the
 same process with no new bridge connection, the world got

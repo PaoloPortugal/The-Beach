@@ -221,13 +221,13 @@ outside a prompt. Ending a session is `/exit` in the terminal for now.
 
 **Starting over with `/clear`.** If you type `/clear` in the terminal,
 Claude starts a fresh conversation in the same session. It stays on the
-same island; the chat shows a note that a new conversation started and
-that Claude no longer remembers what was said above it.
+same island; the chat right away shows a note that a new conversation
+started and that Claude no longer remembers what was said above it.
 
 **Switching with `/resume`.** If you type `/resume` in the terminal and
 pick an earlier conversation, the island stays and the chat changes to
-that conversation's, with a note saying so. The world notices once
-Claude does something in it, such as answering your next message.
+that conversation's right away, with a note saying so. Messages from the
+world then go to that conversation.
 
 **Not available in sessions started from the world.** Claude Code's
 agent view (pressing Left at an empty prompt), `/bg` and `/fork`. They
