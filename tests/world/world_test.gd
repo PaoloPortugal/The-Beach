@@ -244,6 +244,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.session_id == "h1", "its orchestrator belongs to the session")
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
+	await _quit(world, player)
 
 	var bubble := chat.bubble("h1")
 	_check(bubble != null and not bubble.visible, "no bubble before the orchestrator says anything")
@@ -372,6 +373,34 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(2)
 
 
+# S05: closing the window with sessions h1 and h2 running asks first.
+func _quit(world: Node3D, player: Player) -> void:
+	var guard: QuitGuard = world.quit_guard
+	var quits := [0]
+	guard.quit = func() -> void: quits[0] += 1
+	var mouse := Input.mouse_mode
+	guard.request_quit()
+	var text := guard.dialog().dialog_text
+	_check(guard.is_asking() and quits[0] == 0, "quit: with sessions running, it asks first")
+	_check(text.begins_with("2 sessions are still running") and text.count("demo") == 2 and text.contains("/exit"), "quit: listing them, and how to end them")
+	_check(not player.controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "quit: the mouse is free to answer")
+	world.store.apply({"type": "agent.state_changed", "session": "h1", "seq": 50, "agent": "main", "state": "working", "reason": null})
+	_check(guard.dialog().dialog_text.contains("working"), "quit: the list follows what they're doing")
+	world.store.apply({"type": "agent.state_changed", "session": "h1", "seq": 51, "agent": "main", "state": "idle", "reason": null})
+	guard.dialog().get_cancel_button().pressed.emit()
+	await _frames(1)
+	_check(not guard.is_asking() and quits[0] == 0 and player.controls_enabled and Input.mouse_mode == mouse, "quit: back to the game, as it was")
+	guard.request_quit()
+	guard.dialog().get_ok_button().pressed.emit()
+	_check(quits[0] == 1, "quit: Quit quits")
+	var empty := QuitGuard.new()
+	empty.store = SessionStore.new()
+	empty.quit = func() -> void: quits[0] += 10
+	empty.request_quit()
+	_check(quits[0] == 11, "quit: with no session running, it just quits")
+	empty.free()
+
+
 # C05: the card for permission prompts and questions, on session h1 (which
 # the sidecar doesn't have, so its answers are refused).
 func _card(store: SessionStore, panel: ChatPanel) -> void:
@@ -466,6 +495,7 @@ func _agents(world: Node3D) -> void:
 	snap["agents"].append(_agent("s0", "main", "working"))
 	store.apply({"type": "session.snapshot", "session": snap})
 	await _frames(2)
+	_check(store.activity("h4") == "working", "activity: working")
 	var agents := islands.agents("h4")
 	var island := islands.island("h4")
 	var orchestrator := islands.orchestrator("h4")
@@ -536,6 +566,13 @@ func _agents(world: Node3D) -> void:
 	_check(agents.subagent_count() == 0, "agents: all walk to the orchestrator and go (%d left)" % agents.subagent_count())
 
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 12, "agent": "main", "state": "idle", "reason": null})
+	_check(store.activity("h4") == "idle", "activity: idle once everyone is done")
+	store.apply({"type": "agent.spawned", "session": "h4", "seq": 20, "agent": _agent("s9", "main", "working")})
+	_check(store.activity("h4") == "working", "activity: an idle orchestrator waiting on a subagent counts as working")
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 21, "agent": "s9", "state": "waiting", "reason": "permission"})
+	_check(store.activity("h4") == "waiting" and SessionsMenu.state_text(store.activity("h4")) == "waiting for you", "activity: a subagent waiting on you")
+	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 22, "agent": "s9", "state": "done", "reason": null})
+	await _until(func() -> bool: return agents.subagent_count() == 0, 8.0)
 	_check(orchestrator.get_node("StateMarker").shown() == "", "agents: an idle orchestrator shows no marker")
 	store.apply({"type": "session.ended", "session": "h4", "seq": 13, "reason": "exited"})
 	await _frames(2)

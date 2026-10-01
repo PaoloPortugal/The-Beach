@@ -222,7 +222,7 @@ func _fill() -> void:
 	var running: Array[Array] = [] # [label, id]
 	for id in store.sessions:
 		var s: Dictionary = store.sessions[id]
-		var label := _row(_title(s.get("title"), s.get("project", {})), _project_name(s.get("project", {})), _state_text(store.orchestrator(id)))
+		var label := row(display_title(s.get("title"), s.get("project", {})), project_name(s.get("project", {})), state_text(store.activity(id)))
 		if query.is_empty() or label.to_lower().contains(query):
 			running.append([label, id])
 	if not running.is_empty():
@@ -238,7 +238,7 @@ func _fill() -> void:
 		return
 	var shown := 0
 	for st in _stored:
-		var label := _row(_title(st.get("title"), st["project"]), _project_name(st["project"]), _ago(st["updated_at"]))
+		var label := row(display_title(st.get("title"), st["project"]), project_name(st["project"]), _ago(st["updated_at"]))
 		if not query.is_empty() and not label.to_lower().contains(query):
 			continue
 		shown += 1
@@ -316,24 +316,26 @@ func _refresh_hint() -> void:
 	_hint.visible = store != null and store.sessions.is_empty() and not is_open() and not launcher.busy()
 
 
-static func _row(title: String, project: String, detail: String) -> String:
-	return "%s   ·   %s   ·   %s" % [title, project, detail]
+## One session as "title · project · detail".
+static func row(name: String, project: String, detail: String) -> String:
+	return "%s   ·   %s   ·   %s" % [name, project, detail]
 
 
-static func _title(title: Variant, project: Dictionary) -> String:
-	if title is String and not title.is_empty():
-		return title
+static func display_title(t: Variant, _project: Dictionary) -> String:
+	if t is String and not t.is_empty():
+		return t
 	return "Untitled session"
 
 
-static func _project_name(project: Dictionary) -> String:
+static func project_name(project: Dictionary) -> String:
 	if project.has("name"):
 		return project["name"]
 	return str(project.get("path", "")).get_file()
 
 
-static func _state_text(agent: Dictionary) -> String:
-	match agent.get("state", ""):
+## A session's [method SessionStore.activity] in words.
+static func state_text(activity: String) -> String:
+	match activity:
 		"working":
 			return "working"
 		"waiting":

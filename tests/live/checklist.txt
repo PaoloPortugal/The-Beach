@@ -1,37 +1,26 @@
-LIVE CHECK: the sessions menu (S03, S04, W07)
+LIVE CHECK: the quit warning (S05)
+Start the game from a separate terminal
+(not Claude's Run button).
 
-1. On the platform: "Press Tab for sessions"
-   at the bottom. Tab opens the menu, Tab
-   closes it, Esc too.
-2. Tab > + New session...: File Explorer's
-   folder picker opens; the menu shows the
-   waiting note. Cancel in the picker: back
-   in the menu.
-3. New session... again, then click the
-   game so the picker hides behind it.
-   Press Cancel in the menu: you can walk
-   and look. Pick a folder in the hidden
-   picker (taskbar): nothing starts.
-4. Tab > New session... > pick
-   C:\Users\paolo\sandbox\notes-app.
-   Top notice: confirm in the terminal.
-   Confirm: you land at its island AND can
-   look and walk (the bug you hit).
-5. Chat one line, then /exit in the terminal.
-   You're back on the platform.
-6. Tab: that session is under Resume, newest
-   first, "title . project . ago". Type part
-   of its title in the search: it filters.
-7. Click it: a terminal opens with
-   claude --resume. Confirm. Island appears,
-   the chat shows the earlier messages.
-   Send one: Claude remembers the first.
-8. Tab: it's under Running now, not Resume.
-   Fall back to the platform, Tab, click
-   it: you're at its island.
-9. Start a second session (another folder);
-   Tab lists both under Running; jump
-   between them. Tab while chatting: nothing.
-10. /exit both terminals.
+1. Tab > New session... > notes-app,
+   confirm in the terminal.
+2. Chat: "Use a subagent to look at every
+   file here, then sum up." While the
+   subagent works, Tab: the session shows
+   "working" (also once the orchestrator
+   itself is idle).
+3. Close the game window (X or Alt+F4):
+   a dialog lists the session and what it
+   does, and says to type /exit in its
+   terminal. Back to the game: you can look
+   and walk. Again, then Esc: same.
+4. Close it again > Quit: the game closes,
+   the session's terminal keeps going.
+5. Start the game again. Tab: is that
+   session listed under Resume? Click it
+   (it's a sandbox): what happens in the
+   new terminal and in the old one?
+6. /exit every terminal. Close the game:
+   with no session it closes at once.
 
 Tell Claude what you saw; paste red errors.
