@@ -40,6 +40,14 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.message_changed.connect(func(id: String, _message: String) -> void:
 		if _bubbles.has(id):
 			_show_latest(id))
+	store.messages_replaced.connect(func(id: String) -> void:
+		if _bubbles.has(id):
+			_show_latest(id))
+	# Another conversation in the session (/clear, /resume): its chat, as
+	# the sidecar has it, replaces ours.
+	store.session_changed.connect(func(id: String, fields: Array) -> void:
+		if "native_id" in fields:
+			_reload_history(id))
 
 
 func watch(orchestrator: Orchestrator) -> void:
@@ -143,6 +151,13 @@ func _fetch_history(id: String) -> void:
 			_history.erase(id))
 	if sent.is_empty():
 		_history.erase(id)
+
+
+func _reload_history(id: String) -> void:
+	sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok":
+			_history[id] = "loaded"
+			store.replace_history(id, reply["result"]["messages"]))
 
 
 ## Whether a session's chat history has been loaded.

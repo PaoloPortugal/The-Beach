@@ -96,6 +96,16 @@ func _by_hand() -> void:
 	var chat := store.messages("a")
 	_check(chat.size() == 2 and chat[0]["text"] == "hi" and chat[1]["text"] == "Hello.", "history goes first; live messages win")
 
+	# Switching conversations (/resume): the chat is replaced by the
+	# sidecar's history; a message that came after the switch is kept.
+	store.apply({"type": "session.updated", "session": "a", "seq": 15, "native_id": "n3"})
+	store.apply({"type": "message.started", "session": "a", "seq": 16, "message": "live", "agent": "main", "role": "assistant"})
+	var replaced := []
+	store.messages_replaced.connect(func(id: String) -> void: replaced.append(id))
+	store.replace_history("a", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}])
+	chat = store.messages("a")
+	_check(chat.map(func(m: Dictionary) -> String: return m["message"]) == ["r1", "live"] and replaced == ["a"], "a switch replaces the chat, keeping what came after it")
+
 	# A resync after a gap: the snapshot replaces the state, not the chat.
 	var fresh := _snapshot("a", 20)
 	store.apply({"type": "session.snapshot", "session": fresh})

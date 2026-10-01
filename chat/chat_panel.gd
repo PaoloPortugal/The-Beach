@@ -17,8 +17,12 @@ const NOTICE_TEXT := {
 	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.",
 	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.",
 	"conversation_cleared": "A new conversation started in this session (/clear). Claude no longer remembers the chat above.",
+	"conversation_resumed": "This session switched to an earlier conversation (/resume). The chat now shows that conversation.",
 	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
 }
+
+## Notices about the session switching conversations.
+const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 
 var store: SessionStore
 var sidecar: SidecarClient
@@ -49,6 +53,9 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	sidecar = p_sidecar
 	_pending.setup(store, sidecar)
 	store.message_changed.connect(_on_message_changed)
+	store.messages_replaced.connect(func(id: String) -> void:
+		if id == session_id:
+			_rebuild())
 	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
@@ -230,7 +237,12 @@ func _refresh_status() -> void:
 		return
 	var s := store.session(session_id)
 	var lines: PackedStringArray = []
-	for n in s.get("notices", []):
+	var notices: Array = s.get("notices", [])
+	# Of the notices about switching conversations, only the latest holds.
+	var switches := notices.filter(func(n: Dictionary) -> bool: return n["code"] in SWITCH_NOTICES)
+	for n in notices:
+		if n["code"] in SWITCH_NOTICES and n != switches.back():
+			continue
 		lines.append(NOTICE_TEXT.get(n["code"], n["message"]))
 	_notices.text = "\n".join(lines)
 	_notices.visible = not lines.is_empty()

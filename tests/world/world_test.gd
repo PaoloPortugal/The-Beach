@@ -275,6 +275,15 @@ func _sessions(world: Node3D, player: Player) -> void:
 	# The session ends while you're on its island, with the chat open.
 	_press("interact")
 	await _frames(2)
+	# /resume in the terminal: the latest switch notice, and the resumed chat.
+	store.apply({"type": "session.notice", "session": "h1", "seq": 20, "notice": {"code": "conversation_cleared", "message": "x"}})
+	store.apply({"type": "session.notice", "session": "h1", "seq": 21, "notice": {"code": "conversation_resumed", "message": "x"}})
+	var shown: String = panel.get_node("Layout/Notices").text
+	_check(shown.contains("/resume") and not shown.contains("/clear") and shown.contains("transcripts"), "of the conversation switches, only the latest notice shows")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 22, "native_id": "n2"})
+	store.replace_history("h1", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}])
+	await _frames(1)
+	_check(panel.shown_messages() == ["earlier"], "a replaced chat is laid out again")
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
 	await _frames(2)
 	_check(islands.island("h1") == null and not chat.is_open() and player.controls_enabled, "an ended session's island goes, and its chat closes")
