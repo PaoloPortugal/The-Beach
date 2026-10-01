@@ -1,0 +1,24 @@
+LIVE CHECK: C05 with the real claude
+
+1. Post (E) > pick C:\Users\paolo\sandbox\notes-app.
+   Confirm the dev channel in the terminal.
+2. Terminal: Shift+Tab until the mode is "default"
+   (auto mode rarely asks).
+3. Chat: "Run node --version with Bash."
+   Card: open Details, then Allow. Claude says the version.
+4. Chat: "Create hello.txt containing hi."
+   Card: note "call it greeting.txt instead", Deny.
+   Claude should follow the note.
+5. Chat: "Use AskUserQuestion to ask me two questions:
+   one single-choice, one multi-select."
+   Click an option (moves on), Back, type in Other...,
+   Next, tick two, Send. Claude repeats your answers.
+6. Ask for another Bash command; answer Yes in the
+   TERMINAL. The card should go away.
+7. Ask a question again; Esc mid-way, E to reopen:
+   your progress is still there. Answer it.
+8. Optional: "Use a subagent to run ls with
+   Bash." Card names the subagent.
+9. /exit in the terminal: back to the platform.
+
+Paste any red console errors to Claude.
