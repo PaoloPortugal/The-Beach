@@ -3,14 +3,20 @@ extends PanelContainer
 ## The full chat panel (C02), opened by walking up to an orchestrator (C01):
 ## the session's chat so far, streaming as it arrives, and a message box.
 ## Pending permission prompts and questions are answered on its card
-## (C05, [PendingCard]). Plain text only in v1 (Markdown is C03). Message text is untrusted
-## (NOTES.md → Security rules): it goes into labels with BBCode off, so it
-## is shown exactly as written.
+## (C05, [PendingCard]). Messages are rendered as Markdown (C03,
+## [MarkdownView]). Message text is untrusted (NOTES.md → Security rules):
+## the Markdown converter escapes all of it, and a link opens only after a
+## confirmation showing its full address.
 
 ## Messages shown at once; older ones stay in the store.
 const MAX_SHOWN := 200
 const USER_COLOUR := Color(0.16, 0.33, 0.5)
 const AGENT_COLOUR := Color(0.15, 0.17, 0.22)
+const FONT_SIZE := 18
+## Time spent building older messages per frame when a chat is laid out.
+## Rendering Markdown costs tens of milliseconds per message (C03), so the
+## newest are built first and the rest a few per frame, above them.
+const BUILD_BUDGET_USEC := 8000
 
 ## Our own text for the notices we know; others show the sidecar's message.
 const NOTICE_TEXT := {
@@ -29,8 +35,14 @@ var sidecar: SidecarClient
 ## The session shown, or "" when closed.
 var session_id := ""
 
-var _rows := {} # message id → its RichTextLabel
+var _rows := {} # message id → its MarkdownView
 var _rebuild_queued := false
+## Older messages still to build, newest first.
+var _to_build: Array[String] = []
+## Bumped on each layout so a stale build stops.
+var _build_run := 0
+var _link_dialog: ConfirmationDialog
+var _link_url := ""
 var _send_error := ""
 
 @onready var _title: Label = $Layout/Header/Title
@@ -45,6 +57,13 @@ var _send_error := ""
 func _ready() -> void:
 	$Layout/Compose/Send.pressed.connect(send)
 	_input.gui_input.connect(_on_input_key)
+	# Links in messages are untrusted: never open one without the user
+	# seeing the full address and confirming.
+	_link_dialog = ConfirmationDialog.new()
+	_link_dialog.title = "Open link?"
+	_link_dialog.ok_button_text = "Open in browser"
+	_link_dialog.confirmed.connect(func() -> void: OS.shell_open(_link_url))
+	add_child(_link_dialog)
 
 
 ## Connects to the store. Call once, before opening.
@@ -75,6 +94,7 @@ func open(p_session_id: String) -> void:
 func close() -> void:
 	session_id = ""
 	visible = false
+	_link_dialog.hide()
 	_pending.show_session("")
 	_clear()
 
@@ -88,12 +108,37 @@ func set_draft(text: String) -> void:
 	_input.text = text
 
 
-## The text of each message shown, oldest first.
+## The text of each message shown, oldest first, as displayed (without
+## formatting; see [method MarkdownView.shown_text]).
 func shown_messages() -> Array[String]:
 	var out: Array[String] = []
 	for row in _messages.get_children():
-		out.append((row.get_meta("label") as RichTextLabel).text)
+		out.append((row.get_meta("view") as MarkdownView).shown_text())
 	return out
+
+
+## Whether older messages are still being built.
+func is_loading() -> bool:
+	return not _to_build.is_empty()
+
+
+## The address a link asks to open, or "" when not asking.
+func link_asked() -> String:
+	return _link_url if _link_dialog.visible else ""
+
+
+## Shows the confirmation for a clicked link; it opens only if confirmed.
+func ask_open_link(url: String) -> void:
+	_link_url = url
+	_link_dialog.dialog_text = "This link came from the message. Open it?
+
+%s" % url
+	_link_dialog.popup_centered()
+
+
+## Closes a link's confirmation without opening it.
+func cancel_link() -> void:
+	_link_dialog.hide()
 
 
 ## The card for pending permission prompts and questions.
@@ -143,13 +188,18 @@ func _on_message_changed(id: String, message: String) -> void:
 		return
 	var at_end := _at_end()
 	if _rows.has(message):
-		_rows[message].text = _display(m)
+		_rows[message].set_markdown(_display(m))
+	elif _to_build.has(message):
+		return # built later, from the store as it is then
 	elif store.session(id)["message_order"].back() == message:
 		_add_row(m)
-		if _messages.get_child_count() > MAX_SHOWN:
-			var first := _messages.get_child(0)
-			_rows.erase(first.get_meta("message"))
-			first.free()
+		if _messages.get_child_count() + _to_build.size() > MAX_SHOWN:
+			if not _to_build.is_empty():
+				_to_build.pop_back()
+			else:
+				var first := _messages.get_child(0)
+				_rows.erase(first.get_meta("message"))
+				first.free()
 	else:
 		# An older message (history arriving): lay everything out again,
 		# once for the whole batch.
@@ -169,17 +219,57 @@ func _rebuild() -> void:
 	_title.text = _session_title(s)
 	var all := store.messages(session_id)
 	for m in all.slice(maxi(0, all.size() - MAX_SHOWN)):
-		_add_row(m)
+		_to_build.push_front(m["message"])
+	_build_run += 1
+	_build_some()
 	_scroll_to_end()
+	if not _to_build.is_empty():
+		_build_rest(_build_run)
+
+
+## Builds queued messages, newest first, each above the ones built so far,
+## for about [constant BUILD_BUDGET_USEC]; always at least one.
+func _build_some() -> void:
+	var start := Time.get_ticks_usec()
+	while not _to_build.is_empty():
+		var m: Dictionary = store.session(session_id)["messages"].get(_to_build.pop_front(), {})
+		if not m.is_empty():
+			_add_row(m, 0)
+		if Time.get_ticks_usec() - start > BUILD_BUDGET_USEC:
+			break
+
+
+## Builds the rest a few per frame. Rows appear above what's on screen, so
+## the view keeps its place: at the end if it was there, else by the
+## distance from the end.
+func _build_rest(run: int) -> void:
+	while not _to_build.is_empty():
+		var bar := _scroll.get_v_scroll_bar()
+		var from_end := bar.max_value - bar.value
+		var at_end := _at_end()
+		await get_tree().process_frame
+		if run != _build_run:
+			return
+		_build_some()
+		await get_tree().process_frame
+		if run != _build_run:
+			return
+		if at_end:
+			_scroll.scroll_vertical = int(bar.max_value)
+		else:
+			_scroll.scroll_vertical = int(bar.max_value - from_end)
 
 
 func _clear() -> void:
 	_rows.clear()
+	_to_build.clear()
+	_build_run += 1
 	for child in _messages.get_children():
 		child.free()
 
 
-func _add_row(m: Dictionary) -> void:
+## Adds a message's row at the end, or at [param at] when given.
+func _add_row(m: Dictionary, at := -1) -> void:
 	var user: bool = m["role"] == "user"
 	var style := StyleBoxFlat.new()
 	style.bg_color = USER_COLOUR if user else AGENT_COLOUR
@@ -189,21 +279,17 @@ func _add_row(m: Dictionary) -> void:
 	bubble.add_theme_stylebox_override("panel", style)
 	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bubble.size_flags_stretch_ratio = 3.0
-	var label := RichTextLabel.new()
-	label.bbcode_enabled = false # plain text: nothing in it is markup
-	label.fit_content = true
-	label.scroll_active = false
-	label.selection_enabled = true
-	label.context_menu_enabled = true
-	label.add_theme_font_size_override("normal_font_size", 18)
-	label.text = _display(m)
-	bubble.add_child(label)
+	var view := MarkdownView.new()
+	view.font_size = FONT_SIZE
+	view.link_clicked.connect(ask_open_link)
+	bubble.add_child(view)
+	view.set_markdown(_display(m))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.size_flags_stretch_ratio = 1.0
 	var row := HBoxContainer.new()
 	row.set_meta("message", m["message"])
-	row.set_meta("label", label)
+	row.set_meta("view", view)
 	# Yours on the right, the agent's on the left.
 	if user:
 		row.add_child(spacer)
@@ -212,7 +298,9 @@ func _add_row(m: Dictionary) -> void:
 		row.add_child(bubble)
 		row.add_child(spacer)
 	_messages.add_child(row)
-	_rows[m["message"]] = label
+	if at >= 0:
+		_messages.move_child(row, at)
+	_rows[m["message"]] = view
 
 
 func _display(m: Dictionary) -> String:

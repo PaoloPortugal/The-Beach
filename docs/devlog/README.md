@@ -44,3 +44,4 @@ reading; look things up by feature ID.
 | 2026-10-01 | [Agent view off, /clear followed](2026-10-01-agent-view-clear.md) | S02 |
 | 2026-10-01 | [Answering permissions and questions in the world](2026-10-01-c05-answer-card.md) | C05 |
 | 2026-10-01 | [M1 review, /resume in the terminal, SessionStart relay](2026-10-01-m1-review.md) | C02, S01, S02, C05 |
+| 2026-10-01 | [C03: Markdown in the chat and the bubble](2026-10-01-c03-markdown.md) | C03, C02 |
