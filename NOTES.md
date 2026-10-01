@@ -1646,7 +1646,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
-and was **live-checked with the user and the real `claude` (2026-10-01)**; it waits for the user's review before merging. What
+and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
 recommendation was "many sessions" next (S04's world side, S05, W05,
 A05, W07). M1 is done and **merged to `main` (2026-10-01)**. M1 in short: S01 and S02 were merged first. On branch `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
