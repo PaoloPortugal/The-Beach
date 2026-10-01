@@ -2,10 +2,13 @@ extends Node3D
 ## The world scene: the player starts on a platform in the open sea. Tab
 ## opens the sessions menu, to start, resume or go to a session. Each live
 ## session gets an island with its orchestrator; one you started takes you
-## there. Plus the ocean and the chat.
+## there. Plus the ocean and the chat. Closing the window while sessions
+## run asks first (S05).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
+## Asks before quitting while sessions run.
+var quit_guard := QuitGuard.new()
 
 @onready var _player: Player = $Player
 @onready var _islands: SessionIslands = $SessionIslands
@@ -30,6 +33,8 @@ func _ready() -> void:
 	_islands.setup(store)
 	_chat.setup(store, Sidecar)
 	_menu.setup(store, Sidecar)
+	add_child(quit_guard)
+	quit_guard.setup(store, _player)
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
 		_chat.watch(orchestrator))
 	_islands.island_removed.connect(func(id: String, _island: Island) -> void:

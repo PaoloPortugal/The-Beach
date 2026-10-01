@@ -100,7 +100,7 @@ v1 slice.
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `world/sessions_menu/` |
-| S05 | End session                               | planned | n/a           | n/a       |
+| S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 
 ## When a feature lands
 
@@ -275,7 +275,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Starting and stopping.** Godot starts the sidecar with an argument
   array and a pipe; the sidecar exits when that pipe closes, which covers
   Godot quitting or crashing on every OS (Windows has no graceful stop
-  signal). Launched `claude` sessions keep running on their own.
+  signal). Launched `claude` sessions keep running on their own; closing
+  the game's window while some run asks first (S05).
 - **Finding `claude`.** Apps started from the macOS Dock or a Linux menu
   don't get the user's shell PATH. Look in PATH, then the documented
   install locations (native installer `~/.local/bin`, Homebrew, WinGet,
@@ -627,7 +628,8 @@ add a minimap are open question 3.
 *Basic version built (user's decision, 2026-10-01), inside the sessions
 menu (S03). Scope: core.* The menu's "Running" list shows every live
 session as "title · project · state" (working, waiting for you, stopped
-or idle, from its orchestrator); a click closes the menu and puts you in
+or idle, from the whole session, subagents included: S05 →
+`SessionStore.activity`); a click closes the menu and puts you in
 front of that session's orchestrator (`world.gd` → `teleport`). The
 search box filters it with the rest. A **placeholder** (user's): W07
 proper adds the sorting, grouping and maybe a minimap (open question 3)
@@ -1379,8 +1381,9 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   `/fork` (see Launch).
 - Switching permission mode with no prompt open (C06 covers switching at
   launch and while answering a prompt).
-- Ending the session: `session.end` answers `not_supported` until S05
-  decides how; `/exit` in the terminal ends it.
+- Ending the session: `session.end` answers `not_supported` (S05: not
+  from the world until Claude Code offers a clean way; Watch items →
+  Ending a session from the game); `/exit` in the terminal ends it.
 
 **Known gaps.**
 - **`/fork <prompt>` untested** with agent view off (`/fork` alone
@@ -1538,6 +1541,45 @@ island (W04). Claude Code offers no documented way to close a session from
 outside, so until S05 decides how, `session.end` gets `not_supported` for
 Claude sessions (user's decision, S02); `/exit` in the terminal still ends
 a session and sinks its island (its channel bridge closes).
+
+*Decided (user's, 2026-10-01): sessions aren't ended from the game for
+now.* Claude Code has no documented way to end an interactive session
+from outside (checked 2026-10-01): a hook's `"continue": false` only
+stops the turn, `SessionEnd` only reports an exit, and a channel can't
+close the session or send slash commands. Every way left is at the
+process level. Probed on Windows (`claude` 2.1.287): a Ctrl+C console
+event (`GenerateConsoleCtrlEvent`, a signal, not a keystroke) ended an
+idle `claude` cleanly, `SessionEnd` hook included; busy, untested. But
+Node can only kill a process on Windows, so it needs a native helper
+(PowerShell compiling `kernel32` calls looks like malware; a small C
+helper adds a build step), and macOS and Linux would use signals,
+untested. Options rejected: closing the terminal, a kill, a helper. The
+user's rule if it comes back: always the least abrupt way that doesn't
+make the player close the terminal, and nothing that injects keystrokes.
+Kept as a watch item (Watch items → Ending a session from the game).
+
+*Built: the quit warning (user's decision, 2026-10-01). Scope: core.*
+Quitting doesn't end sessions either: they keep running in their
+terminals, out of the world's reach. So `QuitGuard`
+(`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
+window is closed (its close button, Alt+F4, Cmd+Q) while sessions run,
+asks first: "N sessions are still running:", each as "title · project ·
+what it's doing" (kept up to date while the dialog is open), then
+"Quitting won't end them: they keep running in their terminals, and the
+game can't reach them any more. To end one, type /exit in its
+terminal." Buttons: Quit, and Back to the game (or Esc), which gives the
+mouse and controls back as they were. With no session running it quits
+at once. A **placeholder**, like all UI. "What it's doing" is the
+session's `SessionStore.activity`, subagents included: waiting for you
+if any agent waits, else working if any works (so an idle orchestrator
+waiting on its subagents' reports counts as working), else stopped or
+idle (the user had seen such sessions shown as idle). The Running list
+(W07) uses it too.
+
+*Not yet checked* (user's choice: test, then decide): after the game
+restarts, sessions still running in their terminals are listed under
+Resume, since the new sidecar doesn't know them; resuming one would
+likely run a second `claude` on the same conversation.
 
 ## Conventions
 
@@ -1736,7 +1778,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 the "New session" post is removed; S03, S04, W07), built and documented,
 **live check passed with the user and the real `claude` (2026-10-01)**;
 ready for the user's review before merging to `main`. The menu is a **placeholder** (user's, 2026-10-01): it
-must be properly designed later, like all UI. Then S05 (end session), W05
+must be properly designed later, like all UI. S05 (end session), on
+branch `s05-end-session` (from `s04-resume`): ending sessions from the
+game is shelved as a watch item (no clean way in Claude Code); built
+instead: the **quit warning** and session-wide activity in the Running
+list, tested headless, **live check next**; then the check of resuming a
+session still running from before a restart. Then W05
 (archipelagos), A05 (attention cue) and W07 proper, each designed with
 the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
@@ -1890,6 +1937,15 @@ exists.
   Principles (no data leaving the machine, no logins handled by us).
 
 ### Watch items
+
+- **Ending a session from the game** (S05). Not built: Claude Code has
+  no clean way to end an interactive session from outside (S05 has what
+  was checked and probed). Build it if Claude Code ever offers one (a
+  documented command, hook output or channel message that ends the
+  session). The user's rule: the least abrupt way that doesn't make the
+  player close the terminal, and nothing that injects keystrokes. The
+  quit dialog would then offer to end the running sessions, warning only
+  if some are working (user's wish, 2026-10-01).
 
 - **Anthropic's terms (public release).** The app is meant for free public
   release (maybe donations later). Per Claude Code's legal and compliance

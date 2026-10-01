@@ -7,6 +7,7 @@ here; each section is labelled with its feature ID.
 
 - [Running it](#running-it)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
+- [Quitting the game (S05)](#quitting-the-game-s05)
 - [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
@@ -47,7 +48,8 @@ at the top to filter the lists by title or project.
   get back to the game; choosing a folder in it afterwards does nothing.
   If your system has no picker of its own, the game shows its own.
 - **Running** lists the sessions running now, with what each is doing
-  (working, waiting for you, stopped, idle). Click one to go straight to
+  (working, waiting for you, stopped, idle). A session counts as working
+  while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
   its island, in front of its orchestrator.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
   their project and how long ago you last used them. Click one to pick it
@@ -65,6 +67,19 @@ orchestrator.
 
 If the session can't start, the note says why. One session starts at a
 time.
+
+## Quitting the game (S05)
+
+Sessions don't end when you quit: they keep running in their terminal
+windows, but the game can no longer see or reach them. So if you close
+the game while sessions are running, it asks first. It lists them with
+what each is doing, and reminds you that to end a session you type
+`/exit` in its terminal. **Quit** closes the game anyway; **Back to the
+game** (or Esc) returns you to where you were. With no session running,
+the game just closes.
+
+The game can't end sessions for you: Claude Code has no clean way to do
+that from outside.
 
 ## The islands and the ocean (W01, W02)
 

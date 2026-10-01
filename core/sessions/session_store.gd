@@ -97,6 +97,23 @@ func pending(session_id: String) -> Array[Dictionary]:
 	return out
 
 
+## What the whole session is doing, subagents included: "waiting" if any
+## agent waits on you, else "working" if any works (so a session whose
+## orchestrator is idle while its subagents work counts as working), else
+## "error" if the orchestrator stopped on one, else "idle".
+func activity(session_id: String) -> String:
+	var states := {}
+	for a in session(session_id).get("agents", []):
+		states[a["state"]] = true
+	if states.has("waiting"):
+		return "waiting"
+	if states.has("working"):
+		return "working"
+	if orchestrator(session_id).get("state", "") == "error":
+		return "error"
+	return "idle"
+
+
 ## The chat so far, oldest first.
 func messages(session_id: String) -> Array[Dictionary]:
 	var s := session(session_id)
