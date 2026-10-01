@@ -85,6 +85,22 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.55)
 text = "Tab or Esc to close"
 
+[node name="Waiting" type="HBoxContainer" parent="Panel/Layout"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Text" type="Label" parent="Panel/Layout/Waiting"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Choose the project folder in the window that opened. Can't see it? It may be behind the game: switch to it, or press Cancel."
+autowrap_mode = 3
+
+[node name="Cancel" type="Button" parent="Panel/Layout/Waiting"]
+layout_mode = 2
+focus_mode = 0
+text = "Cancel"
+
 [node name="Search" type="LineEdit" parent="Panel/Layout"]
 layout_mode = 2
 placeholder_text = "Search by title or project"

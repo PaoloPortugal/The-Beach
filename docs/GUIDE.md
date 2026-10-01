@@ -38,8 +38,14 @@ Press **Tab** anywhere (except while chatting) to open the sessions menu;
 sessions" reminds you at the bottom of the screen. Type in the search box
 at the top to filter the lists by title or project.
 
-- **+ New session…** asks for the project folder you want to work in.
-  Cancel takes you back to the menu.
+- **+ New session…** opens your system's own folder picker (File
+  Explorer on Windows, the usual open panel on macOS and Linux) to
+  choose the project folder you want to work in. Cancelling it takes you
+  back to the menu. While it's open, the menu waits with a note: if the
+  picker ends up hidden behind the game (this can happen on Windows),
+  switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
+  get back to the game; choosing a folder in it afterwards does nothing.
+  If your system has no picker of its own, the game shows its own.
 - **Running** lists the sessions running now, with what each is doing
   (working, waiting for you, stopped, idle). Click one to go straight to
   its island, in front of its orchestrator.

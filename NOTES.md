@@ -1439,13 +1439,27 @@ proper design later, like all UI.
   opening), then "+ New session…", "Running" (W07) and "Resume" (S04).
   The search filters Running and Resume by title and project, like
   Claude Code's own `/resume` list (user's choice).
-- **New session…** opens a folder picker (Godot's own `FileDialog`,
-  drawn inside the game window, starting in the home folder). Not the
-  system's native picker: that is a separate window, and on Windows
-  alt-tab hid it behind the game, which then waited for it with no way
-  back. Cancel or Esc returns to the menu. The chosen folder goes to
-  `session.create` with the first provider from `hello` (only one
-  exists; choosing one is for S03 proper).
+- **New session…** opens the **system's folder picker** on every
+  platform (user's decision, 2026-10-01, reversing M1's choice of
+  Godot's own): File Explorer's on Windows, the open panel on macOS, the
+  desktop portal's on Linux (X11 and Wayland), all through Godot's
+  cross-platform `DisplayServer.file_dialog_show`, starting in
+  the home folder, then the last folder chosen. Where the system has
+  none (`FEATURE_NATIVE_DIALOG_FILE` off, e.g. Linux without the desktop
+  portal, or headless), Godot's own `FileDialog`, drawn inside the game
+  window, is used instead. Cancelling either returns to the menu. The
+  chosen folder goes to `session.create` with the first provider from
+  `hello` (only one exists; choosing one is for S03 proper).
+- **A picker hidden behind the game can't trap you** (user's decision).
+  On Windows, alt-tab or a click on the game can cover the system's
+  picker (Watch items → Native folder picker on Windows), and Godot can
+  neither raise nor close it. macOS and Linux tie the picker to the game
+  window, but the safety net is the same everywhere: while it is open
+  the menu stays up with a note ("Choose the project folder in the
+  window that opened. Can't see it? It may be behind the game: switch to
+  it, or press Cancel.") and a Cancel button; Cancel, Esc or Tab close
+  the menu and give the controls back, and whatever the lost picker
+  answers later is ignored, so nothing starts on its own.
 - **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
   and resumed sessions, one at a time). A notice at the top centre of
   the screen (it replaced the post's sign; my choice) says how it goes:
@@ -1613,8 +1627,10 @@ ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
 platform, walking, jumping, the sea respawn), the sessions menu (the
-hint, Tab and Esc, the picker opening and cancelling back to the menu, a
-refused folder), islands for sessions applied to the store by hand (one
+hint, Tab and Esc, Godot's picker opening and cancelling back to the
+menu; the system's picker through a stand-in: the waiting note,
+cancelling, Esc while it is lost and its late answer ignored, a refused
+folder), islands for sessions applied to the store by hand (one
 per session, apart, the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, a long chat built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
@@ -2002,6 +2018,23 @@ exists.
   - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
     is the fallback home for the Linux build if Steam's sandboxing blocks
     launching the terminal and `claude`.
+- **Native folder picker on Windows** (S03). Godot 4.7.2 shows the
+  system's picker from a hidden helper window created with no owner
+  (`platform/windows/display_server_windows.cpp`, `_thread_fd_monitor`:
+  `CreateWindowExW(..., nullptr /* parent */, ...)`; the same in master,
+  checked 2026-10-01). So Windows doesn't keep the picker above the
+  game: alt-tab or a click on the game covers it. It still has its own
+  taskbar button and Alt+Tab entry. Nothing in GDScript can fix it
+  (`WINDOW_FLAG_NO_FOCUS` would make the game always-on-top, worse), so
+  the menu's Cancel is the safety net. The fix belongs in Godot: pass
+  the game window (`fd->hwnd_owner`) as the helper's owner. Worth
+  reporting upstream (the user's call); recheck on Godot updates.
+  macOS and Linux don't have this bug, per the same source: macOS shows
+  the picker as a sheet attached to the game window
+  (`beginSheetModalForWindow`), and on Linux the portal is given the
+  game window as the picker's parent (the X11 window id, or the exported
+  Wayland handle). Not yet seen live (Watch items → Untested on macOS
+  and Linux).
 - **Export presets (when we make them):** leave out `tests/`, including
   the live-check checklist overlay (`tests/live/`); `world.gd` only loads
   it with `--checklist`, but it shouldn't ship (user's, M1 review).

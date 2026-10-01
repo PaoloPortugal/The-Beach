@@ -3,26 +3,35 @@ LIVE CHECK: the sessions menu (S03, S04, W07)
 1. On the platform: "Press Tab for sessions"
    at the bottom. Tab opens the menu, Tab
    closes it, Esc too.
-2. Tab > + New session... > Cancel: back in
-   the menu. Again, pick
+2. Tab > + New session...: File Explorer's
+   folder picker opens; the menu shows the
+   waiting note. Cancel in the picker: back
+   in the menu.
+3. New session... again, then click the
+   game so the picker hides behind it.
+   Press Cancel in the menu: you can walk
+   and look. Pick a folder in the hidden
+   picker (taskbar): nothing starts.
+4. Tab > New session... > pick
    C:\Users\paolo\sandbox\notes-app.
    Top notice: confirm in the terminal.
-   Confirm; you land at its island.
-3. Chat one line, then /exit in the terminal.
+   Confirm: you land at its island AND can
+   look and walk (the bug you hit).
+5. Chat one line, then /exit in the terminal.
    You're back on the platform.
-4. Tab: that session is under Resume, newest
+6. Tab: that session is under Resume, newest
    first, "title . project . ago". Type part
    of its title in the search: it filters.
-5. Click it: a terminal opens with
+7. Click it: a terminal opens with
    claude --resume. Confirm. Island appears,
    the chat shows the earlier messages.
    Send one: Claude remembers the first.
-6. Tab again: it's under Running now, not
-   Resume. Walk/fall back to the platform,
-   Tab, click it: you're at its island.
-7. Start a second session (another folder);
+8. Tab: it's under Running now, not Resume.
+   Fall back to the platform, Tab, click
+   it: you're at its island.
+9. Start a second session (another folder);
    Tab lists both under Running; jump
    between them. Tab while chatting: nothing.
-8. /exit both terminals.
+10. /exit both terminals.
 
 Tell Claude what you saw; paste red errors.
