@@ -90,7 +90,7 @@ v1 slice.
 | A05 | Permission attention cue                  | planned | n/a           | n/a       |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
-| C03 | Markdown rendering                        | planned | n/a           | n/a       |
+| C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd` |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
@@ -770,19 +770,21 @@ hidden by terrain); the full panel is a dark translucent panel with chat
 bubbles and a message box.
 
 *Built (v1). Scope: core* (it reads only the generic `SessionStore`).
-Message text is untrusted (Security rules): it only ever goes into
-`Label`s and `RichTextLabel`s with BBCode off, so it is shown exactly as
-written (tested with an injected `[url]`).
+Message text is untrusted (Security rules): both the bubble and the panel
+render it as Markdown (C03), whose converter escapes all of it, so markup
+in a message shows as written (tested with an injected `[url]`).
 - **Bubble** (`MessageBubble`, `chat/message_bubble.tscn`): a billboard
   `Sprite3D` above the orchestrator's `MessageAnchor`, drawing a
-  `SubViewport` with a dark rounded panel and a label (font 40 px at
-  3.5 mm per pixel: text about 14 cm tall, readable from a few metres).
-  It shows the orchestrator's latest reply (role `assistant`, from the
-  orchestrator agent; your messages and subagents' aren't shown), updated
-  on every delta. `tail_lines` word-wraps it at 40 characters, drops blank
-  lines, and keeps the last 4 lines with "…" in front when anything was
-  cut. Hidden until the orchestrator has said something. The bubble's
-  bottom edge sits on the anchor, so it grows upwards.
+  `SubViewport` with a dark rounded panel and a `RichTextLabel` (font
+  40 px at 3.5 mm per pixel: text about 14 cm tall, readable from a few
+  metres). It shows the orchestrator's latest reply (role `assistant`,
+  from the orchestrator agent; your messages and subagents' aren't
+  shown), updated on every delta, rendered with C03's one-label version.
+  The label is as wide as its longest line up to 800 px (about 35
+  characters), then wraps; only its last 4 wrapped lines show, through a
+  clip, with a small "…" above when anything was cut. Hidden until the
+  orchestrator has said something. The bubble's bottom edge sits on the
+  anchor, so it grows upwards.
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
   project's name, and "Esc to close"), the session's notices (Godot's own
@@ -790,10 +792,15 @@ written (tested with an injected `[url]`).
   `conversation_resumed` and `conversation_moved`; of the two switch
   notices, only the latest shows), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
-  three quarters of the width, text selectable), a status line and the
+  three quarters of the width, text selectable, both rendered as
+  Markdown by C03), a status line and the
   message box. Streaming updates the growing bubble in place and follows
   the end if you were already at the bottom. At most the last 200
-  messages are shown (the store keeps up to 2000). Status: "Working…",
+  messages are shown (the store keeps up to 2000). Laying out a chat
+  builds the newest messages first, for up to 8 ms, then the older ones
+  the same way once per frame, each above the rest; the view stays at
+  the end, or keeps its distance from the end if you scrolled up
+  (rendering Markdown costs tens of milliseconds per long message, C03). Status: "Working…",
   "Waiting for a permission / an answer…: … above or in the terminal"
   (the card above is C05), "Stopped." after an
   error, or a failed send.
@@ -810,13 +817,15 @@ written (tested with an injected `[url]`).
 
 Pending permission prompts and questions show on a card between the
 chat and the status line (C05). Not yet: a Stop button (the `interrupt`
-capability), Markdown (C03), and the tool-call log (C04).
+capability) and the tool-call log (C04).
 
 ### C03 Markdown rendering
-*Planned. Scope: core* (it renders the generic `message` text). Godot's
-`RichTextLabel` uses BBCode, not Markdown, so the chat panel translates.
+*Built. Scope: core* (it renders the generic `message` text). Godot's
+`RichTextLabel` uses BBCode, not Markdown, so the chat translates.
 Prototyped in the M0 spike (`spikes/markdown/`, dev log
-2026-09-29-markdown-spike); the user's decisions, verified there:
+2026-09-29-markdown-spike, kept there as evidence) and ported to
+`chat/markdown/` (dev log 2026-10-01-c03-markdown). The user's decisions,
+verified in the spike:
 - **Converted in Godot by our own GDScript**, from the Markdown the
   protocol already carries. No protocol change, no dependency.
 - **A message is a stack of controls.** Consecutive prose blocks share one
@@ -832,10 +841,37 @@ Prototyped in the M0 spike (`spikes/markdown/`, dev log
   unchanged parts and update the growing one in place (about 2 ms per
   batch). An unclosed code fence shows as a block marked "writing…".
 
-To solve when building: rendering a long history at once is slow (about
-80 ms per typical reply, 0.7 s for a 25 KB one, mostly RichTextLabel and
-CodeEdit layout), so build history lazily. Gaps and details are in the dev
-log.
+*Decided (user's, 2026-10-01):* your messages are rendered too, not only
+Claude's; and the bubble above the orchestrator renders Markdown as well
+(recommended was stripping the marks to plain text).
+
+How it's built:
+- `MarkdownParser` (`markdown_parser.gd`): text → blocks (headings,
+  paragraphs, nested bullet / numbered / task lists, fenced code, nested
+  quotes, GFM tables, rules) and inline Markdown → BBCode, with all the
+  escaping. A newline inside a paragraph is a line break (GitHub-comment
+  style).
+- `MarkdownBBCode` (`markdown_bbcode.gd`): blocks → BBCode. `prose` for
+  the panel's text segments; `flat` puts every block in one label for the
+  bubble: code as monospace on a dark background without blank lines,
+  quotes indented and grey, rules as a short line, headings bold only.
+- `MarkdownView` (`markdown_view.gd`): one message as a stack of controls,
+  at a given font size (18 in the panel), streaming as above. Code panels
+  use a `CodeEdit`; plain mouse wheel over one scrolls the chat, and
+  Shift+wheel scrolls the code sideways. Syntax colours are a small
+  keyword list for GDScript, Python, JS/TS/JSON and shell.
+- **Links.** Hovering shows the address; a click opens the chat panel's
+  confirmation ("Open in browser"), and only that opens it
+  (`OS.shell_open`). Esc closes the confirmation, not the chat. Bubble
+  links are coloured but can't be clicked.
+- **History is built lazily** (C02): about 80 ms per typical reply and
+  0.7 s for a 25 KB one, mostly RichTextLabel and CodeEdit layout, so a
+  long chat is built newest first, a few messages per frame.
+
+Gaps, from the spike: setext headings, indented (4-space) code blocks,
+HTML, reference links, footnotes, table column alignment. Tested by
+`tests/chat/markdown_test.gd` (the spike's 74 checks; the fuzz test now
+covers the bubble's rendering too) and the world test.
 
 ### C04 Tool-call log
 *Planned.* Some form of log of the tool calls the session made, visible from
@@ -1514,13 +1550,18 @@ godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --
 godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/world_test.gd
 godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
+godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
-The world test checks the island generator, jump assist and the bubble's
-text cut, then runs the world scene with real physics (landing on the
+The Markdown test (C03) checks escaping and links (with a fuzz test),
+emphasis, blocks and lists, and that streaming a sample line by line
+ends like a full render.
+
+The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
 platform, walking, jumping, the sea respawn), the post (its prompt, the
 picker opening and cancelling, a refused folder), islands for sessions applied to the store by hand (one
-per session, apart, the bubble streaming, the teleport, the chat panel,
+per session, apart, the bubble streaming and rendering Markdown, the teleport, the chat
+panel (Markdown, a link's confirmation, a long chat built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the session ending under you), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session from
@@ -1603,9 +1644,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** M1 is done and **merged to `main` (2026-10-01)**.
-What comes after v1 isn't chosen yet (Milestones → After v1): ask the
-user. M1 in short: S01 and S02 were merged first. On branch `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
+**Current focus:** C03 Markdown rendering (chosen by the user as the
+first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
+and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
+comes after it isn't chosen yet (Milestones → After v1); the
+recommendation was "many sessions" next (S04's world side, S05, W05,
+A05, W07). M1 is done and **merged to `main` (2026-10-01)**. M1 in short: S01 and S02 were merged first. On branch `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
 built: start a session from the spawn platform's post, get taken to its
 island, and chat with its orchestrator (bubble above its head, full panel
 on E). **Live check passed (2026-09-30)** with the user and the real

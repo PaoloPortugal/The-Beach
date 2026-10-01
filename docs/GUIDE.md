@@ -11,6 +11,7 @@ here; each section is labelled with its feature ID.
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
+- [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [The sidecar (S01)](#the-sidecar-s01)
@@ -103,8 +104,28 @@ has it; if it can't be sent, the chat says so and gives your text back.
 
 Above the box, a line says what the orchestrator is doing: working, or
 waiting for you. When it waits on a permission or a question, a card
-above that line lets you answer it (see below). Messages are shown as
-plain text (formatting comes later), and only the latest 200 at once.
+above that line lets you answer it (see below). Only the latest 200
+messages are shown at once. A long chat appears newest first, and the
+older messages fill in above it over a moment.
+
+## Formatting in the chat (C03)
+
+Messages are formatted the way Claude writes them (Markdown): headings,
+**bold**, *italic*, lists, task lists, tables, quotes and `code`. Your
+own messages are formatted the same way.
+
+Each **code block** gets its own dark panel with its language at the top
+and a **Copy** button. Long lines scroll sideways (Shift+wheel) instead
+of wrapping. While Claude is still writing a block, it's marked
+"writing…".
+
+**Links** are blue; hover over one to see where it goes. Clicking one
+asks first, showing the full address, and only opens it in your browser
+if you confirm. Only web and email links can be clicked. Images in
+messages are never downloaded: you see their description instead.
+
+The window above the orchestrator's head is formatted too, in a simpler
+way: code shows in a monospace font, and links can't be clicked there.
 
 ## Answering Claude's requests (C05)
 

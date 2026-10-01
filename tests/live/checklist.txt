@@ -1,15 +1,22 @@
-LIVE CHECK: /clear clears the chat window
+LIVE CHECK: Markdown in the chat (C03)
 
 1. Post (E) > C:\Users\paolo\sandbox\notes-app.
    Confirm the dev channel in the terminal.
-2. Chat from the world: "Say hi." Wait for
-   the reply. Keep the chat panel open.
-3. Terminal: /clear. Do NOT send anything.
-   Expected at once: the chat window empties,
-   the bubble clears, and the /clear notice
-   mentions /resume.
-4. Chat from the world: "hello". Expected:
-   only this exchange in the window.
-5. /exit in the terminal.
+2. Chat from the world: "Show me a short
+   Python example in a code block, a table,
+   a task list and a link to godotengine.org."
+3. While it streams, look at the bubble from
+   a few metres: formatted, last 4 lines,
+   small "..." above when cut. Readable?
+4. In the panel: headings, bold, the table,
+   the code panel (Copy, Shift+wheel, plain
+   wheel scrolls the chat), the task boxes.
+5. Hover the link: its address shows. Click:
+   a confirmation with the full address.
+   Esc: only that closes. Click again and
+   Open in browser: it opens.
+6. Send your own message with **bold** and a
+   ``` code fence. It is formatted too.
+7. /exit in the terminal.
 
 Tell Claude what you saw; paste red errors.
