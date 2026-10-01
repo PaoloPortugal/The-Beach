@@ -57,6 +57,41 @@ runs (nothing on screen otherwise tells a new user about Tab).
   `--sidecar-dev-fake` it also lists, searches and resumes a stored
   session and goes to a running one.
 
+## Bug: no controls after choosing a folder
+
+At the first live try, the player lost the camera for good once the
+picker closed and the island appeared. Godot's picker hides itself
+before it reports the folder, and the menu's panel was already hidden,
+so `close()` took the menu for closed and never gave the controls back;
+Tab then couldn't open the menu (it needs the controls). Fixed with the
+menu's own open flag. The world test missed it because it called the
+launcher directly; it now picks the folder through the picker's button.
+
+## The system's folder picker, again
+
+The user asked for the system's picker (File Explorer on Windows) with
+all three platforms in mind, although M1 dropped it: on Windows,
+alt-tab hid it behind the game, which waited for it forever. Options I
+gave: a waiting note with Cancel (recommended), the same plus a button
+to switch to Godot's picker, or native only as in M1. **The user chose
+the waiting note with Cancel**: Cancel or Esc gives the controls back
+and a late answer is ignored. Where the system has no picker, Godot's
+is used.
+
+The user also asked for a way to keep the picker from being hidden at
+all. Godot's source (4.7.2 and master) explains the M1 trap: the
+picker's helper window is created without an owner, so Windows doesn't
+keep it above the game. GDScript can't reach that window. The "no
+focus" window flag looked like a way to stop the game from coming in
+front, but in Godot it also makes the window always-on-top, which would
+bury the picker for good. So the note tells you where to find a hidden
+picker (it has its own taskbar button), and the real fix is a one-line
+change in Godot, worth reporting (NOTES → Watch items). The user asked
+that this work on Linux and macOS too: the code is Godot's
+cross-platform call with a fallback to Godot's picker, and per Godot's
+source only Windows has the bug (macOS uses a sheet on the game window,
+Linux's portal gets the game window as parent). Untested there.
+
 ## Open
 
 - Not yet live-checked with the real `claude`: a resume from the world

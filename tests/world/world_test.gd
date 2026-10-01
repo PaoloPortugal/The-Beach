@@ -181,9 +181,41 @@ func _menu(world: Node3D, player: Player) -> void:
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "the sidecar is up")
-	menu.launcher.create(OS.get_user_data_dir().path_join("no-such-folder"))
+
+	# The system's picker (none headless, so a stand-in that keeps its
+	# callback): the menu waits with a note and Cancel.
+	var answer := [Callable()]
+	var pickers_shown := [0]
+	menu.native_picker = true
+	menu.show_native = func(_dir: String, callback: Callable) -> Error:
+		answer[0] = callback
+		return OK
+	menu.native_picker_shown.connect(func(_dir: String) -> void: pickers_shown[0] += 1)
+	var new_session := func() -> void:
+		_press("sessions_menu")
+		await _until(func() -> bool: return menu.is_open(), 2.0)
+		menu.choose("+ New session")
+		await _frames(2)
+	await new_session.call()
+	_check(pickers_shown[0] == 1 and menu.waiting_for_picker() and menu.is_open() and not menu.picker().visible, "system picker: the menu waits for it, with a note")
+	answer[0].call(false, PackedStringArray(), 0)
+	await _frames(2)
+	_check(menu.is_open() and not menu.waiting_for_picker() and not player.controls_enabled, "system picker: cancelling it goes back to the menu")
+	menu.choose("+ New session")
+	await _frames(2)
+	_press("ui_cancel")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and not menu.waiting_for_picker() and player.controls_enabled, "system picker lost behind the game: Esc gives the controls back")
+	answer[0].call(true, PackedStringArray([OS.get_user_data_dir()]), 0)
+	await _frames(3)
+	_check(not menu.launcher.busy() and menu.notice_text() == "" and not menu.is_open(), "and its late answer is ignored")
+	await new_session.call()
+	answer[0].call(true, PackedStringArray([OS.get_user_data_dir().path_join("no-such-folder")]), 0)
+	await _frames(2)
+	_check(not menu.is_open() and player.controls_enabled, "system picker: choosing a folder closes the menu and gives the controls back")
 	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
 	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
+	menu.native_picker = false
 
 
 func _snapshot(id: String) -> Dictionary:

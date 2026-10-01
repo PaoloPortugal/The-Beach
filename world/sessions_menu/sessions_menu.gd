@@ -7,16 +7,29 @@ extends CanvasLayer
 ## for now (user's, 2026-10-01): it only has to work, and gets a proper
 ## design later.
 ##
-## The folder picker is Godot's own, drawn inside the game window: the
-## system's would be a separate window that alt-tab can hide behind the
-## game, leaving it stuck waiting (it happened on Windows).
+## The folder picker is the system's own (File Explorer on Windows; user's
+## decision, 2026-10-01), or Godot's, drawn in the game window, where the
+## system has none (e.g. Linux without the desktop portal). The system's
+## is a separate window that alt-tab can hide behind the game (seen on
+## Windows, M1), and Godot can't bring it back or close it, so while it's
+## open the menu says so and offers Cancel (or Esc): that gives the
+## controls back, and whatever the lost picker answers later is ignored.
 
 ## The player asked to go to a running session's island.
 signal go_to(session_id: String)
+## The system's folder picker was asked for (tests watch this).
+signal native_picker_shown(directory: String)
 
 const HEADING_COLOUR := Color(1, 1, 1, 0.55)
 
 @export var player: Player
+
+## Use the system's folder picker. Off where the system has none, and in
+## headless runs; tests may turn it on with [member show_native] replaced.
+var native_picker := DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE)
+## Shows the system's picker in a folder and calls back
+## (ok: bool, paths: PackedStringArray, filter: int); returns an Error.
+var show_native: Callable = _show_native
 
 var store: SessionStore
 var sidecar: SidecarClient
@@ -32,6 +45,12 @@ var _listing := 0
 ## picker hides itself before it says which folder was chosen, so by then
 ## neither shows, and close() must still give the controls back.
 var _open := false
+## Waiting for the system's picker to answer.
+var _waiting := false
+## Bumped on each ask and on Cancel, so a late answer is ignored.
+var _asking_folder := 0
+## Where the system's picker opens: the home folder, then the last choice.
+var _last_dir := ""
 
 @onready var _panel: Control = $Panel
 @onready var _search: LineEdit = $Panel/Layout/Search
@@ -39,6 +58,8 @@ var _open := false
 @onready var _hint: Label = $Hint
 @onready var _notice: Label = $Notice
 @onready var _dialog: FileDialog = $Dialog
+@onready var _wait_note: Control = $Panel/Layout/Waiting
+@onready var _lists: Array[Control] = [$Panel/Layout/Search, $Panel/Layout/Scroll]
 
 
 func _ready() -> void:
@@ -56,6 +77,8 @@ func _ready() -> void:
 	var home := OS.get_environment("USERPROFILE" if OS.get_name() == "Windows" else "HOME")
 	if not home.is_empty() and DirAccess.dir_exists_absolute(home):
 		_dialog.current_dir = home
+		_last_dir = home
+	$Panel/Layout/Waiting/Cancel.pressed.connect(close)
 	launcher.status_changed.connect(func(text: String) -> void:
 		_notice.text = text
 		_notice.visible = not text.is_empty()
@@ -98,6 +121,7 @@ func close() -> void:
 	if not is_open():
 		return
 	_open = false
+	_stop_waiting()
 	_panel.visible = false
 	_dialog.hide()
 	player.controls_enabled = true
@@ -107,6 +131,11 @@ func close() -> void:
 
 func picker() -> FileDialog:
 	return _dialog
+
+
+## Whether the menu is waiting for the system's folder picker.
+func waiting_for_picker() -> bool:
+	return _waiting
 
 
 func hint_visible() -> bool:
@@ -188,9 +217,7 @@ func _fill() -> void:
 	for child in _list.get_children():
 		child.queue_free()
 	var query := _search.text.strip_edges().to_lower()
-	_add_button("+ New session…", func() -> void:
-		_panel.visible = false
-		_dialog.popup_centered_ratio(0.6))
+	_add_button("+ New session…", _pick_folder)
 
 	var running: Array[Array] = [] # [label, id]
 	for id in store.sessions:
@@ -220,6 +247,52 @@ func _fill() -> void:
 			launcher.resume(st["provider"], st["native_id"]))
 	if shown == 0:
 		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
+
+
+func _pick_folder() -> void:
+	if native_picker:
+		_asking_folder += 1
+		var ask := _asking_folder
+		# The answer may come from another thread; handle it on the main one.
+		var err: Error = show_native.call(_last_dir, func(ok: bool, paths: PackedStringArray, _filter: int) -> void:
+			_on_native_answer.call_deferred(ask, ok, paths))
+		if err == OK:
+			_set_waiting(true)
+			native_picker_shown.emit(_last_dir)
+			return
+		push_warning("System folder picker unavailable (%s); using Godot's" % error_string(err))
+		native_picker = false
+	_panel.visible = false
+	_dialog.popup_centered_ratio(0.6)
+
+
+func _show_native(directory: String, callback: Callable) -> Error:
+	return DisplayServer.file_dialog_show("Choose the session's project folder", directory, "", false, DisplayServer.FILE_DIALOG_MODE_OPEN_DIR, PackedStringArray(), callback)
+
+
+func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
+	if ask != _asking_folder or not _waiting:
+		return # cancelled from the menu meanwhile, or the menu closed
+	_set_waiting(false)
+	if not ok or paths.is_empty():
+		_search.grab_focus() # cancelled in the picker: back to the menu
+		return
+	_last_dir = paths[0]
+	close()
+	launcher.create(paths[0])
+
+
+func _stop_waiting() -> void:
+	if _waiting:
+		_asking_folder += 1
+		_set_waiting(false)
+
+
+func _set_waiting(on: bool) -> void:
+	_waiting = on
+	_wait_note.visible = on
+	for c in _lists:
+		c.visible = not on
 
 
 func _add_heading(text: String) -> void:
