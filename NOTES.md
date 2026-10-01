@@ -1437,7 +1437,8 @@ by calling `SessionPost.create`, which it calls. It can't check looks or the mou
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
-(add it to `--sidecar-dev-fake` if wanted) shows `tests/live/checklist.txt`
+(add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it) shows
+`tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
 second when the file changes. Write the current live check's steps
 there; replace them for the next one. `world.gd` adds the overlay
