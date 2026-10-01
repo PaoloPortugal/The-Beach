@@ -49,9 +49,9 @@ git clone https://github.com/PaoloPortugal/The-Beach.git
 1. In `sidecar/`, run `npm ci` (and `npm test` to check it works).
 2. Open Godot, choose **Import**, and select `project.godot` at the repo root.
 3. Press **F5** to run. Godot starts the sidecar itself (from source, so
-   `node` must be on your PATH). You start on a platform in the sea; the
-   "New session" sign starts a Claude Code session (see the
-   [guide](docs/GUIDE.md)).
+   `node` must be on your PATH). You start on a platform in the sea; Tab
+   opens the sessions menu, to start or resume a Claude Code session (see
+   the [guide](docs/GUIDE.md)).
 
 More commands (packaging, the fake provider, tests) are in
 [NOTES.md → Running it](NOTES.md#running-it).

@@ -81,7 +81,7 @@ v1 slice.
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
 | W05 | Archipelagos (project clustering)         | planned | n/a           | n/a       |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
-| W07 | Teleport menu                             | planned | n/a           | n/a       |
+| W07 | Teleport menu                             | basic built (sessions menu) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -98,8 +98,8 @@ v1 slice.
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
-| S03 | Create session from the world             | quick version built | S03 | `world/platform/` |
-| S04 | List and resume stored sessions           | sidecar side built (branch) | n/a | `sidecar/src/providers/claude/store.ts` |
+| S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
+| S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `world/sessions_menu/` |
 | S05 | End session                               | planned | n/a           | n/a       |
 
 ## When a feature lands
@@ -349,7 +349,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform and its "New session" post, S03). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -532,9 +532,10 @@ bound to it, and loses it when the session ends. An island only appears
 once its session is up (`session.snapshot` or `session.created`), never
 while it is still starting. Islands sit on rings around the spawn
 platform (six per ring, 180 m apart, each ring turned half a step), and a
-new island takes the first free spot. A session you started from the
-world (S03) takes you to its island, 6 m in front of the orchestrator
-(`world.gd` → `teleport`); sessions already running when the world
+new island takes the first free spot. A session you started or resumed
+from the sessions menu (S03, S04) takes you to its island, 6 m in front
+of the orchestrator (`world.gd` → `teleport`), and so does choosing a
+running one there (W07); sessions already running when the world
 connects don't move you. When a session ends, whoever stands on its
 island is put back on the platform.
 
@@ -584,13 +585,14 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   the way back from an island to the platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
-platform, the islands for sessions, ocean, sun, sky, chat and player
-together. The **spawn platform** (`world/platform/`, user's direction,
-2026-09-30) is a 12 m wooden square at the world's centre, its deck 1 m
-above the water, with the "New session" post (S03). The player starts on
-it, 3 m in front of the post, facing it. `world.gd` creates the
-`SessionStore` and connects the parts: the islands hear of a new session
-first, so its island exists when the post reports it started.
+platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
+and player together. The **spawn platform** (`world/platform/`, user's
+direction, 2026-09-30) is a 12 m wooden square at the world's centre, its
+deck 1 m above the water; the player starts on it, 3 m from its centre.
+(Its "New session" post was removed for the sessions menu, S03.)
+`world.gd` creates the `SessionStore` and connects the parts: the islands
+hear of a new session first, so its island exists when the menu's
+launcher reports it started.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
@@ -621,6 +623,15 @@ mountains) plug into it.
 *Planned.* Instantly jumps to a session's island, so you never have to walk
 across the world to reach an orchestrator. Sorting, grouping and whether to
 add a minimap are open question 3.
+
+*Basic version built (user's decision, 2026-10-01), inside the sessions
+menu (S03). Scope: core.* The menu's "Running" list shows every live
+session as "title · project · state" (working, waiting for you, stopped
+or idle, from its orchestrator); a click closes the menu and puts you in
+front of that session's orchestrator (`world.gd` → `teleport`). The
+search box filters it with the rest. A **placeholder** (user's): W07
+proper adds the sorting, grouping and maybe a minimap (open question 3)
+and gets a real design.
 
 *Possible feature, not planned (from Agent Office):* a "go to whoever has
 waited longest" shortcut that jumps straight to the agent that has been
@@ -1409,24 +1420,47 @@ themselves comes later (open question 5, decided); it uses the same hooks
 and channel, which such a session would need to be started with.
 
 *Quick version built (user's direction, 2026-09-30: "a quick create
-session feature that we can design better later"). Scope: core.*
-`SessionPost` (`world/platform/session_post.gd`), a signpost reading "New
-session" on the spawn platform. Near it (2.2 m), "Press E to start a
-session" appears; E opens a folder picker (Godot's own `FileDialog`,
-drawn inside the game window, starting in the home folder) and pauses the
-player until it closes (choose, Cancel or Esc). Not the system's native
-picker: that is a separate window, and on Windows alt-tab hid it behind
-the game, which then waited for it with no way back. The chosen folder goes to `session.create` with the first
-provider from `hello` (only one exists; choosing one is for S03 proper).
-A label above the sign tells how starting goes: "Starting…", then the
-reply's notice (Godot's own text for `confirm_in_terminal`: "Confirm in
-the terminal to start this session."), "Still starting; check the
-terminal." after 2 minutes, "Couldn't start a session: …" for a refused
-command, "The session didn't start." if it ends before coming up, or the
-sidecar's failure. One session starts at a time. Once the session is up,
-its island appears (W01 → Islands for sessions) and the player is taken
-there. Still to design: where you start sessions, recent folders, naming,
-choosing a provider, starting several at once.
+session feature that we can design better later"). Scope: core.* First a
+"New session" post on the spawn platform (M1); since 2026-10-01 the
+**sessions menu** (user's decisions, dev log 2026-10-01-sessions-menu):
+one menu, opened from anywhere, to start a session (S03), resume a stored
+one (S04) and go to a running one (W07). Rejected: keeping the post and
+giving it the menu, or a second post for resuming. The post is removed.
+The menu is a **placeholder** (user's): it only has to work, and gets a
+proper design later, like all UI.
+
+`SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`):
+- **Opening.** Tab (input action `sessions_menu`, the physical Tab key)
+  opens it anywhere while you have the controls, so not while chatting.
+  It frees the mouse and pauses the player. Tab or Esc closes it. While
+  no session runs and nothing is starting, "Press Tab for sessions"
+  shows at the bottom of the screen.
+- **Layout.** A centred panel: "Sessions", a search box (focused on
+  opening), then "+ New session…", "Running" (W07) and "Resume" (S04).
+  The search filters Running and Resume by title and project, like
+  Claude Code's own `/resume` list (user's choice).
+- **New session…** opens a folder picker (Godot's own `FileDialog`,
+  drawn inside the game window, starting in the home folder). Not the
+  system's native picker: that is a separate window, and on Windows
+  alt-tab hid it behind the game, which then waited for it with no way
+  back. Cancel or Esc returns to the menu. The chosen folder goes to
+  `session.create` with the first provider from `hello` (only one
+  exists; choosing one is for S03 proper).
+- **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
+  and resumed sessions, one at a time). A notice at the top centre of
+  the screen (it replaced the post's sign; my choice) says how it goes:
+  "Starting…", then the reply's notice (Godot's own text for
+  `confirm_in_terminal`: "Confirm in the terminal to start this
+  session."), "Still starting; check the terminal." after 2 minutes,
+  "Couldn't start a session: …" / "Couldn't resume the session: …" for
+  a refused command, "The session didn't start." if it ends before
+  coming up, "A session is already starting.", or the sidecar's failure.
+  Once the session is up, its island appears (W01 → Islands for
+  sessions) and the player is taken there.
+
+Still to design: the menu itself, recent folders, naming, choosing a
+provider, starting several at once, and where archipelagos are chosen
+(W05).
 
 ### S04 List and resume sessions
 *Planned (after v1).* Claude Code stores transcripts as JSONL under
@@ -1440,9 +1474,18 @@ Deliberate limitations). Sessions run with transcripts off leave nothing to
 list or resume (S02 → When transcripts are off), and Claude Code deletes
 transcripts after `cleanupPeriodDays` (30 by default), so the list only
 reaches that far back.
-*Sidecar side built with S02 (the world's list and resume UI come later;
-a resume from the world hasn't been run live yet, only `--resume` itself
-with `claude -p`):* `providers/claude/store.ts` lists
+*Built. Scope: core* (`session.list_stored`, `session.resume`). The
+world side is the sessions menu's "Resume" list (S03; user's decisions,
+2026-10-01): stored sessions from every provider the sidecar announced,
+newest first, as "title · project · how long ago" ("Untitled session"
+without a title), asked for each time the menu opens, filtered by the
+search box. A click resumes it through the same launcher and notices as
+a new session; once up, you're taken to its island and its chat holds
+the conversation so far. A **placeholder**, like the rest of the menu.
+*Not yet run live with the real `claude` from the world* (only with the
+fake provider, and `--resume` itself with `claude -p`).
+
+The sidecar side, built with S02: `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
 (at most 200), reading only each file's first and last 64 KiB: project
 from `cwd`, title from the newest `custom-title` (our `--name`, or a
@@ -1511,9 +1554,10 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: you start on the spawn platform; the "New session" post
-starts a session in a folder you pick, and you're taken to its island to
-chat with its orchestrator (S03, W01–W03, A01, C01, C02). That runs the
+for the world: you start on the spawn platform; Tab opens the sessions
+menu, which starts a session in a folder you pick or resumes a stored
+one, and you're taken to its island to chat with its orchestrator (S03,
+S04, W01–W03, A01, C01, C02). That runs the
 real `claude`; to try the world without it, start Godot with
 `-- --sidecar-dev-fake` (e.g. `godot --path . -- --sidecar-dev-fake`, or
 the editor's Project Settings → Editor → Run → Main Run Args), and chat
@@ -1528,7 +1572,9 @@ In `sidecar/`:
   that part of a session (a prompt to answer, a two-item question: one
   choice, then several; n background subagents, a notice, a new
   conversation like `/clear`); anything else is echoed back. A stop from the world ends what's
-  running. `test/dev-fake.test.ts` plays every scenario.
+  running. It also lists three stored sessions to resume (S04), each
+  coming back with a two-message chat; a running one isn't listed.
+  `test/dev-fake.test.ts` plays every scenario.
 - `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
   provider, driven like Godot would. It opens a terminal with `claude`
   (confirm the development channel there), prints every event with the
@@ -1566,16 +1612,19 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping, the sea respawn), the post (its prompt, the
-picker opening and cancelling, a refused folder), islands for sessions applied to the store by hand (one
+platform, walking, jumping, the sea respawn), the sessions menu (the
+hint, Tab and Esc, the picker opening and cancelling back to the menu, a
+refused folder), islands for sessions applied to the store by hand (one
 per session, apart, the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, a long chat built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the session ending under you), and walking up to chat (A01,
-C01, C02, C05). With `--sidecar-dev-fake` it also starts a session from
-the post, chats with it, and answers a permission prompt and a question
-on the card; choosing a folder in the picker is replaced
-by calling `SessionPost.create`, which it calls. It can't check looks or the mouse: for those, run the game, under both
+C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
+through the menu's launcher (choosing a folder in the picker is replaced
+by calling `SessionLauncher.create`, which it calls), chats with it,
+answers a permission prompt and a question on the card, then lists,
+searches and resumes a stored session (S04) and goes to a running one
+from the menu (W07). It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
@@ -1619,6 +1668,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    come with W05.
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
+   *Partly answered (user's, 2026-10-01):* travel lives in the one
+   sessions menu (Tab), which lists running sessions to jump to (W07's
+   basic version). Sorting, grouping and the minimap are still open.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -1655,9 +1707,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the "many sessions" milestone (user's choice,
 2026-10-01). First feature on branch `s04-resume`: the **sessions menu**
 (Tab anywhere: new session, jump to a running one, resume a stored one;
-the "New session" post is removed), code and tests done, docs not yet.
-The menu is a **placeholder** (user's, 2026-10-01): it must be properly
-designed later, like all UI. Before that: C03 Markdown rendering (chosen by the user as the
+the "New session" post is removed; S03, S04, W07), built and documented,
+**live check with the real `claude` next** (a resume from the world has
+never run live). The menu is a **placeholder** (user's, 2026-10-01): it
+must be properly designed later, like all UI. Then S05 (end session), W05
+(archipelagos), A05 (attention cue) and W07 proper, each designed with
+the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
 and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
@@ -1692,8 +1747,10 @@ window (re-checked live). Merged to `main` 2026-10-01.
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
-bubble, C05 card, prompts, post sign and checklist overlay only have to
-work for now; the whole UI is to be designed properly later.
+bubble, C05 card, prompts, the sessions menu (Tab) with its hint and
+notice, and the checklist overlay only have to work for now; the whole
+UI is to be designed properly later. The sessions menu especially (the
+user's explicit note): it must be properly designed later.
 
 *M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
 is retried on opening the chat, and replies lost with a dropped

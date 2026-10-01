@@ -6,7 +6,7 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
-- [Starting a session (S03)](#starting-a-session-s03)
+- [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
@@ -20,28 +20,44 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: you arrive on a wooden platform in the open sea, facing a
-"New session" sign.
+press F5: you arrive on a wooden platform in the open sea. Press Tab
+to start a session.
 
 The game picks its graphics mode by itself. If it won't start or looks
 wrong, you can force the simpler mode by starting it with
 `--rendering-method gl_compatibility`; it looks nearly the same, but
 without the sun's shadows.
 
-## Starting a session (S03)
+## The sessions menu (S03, S04, W07)
 
-This is a quick first version; how you start sessions will be designed
+This is a quick first version, a placeholder: the menu will be designed
 properly later.
 
-Walk up to the "New session" sign on the platform and **Press E to start
-a session** appears. Press E and pick the project folder you want to work
-in. A terminal window opens with Claude Code in it; the sign above the
-post tells you to confirm there (see Claude Code sessions below). If
-nothing has happened after two minutes it says "Still starting; check the
-terminal." Once you've confirmed, the session's island appears and you're
-taken to it, right in front of its orchestrator.
+Press **Tab** anywhere (except while chatting) to open the sessions menu;
+**Tab** or **Esc** closes it. While no session is running, "Press Tab for
+sessions" reminds you at the bottom of the screen. Type in the search box
+at the top to filter the lists by title or project.
 
-If the session can't start, the sign says why. One session starts at a
+- **+ New session…** asks for the project folder you want to work in.
+  Cancel takes you back to the menu.
+- **Running** lists the sessions running now, with what each is doing
+  (working, waiting for you, stopped, idle). Click one to go straight to
+  its island, in front of its orchestrator.
+- **Resume** lists your earlier Claude Code sessions, newest first, with
+  their project and how long ago you last used them. Click one to pick it
+  up again where you left off: its chat comes back too. Only sessions
+  started in a terminal are listed (not ones from the VS Code extension
+  or the Claude desktop app), and only as far back as Claude Code keeps
+  them (30 days by default).
+
+Starting or resuming opens a terminal window with Claude Code in it, and
+a note at the top of the screen tells you to confirm there (see Claude
+Code sessions below). If nothing has happened after two minutes it says
+"Still starting; check the terminal." Once you've confirmed, the
+session's island appears and you're taken to it, right in front of its
+orchestrator.
+
+If the session can't start, the note says why. One session starts at a
 time.
 
 ## The islands and the ocean (W01, W02)
@@ -51,8 +67,8 @@ middle where its orchestrator sits, dunes around it, and a sandy beach.
 Islands are made by the game, so no two look the same. An island appears
 once its session is running and disappears when the session ends; if you
 are standing on it then, you're put back on the platform. Islands sit
-around the platform, far apart; for now the only ways between them are
-starting a session and falling in the sea. The ocean has gentle waves and
+around the platform, far apart; for now you travel between them with
+the sessions menu (Tab), or back to the platform by falling in the sea. The ocean has gentle waves and
 fades into haze at the horizon.
 
 ## Moving around (W03)
@@ -66,7 +82,7 @@ You see the world through your character's eyes.
 | Jump | Space |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
-| Start a session, next to the "New session" sign | E |
+| Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts

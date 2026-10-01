@@ -1,22 +1,28 @@
-LIVE CHECK: Markdown in the chat (C03)
+LIVE CHECK: the sessions menu (S03, S04, W07)
 
-1. Post (E) > C:\Users\paolo\sandbox\notes-app.
-   Confirm the dev channel in the terminal.
-2. Chat from the world: "Show me a short
-   Python example in a code block, a table,
-   a task list and a link to godotengine.org."
-3. While it streams, look at the bubble from
-   a few metres: formatted, last 4 lines,
-   small "..." above when cut. Readable?
-4. In the panel: headings, bold, the table,
-   the code panel (Copy, Shift+wheel, plain
-   wheel scrolls the chat), the task boxes.
-5. Hover the link: its address shows. Click:
-   a confirmation with the full address.
-   Esc: only that closes. Click again and
-   Open in browser: it opens.
-6. Send your own message with **bold** and a
-   ``` code fence. It is formatted too.
-7. /exit in the terminal.
+1. On the platform: "Press Tab for sessions"
+   at the bottom. Tab opens the menu, Tab
+   closes it, Esc too.
+2. Tab > + New session... > Cancel: back in
+   the menu. Again, pick
+   C:\Users\paolo\sandbox\notes-app.
+   Top notice: confirm in the terminal.
+   Confirm; you land at its island.
+3. Chat one line, then /exit in the terminal.
+   You're back on the platform.
+4. Tab: that session is under Resume, newest
+   first, "title . project . ago". Type part
+   of its title in the search: it filters.
+5. Click it: a terminal opens with
+   claude --resume. Confirm. Island appears,
+   the chat shows the earlier messages.
+   Send one: Claude remembers the first.
+6. Tab again: it's under Running now, not
+   Resume. Walk/fall back to the platform,
+   Tab, click it: you're at its island.
+7. Start a second session (another folder);
+   Tab lists both under Running; jump
+   between them. Tab while chatting: nothing.
+8. /exit both terminals.
 
 Tell Claude what you saw; paste red errors.
