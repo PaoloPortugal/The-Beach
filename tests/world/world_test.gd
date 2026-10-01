@@ -234,6 +234,13 @@ func _sessions(world: Node3D, player: Player) -> void:
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
 	await _frames(5)
 	_check(chat.prompt_visible(), "walking close shows \"Press E to chat\"")
+	# The sidecar doesn't have h1, so fetching its history fails.
+	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
+	_check(not chat._history.has("h1"), "a failed history fetch is forgotten")
+	chat.open(orchestrator)
+	# Checked at once: the retry fails again within a frame or two.
+	_check(chat._history.get("h1") == "asking", "opening the chat asks for the history again")
+	chat.close()
 	_press("interact")
 	await _frames(2)
 	var panel := chat.panel()
@@ -463,6 +470,7 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(orchestrator != null and post.status_text() == "", "live: the session is up, with its island")
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and it takes you there")
 
+	_check(chat.history_loaded(id), "live: its history is loaded")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
 	await _frames(5)
 	_press("interact")
