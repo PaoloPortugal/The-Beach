@@ -41,7 +41,7 @@ transcripts are off).
 - [6. Stopping](#6-stopping)
 - [7. When our side fails](#7-when-our-side-fails)
 - [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
-- [9. /clear: a new conversation in the session](#9-clear-a-new-conversation-in-the-session)
+- [9. /clear or /resume: another conversation in the session](#9-clear-or-resume-another-conversation-in-the-session)
 
 ## 0. Starting up
 
@@ -362,7 +362,7 @@ sequenceDiagram
     Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
 ```
 
-## 9. /clear: a new conversation in the session
+## 9. /clear or /resume: another conversation in the session
 
 ```mermaid
 sequenceDiagram
@@ -372,20 +372,29 @@ sequenceDiagram
     participant Claude as Claude Code (terminal)
     participant Log as Transcript
 
-    User->>Claude: /clear
-    Note over Claude: Same process, same folder, same bridge:<br/>a new session id and a new transcript.
+    User->>Claude: /clear (or /resume an earlier conversation)
+    Note over Claude: Same process, same folder, same bridge:<br/>another session id and its transcript.
     User->>Claude: next message (typed in the terminal or sent from the world)
     Claude->>Sidecar: UserPromptSubmit (the new session_id)
     Sidecar->>Log: poll the followed transcript: no continued-in
-    Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>it's /clear. native_id switches; the old id becomes stored (resumable).
-    Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
+    Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>followed. native_id switches; the old id becomes stored (resumable).
+    Sidecar->>Log: read the new transcript's chat
+    alt it has chat: /resume
+        Note over Sidecar: that chat becomes the session's history
+        Sidecar->>World: session.updated (native_id), session.notice (conversation_resumed)
+    else empty: /clear
+        Note over Sidecar: the history keeps the chat so far
+        Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
+    end
+    World->>Sidecar: session.get_history
+    Sidecar->>World: ok (the history): replaces the world's chat
     Sidecar-->>Claude: nothing to add
     Sidecar->>World: the turn as usual (flow 2), from the new transcript too
 ```
 
-The island and the chat so far stay; the world says a new conversation
-started and that Claude no longer remembers the chat above (NOTES.md →
-S02 → Following the conversation).
+The island stays. After `/clear` the chat so far stays, and the world
+says Claude no longer remembers it; after `/resume` the chat becomes the
+resumed conversation's (NOTES.md → S02 → Following the conversation).
 
 **A moved conversation.** If the followed transcript gets a
 `continued-in` entry instead (the conversation went on in another

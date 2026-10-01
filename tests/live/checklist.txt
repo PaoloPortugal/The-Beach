@@ -1,19 +1,19 @@
-LIVE CHECK: /resume inside a world session
-
-Setup: one older conversation in notes-app
-(any from today is fine).
+LIVE CHECK: /resume re-check
 
 1. Post (E) > C:\Users\paolo\sandbox\notes-app.
    Confirm the dev channel in the terminal.
-2. Chat from the world: "Say hi." Claude answers.
-3. Terminal: /resume, pick an OLDER conversation.
-4. Watch the chat panel: which notice appears?
-   (expected today: the /clear one, wrongly)
-5. Chat from the world: "What did we talk
-   about?" Does it reach the resumed one?
-6. Optional: start a second session, then
-   /resume the FIRST one's conversation in it.
-   Do both islands show the same replies?
-7. /exit in the terminal(s).
+2. Chat from the world: "Say hi."
+3. Terminal: /resume, pick an OLDER conversation
+   with some chat in it.
+4. Chat from the world: "What did we talk
+   about?"
+5. Expected: the notice says /resume (not
+   /clear), and the chat panel now shows that
+   older conversation, then your new message
+   and Claude's answer.
+6. Terminal: /clear, then chat "hello" from the
+   world. Expected: the /clear notice replaces
+   the /resume one; the chat above stays.
+7. /exit in the terminal.
 
 Tell Claude what you saw; paste red errors.
