@@ -1,0 +1,107 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/sessions_menu/sessions_menu.gd" id="1_menu"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.08, 0.11, 0.94)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[node name="SessionsMenu" type="CanvasLayer"]
+layer = 2
+script = ExtResource("1_menu")
+
+[node name="Hint" type="Label" parent="."]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -250.0
+offset_top = -120.0
+offset_right = 250.0
+offset_bottom = -80.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 24
+text = "Press Tab for sessions"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Notice" type="Label" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -400.0
+offset_top = 24.0
+offset_right = 400.0
+offset_bottom = 64.0
+grow_horizontal = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 22
+text = "Starting…"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -300.0
+offset_right = 420.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Style_panel")
+
+[node name="Layout" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Sessions"
+
+[node name="Close" type="Label" parent="Panel/Layout/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.55)
+text = "Tab or Esc to close"
+
+[node name="Search" type="LineEdit" parent="Panel/Layout"]
+layout_mode = 2
+placeholder_text = "Search by title or project"
+clear_button_enabled = true
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="Panel/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="Dialog" type="FileDialog" parent="."]
+title = "Choose the session's project folder"
+ok_button_text = "Select This Folder"
+file_mode = 2
+access = 2
