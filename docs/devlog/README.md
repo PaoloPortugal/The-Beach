@@ -43,3 +43,4 @@ reading; look things up by feature ID.
 | 2026-09-30 | [Subagents, placement and state markers](2026-09-30-subagents-placement-markers.md) | A02, A03, A04 |
 | 2026-10-01 | [Agent view off, /clear followed](2026-10-01-agent-view-clear.md) | S02 |
 | 2026-10-01 | [Answering permissions and questions in the world](2026-10-01-c05-answer-card.md) | C05 |
+| 2026-10-01 | [M1 review](2026-10-01-m1-review.md) | C02, S01, S02, C05 |
