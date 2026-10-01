@@ -92,7 +92,7 @@ v1 slice.
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
-| C05 | Permission approve / deny (v1)            | built (live check pending) | C05 | `chat/pending_card.gd` |
+| C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd` |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
@@ -848,18 +848,24 @@ declare it).
   plain text), Allow and Deny, an optional note; no keyboard shortcut
   for Allow, so Enter in the chat can never allow by accident.
   "Don't ask again" and mode switches wait for C06.
+- *The note goes with a deny only* (user's, at the live check,
+  2026-10-01): it is locked until you press Deny, then Send denies with
+  it; Allow answers at once and never sends it. This matches Claude
+  Code's own prompt, which takes text only on No. (It was first built
+  for both answers.)
 - *Questions:* **one item at a time** ("Question 1 of 2"; not all items
   on one card, which was my recommendation, nor options only). Options
   are buttons with their descriptions; a click on a single-choice option
   moves straight on to the next item. Multi-select (checkboxes) and the
   per-item "Other…" field need Next. Back returns to an earlier item. No
   "Reply in your own words instead" (a free `response`); "Other…" covers
-  typing your own answer. *My pick (an implementation detail, to confirm
-  at review):* on the last item a click selects and shows Send rather
-  than sending at once, so a misclick never answers Claude.
+  typing your own answer. On the last item a click selects and shows Send
+  rather than sending at once, so a misclick never answers Claude (my
+  pick, confirmed by the user at the live check).
 - *Several pending:* one at a time, oldest first, "1 of 3 waiting".
 
-*Built (2026-10-01; live check with the real `claude` pending).*
+*Built (2026-10-01). Live check passed (2026-10-01)* with the user and
+`claude` 2.1.285 (see the end of this section).
 `PendingCard` (`chat/pending_card.gd`), the `Pending` node of the chat
 panel (C02), between the chat and the status line, hidden when nothing
 waits. It reads `SessionStore.pending`: the session's permissions and
@@ -871,8 +877,14 @@ changes, so typing and progress aren't lost to other events.
   asks:" (the agent's `name`; "A subagent" without one), and "1 of 3
   waiting" when more than one waits.
 - *Permission:* the summary, Details (the input as indented JSON, in a
-  140 px scroll box), the note field ("sent as your next message", S02 →
-  Permissions), Deny and Allow → `permission.respond`.
+  140 px scroll box), Deny and Allow, and under them the note field and
+  Send, both locked until Deny is pressed ("Press Deny to add a note").
+  Deny is a toggle: pressed, it unlocks them and focuses the note;
+  pressed again, it locks them. Send → `permission.respond` deny, with
+  the note if one was typed ("sent as your next message", S02 →
+  Permissions). Allow → `permission.respond` allow at once, never with
+  the note; a note already typed is kept, locked, in case the answer is
+  refused.
 - *Question:* "Question 1 of 2" and the item's header, its text, options
   as toggle buttons (single) or checkboxes (multi) with their
   descriptions, "Other…", Back / Next, Send on the last item →
@@ -892,7 +904,21 @@ changes, so typing and progress aren't lost to other events.
 - Status line: "Waiting for a permission: answer it above or in the
   terminal." (and the same for questions).
 - Polish left: unticked checkboxes are faint in Godot's default theme;
-  no in-world cue yet (A05).
+  Deny's pressed look is only a darker button; no in-world cue yet
+  (A05). Not checked under the Compatibility renderer.
+
+*Live check (2026-10-01, the user, `claude` 2.1.285, default mode):*
+Details and Allow on a Bash prompt; Deny with a note on a Write
+(Claude followed it: Claude Code itself tells Claude, after a deny, that
+the user's next message may hold a correction); "Yes" in the terminal
+took the card away; a two-item question with an option click moving
+on, Back, Other…, checkboxes and Send; a subagent's prompt named the
+subagent; `/exit` back to the platform; no Godot errors. Found:
+read-only commands (`node --version`, `echo`, `date`) never ask, so a
+live check needs commands that change files; subagents have no
+AskUserQuestion (Claude Code's choice), so only their permission
+prompts reach the card. Then the note was changed to go with a deny
+only (above).
 
 ### C06 Permission mode control
 *Planned (after v1). Scope: capability `permission_modes`* (other tools have
@@ -1155,7 +1181,7 @@ down the bridge. Resolved: in the world (`by: app`); "Yes" in the
 terminal through the call's `PostToolUse`; "No" through the transcript
 (`by: external`); and, as a fallback, when the agent's turn ends or the
 user types next. A `note` follows the verdict as the user's next chat
-message (user's decision): it arrives before Claude's next step, and
+message (user's decision; the world sends one only with a deny, C05): it arrives before Claude's next step, and
 Claude follows it (checkpoint 2). If that ever changes: hold
 `PermissionRequest` for plain prompts too and put the note in the deny's
 `message`.
@@ -1523,11 +1549,10 @@ Code's agent view, now off for world sessions, and `/clear` is followed
 on the same island (S02 → Launch, Following the conversation; dev log
 2026-10-01-agent-view-clear). The last M1 feature, answering
 permission prompts and questions in the world (C05 and the `questions`
-capability's UI), is **built on branch `claude/c05-permissions-questions`
-(2026-10-01)**, design decided with the user; tested headless and with
-the fake provider. Next: a live check of C05 with the user and the real
-`claude` (a prompt allowed and one denied with a note, a two-item
-question, a subagent's prompt if one comes up), then M1 review.
+capability's UI), is **built (2026-10-01)**, design decided with the
+user, and **live-checked with the user and the real `claude` 2.1.285
+(2026-10-01)**; after the check the note goes with a deny only, like
+Claude Code's prompt (C05). Next: M1 review.
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
@@ -1675,6 +1700,12 @@ exists.
   need `--dangerously-load-development-channels` (confirmed by the user at
   startup), and Team/Enterprise organisations block channels unless an
   admin enables them. Pro/Max users without an organisation can use them.
+- **A deny with a message from the channel.** The channel's verdict has
+  no message, so a deny's note follows as the user's next chat message
+  (S02 → Permissions). *Decided (user's, 2026-10-01):* if Claude Code
+  ever lets a channel (or another route we use) send a deny with a
+  message, drop this workaround and use theirs. Check the channels
+  reference on each Claude Code update.
 - **Markdown → BBCode rendering (C03)** was the biggest UX risk. The
   spike shows it works; what's left is the cost of rendering long
   histories at once (see C03).
