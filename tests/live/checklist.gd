@@ -12,6 +12,7 @@ var _text := ""
 var _hidden := false
 
 @onready var _label: Label = $Panel/Text
+@onready var _tab: PanelContainer = _make_tab()
 
 
 func _ready() -> void:
@@ -23,6 +24,21 @@ func _ready() -> void:
 	_reload()
 
 
+# The small "F1: checklist" tab shown while the list is hidden.
+func _make_tab() -> PanelContainer:
+	var tab := PanelContainer.new()
+	tab.position = Vector2(8, 8)
+	tab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tab.add_theme_stylebox_override("panel", $Panel.get_theme_stylebox("panel"))
+	var label := Label.new()
+	label.text = "F1: checklist"
+	label.add_theme_font_size_override("font_size", 14)
+	tab.add_child(label)
+	tab.visible = false
+	add_child(tab)
+	return tab
+
+
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key and key.pressed and not key.echo and key.keycode == KEY_F1:
@@ -32,9 +48,11 @@ func _input(event: InputEvent) -> void:
 
 
 func _show() -> void:
-	_label.text = "F1: checklist" if _hidden else _text + "\n\n(F1 to hide)"
-	_label.custom_minimum_size.x = 0.0 if _hidden else 456.0
-	$Panel.reset_size() # shrink to fit the shorter text
+	# Two panels, swapped: resizing one panel to fit didn't grow it back
+	# (the wrapped text isn't measured yet when it's resized).
+	_label.text = _text + "\n\n(F1 to hide)"
+	$Panel.visible = not _hidden
+	_tab.visible = _hidden
 
 
 func _reload() -> void:
