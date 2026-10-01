@@ -795,7 +795,8 @@ written (tested with an injected `[url]`).
   empty.
 - **History:** the chat so far isn't in the snapshot, so the controller
   asks for `session.get_history` once per session when its orchestrator
-  appears (this also fills the bubble). An older message arriving lays the
+  appears (this also fills the bubble). If that fails (an error, or no
+  connection), opening the chat asks again. An older message arriving lays the
   panel out again once, deferred, for the whole batch.
 
 Pending permission prompts and questions show on a card between the
@@ -1003,8 +1004,10 @@ the sidecar, reads the handshake in a thread, connects with the token and
 raises the inbound buffer to 32 MiB (Godot's default of 64 KiB would drop
 a long reply). It tracks `seq` per session: stale events are dropped, and a
 gap sends `session.get_snapshot` once. If the connection drops while the
-sidecar runs, it reconnects; if the sidecar dies, it reports failure
-(`failed` signal). It stops the sidecar by closing the pipe, killing it
+sidecar runs, it reconnects, and every command still waiting for a reply
+gets an `error` with code `disconnected` (Godot's own; the command may or
+may not have arrived), so nothing waits forever; if the sidecar dies, it
+reports failure (`failed` signal). It stops the sidecar by closing the pipe, killing it
 only if it hasn't exited after 3 s. stderr is drained continuously so the
 sidecar never stalls on a full pipe. On Windows, Godot starts it without a
 console window. Which sidecar runs: next to the game executable in exports;
@@ -1181,7 +1184,9 @@ down the bridge. Resolved: in the world (`by: app`); "Yes" in the
 terminal through the call's `PostToolUse`; "No" through the transcript
 (`by: external`); and, as a fallback, when the agent's turn ends or the
 user types next. A `note` follows the verdict as the user's next chat
-message (user's decision; the world sends one only with a deny, C05): it arrives before Claude's next step, and
+message (user's decision; the world sends one only with a deny, C05;
+the protocol still accepts a note with `allow`, an unused feature the
+world removed, left as is by the user's choice in the M1 review): it arrives before Claude's next step, and
 Claude follows it (checkpoint 2). If that ever changes: hold
 `PermissionRequest` for plain prompts too and put the note in the deny's
 `message`.
@@ -1263,6 +1268,13 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   decides how; `/exit` in the terminal ends it.
 
 **Known gaps.**
+- **`/resume` inside a world session's terminal is untested** (found in
+  the M1 review). Its hooks would carry another conversation's id from
+  the same folder, so it would be followed like `/clear`: the
+  `conversation_cleared` notice would be wrong (that conversation has its
+  own past), and if the resumed conversation is also live on another
+  island, both would follow it. Nothing is approved by mistake. Live
+  check pending (tests/live/checklist.txt).
 - **`/fork <prompt>` untested** with agent view off (`/fork` alone
   asks for arguments). If it still moves the conversation, the
   `conversation_moved` path covers it (Following the conversation).
@@ -1552,9 +1564,20 @@ permission prompts and questions in the world (C05 and the `questions`
 capability's UI), is **built (2026-10-01)**, design decided with the
 user, and **live-checked with the user and the real `claude` 2.1.285
 (2026-10-01)**; after the check the note goes with a deny only, like
-Claude Code's prompt (C05). Next: M1 review.
+Claude Code's prompt (C05). M1 reviewed (below); next: the `/resume`
+live check, then merging M1 to `main` (ask the user first).
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
+**All UI is a placeholder** (user's, 2026-10-01): the chat panel,
+bubble, C05 card, prompts, post sign and checklist overlay only have to
+work for now; the whole UI is to be designed properly later.
+
+*M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
+is retried on opening the chat, and replies lost with a dropped
+connection come back as errors (the C05 card stayed disabled). Open: the
+`/resume` live check (S02 → Known gaps); the bubble re-wraps the whole
+reply on each streamed batch (fine at today's lengths); C05 polish
+(faint checkboxes, Deny's pressed look, Compatibility renderer).
 
 *Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
 provider (S02), S04's list and resume, the scripted `dev:fake` for
@@ -1787,6 +1810,9 @@ exists.
   - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
     is the fallback home for the Linux build if Steam's sandboxing blocks
     launching the terminal and `claude`.
+- **Export presets (when we make them):** leave out `tests/`, including
+  the live-check checklist overlay (`tests/live/`); `world.gd` only loads
+  it with `--checklist`, but it shouldn't ship (user's, M1 review).
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
 - **Before making the repo public:** re-run the history scan for secrets,
