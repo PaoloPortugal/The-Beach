@@ -32,9 +32,10 @@ function post(port: number, auth: string, body: object) {
 /**
  * A launched session with a stand-in Claude Code. Its transcripts live in
  * a temporary "projects folder"; `bridge: false` leaves the channel
- * unconnected (the session comes up through its first hook).
+ * unconnected (the session comes up through its first hook); with
+ * `up: false` too, no hook is sent, so it isn't up yet.
  */
-async function liveSession(o: { bridge?: boolean } = {}) {
+async function liveSession(o: { bridge?: boolean; up?: boolean } = {}) {
   let launch: { args: string[] } = { args: [] }
   const log = new RecordingLog()
   const p = new ClaudeProvider({
@@ -70,8 +71,8 @@ async function liveSession(o: { bridge?: boolean } = {}) {
   const send = (name: string, fields: Record<string, unknown> = {}, sid = nativeId) => post(port, h.headers.Authorization, {
     session_id: sid, transcript_path: transcript(sid), cwd: '/', hook_event_name: name, ...fields,
   })
-  if (o.bridge === false) await send('Stop')
-  const created = await c.next('session.created')
+  if (o.bridge === false && o.up !== false) await send('Stop')
+  const created = o.up === false ? null : await c.next('session.created')
   const toBridge = (m: object) => sock!.write(JSON.stringify(m) + '\n')
   return {
     p, c, id, nativeId, created, fromSidecar, log, transcript, send, toBridge,
@@ -142,6 +143,119 @@ test('/resume: an earlier conversation with chat: its chat becomes the history, 
     assert.deepEqual(texts, ['old question', 'old answer', 'what did we say?'])
     assert.ok(x.log.lines.some((l) => l.includes('earlier conversation (/resume)')))
     assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+// What /clear writes at the start of the new transcript (Claude Code
+// 2.1.285, live re-check 2026-10-01): the command is a user entry.
+const line = (e: object) => JSON.stringify(e) + '\n'
+const CLEAR_ENTRIES =
+  line({ type: 'user', isMeta: true, message: { role: 'user', content: '<local-command-caveat>Caveat: run directly in Claude Code.</local-command-caveat>' } }) +
+  line({ type: 'user', message: { role: 'user', content: '<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>' } }) +
+  line({ type: 'system', subtype: 'local_command', content: '<local-command-stdout></local-command-stdout>' })
+const EARLIER_CHAT =
+  line({ type: 'user', uuid: 'e1', timestamp: '2026-10-01T09:00:00Z', message: { role: 'user', content: 'old question' } }) +
+  line({ type: 'assistant', timestamp: '2026-10-01T09:00:01Z', message: { id: 'm1', role: 'assistant', content: [{ type: 'text', text: 'old answer' }] } })
+
+const switches = (ms: Msg[]) => ms.filter((m) => m.type === 'session.updated' || m.type === 'session.notice')
+
+const historyTexts = async (x: Awaited<ReturnType<typeof liveSession>>) => {
+  const h = await x.c.command({ type: 'session.get_history', session: x.id })
+  return ((h.result as { messages: { text: string }[] }).messages).map((m) => m.text)
+}
+
+/** A first turn in the launched conversation, so there's chat before the switch. */
+async function chatBefore(x: Awaited<ReturnType<typeof liveSession>>) {
+  await x.send('UserPromptSubmit', { prompt_id: 'p1', prompt: 'before' })
+  await x.c.next('message.completed')
+  await x.send('Stop')
+  await x.c.next((m) => m.type === 'agent.state_changed' && m.state === 'idle')
+}
+
+test('SessionStart clear: the switch reaches the world at once, before any prompt; the chat stays', async () => {
+  const x = await liveSession()
+  try {
+    await chatBefore(x)
+    const fresh = crypto.randomUUID()
+    // Sent in the background right after /clear; the transcript may not exist yet.
+    assert.deepEqual(await x.send('SessionStart', { source: 'clear' }, fresh), { status: 200, body: '' })
+    assert.equal((await x.c.next('session.updated')).native_id, fresh)
+    assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
+    assert.deepEqual(await historyTexts(x), ['before'])
+    // Then /clear's own entries and the first prompt: no second switch, not taken for a resume.
+    fs.writeFileSync(x.transcript(fresh), CLEAR_ENTRIES)
+    await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'after' }, fresh)
+    assert.equal((await x.c.next('message.completed')).text, 'after')
+    assert.deepEqual(switches(await x.c.quiet()), [], 'no second switch')
+    assert.deepEqual(await historyTexts(x), ['before', 'after'])
+    await assert.rejects(x.p.resume({} as any, fresh), /already open/)
+    assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+test('SessionStart resume: the resumed conversation\'s chat becomes the history at once, all of it', async () => {
+  const x = await liveSession()
+  try {
+    await chatBefore(x)
+    const earlier = crypto.randomUUID()
+    // Resumed before: its transcript holds /resume's entries too, which aren't chat.
+    fs.writeFileSync(x.transcript(earlier), EARLIER_CHAT + CLEAR_ENTRIES.replaceAll('/clear', '/resume') +
+      line({ type: 'user', uuid: 'e2', timestamp: '2026-10-01T10:00:00Z', message: { role: 'user', content: 'last question' } }))
+    await x.send('SessionStart', { source: 'resume' }, earlier)
+    assert.equal((await x.c.next('session.updated')).native_id, earlier)
+    assert.deepEqual((await x.c.next(notice('conversation_resumed'))).notice, CONVERSATION_RESUMED)
+    assert.deepEqual(await historyTexts(x), ['old question', 'old answer', 'last question'])
+    // The world's chat reaches it through the same bridge.
+    assert.equal((await x.c.command({ type: 'message.send', session: x.id, text: 'hi' })).type, 'ok')
+    assert.deepEqual(x.fromSidecar.at(-1), { type: 'chat', text: 'hi' })
+    await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'hi' }, earlier)
+    assert.equal((await x.c.next('message.completed')).text, 'hi')
+    assert.deepEqual(switches(await x.c.quiet()), [], 'no second switch')
+    assert.deepEqual(await historyTexts(x), ['old question', 'old answer', 'last question', 'hi'])
+    assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+test('SessionStart: our own launch, compaction, the same id, a stray folder or a bad id change nothing', async () => {
+  const x = await liveSession()
+  try {
+    await chatBefore(x)
+    const other = crypto.randomUUID()
+    const elsewhere = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elsewhere-')), `${other}.jsonl`)
+    for (const [fields, sid] of [
+      [{ source: 'startup' }, other], [{ source: 'compact' }, other], [{ source: 'fork' }, other], [{}, other],
+      [{ source: 'resume' }, x.nativeId],
+      [{ source: 'clear', transcript_path: elsewhere }, other],
+      [{ source: 'clear', transcript_path: '/x/not-a-uuid.jsonl' }, 'not-a-uuid'],
+    ] as [Record<string, unknown>, string][]) {
+      assert.deepEqual(await x.send('SessionStart', fields, sid), { status: 200, body: '' })
+    }
+    assert.deepEqual((await x.c.quiet()).map((m) => m.type), [])
+    assert.deepEqual(await historyTexts(x), ['before'])
+  } finally { await x.close() }
+})
+
+test('SessionStart before the session is up does not count as it coming up', async () => {
+  const x = await liveSession({ bridge: false, up: false })
+  try {
+    await x.send('SessionStart', { source: 'resume' })
+    await x.send('SessionStart', { source: 'clear' }, crypto.randomUUID())
+    assert.deepEqual((await x.c.quiet()).map((m) => m.type), [], 'no session.created, no switch')
+  } finally { await x.close() }
+})
+
+test('fallback (the relay failed): /clear\'s entries in the new transcript are not taken for a resume', async () => {
+  const x = await liveSession()
+  try {
+    await chatBefore(x)
+    const fresh = crypto.randomUUID()
+    fs.writeFileSync(x.transcript(fresh), CLEAR_ENTRIES +
+      line({ type: 'user', isMeta: true, message: { role: 'user', content: '<channel source="world-bridge" sender="user">\nafter\n</channel>' } }))
+    await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: '<channel source="world-bridge" sender="user">\nafter\n</channel>' }, fresh)
+    assert.equal((await x.c.next('session.updated')).native_id, fresh)
+    assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
+    assert.equal((await x.c.next('message.completed')).text, 'after')
+    assert.deepEqual(await historyTexts(x), ['before', 'after'])
   } finally { await x.close() }
 })
 
