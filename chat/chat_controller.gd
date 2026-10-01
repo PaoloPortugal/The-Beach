@@ -107,7 +107,11 @@ func _forget(orchestrator: Orchestrator) -> void:
 func _input(event: InputEvent) -> void:
 	if _open != null and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		close()
+		# Esc while a link's confirmation is up closes only that.
+		if not _panel.link_asked().is_empty():
+			_panel.cancel_link()
+		else:
+			close()
 	elif _open == null and not _near.is_empty() and event.is_action_pressed("interact"):
 		get_viewport().set_input_as_handled()
 		open(_near.back())
