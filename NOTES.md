@@ -1575,6 +1575,13 @@ exists.
   way; untested). Built-ins with a launch-time equivalent could be offered
   at session creation or resume. Other built-ins stay terminal-only (S02),
   and the world should say so instead of sending them to Claude as text.
+- **External music app support** (user's idea, 2026-10-01). Show what
+  the user's music app (YouTube Music, Spotify, ...) is playing and
+  control it from the game: volume, pause, skip. Not a provider feature
+  (not core / capability / extension). Undesigned; to check when it
+  comes up: each OS's media-session interface (Windows media controls,
+  macOS Now Playing, Linux MPRIS) versus each app's own API, and the
+  Principles (no data leaving the machine, no logins handled by us).
 
 ### Watch items
 
