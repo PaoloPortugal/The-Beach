@@ -28,6 +28,10 @@ var _stored: Array = []
 var _stored_status := ""
 ## Bumped on each open so a late reply from an earlier one is ignored.
 var _listing := 0
+## Open, with the panel or the folder picker showing. Its own flag: the
+## picker hides itself before it says which folder was chosen, so by then
+## neither shows, and close() must still give the controls back.
+var _open := false
 
 @onready var _panel: Control = $Panel
 @onready var _search: LineEdit = $Panel/Layout/Search
@@ -73,12 +77,13 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 
 
 func is_open() -> bool:
-	return _panel.visible or _dialog.visible
+	return _open
 
 
 func open() -> void:
 	if is_open():
 		return
+	_open = true
 	_panel.visible = true
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -92,6 +97,7 @@ func open() -> void:
 func close() -> void:
 	if not is_open():
 		return
+	_open = false
 	_panel.visible = false
 	_dialog.hide()
 	player.controls_enabled = true
