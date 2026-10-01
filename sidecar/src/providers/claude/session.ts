@@ -65,10 +65,10 @@ export const CONFIRM_IN_TERMINAL = {
   message: 'Confirm in the Claude Code terminal to start this session.',
 }
 
-/** The notice when /clear starts a new conversation in the session (user's wording, 2026-10-01). */
+/** The notice when /clear starts a new conversation in the session (the chat window is cleared with it). */
 export const CONVERSATION_CLEARED = {
   code: 'conversation_cleared',
-  message: 'A new conversation started in this session (/clear). Claude no longer remembers the chat above.',
+  message: 'A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.',
 }
 
 /** The notice when /resume in the terminal switches the session to an earlier conversation. */
@@ -279,7 +279,7 @@ export class ClaudeSession implements ProviderSession {
     if (this.startupTimer || p.session_id === this.nativeId || !this.acceptNew(p)) return
     const file = p.transcript_path as string
     // /resume: the resumed conversation's chat, all of it (no prompt has
-    // woken it yet). /clear: the chat so far stays.
+    // woken it yet). /clear: an empty chat.
     this.switchTo(p.session_id as string, file, source === 'resume' ? readHistory(file) : null)
     this.transcript.follow(file)
   }
@@ -331,8 +331,9 @@ export class ClaudeSession implements ProviderSession {
 
   /**
    * The world now follows conversation `id`. `resumed` is its chat after
-   * /resume, which becomes the history; null after /clear, when the chat
-   * so far stays (user's decisions).
+   * /resume, which becomes the history; null after /clear, when the
+   * history empties, so the world's chat window clears too (user's
+   * decisions, 2026-10-01; the old conversation stays resumable).
    */
   private switchTo(id: string, file: string, resumed: HistoryMessage[] | null) {
     const from = this.nativeId
@@ -342,6 +343,7 @@ export class ClaudeSession implements ProviderSession {
       this.history.splice(0, this.history.length, ...resumed.slice(-HISTORY_MAX))
       this.log.info(`session ${this.host.id}: it switched to an earlier conversation (/resume)`)
     } else {
+      this.history.length = 0
       this.log.info(`session ${this.host.id}: a new conversation started in it (/clear)`)
     }
     // After the history: the world reloads it on session.updated.

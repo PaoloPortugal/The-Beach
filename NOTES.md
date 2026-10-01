@@ -448,7 +448,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 - `session.updated` carries only the session's own fields that changed
   (for now only `native_id`: the provider started a new conversation in
   the same session and project, e.g. Claude Code's `/clear`; user's
-  decision, 2026-10-01). The session, its island and its chat so far stay.
+  decision, 2026-10-01). The session and its island stay; the world
+  reloads the chat with `session.get_history`, which now holds the new
+  conversation's (empty after `/clear`).
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
   text typed in the terminal shows up in the world.
@@ -1173,16 +1175,19 @@ carry the conversation's `session_id`. A hook with a different one
   bridge. The world follows it on the same island (same project, so the
   island still houses related work): `native_id` switches, the world
   gets `session.updated` and the `conversation_cleared` notice, and the
-  old id becomes a stored, resumable session (S04). The chat so far
-  stays in the world.
+  old id becomes a stored, resumable session (S04). The world's chat
+  window clears (user's decision, live check 2026-10-01; before that
+  the old chat stayed): the session's history starts empty, and the
+  notice says the earlier conversation can be brought back with
+  `/resume`.
 - **`/resume`** (an earlier conversation in the same process and
   folder; user's decision, M1 review, 2026-10-01): followed the same
   way, but the world's chat becomes the resumed conversation's: the
   sidecar reads its transcript (`readHistory`), makes that the session's
   history, and sends the `conversation_resumed` notice instead. Godot
   reloads the history on every `native_id` change and replaces its chat
-  with it: after `/clear` that's the same chat, after `/resume` the
-  resumed conversation's. If two islands end up naming the same
+  with it: after `/clear` an empty chat, after `/resume` the resumed
+  conversation's. If two islands end up naming the same
   conversation (one session resumes another's), each island still talks
   to its own terminal; only the stale `native_id` label differs.
 - **How the sidecar hears of it: `SessionStart`** (user's decision,
@@ -1193,7 +1198,7 @@ carry the conversation's `session_id`. A hook with a different one
   timeouts), with the new `session_id` and `transcript_path` (hooks
   reference, checked 2026-10-01). Through the relay (Seeing the session)
   the world switches **at once**, before any new message: on `resume`
-  the history becomes the whole transcript's chat; on `clear` it stays.
+  the history becomes the whole transcript's chat; on `clear` it empties.
   The same checks as below apply (our token, a UUID, a transcript in the
   same folder, not moved); a `SessionStart` naming the followed id (our
   own `--resume`) or arriving before the session is up changes nothing.
@@ -1614,10 +1619,11 @@ permission prompts and questions in the world (C05 and the `questions`
 capability's UI), is **built (2026-10-01)**, design decided with the
 user, and **live-checked with the user and the real `claude` 2.1.285
 (2026-10-01)**; after the check the note goes with a deny only, like
-Claude Code's prompt (C05). M1 reviewed (below); next: `/clear` and
-`/resume` through the `SessionStart` hook (S02 → Following the
-conversation), its live check, then merging M1 to `main` (ask the user
-first).
+Claude Code's prompt (C05). M1 reviewed (below). `/clear` and `/resume`
+now reach the world at once through the `SessionStart` hook (S02 →
+Following the conversation), **live-checked with the user
+(2026-10-01)**; after the check `/clear` also clears the world's chat
+window. Next: merging M1 to `main` (ask the user first).
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
@@ -1629,8 +1635,8 @@ is retried on opening the chat, and replies lost with a dropped
 connection come back as errors (the C05 card stayed disabled). Then `/resume`
 in the terminal, live-checked: it was taken for `/clear`. A transcript
 check fixed `/resume` but broke `/clear` (re-check); the user chose the
-`SessionStart` hook instead, to build next (S02 → Following the
-conversation). Open: that; the bubble re-wraps the whole
+`SessionStart` hook instead, now built and live-checked (S02 → Following
+the conversation). Open: the bubble re-wraps the whole
 reply on each streamed batch (fine at today's lengths); C05 polish
 (faint checkboxes, Deny's pressed look, Compatibility renderer).
 

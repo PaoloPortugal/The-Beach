@@ -99,8 +99,8 @@ test('/clear: the world follows the new conversation: session.updated, a notice,
     assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
     assert.equal((await x.c.next('message.completed')).text, 'after', 'its hooks are translated as before')
     const h = await x.c.command({ type: 'session.get_history', session: x.id })
-    assert.deepEqual(((h.result as { messages: { text: string }[] }).messages).map((m) => m.text), ['before', 'after'],
-      'the chat so far stays in the history')
+    assert.deepEqual(((h.result as { messages: { text: string }[] }).messages).map((m) => m.text), ['after'],
+      'the history starts over: the world clears its chat')
     // A later snapshot has it too.
     assert.equal((await x.c.command({ type: 'session.get_snapshot', session: x.id })).type, 'ok')
     assert.equal(((await x.c.next('session.snapshot')).session as { native_id: string }).native_id, fresh)
@@ -172,7 +172,7 @@ async function chatBefore(x: Awaited<ReturnType<typeof liveSession>>) {
   await x.c.next((m) => m.type === 'agent.state_changed' && m.state === 'idle')
 }
 
-test('SessionStart clear: the switch reaches the world at once, before any prompt; the chat stays', async () => {
+test('SessionStart clear: the switch reaches the world at once, before any prompt; the chat starts over', async () => {
   const x = await liveSession()
   try {
     await chatBefore(x)
@@ -181,13 +181,13 @@ test('SessionStart clear: the switch reaches the world at once, before any promp
     assert.deepEqual(await x.send('SessionStart', { source: 'clear' }, fresh), { status: 200, body: '' })
     assert.equal((await x.c.next('session.updated')).native_id, fresh)
     assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
-    assert.deepEqual(await historyTexts(x), ['before'])
+    assert.deepEqual(await historyTexts(x), [], 'the history empties at once: the world clears its chat')
     // Then /clear's own entries and the first prompt: no second switch, not taken for a resume.
     fs.writeFileSync(x.transcript(fresh), CLEAR_ENTRIES)
     await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'after' }, fresh)
     assert.equal((await x.c.next('message.completed')).text, 'after')
     assert.deepEqual(switches(await x.c.quiet()), [], 'no second switch')
-    assert.deepEqual(await historyTexts(x), ['before', 'after'])
+    assert.deepEqual(await historyTexts(x), ['after'])
     await assert.rejects(x.p.resume({} as any, fresh), /already open/)
     assert.deepEqual(x.c.invalid, [])
   } finally { await x.close() }
@@ -255,7 +255,7 @@ test('fallback (the relay failed): /clear\'s entries in the new transcript are n
     assert.equal((await x.c.next('session.updated')).native_id, fresh)
     assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
     assert.equal((await x.c.next('message.completed')).text, 'after')
-    assert.deepEqual(await historyTexts(x), ['before', 'after'])
+    assert.deepEqual(await historyTexts(x), ['after'])
   } finally { await x.close() }
 })
 
