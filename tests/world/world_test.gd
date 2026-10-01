@@ -308,13 +308,13 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_check(card.step() == 0, "card: questions start at the first item")
 	card.next()
 	_check(card.step() == 0, "card: no Next before an answer")
-	card.choose("Banana")
+	_click(card, "Banana")
 	_check(card.step() == 1, "card: a single choice moves straight on")
 	card.choose("Honey")
 	card.choose("Nuts")
 	card.choose("Honey")
 	_check(card.step() == 1, "card: checkboxes don't move on")
-	card.back()
+	_click(card, "Back")
 	card.set_other("Mango")
 	card.next()
 	_check(card.step() == 1, "card: Back, your own words, then Next")
@@ -326,6 +326,18 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send on the last item")
 	store.apply({"type": "question.resolved", "session": "h1", "seq": 16, "question": "q1", "by": "external"})
 	_check(not card.visible, "card: hidden again when nothing waits")
+
+
+# Clicks a card's button by its text, through its signal like a real click
+# (the card lays itself out again from inside it).
+func _click(card: PendingCard, text: String) -> void:
+	for b: BaseButton in card.find_children("*", "BaseButton", true, false):
+		if b.text == text:
+			if b.toggle_mode:
+				b.button_pressed = not b.button_pressed
+			b.pressed.emit()
+			return
+	_check(false, "card: no button \"%s\"" % text)
 
 
 func _agent(id: String, parent: String, state: String) -> Dictionary:

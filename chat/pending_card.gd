@@ -370,8 +370,11 @@ func _update_nav() -> void:
 # --- Shared --------------------------------------------------------------
 
 func _render() -> void:
+	# Often called from one of these controls' own signals (an option, Back):
+	# take them out now, free them once the signal is done.
 	for child in _body.get_children():
-		child.free()
+		_body.remove_child(child)
+		child.queue_free()
 	_options.clear()
 	_next = null
 	var c := current()
