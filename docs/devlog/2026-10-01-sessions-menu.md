@@ -98,10 +98,29 @@ cross-platform call with a fallback to Godot's picker, and per Godot's
 source only Windows has the bug (macOS uses a sheet on the game window,
 Linux's portal gets the game window as parent). Untested there.
 
+## Live check
+
+Passed with the user and the real `claude` (2026-10-01), every step of
+`tests/live/checklist.txt`: the menu, the system's picker and its
+Cancel, the picker hidden behind the game, a new session, `/exit`, the
+Resume list and its search, a resume with the earlier chat and Claude
+remembering it, the Running list, and jumping between two sessions.
+
+The first attempt ended abruptly while a fourth session was coming up:
+the game and Claude desktop both closed, and Claude desktop wouldn't
+reopen until Windows was restarted. Not our bug. Windows' event logs
+(AppXDeploymentServer, AppModel-Runtime) show that at 19:42:56 Windows
+started updating the Claude desktop package (2.16120 to 2.19675) with
+the option that force-closes the running app. The game had been started
+with the Run button in Claude desktop's terminal, so it ran inside
+Claude desktop's app container and was closed with it: Godot's log
+stops with no error and no exit lines. Claude desktop couldn't reopen
+while its package was being replaced (93 s). No crash report, display
+driver reset or low-memory event for Godot. Since then the game is
+started from a separate terminal (or F5 in the editor) for live checks.
+
 ## Open
 
-- Not yet live-checked with the real `claude`: a resume from the world
-  has never run live (only `claude -p --resume`, S04).
 - `npm test` in `sidecar/` has one failure that also happens without
   these changes: "relay mode: every failure still exits 0 … and quickly"
   takes about 5.6 s on this machine (a timing limit), so it isn't from
