@@ -299,10 +299,19 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	var allow: Button = buttons.filter(func(b: Button) -> bool: return b.text == "Allow")[0]
 	_check(allow.focus_mode == Control.FOCUS_NONE, "card: no key can press Allow")
 	_check(card.find_children("*", "Label", true, false).any(func(l: Label) -> bool: return l.text == "Run: [b]rm[/b] x"), "card: the summary is shown as written")
+	_check(not _note(card).editable and _button(card, "Send").disabled, "card: the note and Send are locked until Deny")
+	_click(card, "Deny")
+	_check(card.denying() and _note(card).editable and not _button(card, "Send").disabled and card.error_text() == "", "card: Deny unlocks the note and Send, and answers nothing")
 	card.set_note("not that one")
-	card.respond("deny")
+	_click(card, "Allow")
 	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer") and card.current()["kind"] == "permission", "card: a refused answer says so and stays")
+	_check(not card.denying() and not _note(card).editable and _note(card).text == "not that one", "card: Allow locks the note again, keeping it")
+	_click(card, "Deny")
+	_check(_note(card).text == "not that one", "card: Deny again, the note is still there")
+	_click(card, "Send")
+	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	_check(card.error_text().begins_with("Couldn't answer"), "card: Send denies")
 	store.apply({"type": "permission.resolved", "session": "h1", "seq": 15, "permission": "p1", "decision": "allow", "by": "external"})
 	_check(card.header_text() == "Subagent Explore asks:" and card.count_text() == "" and card.error_text() == "", "card: answered in the terminal, the next one shows, naming its agent")
 	_check(card.step() == 0, "card: questions start at the first item")
@@ -326,6 +335,17 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send on the last item")
 	store.apply({"type": "question.resolved", "session": "h1", "seq": 16, "question": "q1", "by": "external"})
 	_check(not card.visible, "card: hidden again when nothing waits")
+
+
+func _button(card: PendingCard, text: String) -> BaseButton:
+	for b: BaseButton in card.find_children("*", "BaseButton", true, false):
+		if b.text == text:
+			return b
+	return null
+
+
+func _note(card: PendingCard) -> LineEdit:
+	return card.find_children("*", "LineEdit", true, false)[0]
 
 
 # Clicks a card's button by its text, through its signal like a real click

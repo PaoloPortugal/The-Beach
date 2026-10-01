@@ -5,8 +5,9 @@ extends PanelContainer
 ## a time, oldest first, with "1 of 3 waiting"; subagents' too, naming the
 ## agent.
 ## - A permission prompt: its summary, a Details toggle (the raw input as
-##   plain text), an optional note (sent as your next message), Deny and
-##   Allow.
+##   plain text), Deny and Allow. Allow answers at once. Deny unlocks a
+##   note (sent as your next message) and Send, which denies; like Claude
+##   Code's own prompt, only a deny takes a note.
 ## - A question set (the [code]questions[/code] capability): one item at a
 ##   time. A click on a single-choice option moves straight on; checkboxes
 ##   (multi-select) and the "Other…" field need Next; Back goes back. On the
@@ -28,6 +29,7 @@ var _busy := "" # key of the request whose answer is on its way
 var _error := "" # why the last answer was refused, for the request on the card
 # Kept while the chat is closed, keyed by session and request id.
 var _notes := {} # "<session>/<permission>" → the note typed so far
+var _denying := {} # "<session>/<permission>" → true once Deny is pressed (the note unlocked)
 var _progress := {} # "<session>/<question>" → {step, chosen: Array per item, other: Array per item}
 
 var _box: VBoxContainer
@@ -37,6 +39,7 @@ var _body: VBoxContainer
 var _error_label: Label
 var _options: Array[BaseButton] = []
 var _next: Button
+var _note: LineEdit # the permission's note field, while one is shown
 
 
 func _init() -> void:
@@ -126,17 +129,41 @@ func refresh(force := false) -> void:
 
 # --- Permissions ---------------------------------------------------------
 
-## Answers the permission prompt on the card.
+## Answers the permission prompt on the card: "allow" (Allow), or "deny"
+## with the note (Send). The note goes only with a deny.
 func respond(decision: String) -> void:
 	var c := current()
 	if c.get("kind") != "permission" or _busy == _shown:
 		return
 	var id: String = c["item"]["permission"]
 	var fields := {"session": session_id, "permission": id, "decision": decision}
-	var note: String = _notes.get(_k(id), "").strip_edges()
-	if not note.is_empty():
-		fields["note"] = note
+	if decision == "allow":
+		_denying.erase(_k(id))
+	else:
+		var note: String = _notes.get(_k(id), "").strip_edges()
+		if not note.is_empty():
+			fields["note"] = note
 	_send("permission.respond", fields)
+
+
+## Deny pressed (or pressed again): unlocks the note and Send, or locks them.
+func set_denying(on: bool) -> void:
+	var c := current()
+	if c.get("kind") != "permission":
+		return
+	if on:
+		_denying[_k(c["item"]["permission"])] = true
+	else:
+		_denying.erase(_k(c["item"]["permission"]))
+	_render()
+	if on and _note.is_inside_tree() and _note.editable:
+		_note.grab_focus()
+
+
+## Whether the note and Send are unlocked on the card.
+func denying() -> bool:
+	var c := current()
+	return c.get("kind") == "permission" and _denying.has(_k(c["item"]["permission"]))
 
 
 func set_note(text: String) -> void:
@@ -163,17 +190,30 @@ func _render_permission(p: Dictionary) -> void:
 		_body.add_child(toggle)
 		_body.add_child(details)
 	var id: String = p["permission"]
-	var note := LineEdit.new()
-	note.placeholder_text = "Optional note to the agent (sent as your next message)"
-	note.text = _notes.get(_k(id), "")
-	note.add_theme_font_size_override("font_size", 16)
-	note.text_changed.connect(func(t: String) -> void: _notes[_k(id)] = t)
-	_body.add_child(note)
+	var denying := _denying.has(_k(id))
 	var buttons := _row()
 	buttons.add_child(_spacer())
-	buttons.add_child(_answer_button("Deny", respond.bind("deny")))
+	var deny := _answer_button("Deny", func() -> void: set_denying(not denying))
+	deny.toggle_mode = true
+	deny.set_pressed_no_signal(denying)
+	buttons.add_child(deny)
 	buttons.add_child(_answer_button("Allow", respond.bind("allow")))
 	_body.add_child(buttons)
+	# The note is kept but locked unless you're denying; only Send sends it.
+	var row := _row()
+	var note := LineEdit.new()
+	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	note.placeholder_text = "Optional: what to do instead (sent as your next message)" if denying else "Press Deny to add a note"
+	note.text = _notes.get(_k(id), "")
+	note.editable = denying and _busy != _shown
+	note.add_theme_font_size_override("font_size", 16)
+	note.text_changed.connect(func(t: String) -> void: _notes[_k(id)] = t)
+	row.add_child(note)
+	var send := _answer_button("Send", respond.bind("deny"))
+	send.disabled = send.disabled or not denying
+	row.add_child(send)
+	_body.add_child(row)
+	_note = note
 
 
 # --- Questions -----------------------------------------------------------
@@ -411,7 +451,7 @@ func _forget_answered(all: Array[Dictionary]) -> void:
 	var live := {}
 	for c in all:
 		live[_k(c["item"][c["kind"]])] = true
-	for table in [_notes, _progress]:
+	for table in [_notes, _denying, _progress]:
 		for key in table.keys():
 			if key.begins_with(session_id + "/") and not live.has(key):
 				table.erase(key)
