@@ -406,7 +406,9 @@ protocol version it doesn't know. A snapshot is a session's full state
 follow. This covers Godot restarting in v1 and attaching to outside
 sessions later (open question 5): both are "send a snapshot, then changes".
 Chat history isn't in the snapshot; Godot asks for it with
-`session.get_history`. An event whose `seq` is not above the last one Godot
+`session.get_history`, and again after `session.updated` changes
+`native_id` (the session switched conversations), replacing its chat
+with the answer. An event whose `seq` is not above the last one Godot
 has for that session (e.g. from a snapshot) is stale and ignored.
 
 **IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
@@ -456,6 +458,8 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   it); the snapshot lists them in `notices`. Codes: `transcripts_off`,
   `hooks_unavailable`, `conversation_cleared` (a new conversation started
   in the session; it remembers nothing of the chat before),
+  `conversation_resumed` (the session switched to an earlier
+  conversation; the chat is now that conversation's),
   `conversation_moved` (the conversation went on somewhere the world
   can't reach; continue it in the provider's own window). *(Shape
   accepted by the user, 2026-09-29, to be revisited if the world needs
@@ -778,8 +782,9 @@ written (tested with an injected `[url]`).
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
   project's name, and "Esc to close"), the session's notices (Godot's own
-  text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`
-  and `conversation_moved`), the chat as bubbles
+  text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`,
+  `conversation_resumed` and `conversation_moved`; of the two switch
+  notices, only the latest shows), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
   three quarters of the width, text selectable), a status line and the
   message box. Streaming updates the growing bubble in place and follows
@@ -1156,6 +1161,22 @@ carry the conversation's `session_id`. A hook with a different one
   gets `session.updated` and the `conversation_cleared` notice, and the
   old id becomes a stored, resumable session (S04). The chat so far
   stays in the world.
+- **`/resume`** (an earlier conversation in the same process and
+  folder; user's decision, M1 review, 2026-10-01): followed the same
+  way, but the new conversation's transcript already holds chat. The
+  sidecar reads it (`readHistory`, without the prompt that woke it, which
+  arrives live), makes it the session's history, and sends the
+  `conversation_resumed` notice instead. Godot reloads the history on
+  every `native_id` change and replaces its chat with it: after `/clear`
+  that's the same chat, after `/resume` the resumed conversation's. A
+  transcript without chat (or none: transcripts off) counts as `/clear`.
+  The world only learns of the switch at the conversation's first hook
+  (a prompt), not at `/resume` itself. Live-checked 2026-10-01 (before
+  this fix): a resume was followed and world chat reached the resumed
+  conversation, but with the `/clear` notice. If two islands end up
+  naming the same conversation (one session resumes another's), each
+  island still talks to its own terminal; only the stale `native_id`
+  label differs.
 - **A moved conversation**: the followed transcript has a `continued-in`
   (written before the new session starts, so the sidecar reads the
   transcript first). The world can't reach it (no channel), so it gets
@@ -1221,8 +1242,9 @@ second after the first reply (with `CLAUDE_CODE_SKIP_PROMPT_HISTORY`, hooks
 still name a path but nothing is written). `hooks_unavailable`: a world
 message sent while the orchestrator is idle brings no hook within 10 s
 (most likely the user's `allowedHttpHookUrls`, which makes hooks vanish
-with no error; chat still works). `conversation_cleared` and
-`conversation_moved`: see Following the conversation.
+with no error; chat still works). `conversation_cleared`,
+`conversation_resumed` and `conversation_moved`: see Following the
+conversation.
 
 **When transcripts are off (user's decision: Claude Code's setting is the
 only control).** We offer no setting of our own and never force saving
@@ -1268,13 +1290,6 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   decides how; `/exit` in the terminal ends it.
 
 **Known gaps.**
-- **`/resume` inside a world session's terminal is untested** (found in
-  the M1 review). Its hooks would carry another conversation's id from
-  the same folder, so it would be followed like `/clear`: the
-  `conversation_cleared` notice would be wrong (that conversation has its
-  own past), and if the resumed conversation is also live on another
-  island, both would follow it. Nothing is approved by mistake. Live
-  check pending (tests/live/checklist.txt).
 - **`/fork <prompt>` untested** with agent view off (`/fork` alone
   asks for arguments). If it still moves the conversation, the
   `conversation_moved` path covers it (Following the conversation).
@@ -1564,8 +1579,8 @@ permission prompts and questions in the world (C05 and the `questions`
 capability's UI), is **built (2026-10-01)**, design decided with the
 user, and **live-checked with the user and the real `claude` 2.1.285
 (2026-10-01)**; after the check the note goes with a deny only, like
-Claude Code's prompt (C05). M1 reviewed (below); next: the `/resume`
-live check, then merging M1 to `main` (ask the user first).
+Claude Code's prompt (C05). M1 reviewed (below); next: re-checking
+`/resume` live, then merging M1 to `main` (ask the user first).
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
@@ -1574,8 +1589,10 @@ work for now; the whole UI is to be designed properly later.
 
 *M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
 is retried on opening the chat, and replies lost with a dropped
-connection come back as errors (the C05 card stayed disabled). Open: the
-`/resume` live check (S02 → Known gaps); the bubble re-wraps the whole
+connection come back as errors (the C05 card stayed disabled). Then `/resume`
+in the terminal, live-checked: it was taken for `/clear`; now it has its
+own notice and the world shows the resumed conversation's chat (S02 →
+Following the conversation). Open: a re-check of that; the bubble re-wraps the whole
 reply on each streamed batch (fine at today's lengths); C05 polish
 (faint checkboxes, Deny's pressed look, Compatibility renderer).
 
