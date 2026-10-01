@@ -92,7 +92,7 @@ v1 slice.
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | planned | n/a           | n/a       |
 | C04 | Tool-call log                             | planned | n/a           | n/a       |
-| C05 | Permission approve / deny (v1)            | planned (M1) | n/a      | n/a       |
+| C05 | Permission approve / deny (v1)            | built (live check pending) | C05 | `chat/pending_card.gd` |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
@@ -785,8 +785,8 @@ written (tested with an injected `[url]`).
   message box. Streaming updates the growing bubble in place and follows
   the end if you were already at the bottom. At most the last 200
   messages are shown (the store keeps up to 2000). Status: "Working…",
-  "Waiting for a permission / an answer…: … in the terminal" (answering in
-  the world is C05 and the `questions` capability), "Stopped." after an
+  "Waiting for a permission / an answer…: … above or in the terminal"
+  (the card above is C05), "Stopped." after an
   error, or a failed send.
 - **Sending:** Enter sends (`message.send`), Shift+Enter is a new line;
   the Send button too. The box clears at once; your message appears when
@@ -798,8 +798,9 @@ written (tested with an injected `[url]`).
   appears (this also fills the bubble). An older message arriving lays the
   panel out again once, deferred, for the whole batch.
 
-Not yet: a Stop button (the `interrupt` capability), Markdown (C03),
-answering permissions and questions (C05), and the tool-call log (C04).
+Pending permission prompts and questions show on a card between the
+chat and the status line (C05). Not yet: a Stop button (the `interrupt`
+capability), Markdown (C03), and the tool-call log (C04).
 
 ### C03 Markdown rendering
 *Planned. Scope: core* (it renders the generic `message` text). Godot's
@@ -831,11 +832,11 @@ log.
 the chat panel.
 
 ### C05 Permission approve / deny
-*Planned (v1: pulled into M1 by the user, 2026-09-30, together with the
+*Built (v1: pulled into M1 by the user, 2026-09-30, together with the
 `questions` capability's UI).* Answer permission requests from inside the
 world. They are sent to the sidecar as approve/deny. The sidecar side of
-both is built and tested (S02 → Permissions, Clarifying questions); only
-Godot's UI is missing. Scope: core for permissions (`permission.respond`),
+both is built and tested (S02 → Permissions, Clarifying questions); the
+Godot UI is below. Scope: core for permissions (`permission.respond`),
 the `questions` capability for questions (shown only for sessions that
 declare it).
 
@@ -857,6 +858,41 @@ declare it).
   at review):* on the last item a click selects and shows Send rather
   than sending at once, so a misclick never answers Claude.
 - *Several pending:* one at a time, oldest first, "1 of 3 waiting".
+
+*Built (2026-10-01; live check with the real `claude` pending).*
+`PendingCard` (`chat/pending_card.gd`), the `Pending` node of the chat
+panel (C02), between the chat and the status line, hidden when nothing
+waits. It reads `SessionStore.pending`: the session's permissions and
+questions in the order they arrived (`pending_order`; a snapshot doesn't
+say which kind came first, so its permissions count as older than its
+questions). The card lays itself out again only when the request on it
+changes, so typing and progress aren't lost to other events.
+- *Header:* "The orchestrator asks to use Bash:" / "Subagent Explore
+  asks:" (the agent's `name`; "A subagent" without one), and "1 of 3
+  waiting" when more than one waits.
+- *Permission:* the summary, Details (the input as indented JSON, in a
+  140 px scroll box), the note field ("sent as your next message", S02 →
+  Permissions), Deny and Allow → `permission.respond`.
+- *Question:* "Question 1 of 2" and the item's header, its text, options
+  as toggle buttons (single) or checkboxes (multi) with their
+  descriptions, "Other…", Back / Next, Send on the last item →
+  `question.answer` with one entry per item: the chosen labels in the
+  options' order plus your own words for a multi-select, or one or the
+  other for a single choice (the sidecar joins a multi-select's with
+  ", "). Next and Send stay disabled until the item is answered.
+- *Safety:* Allow, Deny and Send have no keyboard focus (`FOCUS_NONE`),
+  so no key press can answer; Enter in the note or "Other…" does
+  nothing. Text is shown in plain `Label`s and buttons (no BBCode).
+- *Sending:* buttons are disabled while an answer is on its way; the
+  card moves on when the session reports the request resolved (from
+  here or the terminal). A refused answer (e.g. the conversation moved,
+  S02) shows "Couldn't answer: …" on the card and enables it again.
+- Notes and question progress are kept per session and request while
+  the chat is closed, and dropped once the request resolves.
+- Status line: "Waiting for a permission: answer it above or in the
+  terminal." (and the same for questions).
+- Polish left: unticked checkboxes are faint in Godot's default theme;
+  no in-world cue yet (A05).
 
 ### C06 Permission mode control
 *Planned (after v1). Scope: capability `permission_modes`* (other tools have
@@ -1351,9 +1387,10 @@ In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
 - `npm run dev:fake`: the sidecar with a scripted fake provider, for
   building the world without Claude. Chat drives it: a message containing
-  `permission`, `question`, `agents [n]` or `notice` acts out that part of
-  a session (a prompt to answer, a question, n background subagents, a
-  notice); anything else is echoed back. A stop from the world ends what's
+  `permission`, `question`, `agents [n]`, `notice` or `clear` acts out
+  that part of a session (a prompt to answer, a two-item question: one
+  choice, then several; n background subagents, a notice, a new
+  conversation like `/clear`); anything else is echoed back. A stop from the world ends what's
   running. `test/dev-fake.test.ts` plays every scenario.
 - `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
   provider, driven like Godot would. It opens a terminal with `claude`
@@ -1391,9 +1428,11 @@ text cut, then runs the world scene with real physics (landing on the
 platform, walking, jumping, the sea respawn), the post (its prompt, the
 picker opening and cancelling, a refused folder), islands for sessions applied to the store by hand (one
 per session, apart, the bubble streaming, the teleport, the chat panel,
-a refused send, the session ending under you), and walking up to chat
-(A01, C01, C02). With `--sidecar-dev-fake` it also starts a session from
-the post and chats with it; choosing a folder in the picker is replaced
+a refused send, the C05 card for a permission and a subagent's two-item
+question, the session ending under you), and walking up to chat (A01,
+C01, C02, C05). With `--sidecar-dev-fake` it also starts a session from
+the post, chats with it, and answers a permission prompt and a question
+on the card; choosing a folder in the picker is replaced
 by calling `SessionPost.create`, which it calls. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
@@ -1474,11 +1513,13 @@ the terminal moved the conversation to a new session and cut the world
 off. **Fixed (2026-10-01, live-checked with the user):** that was Claude
 Code's agent view, now off for world sessions, and `/clear` is followed
 on the same island (S02 → Launch, Following the conversation; dev log
-2026-10-01-agent-view-clear). Next: the
-last M1 feature, answering permission prompts and questions in
-the world (C05 and the `questions` capability's UI, **pulled into M1 by
-the user, 2026-09-30**): the sidecar side is built and tested, only
-Godot's UI is missing; the design questions to ask first are in C05.
+2026-10-01-agent-view-clear). The last M1 feature, answering
+permission prompts and questions in the world (C05 and the `questions`
+capability's UI), is **built on branch `claude/c05-permissions-questions`
+(2026-10-01)**, design decided with the user; tested headless and with
+the fake provider. Next: a live check of C05 with the user and the real
+`claude` (a prompt allowed and one denied with a note, a two-item
+question, a subagent's prompt if one comes up), then M1 review.
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 
