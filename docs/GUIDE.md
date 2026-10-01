@@ -11,6 +11,7 @@ here; each section is labelled with its feature ID.
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
+- [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
@@ -101,9 +102,35 @@ select text to copy it. Type in the box at the bottom: **Enter** sends,
 has it; if it can't be sent, the chat says so and gives your text back.
 
 Above the box, a line says what the orchestrator is doing: working, or
-waiting for you. For now, answer permission prompts and questions in the
-terminal; the chat tells you when one is waiting. Messages are shown as
+waiting for you. When it waits on a permission or a question, a card
+above that line lets you answer it (see below). Messages are shown as
 plain text (formatting comes later), and only the latest 200 at once.
+
+## Answering Claude's requests (C05)
+
+When Claude, or one of its subagents, asks your permission or asks you a
+question, a card with an orange border appears in the chat, just above
+the message box. It says who is asking. If several are waiting, you see
+the oldest first, with "1 of 3 waiting"; the next one shows once you've
+answered. You can still answer in the terminal instead: whichever you
+answer first counts, and the card goes away.
+
+**A permission.** The card shows what Claude wants to do (for example
+"Run: npm install"). **Details** shows exactly what it would run or
+change. Press **Allow** or **Deny**. You can type a note first, such as
+why you said no or what to do instead; Claude gets it as your next
+message.
+
+**A question.** Questions come one at a time ("Question 1 of 2").
+Click an option to answer and move on to the next. When you may pick
+several, tick them and press **Next**. To answer in your own words, type
+in **Other…** and press **Next**. **Back** takes you to an earlier
+question. On the last one, nothing is sent until you press **Send**.
+
+Allow, Deny and Send only work with a click: no key presses them, so
+pressing Enter in the chat can never answer for you. If you close the
+chat, the card keeps what you've typed or picked so far. If an answer
+can't be delivered, the card says why; answer in the terminal then.
 
 ## Subagents (A02, A03, A04)
 
@@ -121,8 +148,8 @@ desk. Subagents that finished before you opened the world aren't shown.
 **What they're doing** shows as a small sign above each agent, the
 orchestrator included:
 - a spinning **yellow diamond**: working;
-- a bouncing **orange "!"**: waiting for you (for now, answer it in the
-  terminal);
+- a bouncing **orange "!"**: waiting for you (answer it in the chat or
+  the terminal);
 - a **red "×"**: something went wrong, or it was stopped. A subagent
   stays like this for about 10 seconds, then disappears;
 - nothing: the orchestrator is done with its turn and it's your move.
@@ -154,8 +181,8 @@ reinstalling the game restores it if it goes missing.
 
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
-works (C02), but answering prompts and questions and stopping from the
-world don't have buttons yet, so use the terminal for those for now.
+(C02) and answering prompts and questions (C05) work, but stopping from
+the world doesn't have a button yet, so use the terminal for that.
 
 **What you need.** Claude Code installed on your computer (version
 2.1.284 or newer), signed in with your own account. The game never sees

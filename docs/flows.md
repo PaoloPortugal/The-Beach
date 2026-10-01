@@ -198,6 +198,11 @@ sequenceDiagram
     end
 ```
 
+In the world, "allow or deny" and "picks options or types an answer"
+(flow 4) happen on the card in the chat panel (NOTES.md → C05): one
+request at a time, oldest first; it moves on when `permission.resolved`
+or `question.resolved` arrives, whichever side answered.
+
 The "No" line names the call's `tool_use_id`, so the sidecar resolves that
 exact prompt and closes the call as `denied`. When transcripts are off, a
 terminal "No" is only noticed when the orchestrator's turn ends or the user
