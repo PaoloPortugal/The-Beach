@@ -235,6 +235,10 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       else s.notices.push({ ...e.notice })
       return null
     }
+    case 'session.updated':
+      if (e.native_id === s.native_id) return 'native_id unchanged'
+      s.native_id = e.native_id
+      return null
     case 'question.resolved': {
       const qs = s.questions ?? []
       const i = qs.findIndex((q) => q.question === e.question)

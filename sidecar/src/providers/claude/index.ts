@@ -130,9 +130,11 @@ export class ClaudeProvider implements Provider {
     const hooks = await this.hookServer()
     const launch = this.prepare(o.nativeId)
     this.live.add(o.nativeId)
-    const session = new ClaudeSession(host, launch, o.project, o.name, this.log,
-      () => { this.forget(launch.runDir); this.live.delete(o.nativeId) },
+    const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.name, this.log,
+      () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
+    // After /clear the old conversation is stored, not running: it may be listed and resumed.
+    session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)

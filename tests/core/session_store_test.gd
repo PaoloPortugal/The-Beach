@@ -67,7 +67,12 @@ func _by_hand() -> void:
 	var notices: Array = store.session("a")["notices"]
 	_check(notices.size() == 1 and notices[0]["message"] == "y", "one notice per code")
 
-	store.apply({"type": "ext.fake.ping", "session": "a", "seq": 13})
+	var changed := []
+	store.session_changed.connect(func(id: String, fields: Array) -> void: changed.append([id, fields]))
+	store.apply({"type": "session.updated", "session": "a", "seq": 13, "native_id": "n2"})
+	_check(store.session("a")["native_id"] == "n2" and changed == [["a", ["native_id"]]], "session.updated")
+
+	store.apply({"type": "ext.fake.ping", "session": "a", "seq": 14})
 	_check(log.back() == "ext a ext.fake.ping", "extension messages pass through")
 
 	store.load_history("a", [

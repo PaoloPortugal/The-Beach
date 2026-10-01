@@ -15,6 +15,8 @@ const AGENT_COLOUR := Color(0.15, 0.17, 0.22)
 const NOTICE_TEXT := {
 	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.",
 	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.",
+	"conversation_cleared": "A new conversation started in this session (/clear). Claude no longer remembers the chat above.",
+	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
 }
 
 var store: SessionStore

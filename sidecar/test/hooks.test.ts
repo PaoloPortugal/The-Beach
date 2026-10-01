@@ -54,6 +54,12 @@ test('settings: every reported hook posts to our URL with the token; short timeo
   assert.ok(!('SessionStart' in s.hooks), 'SessionStart can\'t be an HTTP hook')
 })
 
+test('settings: agent view is off, so the conversation can\'t move to a background session', () => {
+  const s = hookSettings('http://127.0.0.1:5/hook', 'a'.repeat(64))
+  assert.deepEqual(Object.keys(s).sort(), ['disableAgentView', 'hooks'])
+  assert.equal(s.disableAgentView, true)
+})
+
 // ---- translation ----
 
 test('a plain turn: user message, streamed reply, tool call, idle', () => {
@@ -363,6 +369,7 @@ test('hook endpoint: oversized bodies are cut off; a failing handler is a 500, n
 test('hooks from a launched session reach Godot as valid events', async () => {
   let settingsFile = ''
   let mcpConfig = ''
+  let nativeId = ''
   const p = new ClaudeProvider({
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
@@ -371,6 +378,7 @@ test('hooks from a launched session reach Godot as valid events', async () => {
       const launch = JSON.parse(fs.readFileSync(req.argv[2]!, 'utf8'))
       settingsFile = launch.args[launch.args.indexOf('--settings') + 1]
       mcpConfig = launch.args[launch.args.indexOf('--mcp-config') + 1]
+      nativeId = launch.args[launch.args.indexOf('--session-id') + 1]
       return 'fake'
     },
   })
@@ -383,7 +391,8 @@ test('hooks from a launched session reach Godot as valid events', async () => {
     const id = (r.result as { session: string }).session
     const h = JSON.parse(fs.readFileSync(settingsFile, 'utf8')).hooks.UserPromptSubmit[0].hooks[0]
     const port = Number(new URL(h.url).port)
-    const send = (payload: object) => post(port, JSON.stringify(payload), { authorization: h.headers.Authorization })
+    // The launched conversation's own hooks carry its session id.
+    const send = (payload: object) => post(port, JSON.stringify({ ...payload, session_id: nativeId }), { authorization: h.headers.Authorization })
 
     // A hook before the bridge's ready still means the session is up.
     assert.equal((await send(hook('UserPromptSubmit', { prompt_id: 'u', prompt: '<channel source="world-bridge" sender="user">\nhi\n</channel>' }))).status, 200)
