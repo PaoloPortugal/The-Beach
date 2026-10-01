@@ -113,7 +113,10 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     assert.equal(hook.type, 'http')
     assert.match(hook.url, /^http:\/\/127\.0\.0\.1:\d+\/hook$/)
     assert.match(hook.headers.Authorization, /^Bearer [0-9a-f]{64}$/)
-    assert.deepEqual(Object.keys(settings), ['hooks'], 'only hooks; no other setting is changed for the user')
+    // Only hooks, and agent view off (it would move the conversation out of
+    // the world's reach); no other setting is changed for the user.
+    assert.deepEqual(Object.keys(settings), ['hooks', 'disableAgentView'])
+    assert.equal(settings.disableAgentView, true)
     // The bridge's config: this executable in bridge mode, the link's port
     // and token in the bridge's own environment only.
     const mcp = JSON.parse(fs.readFileSync(launch.args[7]!, 'utf8'))

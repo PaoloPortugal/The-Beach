@@ -36,3 +36,11 @@ reading; look things up by feature ID.
 | 2026-09-29 | [Agent Office (a similar project)](2026-09-29-agent-office.md) | docs |
 | 2026-09-29 | [Windows terminals and S02 checkpoint 1](2026-09-29-windows-terminals.md) | S02 |
 | 2026-09-29 | [S02: permissions, questions, stopping, transcript, notices, history](2026-09-29-s02-relay-questions-stop.md) | S02 |
+| 2026-09-30 | [M1 world feel](2026-09-30-m1-world-feel.md) | W01, W02, W03, A01, C01, C02 |
+| 2026-09-30 | [Island, ocean and first-person movement](2026-09-30-island-ocean-movement.md) | W01, W02, W03 |
+| 2026-09-30 | [Placeholder orchestrator and walking up to chat](2026-09-30-orchestrator-walk-up-chat.md) | A01, C01, C02, W08 |
+| 2026-09-30 | [Chat panel, quick session start, an island per session](2026-09-30-chat-panel-session-islands.md) | C02, S03, W01, W03, A01 |
+| 2026-09-30 | [Subagents, placement and state markers](2026-09-30-subagents-placement-markers.md) | A02, A03, A04 |
+| 2026-10-01 | [Agent view off, /clear followed](2026-10-01-agent-view-clear.md) | S02 |
+| 2026-10-01 | [Answering permissions and questions in the world](2026-10-01-c05-answer-card.md) | C05 |
+| 2026-10-01 | [M1 review, /resume in the terminal, SessionStart relay](2026-10-01-m1-review.md) | C02, S01, S02, C05 |

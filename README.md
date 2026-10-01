@@ -10,7 +10,8 @@ permission prompts and questions, and start or resume sessions, all without
 leaving the world. Every session is also a normal Claude Code terminal, so
 you can switch between the world and the terminal whenever you like.
 
-> **Status:** early development. Nothing is playable yet; see
+> **Status:** early development. A first slice runs from source: start a
+> session, walk up to its orchestrator and chat with it. See
 > [NOTES.md](NOTES.md) for the plan.
 
 ## What you'll be able to do
@@ -48,7 +49,9 @@ git clone https://github.com/PaoloPortugal/The-Beach.git
 1. In `sidecar/`, run `npm ci` (and `npm test` to check it works).
 2. Open Godot, choose **Import**, and select `project.godot` at the repo root.
 3. Press **F5** to run. Godot starts the sidecar itself (from source, so
-   `node` must be on your PATH). There's no world to see yet.
+   `node` must be on your PATH). You start on a platform in the sea; the
+   "New session" sign starts a Claude Code session (see the
+   [guide](docs/GUIDE.md)).
 
 More commands (packaging, the fake provider, tests) are in
 [NOTES.md → Running it](NOTES.md#running-it).

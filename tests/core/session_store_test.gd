@@ -44,6 +44,7 @@ func _by_hand() -> void:
 	store.apply({"type": "agent.spawned", "session": "a", "seq": 2, "agent": {"agent": "s1", "role": "subagent", "parent": "main", "state": "working", "reason": null}})
 	store.apply({"type": "agent.state_changed", "session": "a", "seq": 3, "agent": "main", "state": "waiting", "reason": "permission"})
 	_check(store.agent("a", "s1")["parent"] == "main" and store.agent("a", "main")["reason"] == "permission", "agents spawn and change")
+	_check(store.orchestrator("a")["agent"] == "main" and store.orchestrator("zzz").is_empty(), "finds the orchestrator")
 
 	store.apply({"type": "message.started", "session": "a", "seq": 4, "message": "m1", "agent": "main", "role": "assistant"})
 	store.apply({"type": "message.delta", "session": "a", "seq": 5, "message": "m1", "text": "Hel"})
@@ -61,12 +62,31 @@ func _by_hand() -> void:
 	store.apply({"type": "permission.resolved", "session": "a", "seq": 10, "permission": "p1", "decision": "allow", "by": "app"})
 	_check(store.session("a")["permissions"].is_empty(), "permission resolved")
 
+	# Pending requests in the order they came, across both kinds.
+	var question := {"question": "q1", "agent": "main", "items": [{"text": "?", "options": [], "multi_select": false}]}
+	store.apply({"type": "question.asked", "session": "b", "seq": 2, "question": question})
+	store.apply({"type": "permission.requested", "session": "b", "seq": 3, "permission": {"permission": "p2", "agent": "main", "tool": "Bash", "summary": "Run: ls"}})
+	var kinds := func() -> Array: return store.pending("b").map(func(c: Dictionary) -> String: return "%s %s" % [c["kind"], c["item"][c["kind"]]])
+	_check(kinds.call() == ["question q1", "permission p2"], "pending: oldest first, both kinds")
+	var resync := _snapshot("b", 4)
+	resync["permissions"] = [{"permission": "p2", "agent": "main", "tool": "Bash", "summary": "Run: ls"}, {"permission": "p3", "agent": "main", "tool": "Bash", "summary": "Run: pwd"}]
+	resync["questions"] = [question]
+	store.apply({"type": "session.snapshot", "session": resync})
+	_check(kinds.call() == ["question q1", "permission p2", "permission p3"], "a resync keeps their order; new ones go last")
+	store.apply({"type": "question.resolved", "session": "b", "seq": 5, "question": "q1", "by": "external"})
+	_check(kinds.call() == ["permission p2", "permission p3"], "a resolved one leaves the queue")
+
 	store.apply({"type": "session.notice", "session": "a", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	store.apply({"type": "session.notice", "session": "a", "seq": 12, "notice": {"code": "transcripts_off", "message": "y"}})
 	var notices: Array = store.session("a")["notices"]
 	_check(notices.size() == 1 and notices[0]["message"] == "y", "one notice per code")
 
-	store.apply({"type": "ext.fake.ping", "session": "a", "seq": 13})
+	var changed := []
+	store.session_changed.connect(func(id: String, fields: Array) -> void: changed.append([id, fields]))
+	store.apply({"type": "session.updated", "session": "a", "seq": 13, "native_id": "n2"})
+	_check(store.session("a")["native_id"] == "n2" and changed == [["a", ["native_id"]]], "session.updated")
+
+	store.apply({"type": "ext.fake.ping", "session": "a", "seq": 14})
 	_check(log.back() == "ext a ext.fake.ping", "extension messages pass through")
 
 	store.load_history("a", [
@@ -75,6 +95,16 @@ func _by_hand() -> void:
 	])
 	var chat := store.messages("a")
 	_check(chat.size() == 2 and chat[0]["text"] == "hi" and chat[1]["text"] == "Hello.", "history goes first; live messages win")
+
+	# Switching conversations (/resume): the chat is replaced by the
+	# sidecar's history; a message that came after the switch is kept.
+	store.apply({"type": "session.updated", "session": "a", "seq": 15, "native_id": "n3"})
+	store.apply({"type": "message.started", "session": "a", "seq": 16, "message": "live", "agent": "main", "role": "assistant"})
+	var replaced := []
+	store.messages_replaced.connect(func(id: String) -> void: replaced.append(id))
+	store.replace_history("a", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}])
+	chat = store.messages("a")
+	_check(chat.map(func(m: Dictionary) -> String: return m["message"]) == ["r1", "live"] and replaced == ["a"], "a switch replaces the chat, keeping what came after it")
 
 	# A resync after a gap: the snapshot replaces the state, not the chat.
 	var fresh := _snapshot("a", 20)

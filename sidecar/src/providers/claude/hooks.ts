@@ -24,14 +24,34 @@ const QUESTION_TIMEOUT_S = 24 * 60 * 60
 /** Claude Code's clarifying-question tool. */
 export const QUESTION_TOOL = 'AskUserQuestion'
 
-/** Hook events we translate. SessionStart can't be an HTTP hook. */
+/** Hook events we translate (SessionStart can't be an HTTP hook; see hookSettings). */
 export const REPORTED_HOOKS = [
   'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
   'SubagentStart', 'SubagentStop', 'Notification', 'Stop', 'StopFailure',
 ] as const
 
-/** The `--settings` JSON for one session: every hook posts to `url` with its token. */
-export function hookSettings(url: string, token: string): { hooks: Record<string, unknown> } {
+/**
+ * SessionStart's timeout. After /resume inside a session, Claude Code
+ * waits for SessionStart hooks before switching, so it's short; the relay
+ * gives up after 2 s itself.
+ */
+const SESSION_START_TIMEOUT_S = 5
+
+/**
+ * The `--settings` JSON for one session: every hook posts to `url` with its
+ * token, and agent view is off (user's decision, 2026-10-01). Agent view
+ * (Left at an empty prompt, /bg, /fork) moves the conversation into a
+ * background session: a new process under Claude Code's supervisor, with
+ * a new session id and without our channel flag, so the world could no
+ * longer talk to it (NOTES.md -> S02 -> Launch).
+ *
+ * SessionStart allows only command (and MCP tool) hooks, so it runs `relay`,
+ * our own executable in relay mode, in exec form (`command` plus `args`:
+ * spawned directly, no shell), which posts it to the same endpoint. Only
+ * for /clear and /resume: the world follows those (NOTES.md -> S02 ->
+ * Following the conversation).
+ */
+export function hookSettings(url: string, token: string, relay: string[]): { hooks: Record<string, unknown>; disableAgentView: true } {
   const hook = (timeout: number) => [{
     hooks: [{ type: 'http', url, timeout, headers: { Authorization: `Bearer ${token}` } }],
   }]
@@ -40,7 +60,13 @@ export function hookSettings(url: string, token: string): { hooks: Record<string
   // Questions only: plain permission prompts come through the channel's
   // relay, and holding them here would hold up the terminal's own answer.
   hooks.PermissionRequest = [{ matcher: `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
-  return { hooks }
+  const [command, ...args] = relay
+  if (!command) throw new Error('no relay command')
+  hooks.SessionStart = [{
+    matcher: '^(clear|resume)$',
+    hooks: [{ type: 'command', command, args, timeout: SESSION_START_TIMEOUT_S }],
+  }]
+  return { hooks, disableAgentView: true }
 }
 
 /** Longest tool summary, in characters. */
