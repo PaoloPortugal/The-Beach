@@ -2026,9 +2026,15 @@ exists.
   game: alt-tab or a click on the game covers it. It still has its own
   taskbar button and Alt+Tab entry. Nothing in GDScript can fix it
   (`WINDOW_FLAG_NO_FOCUS` would make the game always-on-top, worse), so
-  the menu's Cancel is the safety net. The fix belongs in Godot: pass
-  the game window (`fd->hwnd_owner`) as the helper's owner. Worth
-  reporting upstream (the user's call); recheck on Godot updates.
+  the menu's Cancel is the safety net. **Known upstream:** Godot issue
+  #104670 ("Native FileDialog isn't transient"; a maintainer describes
+  this exact symptom on Windows), fixed by the open pull request #114512
+  (by bruvzg, not merged as of 2026-10-01): on Windows the picker is
+  then shown owned by the window named in the call, which stays blocked
+  under it, and our call already names the game window. When a Godot
+  release includes it, update and re-check: the picker should stay in
+  front (the menu's Cancel may then be unclickable while it's open,
+  which is fine). Keep the Cancel safety net until then.
   macOS and Linux don't have this bug, per the same source: macOS shows
   the picker as a sheet attached to the game window
   (`beginSheetModalForWindow`), and on Linux the portal is given the

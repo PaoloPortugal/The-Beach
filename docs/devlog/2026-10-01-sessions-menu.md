@@ -85,8 +85,14 @@ keep it above the game. GDScript can't reach that window. The "no
 focus" window flag looked like a way to stop the game from coming in
 front, but in Godot it also makes the window always-on-top, which would
 bury the picker for good. So the note tells you where to find a hidden
-picker (it has its own taskbar button), and the real fix is a one-line
-change in Godot, worth reporting (NOTES → Watch items). The user asked
+picker (it has its own taskbar button). The real fix belongs in Godot.
+I first suggested contributing it; before that, the user asked whether
+it really is a bug. A proper search found it already reported (#104670,
+"Native FileDialog isn't transient", where a maintainer describes this
+exact symptom and the platform maintainer agrees to emulate blocking)
+and an open fix by that maintainer (#114512, not merged yet), which
+would fix our case with no change on our side. Nothing to file; we wait
+for a release with it (NOTES → Watch items). The user asked
 that this work on Linux and macOS too: the code is Godot's
 cross-platform call with a fallback to Godot's picker, and per Godot's
 source only Windows has the bug (macOS uses a sheet on the game window,
