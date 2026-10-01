@@ -631,7 +631,9 @@ or idle, from its orchestrator); a click closes the menu and puts you in
 front of that session's orchestrator (`world.gd` → `teleport`). The
 search box filters it with the rest. A **placeholder** (user's): W07
 proper adds the sorting, grouping and maybe a minimap (open question 3)
-and gets a real design.
+and gets a real design. *Live check passed (2026-10-01)* with the user
+and the real `claude`: two sessions under Running, jumping between them,
+and Tab doing nothing while chatting.
 
 *Possible feature, not planned (from Agent Office):* a "go to whoever has
 waited longest" shortcut that jumps straight to the agent that has been
@@ -1472,6 +1474,12 @@ proper design later, like all UI.
   Once the session is up, its island appears (W01 → Islands for
   sessions) and the player is taken there.
 
+*Live check passed (2026-10-01)* with the user and the real `claude`:
+Tab and Esc, the system's picker and its Cancel, the picker hidden
+behind the game (menu Cancel gives the controls back; a folder picked
+later starts nothing), starting a session and landing at its island with
+the controls, `/exit` back to the platform.
+
 Still to design: the menu itself, recent folders, naming, choosing a
 provider, starting several at once, and where archipelagos are chosen
 (W05).
@@ -1496,8 +1504,10 @@ without a title), asked for each time the menu opens, filtered by the
 search box. A click resumes it through the same launcher and notices as
 a new session; once up, you're taken to its island and its chat holds
 the conversation so far. A **placeholder**, like the rest of the menu.
-*Not yet run live with the real `claude` from the world* (only with the
-fake provider, and `--resume` itself with `claude -p`).
+*Live check passed (2026-10-01)* with the user and the real `claude`:
+the ended session listed under Resume and found by search, resumed with
+`claude --resume`, its earlier messages in the chat, and Claude
+remembering them; then listed under Running, not Resume.
 
 The sidecar side, built with S02: `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
@@ -1724,8 +1734,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 2026-10-01). First feature on branch `s04-resume`: the **sessions menu**
 (Tab anywhere: new session, jump to a running one, resume a stored one;
 the "New session" post is removed; S03, S04, W07), built and documented,
-**live check with the real `claude` next** (a resume from the world has
-never run live). The menu is a **placeholder** (user's, 2026-10-01): it
+**live check passed with the user and the real `claude` (2026-10-01)**;
+ready for the user's review before merging to `main`. The menu is a **placeholder** (user's, 2026-10-01): it
 must be properly designed later, like all UI. Then S05 (end session), W05
 (archipelagos), A05 (attention cue) and W07 proper, each designed with
 the user first. Before that: C03 Markdown rendering (chosen by the user as the
