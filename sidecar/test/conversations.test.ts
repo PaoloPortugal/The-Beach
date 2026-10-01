@@ -12,7 +12,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { CONVERSATION_CLEARED, CONVERSATION_MOVED, MOVED_ERROR, UNREACHABLE_ERROR } from '../src/providers/claude/session.ts'
+import { CONVERSATION_CLEARED, CONVERSATION_MOVED, CONVERSATION_RESUMED, MOVED_ERROR, UNREACHABLE_ERROR } from '../src/providers/claude/session.ts'
 import { POLL_MS } from '../src/providers/claude/transcript.ts'
 import { checkMessage } from '../src/protocol.ts'
 import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
@@ -97,6 +97,9 @@ test('/clear: the world follows the new conversation: session.updated, a notice,
     assert.equal(updated.native_id, fresh)
     assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
     assert.equal((await x.c.next('message.completed')).text, 'after', 'its hooks are translated as before')
+    const h = await x.c.command({ type: 'session.get_history', session: x.id })
+    assert.deepEqual(((h.result as { messages: { text: string }[] }).messages).map((m) => m.text), ['before', 'after'],
+      'the chat so far stays in the history')
     // A later snapshot has it too.
     assert.equal((await x.c.command({ type: 'session.get_snapshot', session: x.id })).type, 'ok')
     assert.equal(((await x.c.next('session.snapshot')).session as { native_id: string }).native_id, fresh)
@@ -107,6 +110,37 @@ test('/clear: the world follows the new conversation: session.updated, a notice,
     // The new conversation is running: not resumable twice. The old one is stored now.
     await assert.rejects(x.p.resume({} as any, fresh), /already open/)
     await assert.rejects(x.p.resume({} as any, x.nativeId), /wasn't found/)
+    assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+test('/resume: an earlier conversation with chat: its chat becomes the history, and a notice says so', async () => {
+  const x = await liveSession()
+  try {
+    await x.send('UserPromptSubmit', { prompt_id: 'p1', prompt: 'before' })
+    await x.c.next('message.completed')
+    await x.send('Stop')
+    await x.c.next('agent.state_changed')
+
+    // /resume: an earlier conversation from the same folder, whose
+    // transcript already holds its chat, plus the prompt that woke it.
+    const earlier = crypto.randomUUID()
+    const line = (e: object) => JSON.stringify(e) + '\n'
+    fs.writeFileSync(x.transcript(earlier),
+      line({ type: 'user', uuid: 'e1', timestamp: '2026-10-01T09:00:00Z', message: { role: 'user', content: 'old question' } }) +
+      line({ type: 'assistant', timestamp: '2026-10-01T09:00:01Z', message: { id: 'm1', role: 'assistant', content: [{ type: 'text', text: 'old answer' }] } }) +
+      line({ type: 'user', uuid: 'e2', timestamp: '2026-10-01T12:00:00Z', message: { role: 'user', content: 'what did we say?' } }))
+    await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'what did we say?' }, earlier)
+    assert.equal((await x.c.next('session.updated')).native_id, earlier)
+    assert.deepEqual((await x.c.next(notice('conversation_resumed'))).notice, CONVERSATION_RESUMED)
+    assert.equal((await x.c.next('message.completed')).text, 'what did we say?')
+    await x.send('Stop', {}, earlier)
+    await x.c.next('agent.state_changed')
+    // The history is the resumed conversation's chat, then what came live; not the chat before.
+    const h = await x.c.command({ type: 'session.get_history', session: x.id })
+    const texts = ((h.result as { messages: { text: string }[] }).messages).map((m) => m.text)
+    assert.deepEqual(texts, ['old question', 'old answer', 'what did we say?'])
+    assert.ok(x.log.lines.some((l) => l.includes('earlier conversation (/resume)')))
     assert.deepEqual(x.c.invalid, [])
   } finally { await x.close() }
 })

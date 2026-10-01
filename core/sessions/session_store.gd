@@ -31,6 +31,9 @@ signal notices_changed(session: String)
 ## after the provider started a new conversation in it); [param fields]
 ## names them.
 signal session_changed(session: String, fields: Array)
+## The chat was replaced as a whole ([method replace_history]): lay it out
+## again.
+signal messages_replaced(session: String)
 ## A provider extension message ([code]ext.<provider>.<name>[/code]).
 signal extension_event(session: String, msg: Dictionary)
 
@@ -124,6 +127,35 @@ func load_history(session_id: String, history: Array) -> void:
 		message_changed.emit(session_id, id)
 
 
+## Replaces the chat with [code]session.get_history[/code]'s messages,
+## after the provider switched conversations ([code]native_id[/code]
+## changed). Messages that arrived since the switch and aren't in
+## [param history] are kept after it (a reply still streaming, say).
+func replace_history(session_id: String, history: Array) -> void:
+	var s := session(session_id)
+	if s.is_empty():
+		return
+	var before: Array = s.get("chat_before_switch", [])
+	var messages := {}
+	var order: Array = []
+	for m in history:
+		var id: String = m["message"]
+		messages[id] = {
+			"message": id, "agent": m["agent"], "role": m["role"],
+			"text": m["text"], "at": m["at"], "complete": true,
+		}
+		order.append(id)
+	for id in s["message_order"]:
+		if not before.has(id) and not messages.has(id):
+			messages[id] = s["messages"][id]
+			order.append(id)
+	s["messages"] = messages
+	s["message_order"] = order
+	s.erase("chat_before_switch")
+	_trim_messages(s)
+	messages_replaced.emit(session_id)
+
+
 ## Applies one event from the sidecar.
 func apply(msg: Dictionary) -> void:
 	var type: String = msg.get("type", "")
@@ -153,6 +185,10 @@ func apply(msg: Dictionary) -> void:
 				if key not in ["type", "session", "seq"]:
 					s[key] = msg[key]
 					fields.append(key)
+			if "native_id" in fields:
+				# Messages from now on belong to the new conversation, whatever
+				# replace_history() brings.
+				s["chat_before_switch"] = s["message_order"].duplicate()
 			session_changed.emit(id, fields)
 		"agent.spawned":
 			s["agents"].append(msg["agent"])
