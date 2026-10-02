@@ -8,7 +8,7 @@ extends CanvasLayer
 ## is there. Never while you're in the game. A PLACEHOLDER, like all UI for
 ## now.
 
-## The chime: a CC0 sound the user picks (NOTES → A05). Silent without it.
+## The chime: a CC0 sound the user picked (NOTES → A05). Silent without it.
 const CHIME := "res://assets/audio/attention.ogg"
 const SETTINGS := "user://settings.cfg"
 

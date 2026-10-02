@@ -5,4 +5,5 @@ project's author, or CC0 (e.g. Kenney). Never AI-generated.
 
 | File | Source | Author | License | Notes |
 |------|--------|--------|---------|-------|
+| `assets/audio/attention.ogg` | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds), `question_002.ogg` | Kenney | CC0 | A05's chime. Picked by the user. |
 | `icon.svg` (repo root) | Godot default project icon | Andrea Calabró (Godot logo) | CC BY 4.0 | Placeholder. Not CC0; replace before release. |

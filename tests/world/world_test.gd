@@ -448,6 +448,8 @@ func _attention(world: Node3D) -> void:
 	state.call(7, "working")
 	state.call(8, "waiting", "permission")
 	_check(asked[0] == 2 and chimes[0] == 1, "attention: with the sound off, only the flash")
+	var chime: AudioStream = load(Attention.CHIME) if ResourceLoader.exists(Attention.CHIME) else null
+	_check(chime != null and chime.get_length() > 0.0, "attention: the chime's file is there and loads")
 	var again := Attention.new()
 	again.settings_path = attention.settings_path
 	again.setup(SessionStore.new())
