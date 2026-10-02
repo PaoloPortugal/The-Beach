@@ -56,6 +56,16 @@ func busy() -> bool:
 	return _asking or not pending.is_empty()
 
 
+## Stops waiting for the session being started, so another can start
+## (S03). If it does come up later, it's just a running session: its
+## island appears, and nobody is taken there.
+func stop_waiting() -> void:
+	if pending.is_empty():
+		return
+	pending = ""
+	_say("Stopped waiting. If that session starts later, it's listed under Running.")
+
+
 ## Asks for a new session in the folder [param path], to join
 ## [param cluster] (a [SessionClusters] choice).
 func create(path: String, cluster := SessionClusters.AUTOMATIC) -> void:
@@ -98,7 +108,7 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 func _process(_delta: float) -> void:
 	if not pending.is_empty() and not _still_said and Time.get_ticks_msec() / 1000.0 - _asked_at > STILL_STARTING_S:
 		_still_said = true
-		_say("Still starting; check the terminal.")
+		_say("Still starting; check the terminal, or stop waiting in the menu (Tab).")
 
 
 func _say(text: String) -> void:

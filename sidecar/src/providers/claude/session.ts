@@ -12,6 +12,7 @@ import type { HookLink, HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
 import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, unwrapChannel, type RelayedPermission } from './hooks.ts'
 import { hasReply, readHistory } from './store.ts'
+import { launcherGone } from '../../launch/launcher.ts'
 
 /**
  * How long a relayed permission prompt waits for its tool call's
@@ -54,6 +55,9 @@ export const HOOKS_UNAVAILABLE = {
   code: 'hooks_unavailable',
   message: 'Claude Code isn\'t sending this session\'s activity to the world (a setting such as allowedHttpHookUrls may be blocking it). Chat still works; answer prompts and questions in the terminal.',
 }
+
+/** How often a starting session checks that its launcher still runs. */
+export const LAUNCHER_CHECK_MS = 1000
 
 /**
  * Until the bridge connects, Claude Code is showing its startup dialogs (the
@@ -134,6 +138,7 @@ export class ClaudeSession implements ProviderSession {
   private readonly startupTimeoutMs: number
   private launchedAt = 0
   private startupTimer: NodeJS.Timeout | null = null
+  private launcherCheck: NodeJS.Timeout | null = null
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -201,6 +206,12 @@ export class ClaudeSession implements ProviderSession {
     this.launchedAt = Date.now()
     this.startupTimer = setTimeout(() => this.onGone('it never came up'), this.startupTimeoutMs)
     this.startupTimer.unref()
+    // Claude Code exiting at a startup prompt (folder trust declined, the
+    // channel refused) or its terminal closed: nothing else would tell us.
+    this.launcherCheck = setInterval(() => {
+      if (launcherGone(this.launch.runDir)) this.onGone('it closed before it came up')
+    }, LAUNCHER_CHECK_MS)
+    this.launcherCheck.unref()
   }
 
   private onReady() {
@@ -208,6 +219,7 @@ export class ClaudeSession implements ProviderSession {
     if (!this.startupTimer) return
     clearTimeout(this.startupTimer)
     this.startupTimer = null
+    this.stopLauncherCheck()
     // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
     this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
     this.host.announce({
@@ -438,6 +450,11 @@ export class ClaudeSession implements ProviderSession {
     resolve?.(reply)
   }
 
+  private stopLauncherCheck() {
+    if (this.launcherCheck) clearInterval(this.launcherCheck)
+    this.launcherCheck = null
+  }
+
   /** Claude Code exited, or never came up. */
   private onGone(why: string) {
     if (this.disposed) return
@@ -450,6 +467,7 @@ export class ClaudeSession implements ProviderSession {
     if (this.disposed) return
     this.disposed = true
     if (this.startupTimer) clearTimeout(this.startupTimer)
+    this.stopLauncherCheck()
     if (this.hooksCheck) clearTimeout(this.hooksCheck)
     this.link?.unregister()
     this.hookLink?.unregister()
