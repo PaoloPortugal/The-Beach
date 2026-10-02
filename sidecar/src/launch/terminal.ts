@@ -41,6 +41,13 @@ interface Terminal {
 
 // ---- Windows ----
 
+/**
+ * The Windows Terminal window sessions open in, as tabs (user's decision,
+ * 2026-10-02): wt opens a window by this name the first time, then adds
+ * tabs to it; once it's closed, the next session opens it again.
+ */
+export const WT_WINDOW = 'agent-sessions'
+
 const windowsTerminal: Terminal = {
   id: 'windows-terminal',
   find: ({ env, which, isProgram }) => which('wt.exe', env) ?? existing(isProgram,
@@ -50,7 +57,7 @@ const windowsTerminal: Terminal = {
     // escaped, and `"` is mangled (both checked on Windows Terminal, 2026-09).
     // Our argv never has them; if it ever does, use the next terminal.
     if ([req.title, ...req.argv].some((a) => /[;"]/.test(a))) return null
-    return { file: exe, args: ['-w', 'new', 'new-tab', '--title', req.title, '--', ...req.argv] }
+    return { file: exe, args: ['-w', WT_WINDOW, 'new-tab', '--title', req.title, '--', ...req.argv] }
   },
 }
 

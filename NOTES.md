@@ -268,6 +268,15 @@ the same `~/.claude` layout. What differs, and how we handle it:
   argument array in the same terminal. So no terminal ever gets a command
   line built from text, even where the terminal only accepts a script
   (macOS). If no terminal can be opened, the world says so.
+  **Tabs, not a window each** (user's decisions, 2026-10-02; dev log
+  2026-10-02-terminal-tabs): sessions open as tabs in **one window of
+  their own**, never in the user's other terminal windows, where the
+  terminal offers a clean way to do it; elsewhere, a window each. Windows
+  Terminal: `wt -w agent-sessions new-tab` (`WT_WINDOW`): wt opens the
+  window by that name the first time and adds tabs to it after; once
+  it's closed, the next session opens it again. The classic console has
+  no tabs. macOS and Linux: still a window each; how far tabs can go
+  there is open (Open questions).
 - **Node runtime.** The sidecar is built into one self-contained
   executable per platform and shipped with each Godot export. The same
   executable runs as the channel bridge (Claude Code starts it by absolute
@@ -1780,12 +1789,26 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    with C02 (a bubble in the world, a near-full-screen panel). Still open:
    the props (Kenney Pirate, Nature and Furniture kits were the
    suggestion).
+9. **Terminal tabs on macOS and Linux.** The rule (user's, 2026-10-02):
+   tabs in one window of the sessions' own where it's clean, else a
+   window each (Architecture → Terminal windows). From what I know, to
+   check on those systems (only Windows is testable): Terminal.app can
+   only open a tab by faking Cmd+T (keystrokes: ruled out). iTerm2's
+   AppleScript can add a tab to a window it made, if the sidecar
+   remembers that window (lost when the game restarts), and macOS asks
+   once to let the game control iTerm. GNOME Terminal `--tab`,
+   xfce4-terminal `--tab` and Konsole `--new-tab` add to the window last
+   used, which may be the user's own. kitty (remote control) and WezTerm
+   (`cli spawn`) can target a window if told which. My recommendation: a
+   window each there until someone can test.
 
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
 2026-10-01). **Next: W05 (archipelagos)**, designed with the user
-first. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+first. **On branch `terminal-tabs` (2026-10-02):** sessions open as tabs
+in one Windows Terminal window of their own (Architecture → Terminal
+windows); live check next. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
