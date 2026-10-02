@@ -22,6 +22,34 @@ export interface SessionFile {
   unsetEnv: { names: string[]; prefixes: string[] }
 }
 
+/**
+ * Where the launcher records its process id: the session file's folder.
+ * While a session starts, the provider checks that it still runs, so Claude
+ * Code exiting at a startup prompt or the terminal being closed ends the
+ * wait at once (see {@link launcherGone}).
+ */
+export function launcherPidFile(dir: string): string {
+  return path.join(dir, 'launcher.pid')
+}
+
+/**
+ * Whether the launcher that recorded its id in `dir` has exited. False while
+ * it runs or before it has recorded anything (the startup timeout covers a
+ * terminal that never ran it).
+ */
+export function launcherGone(dir: string): boolean {
+  let pid: number
+  try { pid = Number.parseInt(fs.readFileSync(launcherPidFile(dir), 'utf8'), 10) } catch { return false }
+  if (!Number.isInteger(pid) || pid <= 0) return false
+  try {
+    process.kill(pid, 0)
+    return false
+  } catch (e) {
+    // EPERM: it exists but isn't ours to signal.
+    return (e as NodeJS.ErrnoException).code === 'ESRCH'
+  }
+}
+
 /** Writes a session file readable only by this user. */
 export function writeSessionFile(file: string, s: Omit<SessionFile, 'version'>): void {
   const body: SessionFile = { version: SESSION_FILE_VERSION, ...s }
@@ -60,6 +88,11 @@ export async function runLauncher(args: string[]): Promise<number> {
   if (args.length !== 1) {
     return fail('The launcher needs exactly one argument, a session file.')
   }
+  // First, so even a launch file that fails below ends the wait once its
+  // message is closed. Without it the provider falls back to its timeout.
+  try {
+    fs.writeFileSync(launcherPidFile(path.dirname(path.resolve(args[0]!))), String(process.pid), { mode: 0o600 })
+  } catch { /* the folder is gone: the session was given up already */ }
   let s: SessionFile
   try { s = takeSessionFile(args[0]!) } catch (e) { return fail((e as Error).message) }
 

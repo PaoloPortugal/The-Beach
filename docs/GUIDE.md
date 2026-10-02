@@ -61,12 +61,19 @@ at the top to filter the lists by title or project.
 Starting or resuming opens a terminal window with Claude Code in it, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
-"Still starting; check the terminal." Once you've confirmed, the
-session's island appears and you're taken to it, right in front of its
-orchestrator.
+"Still starting; check the terminal, or stop waiting in the menu (Tab)."
+Once you've confirmed, the session's island appears and you're taken to
+it, right in front of its orchestrator.
 
-If the session can't start, the note says why. One session starts at a
-time.
+If the session can't start, the note says why. If Claude Code closes
+before it's ready (for example you chose not to trust the folder, or
+closed its window), the note says "The session didn't start." straight
+away.
+
+One session starts at a time. While one is starting, the menu has
+**✕ Stop waiting for the session starting**: it lets you start another.
+If the first one does come up later, its island appears and it's listed
+under Running, but you aren't taken there.
 
 ## Quitting the game (S05)
 
