@@ -2283,13 +2283,18 @@ exists.
     Code's own checks decide) is Claude Code's feature, and we don't
     override it. Hooks and channels are documented for this kind of use
     (Anthropic's fakechat demo is a localhost chat UI).
-  - *Ask Anthropic before the Steam release* (and preferably now): a
-    preliminary email through the sales contact the legal page names
-    (drafted 2026-10-02, not yet sent), asking whether the subscription
-    use is fine, whether the development-channel flag is acceptable in a
-    release (Channels are a research preview, below), and whether the
-    Commercial Terms step is the right one. Record the answer here.
-    Recheck the terms before each release.
+  - *Ask Anthropic before the Steam release* (and preferably now; both
+    drafted 2026-10-02, not yet sent). The terms questions (is the
+    subscription use fine, free and paid; is the Commercial Terms step
+    the right one) go by email through the contact-sales form, which the
+    legal page names for "questions about permitted authentication
+    methods". The channel-flag question (Channels are a research
+    preview, below) goes as a public issue on anthropics/claude-code,
+    where the channels docs ask for feedback; no terms questions there.
+    Other contacts found: support@anthropic.com (account help, not
+    rulings), marketing@anthropic.com (permission to use their names or
+    logos), notices@anthropic.com (formal legal notices only). Record
+    the answers here. Recheck the terms before each release.
 - **Claude branding.** Same page: a product may say in plain text that it
   runs Claude Code, but may not use the Claude Code or Anthropic names or
   logos in its own name or logo, or suggest Anthropic built or endorses it.

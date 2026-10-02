@@ -55,9 +55,13 @@ is left for C06 (recommendation: no).
   under Anthropic's terms, Steam store page branding, the channel flag to
   settle before Steam, Steam's account notice, licences and AI form, and
   C06's note on bypass.
-- A preliminary email to Anthropic was drafted for the user to send
-  (through the sales contact the legal page names), framed honestly as
-  free on GitHub and paid on Steam, since an answer about a free app
-  wouldn't cover a paid one. Not sent yet; record the answer under
-  Anthropic's terms when it comes.
+- Two messages to Anthropic were drafted for the user to send, framed
+  honestly as free on GitHub and paid on Steam, since an answer about a
+  free app wouldn't cover a paid one. The user doubted a sales form was
+  the right place; it is the contact the legal page names for sign-in
+  questions, and no dedicated address for developers' terms questions
+  turned up. So the user agreed to split it: the terms questions by
+  email through contact-sales, the channel-flag question as a public
+  issue on anthropics/claude-code. Not sent yet; record the answers
+  under Anthropic's terms when they come.
 - Not legal advice; Anthropic's written answer is the only certainty.
