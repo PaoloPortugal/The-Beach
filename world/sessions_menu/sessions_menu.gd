@@ -218,6 +218,10 @@ func _fill() -> void:
 		child.queue_free()
 	var query := _search.text.strip_edges().to_lower()
 	_add_button("+ New session…", _pick_folder)
+	if not launcher.pending.is_empty():
+		_add_button("✕ Stop waiting for the session starting", func() -> void:
+			launcher.stop_waiting()
+			_fill())
 
 	var running: Array[Array] = [] # [label, id]
 	for id in store.sessions:

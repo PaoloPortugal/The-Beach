@@ -239,6 +239,35 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
   } finally { await s.close(); await p.shutdown() }
 })
 
+test('a Claude session whose launcher exits before it comes up ends at once', async () => {
+  // Claude Code exits at a startup prompt (folder trust declined) or its terminal is closed.
+  const fs = await import('node:fs')
+  const p = new ClaudeProvider({
+    log: new RecordingLog(),
+    findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
+    selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
+    openTerminal: async (req) => {
+      const launcher = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 300)'], { stdio: 'ignore' })
+      fs.writeFileSync(path.join(req.runDir, 'launcher.pid'), String(launcher.pid))
+      return 'fake'
+    },
+    startupTimeoutMs: 60_000,
+  })
+  const s = await testServer([p])
+  try {
+    const c = await connect(s.port, s.token)
+    await c.sync()
+    const t0 = Date.now()
+    const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: os.tmpdir() } })
+    const ended = await c.next('session.ended', 5000)
+    assert.equal(ended.session, (r.result as { session: string }).session)
+    assert.equal(ended.reason, 'exited')
+    assert.ok(Date.now() - t0 < 5000, 'long before the startup timeout')
+    assert.deepEqual(c.invalid, [])
+    await c.close()
+  } finally { await s.close(); await p.shutdown() }
+})
+
 test('a Claude session that never comes up ends after the startup timeout', async () => {
   const p = new ClaudeProvider({
     log: new RecordingLog(),

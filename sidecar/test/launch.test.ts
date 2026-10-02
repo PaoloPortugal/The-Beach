@@ -8,7 +8,7 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { cleanEnv } from '../src/launch/env.ts'
 import { findOnPath, openTerminal, terminalsFor, TerminalError } from '../src/launch/terminal.ts'
-import { takeSessionFile, writeSessionFile } from '../src/launch/launcher.ts'
+import { launcherGone, launcherPidFile, takeSessionFile, writeSessionFile } from '../src/launch/launcher.ts'
 
 const here = import.meta.dirname
 const main = path.join(here, '..', 'src', 'main.ts')
@@ -211,8 +211,23 @@ test('the launcher passes on the program\'s exit code', async () => {
   const dir = tmp()
   const file = path.join(dir, 'launch.json')
   writeSessionFile(file, { command: process.execPath, args: ['-e', 'process.exit(7)'], cwd: dir, unsetEnv: { names: [], prefixes: [] } })
+  let pid = 0
   const code = await new Promise<number | null>((resolve) => {
-    spawn(process.execPath, [main, 'launch', file], { stdio: 'ignore' }).once('exit', resolve)
+    const child = spawn(process.execPath, [main, 'launch', file], { stdio: 'ignore' })
+    pid = child.pid!
+    child.once('exit', resolve)
   })
   assert.equal(code, 7)
+  // While a session starts, the provider watches this id (NOTES.md -> S02 -> Starting up).
+  assert.equal(fs.readFileSync(launcherPidFile(dir), 'utf8'), String(pid), 'it recorded its process id')
+  assert.equal(launcherGone(dir), true, 'and is seen as gone once it exited')
+})
+
+test('launcherGone: false while the launcher runs or before it recorded anything', async () => {
+  const dir = tmp()
+  assert.equal(launcherGone(dir), false, 'nothing recorded yet')
+  fs.writeFileSync(launcherPidFile(dir), String(process.pid))
+  assert.equal(launcherGone(dir), false, 'still running')
+  fs.writeFileSync(launcherPidFile(dir), 'garbage')
+  assert.equal(launcherGone(dir), false, 'unreadable: the startup timeout decides')
 })
