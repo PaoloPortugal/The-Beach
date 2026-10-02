@@ -1784,21 +1784,17 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). First feature on branch `s04-resume`: the **sessions menu**
-(Tab anywhere: new session, jump to a running one, resume a stored one;
-the "New session" post is removed; S03, S04, W07), built and documented,
-**live check passed with the user and the real `claude` (2026-10-01)**;
-ready for the user's review before merging to `main`. The menu is a **placeholder** (user's, 2026-10-01): it
-must be properly designed later, like all UI. S05 (end session), on
-branch `s05-end-session` (from `s04-resume`): ending sessions from the
-game is shelved as a watch item (no clean way in Claude Code); built
-instead: the **quit warning** and session-wide activity in the Running
-list, **live check passed (2026-10-02)** (resuming a session still
-running from before a restart runs it twice: a known issue, for
-attaching). Both branches are ready for the user's review; merging
-`s05-end-session` brings in `s04-resume` too. Then W05
-(archipelagos), A05 (attention cue) and W07 proper, each designed with
-the user first. Before that: C03 Markdown rendering (chosen by the user as the
+2026-10-01). **Next: W05 (archipelagos)**, designed with the user
+first. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+the **sessions menu** (Tab anywhere: new session, jump to a running one,
+resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
+S05: ending sessions from the game is shelved as a watch item (no clean
+way in Claude Code); built instead: the **quit warning** and
+session-wide activity in the Running list (live check passed
+2026-10-02; resuming a session still running from before a restart runs
+it twice: a known issue, for attaching). Both are **placeholders**, like
+all UI for now (user's): they must be properly designed later. After W05:
+A05 (attention cue) and W07 proper, each designed with the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
 and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
