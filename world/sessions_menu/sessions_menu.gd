@@ -2,8 +2,10 @@ class_name SessionsMenu
 extends CanvasLayer
 ## The sessions menu (S03, S04, a first W07): Tab opens it anywhere you're
 ## not chatting. "New session…" picks a project folder; the sessions
-## running now are listed to jump to their island; stored ones, newest
-## first, to resume. A search box filters both. A PLACEHOLDER, like all UI
+## running now are listed by cluster (W05) to jump to their island; stored
+## ones, newest first, to resume. A search box filters both, and the
+## cluster selector says where a new or resumed session goes (by its
+## repository unless changed). A PLACEHOLDER, like all UI
 ## for now (user's, 2026-10-01): it only has to work, and gets a proper
 ## design later.
 ##
@@ -33,6 +35,7 @@ var show_native: Callable = _show_native
 
 var store: SessionStore
 var sidecar: SidecarClient
+var clusters: SessionClusters
 var launcher := SessionLauncher.new()
 
 ## Stored sessions from every provider, newest first.
@@ -59,17 +62,29 @@ var _last_dir := ""
 @onready var _notice: Label = $Notice
 @onready var _dialog: FileDialog = $Dialog
 @onready var _wait_note: Control = $Panel/Layout/Waiting
-@onready var _lists: Array[Control] = [$Panel/Layout/Search, $Panel/Layout/Scroll]
+@onready var _cluster_row := HBoxContainer.new()
+@onready var _cluster := OptionButton.new()
+@onready var _lists: Array[Control] = [$Panel/Layout/Search, _cluster_row, $Panel/Layout/Scroll]
 
 
 func _ready() -> void:
 	add_child(launcher)
 	_panel.visible = false
+	# The cluster selector, under the search box.
+	var label := Label.new()
+	label.text = "Cluster:"
+	_cluster_row.add_child(label)
+	_cluster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cluster.focus_mode = Control.FOCUS_NONE
+	_cluster_row.add_child(_cluster)
+	$Panel/Layout.add_child(_cluster_row)
+	$Panel/Layout.move_child(_cluster_row, _search.get_index() + 1)
 	_search.text_changed.connect(func(_t: String) -> void: _fill())
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
+		var cluster := cluster_choice()
 		close()
-		launcher.create(path))
+		launcher.create(path, cluster))
 	_dialog.canceled.connect(func() -> void:
 		_panel.visible = true
 		_search.grab_focus())
@@ -87,10 +102,13 @@ func _ready() -> void:
 
 
 ## Call once, after SessionIslands is connected to the store.
-func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
+func setup(p_store: SessionStore, p_sidecar: SidecarClient, p_clusters: SessionClusters) -> void:
 	store = p_store
 	sidecar = p_sidecar
+	clusters = p_clusters
 	launcher.setup(store, sidecar)
+	launcher.clusters = clusters
+	clusters.changed.connect(_fill_clusters)
 	for sig in [store.session_added, store.session_removed]:
 		sig.connect(func(_id: String, _rest = null) -> void:
 			_refresh_hint()
@@ -112,6 +130,8 @@ func open() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_search.text = ""
 	_search.grab_focus()
+	_fill_clusters()
+	_cluster.select(0) # back to automatic each time
 	_list_stored()
 	_fill()
 	_refresh_hint()
@@ -159,6 +179,26 @@ func entries() -> Array[String]:
 		if not child.is_queued_for_deletion():
 			out.append(child.text)
 	return out
+
+
+## The cluster selector's choices as shown, top to bottom.
+func cluster_choices() -> Array[String]:
+	var out: Array[String] = []
+	for i in _cluster.item_count:
+		out.append(_cluster.get_item_text(i))
+	return out
+
+
+## Picks the cluster selector's choice shown as [param text].
+func choose_cluster(text: String) -> void:
+	for i in _cluster.item_count:
+		if _cluster.get_item_text(i) == text:
+			_cluster.select(i)
+
+
+## What the cluster selector says: a [SessionClusters] choice.
+func cluster_choice() -> String:
+	return str(_cluster.get_item_metadata(_cluster.selected)) if _cluster.selected >= 0 else SessionClusters.AUTOMATIC
 
 
 ## Presses the entry whose text begins with [param text].
@@ -219,18 +259,25 @@ func _fill() -> void:
 	var query := _search.text.strip_edges().to_lower()
 	_add_button("+ New session…", _pick_folder)
 
-	var running: Array[Array] = [] # [label, id]
-	for id in store.sessions:
-		var s: Dictionary = store.sessions[id]
-		var label := row(display_title(s.get("title"), s.get("project", {})), project_name(s.get("project", {})), state_text(store.activity(id)))
-		if query.is_empty() or label.to_lower().contains(query):
-			running.append([label, id])
+	var running: Array[Array] = [] # [cluster name, [[label, id]...]]
+	for cid in clusters.ids():
+		var cluster := clusters.cluster_name(cid)
+		var rows: Array[Array] = []
+		for id in clusters.sessions(cid):
+			var s: Dictionary = store.session(id)
+			var label := row(display_title(s.get("title"), s.get("project", {})), project_name(s.get("project", {})), state_text(store.activity(id)))
+			if query.is_empty() or label.to_lower().contains(query) or cluster.to_lower().contains(query):
+				rows.append([label, id])
+		if not rows.is_empty():
+			running.append([cluster, rows])
 	if not running.is_empty():
 		_add_heading("Running")
-		for r in running:
-			_add_button(r[0], func() -> void:
-				close()
-				go_to.emit(r[1]))
+		for group in running:
+			_add_heading("▸ " + group[0])
+			for r in group[1]:
+				_add_button(r[0], func() -> void:
+					close()
+					go_to.emit(r[1]))
 
 	_add_heading("Resume")
 	if not _stored_status.is_empty():
@@ -243,8 +290,9 @@ func _fill() -> void:
 			continue
 		shown += 1
 		_add_button(label, func() -> void:
+			var cluster := cluster_choice()
 			close()
-			launcher.resume(st["provider"], st["native_id"]))
+			launcher.resume(st["provider"], st["native_id"], cluster))
 	if shown == 0:
 		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
 
@@ -278,8 +326,9 @@ func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
 		_search.grab_focus() # cancelled in the picker: back to the menu
 		return
 	_last_dir = paths[0]
+	var cluster := cluster_choice()
 	close()
-	launcher.create(paths[0])
+	launcher.create(paths[0], cluster)
 
 
 func _stop_waiting() -> void:
@@ -293,6 +342,26 @@ func _set_waiting(on: bool) -> void:
 	_wait_note.visible = on
 	for c in _lists:
 		c.visible = not on
+
+
+## The cluster selector: automatic, each running cluster, a new one. Keeps
+## the choice while it still exists.
+func _fill_clusters() -> void:
+	var keep := cluster_choice()
+	_cluster.clear()
+	_cluster.add_item("Automatic (by repository)")
+	_cluster.set_item_metadata(0, SessionClusters.AUTOMATIC)
+	for cid in clusters.ids():
+		_cluster.add_item(clusters.cluster_name(cid))
+		_cluster.set_item_metadata(_cluster.item_count - 1, cid)
+	_cluster.add_item("New cluster")
+	_cluster.set_item_metadata(_cluster.item_count - 1, SessionClusters.NEW)
+	_cluster.select(0)
+	for i in _cluster.item_count:
+		if str(_cluster.get_item_metadata(i)) == keep:
+			_cluster.select(i)
+	if is_open():
+		_fill()
 
 
 func _add_heading(text: String) -> void:

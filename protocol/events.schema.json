@@ -63,7 +63,8 @@
       "required": ["path"],
       "properties": {
         "path": { "description": "Absolute path of the working directory.", "type": "string" },
-        "name": { "description": "Display name; defaults to the folder name.", "type": "string" }
+        "name": { "description": "Display name; defaults to the folder name.", "type": "string" },
+        "repo": { "description": "Set by the sidecar on sessions: the git repository's main folder, the same for all its worktrees. Absent outside git. Ignored in commands.", "type": "string" }
       },
       "additionalProperties": false
     },

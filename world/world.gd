@@ -32,7 +32,7 @@ func _ready() -> void:
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
 	_chat.setup(store, Sidecar)
-	_menu.setup(store, Sidecar)
+	_menu.setup(store, Sidecar, _islands.clusters)
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:

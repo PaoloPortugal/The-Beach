@@ -121,7 +121,11 @@ from the sessions menu (Tab), whose notice at the top of the screen shows
 the reply's `notice` until `session.created`; then the session's island
 appears and the player is taken there. A session that never comes up gets
 `session.ended` and the notice says so (NOTES.md → S03, W01 → Islands for
-sessions).
+sessions). The session's `project` in `session.created` (and in
+snapshots) carries `repo`, its git repository, worked out by the sidecar
+from the folder's `.git`; the world puts the island in that repository's
+cluster, or in the cluster chosen in the menu, which it noted against the
+session id from `ok { session }` (NOTES.md → W05).
 
 ## 2. A chat turn
 
