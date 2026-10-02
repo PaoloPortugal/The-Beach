@@ -20,8 +20,8 @@ from inside the world.
 
 **World.** A beach and ocean world. Each session is an **island**: a new
 session rises out of the ocean and an ended one sinks. Islands from the same
-project cluster into an **archipelago** joined by walkable bridges, and
-unrelated projects get their own stretch of ocean. Bridges are for
+repository form a **cluster** joined by walkable bridges, and unrelated
+projects get their own stretch of ocean. Bridges are for
 exploration and feel; a **teleport menu** is for getting work done quickly.
 Other biomes (hills, mountains) come later, so region connection is a
 general system, not a beach-specific one.
@@ -79,7 +79,7 @@ v1 slice.
 | W02 | Ocean (v1)                                | built   | W01, W02      | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
-| W05 | Archipelagos (project clustering)         | planned | n/a           | n/a       |
+| W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
 | W07 | Teleport menu                             | basic built (sessions menu) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
@@ -420,6 +420,13 @@ has for that session (e.g. from a snapshot) is stale and ignored.
 `app` (started here) or `external` (attached; not in v1). Agents are keyed by
 `agent` within their session.
 
+**Project.** A session's `project` has `path` (absolute) and `name` (the
+folder's name unless given). On sessions the sidecar adds `repo`: the git
+repository's main folder, the same for all its worktrees, absent outside
+git (W05). Godot groups islands by it; a `repo` sent in a command is
+ignored. Added 2026-10-02 without a version change (optional and
+additive).
+
 **Agents** form a tree: `role` is `orchestrator` or `subagent`, and `parent`
 is the agent that spawned it (null for the orchestrator). Agents stay in the
 session after finishing; Godot decides what to show. **States:**
@@ -526,14 +533,14 @@ The water level is y = 0.
   the session so its island stays the same.
 
 **Islands for sessions** (user's direction, 2026-09-30; temporary, a
-stand-in for W04 and W05 until bridges and travel are designed).
+stand-in for W04 until bridges and travel are designed).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
 each live session gets a new random island with an orchestrator (A01)
 bound to it, and loses it when the session ends. An island only appears
 once its session is up (`session.snapshot` or `session.created`), never
-while it is still starting. Islands sit on rings around the spawn
-platform (six per ring, 180 m apart, each ring turned half a step), and a
-new island takes the first free spot. A session you started or resumed
+while it is still starting. Islands are placed by cluster (W05): each
+cluster has a spot on rings around the spawn platform and its islands sit
+close together around it. A session you started or resumed
 from the sessions menu (S03, S04) takes you to its island, 6 m in front
 of the orchestrator (`world.gd` → `teleport`), and so does choosing a
 running one there (W07); sessions already running when the world
@@ -542,7 +549,7 @@ island is put back on the platform.
 
 ### W02 Ocean
 *Built (v1). Scope: core.* The ocean surrounding the islands. Unrelated
-projects get their own area of it (W05).
+projects get their own area of it (W05: each cluster has its own spot).
 
 *Decided (user's, 2026-09-30):* a flat-shaded low-poly water shader with
 gentle waves.
@@ -601,21 +608,78 @@ as the "new session" feedback. An ended session makes its island sink, and
 the island is then removed. *Until then* islands simply appear and vanish
 (W01 → Islands for sessions).
 
-### W05 Archipelagos
-*Planned.* Islands of the same project/repo cluster into an archipelago.
-Whether that goes strictly by repo path or allows manual naming and arranging is
-open question 2.
+### W05 Clusters
+*Built (2026-10-02). Scope: core.* Islands of the same repository sit
+together in a **cluster** (called archipelagos until the user renamed
+them, 2026-10-02). Open question 2.
 
-*Direction (user's, 2026-09-30; for later, not M1):* both. Archipelagos
-(clusters) are defined by the user: creating a session asks which
-existing archipelago it joins, or makes a new one. Sessions in the same
-repository are grouped into the same archipelago automatically. Details
-(how a cluster is named, stored and shown, what counts as the same
-repository, whether the automatic choice can be overridden) are decided
-when W05 is built, together with S03's proper design.
+*Direction (user's, 2026-09-30):* both kinds of grouping. Clusters are
+chosen when creating a session (join a running one or make a new one),
+and sessions in the same repository are grouped automatically.
+
+*Decided (user's, 2026-10-02):*
+- **Same repository** means the same git repository, worktrees included
+  (e.g. this repo and its `.claude/worktrees/*`). A folder outside git is
+  its own cluster.
+- A session **joins its repository's cluster automatically**; the first
+  session of a repository makes a new cluster named after the
+  repository's folder. Instead, the sessions menu's **cluster selector**
+  picks another running cluster or "New cluster" (rejected: an extra step
+  after choosing the folder).
+- Clusters exist **only while they have sessions**, nothing is
+  remembered: when a cluster's last session ends, the cluster and its
+  spot are freed.
+- **Layout until bridges (W06):** each cluster takes a spot on rings
+  around the spawn platform; its islands sit close together around it.
+- The **sidecar** works out the repository and sends it in the protocol
+  (`project.repo`); the game doesn't read `.git`.
+- **Shown** by name: a cluster is named after its repository's folder (a
+  manual "New cluster" after the session's own folder), and the Running
+  list groups sessions under cluster headings. Nothing in the world shows
+  it yet (a sign comes with props, open question 8). Placeholder UI, like
+  all UI.
+
+**How it works.**
+- *Sidecar* (`sidecar/src/repo.ts`, generic, any provider). `findRepo`
+  walks up from the project folder to the first `.git`. A `.git` folder:
+  that folder is the repository. A `.git` file (a worktree or a
+  submodule) says `gitdir: <its git folder>`; a worktree's git folder has
+  a `commondir` pointing to the main repository's `.git`, whose parent is
+  the repository; a submodule's has none, so its own git folder is its
+  repository. No git command is run, and anything unreadable means "not
+  in git". The registry sets `project.repo` when a session is announced
+  (`withRepo`), so `session.created` and snapshots carry it.
+- *Godot* (`SessionClusters`, `world/session_clusters.gd`, owned by
+  `SessionIslands`). When a session comes up, `add` puts it in a cluster:
+  the one chosen for it, if still running; a new one if "New cluster" was
+  chosen; else the cluster already holding a session of its repository
+  (`repo`, or `path` outside git), else a new one. Names repeat with a
+  number ("game 2"). `remove` frees the island's spot and, with the last
+  session, the cluster's. The choice reaches it through
+  `SessionLauncher.create` / `resume`, which call `clusters.choose` with
+  the session id when the reply comes (before `session.created`).
+- *Layout* (my picks): cluster spots on rings around the platform, 360 m
+  apart, six per ring, each ring turned half a step; islands of a cluster
+  100 m apart, the first in its middle, then rings of 6, 12, 18 at 100,
+  200, 300 m. An island's land reaches about 40 m from its centre, its sea
+  floor about 67 m. `SessionIslands.session_at` picks the nearest island,
+  since a cluster's islands are close.
+- *Sessions menu* (S03): a "Cluster:" row under the search box with
+  "Automatic (by repository)", each running cluster and "New cluster";
+  back to Automatic each time the menu opens, hidden with the lists while
+  the folder picker is open, and used by both New session and Resume.
+  The Running list (W07) shows "▸ <cluster>" headings with their
+  sessions under them, and the search also matches cluster names.
+
+*Known limits.* A cluster of more than 7 islands reaches out 200 m and
+more, so it can come close to a neighbouring cluster's (spots 360 m
+apart); bridges and the real layout come with W06. A session of a
+repository put in another cluster by hand makes later automatic
+sessions of that repository join it too (the first cluster holding one).
+Nothing in the world shows a cluster's name yet.
 
 ### W06 Bridges
-*Planned.* Walkable bridges connect islands within an archipelago, for
+*Planned.* Walkable bridges connect islands within a cluster, for
 physical movement and the feel of the world. Build it as a general
 "connect regions" system, not beach-specific, so that future biomes (hills,
 mountains) plug into it.
@@ -627,11 +691,12 @@ add a minimap are open question 3.
 
 *Basic version built (user's decision, 2026-10-01), inside the sessions
 menu (S03). Scope: core.* The menu's "Running" list shows every live
-session as "title · project · state" (working, waiting for you, stopped
+session, grouped under its cluster's name (W05), as "title · project ·
+state" (working, waiting for you, stopped
 or idle, from the whole session, subagents included: S05 →
 `SessionStore.activity`); a click closes the menu and puts you in
 front of that session's orchestrator (`world.gd` → `teleport`). The
-search box filters it with the rest. A **placeholder** (user's): W07
+search box filters it with the rest, by cluster name too. A **placeholder** (user's): W07
 proper adds the sorting, grouping and maybe a minimap (open question 3)
 and gets a real design. *Live check passed (2026-10-01)* with the user
 and the real `claude`: two sessions under Running, jumping between them,
@@ -1441,7 +1506,7 @@ proper design later, like all UI.
   no session runs and nothing is starting, "Press Tab for sessions"
   shows at the bottom of the screen.
 - **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), then "+ New session…", "Running" (W07) and "Resume" (S04).
+  opening), the cluster selector (W05), then "+ New session…", "Running" (W07) and "Resume" (S04).
   The search filters Running and Resume by title and project, like
   Claude Code's own `/resume` list (user's choice).
 - **New session…** opens the **system's folder picker** on every
@@ -1484,8 +1549,8 @@ later starts nothing), starting a session and landing at its island with
 the controls, `/exit` back to the platform.
 
 Still to design: the menu itself, recent folders, naming, choosing a
-provider, starting several at once, and where archipelagos are chosen
-(W05).
+provider and starting several at once. Where a session's cluster is
+chosen was decided with W05 (the cluster selector).
 
 ### S04 List and resume sessions
 *Planned (after v1).* Claude Code stores transcripts as JSONL under
@@ -1677,10 +1742,13 @@ godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --
 godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/world_test.gd
 godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
+godot --headless --path . --script res://tests/world/clusters_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
-The Markdown test (C03) checks escaping and links (with a fuzz test),
+The clusters test (W05) checks grouping by repository and worktree,
+folders outside git, a chosen or new cluster, names, freeing spots and
+the layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
 emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
@@ -1690,7 +1758,7 @@ hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
 folder), islands for sessions applied to the store by hand (one
-per session, apart, the bubble streaming and rendering Markdown, the teleport, the chat
+per session, in the folder's cluster, the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, a long chat built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the session ending under you), and walking up to chat (A01,
@@ -1699,7 +1767,7 @@ through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
 answers a permission prompt and a question on the card, then lists,
 searches and resumes a stored session (S04) and goes to a running one
-from the menu (W07). It can't check looks or the mouse: for those, run the game, under both
+from the menu (W07), listed under its cluster. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
@@ -1737,15 +1805,17 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 1. ~~**Event schema.**~~ *Decided:* version 1 is in Protocol and
    `protocol/events.schema.json`.
-2. ~~**Archipelago clustering.**~~ *Mostly decided (user's, 2026-09-30),
-   recorded in W05:* user-defined clusters chosen when creating a session,
-   plus automatic grouping of sessions from the same repository. Details
-   come with W05.
+2. ~~**Clustering.**~~ *Decided (user's, 2026-09-30 and 2026-10-02),
+   recorded in W05:* sessions of the same git repository (worktrees
+   included) join one cluster automatically, and the sessions menu can
+   put a session in another running cluster or a new one. Clusters last
+   while they have sessions.
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
    *Partly answered (user's, 2026-10-01):* travel lives in the one
    sessions menu (Tab), which lists running sessions to jump to (W07's
-   basic version). Sorting, grouping and the minimap are still open.
+   basic version). Running sessions are grouped by cluster (W05).
+   Sorting and the minimap are still open.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -1784,8 +1854,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **Next: W05 (archipelagos)**, designed with the user
-first. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+2026-10-01). **W05 (clusters, renamed from archipelagos by the user)
+is built on branch `w05-clusters`** (design decided with the user
+2026-10-02; code, tests and docs done); **live check next**, then the
+user's review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
@@ -1894,7 +1966,7 @@ batches; the partial message is completed), and "No" on a dialog.
 **M1 v1 slice.** *Done, merged to `main` 2026-10-01.* The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
 exists.
-- One archipelago, one island, one orchestrator (W01, W02, A01).
+- One island, one orchestrator (W01, W02, A01).
 - Sidecar launches one `claude` CLI session in a terminal, turns its hook
   events into generic events over WebSocket, and relays chat and permission
   answers through a channel (S01, S02). Built for all three platforms
@@ -1907,7 +1979,7 @@ exists.
 - Permission prompts and questions answered in the world (C05 and the
   `questions` capability's UI; added to M1 by the user, 2026-09-30).
   They can still be answered in the terminal too.
-- Not in v1: bridges, teleport menu, multiple islands or archipelagos,
+- Not in v1: bridges, teleport menu, multiple islands or clusters,
   minigames and parkour, Markdown polish, any second provider.
 
 **After v1.** The remaining features in the index. They are not ordered yet.
@@ -1922,7 +1994,7 @@ exists.
   transcripts are off.
 - **Agent scaling**, only if agent counts become a problem:
   - *Island growth:* the island footprint grows, or subdivides into a
-    mini-archipelago, past some agent count.
+    mini-cluster, past some agent count.
   - *LOD / culling:* far or long-idle agents collapse into a simple
     stand-in (stacked PCs, a counter badge) and expand when approached or
     clicked. This is the route to "unlimited" agents.
@@ -2144,6 +2216,10 @@ exists.
   (billed per token) rather than the user's subscription. We use the CLI
   route instead (S02). Revisit only if Anthropic confirms subscription use
   is fine for this kind of app, or an API-key option is wanted.
+- **Clusters aren't remembered (user's decision, 2026-10-02).** A
+  cluster lasts while it has sessions; a manual choice is lost when its
+  sessions end or the game restarts, and resumed sessions go by their
+  repository again unless chosen in the menu (W05).
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
 - **No WSL in v1 (user's decision).** On Windows, only a native Windows

@@ -9,6 +9,7 @@ here; each section is labelled with its feature ID.
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
+- [Clusters (W05)](#clusters-w05)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
@@ -37,7 +38,13 @@ properly later.
 Press **Tab** anywhere (except while chatting) to open the sessions menu;
 **Tab** or **Esc** closes it. While no session is running, "Press Tab for
 sessions" reminds you at the bottom of the screen. Type in the search box
-at the top to filter the lists by title or project.
+at the top to filter the lists by title, project or cluster.
+
+Under the search box, **Cluster** says which cluster a session you start
+or resume joins (see Clusters below). **Automatic (by repository)**, the
+choice each time the menu opens, puts it with the other sessions of its
+git repository. You can pick one of the running clusters instead, or
+**New cluster** to give it a cluster of its own.
 
 - **+ New session…** opens your system's own folder picker (File
   Explorer on Windows, the usual open panel on macOS and Linux) to
@@ -47,7 +54,8 @@ at the top to filter the lists by title or project.
   switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
   get back to the game; choosing a folder in it afterwards does nothing.
   If your system has no picker of its own, the game shows its own.
-- **Running** lists the sessions running now, with what each is doing
+- **Running** lists the sessions running now, grouped under their
+  cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
   while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
   its island, in front of its orchestrator.
@@ -87,10 +95,36 @@ Each session has its own small low-poly beach island: a flat spot in the
 middle where its orchestrator sits, dunes around it, and a sandy beach.
 Islands are made by the game, so no two look the same. An island appears
 once its session is running and disappears when the session ends; if you
-are standing on it then, you're put back on the platform. Islands sit
-around the platform, far apart; for now you travel between them with
+are standing on it then, you're put back on the platform. Islands of the same
+project sit together in a cluster (below), and clusters sit around the
+platform, far apart; for now you travel between them with
 the sessions menu (Tab), or back to the platform by falling in the sea. The ocean has gentle waves and
 fades into haze at the horizon.
+
+## Clusters (W05)
+
+Sessions working on the same project share a **cluster**: their islands
+sit close together, about 100 m apart, and other projects' clusters are
+farther out around the platform.
+
+A session joins its project's cluster on its own. "Same project" means
+the same git repository, including its worktrees (for example a
+repository and the worktrees Claude Code makes under `.claude/worktrees`).
+A folder that isn't in a git repository gets a cluster of its own. A new
+cluster is named after the repository's folder; if the name is taken, a
+number is added ("game 2"). To put a session somewhere else, choose a
+running cluster or **New cluster** in the sessions menu before starting
+or resuming it (a new cluster you ask for is named after the session's
+folder).
+
+Clusters last only while they have sessions: when a cluster's last
+session ends, it's gone, and its place around the platform is free
+again. The game doesn't remember them after it closes.
+
+For now a cluster shows only in the sessions menu, as a heading in the
+Running list; nothing on the islands says which cluster they're in yet,
+and there are no bridges between them. A very big cluster (more than
+seven sessions) can reach close to its neighbours.
 
 ## Moving around (W03)
 
