@@ -39,7 +39,8 @@ test('macOS and Linux candidates include the documented locations', () => {
   assert.equal(linux[0], '/home/u/.local/bin/claude')
 })
 
-test('npm wrapper: finds the exe inside the npm folder, never outside it', () => {
+// Windows paths on a real folder: only meaningful where the wrapper exists.
+test('npm wrapper: finds the exe inside the npm folder, never outside it', { skip: process.platform !== 'win32' }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'npm-'))
   const cmd = path.join(dir, 'claude.cmd')
   fs.writeFileSync(cmd, '@ECHO off\r\n"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe" %*\r\n' +
