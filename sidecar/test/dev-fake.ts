@@ -9,6 +9,9 @@
 //                in the background and report back (A02, A04)
 //   notice       a session notice (transcripts off)
 //   clear        a new conversation in the session, like /clear (S02)
+//   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
+// A new session has no title until its first message names it, like
+// Claude Code naming it.
 // A stop from the world (interrupt capability) ends whatever is running.
 // Three stored sessions can be listed and resumed (S04); a resumed one
 // comes back with a short chat so far, and isn't listed while it runs.
@@ -57,6 +60,7 @@ class ScriptedSession extends FakeSession {
   override async sendMessage(text: string) {
     this.stopped = false
     await this.say('user', text)
+    if (this.title === null) this.retitle(text.trim().split('\n', 1)[0]!.slice(0, 80))
     this.state('main', 'working')
     const word = text.toLowerCase()
     if (word.includes('permission')) void this.permissionTurn()
@@ -64,6 +68,7 @@ class ScriptedSession extends FakeSession {
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
     else if (word.includes('notice')) void this.noticeTurn()
     else if (/\bclear\b/.test(word)) void this.clearTurn()
+    else if (/^rename\s+\S/.test(word)) void this.renameTurn(text.trim().slice(6).trim())
     else void this.echoTurn(text)
   }
 
@@ -172,10 +177,21 @@ class ScriptedSession extends FakeSession {
     return this.finish('I sent a notice for this session.')
   }
 
+  private retitle(title: string) {
+    this.title = title
+    this.emit({ type: 'session.updated', title })
+  }
+
+  private async renameTurn(title: string) {
+    this.retitle(title)
+    return this.finish(`Renamed to ${title}.`)
+  }
+
   private async clearTurn() {
     this.state('main', 'idle')
     await sleep(300)
-    this.emit({ type: 'session.updated', native_id: crypto.randomUUID() })
+    this.title = null
+    this.emit({ type: 'session.updated', native_id: crypto.randomUUID(), title: null })
     this.emit({ type: 'session.notice', notice: {
       code: 'conversation_cleared',
       message: 'A new conversation started in this session (/clear). Claude no longer remembers the chat above.',
@@ -217,7 +233,7 @@ class ScriptedProvider extends FakeProvider {
     if (!stored) throw new Error(`No stored session ${nativeId}`)
     const s = new ScriptedSession(this, host, stored.project)
     s.nativeId = nativeId
-    s.title = stored.title ?? undefined
+    s.title = stored.title
     s.history = [
       { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
       { message: 'r2', agent: 'main', role: 'assistant', text: `Resumed **${stored.title ?? 'this session'}**.`, at: stored.updated_at },
@@ -229,6 +245,7 @@ class ScriptedProvider extends FakeProvider {
 
   override async create(host: Parameters<FakeProvider['create']>[0], options: Parameters<FakeProvider['create']>[1]) {
     const s = new ScriptedSession(this, host, options.project)
+    s.title = null
     this.sessions.push(s)
     // Come up a moment later, like a real session starting in a terminal.
     setTimeout(() => s.announce(), 500)

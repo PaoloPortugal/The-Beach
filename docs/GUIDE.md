@@ -46,6 +46,15 @@ choice each time the menu opens, puts it with the other sessions of its
 git repository. You can pick one of the running clusters instead, or
 **New cluster** to give it a cluster of its own.
 
+Sessions are named the way Claude Code names them. A new one shows as
+"New session" until your first message, which names it for now. If you
+typed that message in the terminal, a moment later Claude Code gives the
+session a short title of its own, and that replaces it. Claude Code
+doesn't do this for messages sent from the game, so a session you start
+chatting with in the game keeps its first message as its name. If you rename it with `/rename` in the terminal, that name
+is used instead, everywhere in the game. The Resume list uses the same
+names as Claude Code's own `/resume` list.
+
 - **+ New session…** opens your system's own folder picker (File
   Explorer on Windows, the usual open panel on macOS and Linux) to
   choose the project folder you want to work in. Cancelling it takes you
@@ -325,13 +334,15 @@ outside a prompt. Ending a session is `/exit` in the terminal for now.
 **Starting over with `/clear`.** If you type `/clear` in the terminal,
 Claude starts a fresh conversation in the same session. It stays on the
 same island, and the chat window clears right away, with a note that a
-new conversation started. The earlier conversation isn't lost: `/resume`
-in the terminal brings it back.
+new conversation started, and the session is a "New session" again
+until your next message names it. The earlier conversation isn't lost:
+`/resume` in the terminal brings it back.
 
 **Switching with `/resume`.** If you type `/resume` in the terminal and
 pick an earlier conversation, the island stays and the chat changes to
-that conversation's right away, with a note saying so. Messages from the
-world then go to that conversation.
+that conversation's right away, with a note saying so, and the session
+takes that conversation's name. Messages from the world then go to that
+conversation.
 
 **Not available in sessions started from the world.** Claude Code's
 agent view (pressing Left at an empty prompt), `/bg` and `/fork`. They

@@ -337,7 +337,7 @@
     },
 
     "session.updated": {
-      "description": "Sidecar -> Godot. Some of the session's own fields changed; only the changed ones are sent. native_id: the provider started a new conversation in the same session (e.g. Claude Code's /clear), same project.",
+      "description": "Sidecar -> Godot. Some of the session's own fields changed; only the changed ones are sent. native_id: the provider started a new conversation in the same session (e.g. Claude Code's /clear), same project. title: the session's name changed (e.g. the provider named it, or the user renamed it); null when it has none yet.",
       "type": "object",
       "required": ["type", "session", "seq"],
       "minProperties": 4,
@@ -345,7 +345,8 @@
         "type": { "const": "session.updated" },
         "session": { "$ref": "#/$defs/id" },
         "seq": { "$ref": "#/$defs/seq" },
-        "native_id": { "type": "string", "minLength": 1 }
+        "native_id": { "type": "string", "minLength": 1 },
+        "title": { "type": ["string", "null"] }
       },
       "additionalProperties": false
     },

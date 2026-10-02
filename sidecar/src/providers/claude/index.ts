@@ -20,7 +20,7 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
 import { HookServer } from './hook-server.ts'
-import { findStored, listStored, projectsDir, readHistory } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readHistory, readTitles, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ClaudeSession, HOOKS_CHECK_MS, type Launch } from './session.ts'
 
@@ -89,9 +89,10 @@ export class ClaudeProvider implements Provider {
   }
 
   async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
+    // Named by Claude Code as it goes (no --name): NOTES.md -> S02 -> Titles.
     const name = options.project.name ?? path.basename(options.project.path)
     return this.start(host, {
-      project: options.project, name, nativeId: crypto.randomUUID(), resume: false, history: [],
+      project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false, history: [],
       ...(options.prompt ? { prompt: options.prompt } : {}),
     })
   }
@@ -109,7 +110,7 @@ export class ClaudeProvider implements Provider {
       throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
     }
     return this.start(host, {
-      project: stored.project, name: stored.title ?? path.basename(stored.project.path),
+      project: stored.project, name: stored.title ?? path.basename(stored.project.path), titles: readTitles(stored.file),
       nativeId, resume: true, history: readHistory(stored.file),
     })
   }
@@ -124,14 +125,15 @@ export class ClaudeProvider implements Provider {
   }
 
   private async start(host: SessionHost, o: {
-    project: Project; name: string; nativeId: string; resume: boolean; history: HistoryMessage[]; prompt?: string
+    /** name: the terminal window's title. */
+    project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: HistoryMessage[]; prompt?: string
   }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
     const hooks = await this.hookServer()
     const launch = this.prepare(o.nativeId)
     this.live.add(o.nativeId)
-    const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.name, this.log,
+    const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.titles, this.log,
       () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
     // After /clear the old conversation is stored, not running: it may be listed and resumed.
@@ -141,8 +143,8 @@ export class ClaudeProvider implements Provider {
     const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
-      // A resumed session keeps its id and name.
-      ...(o.resume ? ['--resume', o.nativeId] : ['--session-id', o.nativeId, '--name', o.name]),
+      // A resumed session keeps its id and name; a new one is named by Claude Code.
+      ...(o.resume ? ['--resume', o.nativeId] : ['--session-id', o.nativeId]),
       // Our hooks for this session only; the user's settings files are never edited.
       '--settings', settings,
       '--mcp-config', mcpConfig,

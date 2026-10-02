@@ -304,6 +304,8 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 	_seen_since_sync[id] = true
 	if known:
 		# Everything may have changed (a resync after a gap).
+		if s.get("title") != old.get("title"):
+			session_changed.emit(id, ["title"])
 		for a in s["agents"]:
 			agent_changed.emit(id, a["agent"])
 		permissions_changed.emit(id)

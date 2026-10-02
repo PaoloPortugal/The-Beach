@@ -41,6 +41,10 @@ test('signals: ordinary errors, user text that merely mentions it, subagents and
   assert.deepEqual(signalsIn(JSON.stringify({ type: 'continued-in', continuedInSessionId: '../../x' })), [])
   assert.deepEqual(signalsIn(JSON.stringify({ type: 'continued-in' })), [])
   assert.deepEqual(signalsIn('null'), [])
+  // Names (as written by Claude Code 2.1.287): its own, and --name or /rename.
+  assert.deepEqual(signalsIn('{"type":"ai-title","aiTitle":"Log review","sessionId":"203ececb-53d8-48de-8e76-9b3014c9618d"}'), [{ kind: 'title', titles: { ai: 'Log review' } }])
+  assert.deepEqual(signalsIn('{"type":"custom-title","customTitle":"auth work","sessionId":"203ececb-53d8-48de-8e76-9b3014c9618d"}'), [{ kind: 'title', titles: { custom: 'auth work' } }])
+  assert.deepEqual(signalsIn(JSON.stringify({ type: 'ai-title', aiTitle: 5 })), [])
 })
 
 test('translator: a "No" denies the call\'s prompt; the interruption leaves the orchestrator idle', () => {

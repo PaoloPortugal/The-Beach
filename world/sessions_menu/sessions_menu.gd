@@ -114,6 +114,9 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient, p_clusters: SessionC
 			_refresh_hint()
 			if is_open():
 				_fill())
+	store.session_changed.connect(func(_id: String, fields: Array) -> void:
+		if "title" in fields and is_open():
+			_fill())
 	_refresh_hint()
 
 
@@ -269,7 +272,7 @@ func _fill() -> void:
 		var rows: Array[Array] = []
 		for id in clusters.sessions(cid):
 			var s: Dictionary = store.session(id)
-			var label := row(display_title(s.get("title"), s.get("project", {})), project_name(s.get("project", {})), state_text(store.activity(id)))
+			var label := row(display_title(s.get("title")), project_name(s.get("project", {})), state_text(store.activity(id)))
 			if query.is_empty() or label.to_lower().contains(query) or cluster.to_lower().contains(query):
 				rows.append([label, id])
 		if not rows.is_empty():
@@ -289,7 +292,7 @@ func _fill() -> void:
 		return
 	var shown := 0
 	for st in _stored:
-		var label := row(display_title(st.get("title"), st["project"]), project_name(st["project"]), _ago(st["updated_at"]))
+		var label := row(display_title(st.get("title"), "Untitled session"), project_name(st["project"]), _ago(st["updated_at"]))
 		if not query.is_empty() and not label.to_lower().contains(query):
 			continue
 		shown += 1
@@ -394,10 +397,12 @@ static func row(name: String, project: String, detail: String) -> String:
 	return "%s   ·   %s   ·   %s" % [name, project, detail]
 
 
-static func display_title(t: Variant, _project: Dictionary) -> String:
+## A session's title (S02 -> Titles), or [param none] while it has none: a
+## running one is new until its first message names it.
+static func display_title(t: Variant, none := "New session") -> String:
 	if t is String and not t.is_empty():
 		return t
-	return "Untitled session"
+	return none
 
 
 static func project_name(project: Dictionary) -> String:

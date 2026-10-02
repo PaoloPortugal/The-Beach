@@ -468,12 +468,14 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 
 - `session.snapshot` places an island as is; `session.created` plays the rise
   animation.
-- `session.updated` carries only the session's own fields that changed
-  (for now only `native_id`: the provider started a new conversation in
-  the same session and project, e.g. Claude Code's `/clear`; user's
-  decision, 2026-10-01). The session and its island stay; the world
-  reloads the chat with `session.get_history`, which now holds the new
-  conversation's (empty after `/clear`).
+- `session.updated` carries only the session's own fields that changed:
+  `native_id` (the provider started a new conversation in the same
+  session and project, e.g. Claude Code's `/clear`; user's decision,
+  2026-10-01) and `title` (the session's name changed, or `null`: it has
+  none yet; S02 → Titles, 2026-10-02). On a new `native_id` the session
+  and its island stay; the world reloads the chat with
+  `session.get_history`, which now holds the new conversation's (empty
+  after `/clear`). A new `title` relabels it wherever it's listed.
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
   text typed in the terminal shows up in the world.
@@ -1203,8 +1205,9 @@ or bundles Claude Code.
 
 **Launch.** A terminal window opens through the terminal launcher
 (Architecture → Platforms) and starts `claude` in the project folder with:
-- `--session-id <uuid>` (it becomes `native_id`) and `--name`, or
-  `--resume <id>` for a stored session (S04; the id stays the same);
+- `--session-id <uuid>` (it becomes `native_id`; no `--name`: Claude
+  Code names the session, see Titles), or `--resume <id>` for a stored
+  session (S04; the id and name stay the same);
 - `--settings <file>`: our hooks for this session only, so the user's own
   settings files are never edited, and `disableAgentView: true`. Agent
   view (Left at an empty prompt, `/bg`, `/fork`) moves the conversation
@@ -1378,6 +1381,48 @@ folder than the first hook's, is ignored (and logged). Hooks without a
 isn't connected, `message.send` and `permission.respond` say so ("The
 world can't reach this conversation right now ...; use the terminal.")
 instead of losing the message.
+
+**Titles** (user's decisions, 2026-10-02; dev log 2026-10-02-titles).
+Sessions are named the way Claude Code names them, not after their
+folder: a name the user gave (`/rename`, written to the transcript as a
+`custom-title` entry; `--name` writes the same) wins, else the title
+Claude Code generates itself (an `ai-title` entry, written shortly after
+the first message, e.g. "Docker compose dual backend containers"), else
+the first line of the first user message (80 characters), else none. The
+same order names stored sessions in S04's list, so both match Claude
+Code's own `/resume` list. `ai-title` isn't documented (found in real
+transcripts, 2026-10-02; Watch items → Transcript format): it is read
+like the rest of the transcript, defensively, and without it the session
+keeps its first message's line. Claude Code writes both entries again
+now and then; the newest wins. Code: `store.ts` (`Titles`, `pickTitle`,
+`readTitles`), `transcript.ts` (`title` signals), `ClaudeSession.retitle`.
+- A new session starts unnamed (`title: null` in `session.created`; the
+  world shows "New session"), is named by its first message (from the
+  world or typed in the terminal), then by Claude Code's title a moment
+  later, and by any `/rename`. Each change of the title shown goes out
+  as `session.updated` with `title`, once the session is up (one found
+  while starting is in `session.created`).
+- `/clear` starts unnamed again (`title: null` in the same
+  `session.updated` as the new `native_id`); `/resume` takes the resumed
+  conversation's titles from its transcript, and so does a session
+  resumed from the world (S04).
+- The terminal window is still titled after the project folder.
+- **A first message from the world gets no generated title** (live
+  check, 2026-10-02; user's decision to keep it). Claude Code writes
+  `ai-title` only for a prompt typed in the terminal: world chat arrives
+  through the channel and is stored as `isMeta`, which it skips. Such a
+  session keeps its first message's line (still matching Claude Code's
+  own `/resume` list); a `/rename`, or an `ai-title` Claude Code writes
+  later, still replaces it. Not worked around: making a title ourselves
+  would mean calling a model or making Claude run `/rename` (Principles).
+  Watch items → Generated session titles.
+
+*Live check passed (2026-10-02)* with the user and the real `claude`
+(notes-app sandbox): "New session" until the first message, then its
+line, then Claude Code's title for a prompt typed in the terminal;
+`/rename` renamed it in the world, the open menu included; `/clear`
+made it "New session" again; `/resume` brought back the earlier name;
+the Resume list matched Claude Code's own `/resume` list.
 
 **Permissions** (C05's sidecar side). The relayed prompt names no tool
 call or agent, so the sidecar ties it to the open call of that tool whose
@@ -1588,7 +1633,12 @@ behind the game (menu Cancel gives the controls back; a folder picked
 later starts nothing), starting a session and landing at its island with
 the controls, `/exit` back to the platform.
 
-Still to design: the menu itself, recent folders, naming, choosing a
+Sessions are named like Claude Code names them, not after their folder
+(user's decision, 2026-10-02; S02 → Titles): a running one is "New
+session" until its first message names it, and the menu, the quit
+dialog and the Running list follow every rename.
+
+Still to design: the menu itself, recent folders, choosing a
 provider and starting several at once. Where a session's cluster is
 chosen was decided with W05 (the cluster selector).
 
@@ -1607,8 +1657,9 @@ reaches that far back.
 *Built. Scope: core* (`session.list_stored`, `session.resume`). The
 world side is the sessions menu's "Resume" list (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
-newest first, as "title · project · how long ago" ("Untitled session"
-without a title), asked for each time the menu opens, filtered by the
+newest first, as "title · project · how long ago" (titles in Claude
+Code's own order, S02 → Titles; "Untitled session" without one, which
+only another provider could list), asked for each time the menu opens, filtered by the
 search box. A click resumes it through the same launcher and notices as
 a new session; once up, you're taken to its island and its chat holds
 the conversation so far. A **placeholder**, like the rest of the menu.
@@ -1620,8 +1671,10 @@ remembering them; then listed under Running, not Resume.
 The sidecar side, built with S02: `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
 (at most 200), reading only each file's first and last 64 KiB: project
-from `cwd`, title from the newest `custom-title` (our `--name`, or a
-`/rename`) else the first user message, `updated_at` from the file time.
+from `cwd`, title from `pickTitle` (S02 → Titles: the newest
+`custom-title`, else the newest `ai-title`, else the first user
+message's line; a transcript with none of them isn't listed),
+`updated_at` from the file time.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
 for now (user's decision, 2026-09-29); VS Code and desktop sessions are
@@ -1749,7 +1802,9 @@ In `sidecar/`:
   `permission`, `question`, `agents [n]`, `notice` or `clear` acts out
   that part of a session (a prompt to answer, a two-item question: one
   choice, then several; n background subagents, a notice, a new
-  conversation like `/clear`); anything else is echoed back. A stop from the world ends what's
+  conversation like `/clear`), and `rename <name>` renames the session
+  like `/rename`; anything else is echoed back. A new session is
+  unnamed until its first message names it (S02 → Titles). A stop from the world ends what's
   running. It also lists three stored sessions to resume (S04), each
   coming back with a two-message chat; a running one isn't listed.
   `test/dev-fake.test.ts` plays every scenario.
@@ -2115,8 +2170,14 @@ exists.
   up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
   Claude Code updates: if it stops accepting older servers, or channels
   move to subscriptions, adopt the SDK once it supports the new revision.
+- **Generated session titles** (S02 → Titles). Claude Code doesn't
+  generate a title (`ai-title`) when a session's first message comes
+  from the world (a channel message, `isMeta`); such sessions are named
+  by that message's line. If Claude Code starts titling channel
+  messages, nothing needs changing: the newer title wins on its own.
 - **Transcript format.** Esc and terminal "No" are only visible in the
-  transcript, whose line format isn't a documented interface. It is used
+  transcript, whose line format isn't a documented interface; nor are
+  the session titles in it (`custom-title`, `ai-title`; S02 → Titles). It is used
   for status only, parsed defensively, and re-checked on Claude Code
   updates; if it changes, the world falls back to inferring from the next
   event.
