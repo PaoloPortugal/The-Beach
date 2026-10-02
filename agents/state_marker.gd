@@ -4,6 +4,7 @@ extends Node3D
 ## slowly spinning yellow diamond, waiting on the user a bouncing orange
 ## "!", error a red "×"; idle and done show nothing. Placeholders built
 ## from primitives. It turns to face the camera around the vertical axis.
+## While waiting, a beacon rises from it too (A05).
 
 const WORKING := Color(1.0, 0.82, 0.2)
 const WAITING := Color(1.0, 0.5, 0.1)
@@ -12,6 +13,7 @@ const ERROR := Color(0.9, 0.15, 0.12)
 var _shapes := {} # "working" / "waiting" / "error" → Node3D
 var _kind := ""
 var _time := 0.0
+var _beacon := AttentionBeacon.new()
 
 
 func _ready() -> void:
@@ -27,6 +29,8 @@ func _ready() -> void:
 	var b := _part(ERROR, Vector3(0.32, 0.08, 0.08), Vector3.ZERO)
 	b.rotation.z = deg_to_rad(-45.0)
 	_shapes["error"] = _group([a, b])
+	_beacon.name = "Beacon"
+	add_child(_beacon)
 	show_state("idle")
 
 
@@ -37,11 +41,17 @@ func show_state(state: String) -> void:
 	for k in _shapes:
 		_shapes[k].visible = k == _kind
 	set_process(_kind != "")
+	_beacon.set_on(_kind == "waiting")
 
 
 ## What the marker shows: "working", "waiting", "error", or "" for nothing.
 func shown() -> String:
 	return _kind
+
+
+## Whether its attention beacon is on (A05).
+func beacon_on() -> bool:
+	return _beacon.is_on()
 
 
 func _process(delta: float) -> void:
