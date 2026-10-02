@@ -49,4 +49,13 @@ the one failure is the relay timing check that already failed before.
 
 ## Live check
 
-Not done yet.
+Passed (2026-10-02) with the user and the real `claude` in the
+notes-app sandbox: refusing at the startup prompt, and closing the
+terminal while it asked, each said "The session didn't start." within
+about a second; Stop waiting freed the menu for another start; the
+session left waiting, confirmed afterwards, came up under Running with
+its island and didn't move the player. The user found step 4 of the
+checklist unclear at first (which terminal, what should happen).
+
+Afterwards the user asked for sessions to open as tabs in one Windows
+Terminal window instead of a window each: a separate change.
