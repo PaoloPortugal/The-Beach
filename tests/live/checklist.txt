@@ -1,26 +1,26 @@
-LIVE CHECK: the quit warning (S05)
+LIVE CHECK: a session that never starts
 Start the game from a separate terminal
 (not Claude's Run button).
 
-1. Tab > New session... > notes-app,
-   confirm in the terminal.
-2. Chat: "Use a subagent to look at every
-   file here, then sum up." While the
-   subagent works, Tab: the session shows
-   "working" (also once the orchestrator
-   itself is idle).
-3. Close the game window (X or Alt+F4):
-   a dialog lists the session and what it
-   does, and says to type /exit in its
-   terminal. Back to the game: you can look
-   and walk. Again, then Esc: same.
-4. Close it again > Quit: the game closes,
-   the session's terminal keeps going.
-5. Start the game again. Tab: is that
-   session listed under Resume? Click it
-   (it's a sandbox): what happens in the
-   new terminal and in the old one?
-6. /exit every terminal. Close the game:
-   with no session it closes at once.
+1. Tab > New session... > notes-app.
+   In the terminal, decline folder trust
+   (or refuse the channel if trust isn't
+   asked): within about a second the game
+   says "The session didn't start." Tab:
+   you can start another.
+2. Again, but close the terminal window
+   while it asks: same message, about a
+   second later.
+3. Again, and leave the terminal asking.
+   Tab: "Stop waiting for the session
+   starting" is listed. Click it: the game
+   says it stopped waiting, and you can
+   start another (then close that one's
+   terminal).
+4. Back to the first terminal: confirm.
+   The session comes up: Tab shows it
+   under Running and an island appears,
+   without teleporting you there.
+5. /exit every terminal.
 
 Tell Claude what you saw; paste red errors.
