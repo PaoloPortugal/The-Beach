@@ -16,6 +16,7 @@ here; each section is labelled with its feature ID.
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
+- [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
@@ -263,6 +264,31 @@ orchestrator included:
 - a **red "×"**: something went wrong, or it was stopped. A subagent
   stays like this for about 10 seconds, then disappears;
 - nothing: the orchestrator is done with its turn and it's your move.
+
+## When something waits for you (A05)
+
+When an agent needs you (a permission, a question, or anything else it
+can't go on without), the game makes sure you notice, even from far
+away or from another window. This is a first version: the look is a
+placeholder.
+
+- **A light beacon:** a tall orange pillar of light rises from the
+  waiting agent, pulsing slowly. You can see it across the ocean, from
+  other islands and from the starting platform. It fades away once
+  you've answered, in the game or in the terminal.
+- **A count:** "2 sessions waiting" in the top-right corner, as long as
+  any session waits for you. Open the sessions menu (Tab) to go there:
+  the Running list says which ones are "waiting for you".
+- **In another window:** if you're in the terminal or another program
+  when something starts waiting, the game's taskbar button flashes (on
+  macOS its Dock icon bounces) and a short chime plays. While you're in
+  the game, there's no flash and no chime: the beacon and the count are
+  enough.
+
+To turn the chime off, open the sessions menu (Tab) and untick **Sound
+when waiting** at the bottom; the game remembers it. The chime is a
+sound file you add yourself, `assets/audio/attention.ogg`; until it's
+there, the game stays silent and only flashes.
 
 ## The sidecar (S01)
 

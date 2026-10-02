@@ -88,7 +88,7 @@ v1 slice.
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
 | A04 | Procedural agent placement (v1)           | built   | A02           | `agents/agent_placement.gd` |
-| A05 | Permission attention cue                  | planned | n/a           | n/a       |
+| A05 | Permission attention cue                  | built   | A05           | `agents/attention_beacon.gd`, `world/attention.gd` |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
@@ -364,7 +364,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -726,7 +726,8 @@ and Tab doing nothing while chatting.
 
 *Possible feature, not planned (from Agent Office):* a "go to whoever has
 waited longest" shortcut that jumps straight to the agent that has been
-waiting longest on a permission or question.
+waiting longest on a permission or question. *Comes with W07* (user's,
+2026-10-02, when A05 was designed: A05 shows only a count).
 
 ### W08 Swimming and seabed
 *Planned (user's request, 2026-09-30).* Swim instead of being put back on
@@ -838,6 +839,60 @@ rather than float.
 ### A05 Permission attention cue
 *Planned.* A pending permission prompt or question is shown on the
 relevant island and agent, so a waiting agent visibly draws your attention.
+
+*Decided (user's, 2026-10-02). Scope: core* (it reads only the generic
+`waiting` state, whatever its `reason`). A03's orange "!" is 30 cm tall
+and islands are 100 m apart, so the cue is for distance and for when the
+game isn't in front:
+- **Beacon:** a tall orange light pillar rises from each waiting agent
+  and pulses slowly, seen across the ocean (through the fog) from other
+  islands; it fades out when the agent stops waiting. No art: an
+  unshaded, see-through shape.
+- **HUD:** only a count in a corner ("2 sessions waiting"), while any
+  session waits. No edge pointers (offered), and no key to jump there:
+  the "go to whoever waited longest" key waits for W07 (user's).
+- **In the background:** when the game window isn't focused and
+  something starts waiting, the window asks for attention once
+  (Godot's `window_request_attention`: the taskbar button flashes on
+  Windows, the Dock icon bounces on macOS, the window is marked urgent
+  on Linux) and a short chime plays. The chime only plays then, never
+  while you're in the game.
+- **Chime:** a CC0 sound the user picks (`assets/audio/attention.ogg`);
+  silent until the file is there. On by default at one quiet volume,
+  with "Sound when waiting: on/off" in the sessions menu (Tab), saved
+  between runs. Placeholder UI, like the rest; a settings screen comes
+  later.
+
+*Built (2026-10-02).*
+- **Beacon:** `AttentionBeacon` (`agents/attention_beacon.gd`), a child
+  of every `AgentStateMarker` (A03), on while the marker shows
+  `waiting`. An open cylinder 150 m tall from 0.6 m above the marker,
+  unshaded, orange at 80 % opacity pulsing ±15 % (thinner looked pink
+  over the sky), fading in and out over 0.6 s. It ignores the fog
+  (`disable_fog`) and draws before other see-through things
+  (`render_priority` −1), so the message bubble stays on top. It is
+  0.5 m wide close up and 1 cm wider per metre away from the camera, a
+  few pixels at 300 m. Subagents get it too.
+- **The rest:** `Attention` (`world/attention.gd`, a `CanvasLayer` made
+  by `world.gd`) follows every agent in `SessionStore` (agent events, a
+  new session's snapshot, a resync, a session ending). The corner, top
+  right in orange: "1 session waiting" / "N sessions waiting", counted
+  by session, hidden at none. A **new wait** is an agent going into
+  `waiting` (not one already waiting); if the window isn't focused
+  then, it calls `DisplayServer.window_request_attention()` and, with
+  the sound on, plays `assets/audio/attention.ogg` at −12 dB when the
+  file exists.
+- **Sound toggle:** "Sound when waiting (while you're in another
+  window)" at the bottom of the sessions menu, saved as
+  `[attention] sound` in `user://settings.cfg` (Godot's per-user data
+  folder). The game's first settings file; later settings go there too.
+- Tested in the world test: count, beacon on and fading out, no cue in
+  the game, flash and chime in the background once per wait, a session
+  arriving already waiting, the toggle, the setting kept (in a test
+  file, never the user's). Screenshots under both renderers from the
+  platform, another island and close up.
+- Not yet: the chime itself (the user picks it), and a live check of
+  the flash on Windows (macOS and Linux unchecked: only Windows here).
 
 ### C01 Walk up to chat
 *Planned (v1).* Walking up to an orchestrator opens the chat panel for its
@@ -1991,7 +2046,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **Merged to `main` (2026-10-02), reviewed by the user:
+2026-10-01). **On branch `a05-attention` (2026-10-02): A05, the
+attention cue**, designed with the user and built (a beacon over
+waiting agents, a count in the corner, a taskbar flash and chime when
+the game is in the background); waiting for the user's chime file and a
+live check. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
 CI**: GitHub Actions runs every test on Windows and Linux on every push,
 and on macOS too on `main` and by hand (Running it → Continuous
 integration); read results with `gh`. **Also merged to `main`
@@ -2001,8 +2060,7 @@ Claude Code closes before a session is up, and the menu can stop
 waiting; S02 → Starting up, S03), **terminal tabs** (sessions open as
 tabs in one Windows Terminal window of their own; Architecture →
 Terminal windows) and **session titles** (sessions named like Claude
-Code names them; S02 → Titles). **Next: A05 (attention cue) and W07 proper**, each
-designed with the user first. Also **merged to `main` (2026-10-02)**, reviewed by the user:
+Code names them; S02 → Titles). Also **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean

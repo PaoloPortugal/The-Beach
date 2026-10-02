@@ -37,6 +37,8 @@ var store: SessionStore
 var sidecar: SidecarClient
 var clusters: SessionClusters
 var launcher := SessionLauncher.new()
+## The attention cue (A05), for its sound toggle; the toggle hides without it.
+var attention: Attention
 
 ## Stored sessions from every provider, newest first.
 var _stored: Array = []
@@ -64,6 +66,7 @@ var _last_dir := ""
 @onready var _wait_note: Control = $Panel/Layout/Waiting
 @onready var _cluster_row := HBoxContainer.new()
 @onready var _cluster := OptionButton.new()
+@onready var _sound := CheckButton.new()
 @onready var _lists: Array[Control] = [$Panel/Layout/Search, _cluster_row, $Panel/Layout/Scroll]
 
 
@@ -79,6 +82,13 @@ func _ready() -> void:
 	_cluster_row.add_child(_cluster)
 	$Panel/Layout.add_child(_cluster_row)
 	$Panel/Layout.move_child(_cluster_row, _search.get_index() + 1)
+	# A05's chime, at the bottom (no settings screen yet).
+	_sound.text = "Sound when waiting (while you're in another window)"
+	_sound.focus_mode = Control.FOCUS_NONE
+	_sound.toggled.connect(func(on: bool) -> void:
+		if attention:
+			attention.sound_on = on)
+	$Panel/Layout.add_child(_sound)
 	_search.text_changed.connect(func(_t: String) -> void: _fill())
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
@@ -135,6 +145,9 @@ func open() -> void:
 	_search.grab_focus()
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
+	_sound.visible = attention != null
+	if attention:
+		_sound.set_pressed_no_signal(attention.sound_on)
 	_list_stored()
 	_fill()
 	_refresh_hint()
@@ -159,6 +172,11 @@ func picker() -> FileDialog:
 ## Whether the menu is waiting for the system's folder picker.
 func waiting_for_picker() -> bool:
 	return _waiting
+
+
+## The attention cue's sound toggle (A05).
+func sound_toggle() -> CheckButton:
+	return _sound
 
 
 func hint_visible() -> bool:
