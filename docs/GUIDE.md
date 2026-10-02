@@ -66,7 +66,7 @@ git repository. You can pick one of the running clusters instead, or
   or the Claude desktop app), and only as far back as Claude Code keeps
   them (30 days by default).
 
-Starting or resuming opens a terminal window with Claude Code in it, and
+Starting or resuming opens Claude Code in a terminal, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
 "Still starting; check the terminal, or stop waiting in the menu (Tab)."
@@ -290,7 +290,11 @@ the world doesn't have a button yet, so use the terminal for that.
 your login and never changes Claude Code.
 
 **Starting a session.** When you start a session for a project folder, a
-terminal window opens with Claude Code in it. Claude Code asks you there
+terminal opens with Claude Code in it. On Windows, with Windows Terminal,
+each session is a tab in one window kept for the game's sessions (your
+other terminal windows are left alone); close that window and the next
+session opens a new one. Elsewhere, each session gets its own window for
+now. Claude Code asks you there
 to confirm that it may connect to the game (every time, while this
 connection is an early-access feature of Claude Code), and the first time
 in a folder, whether you trust that folder. Until you answer, the world
