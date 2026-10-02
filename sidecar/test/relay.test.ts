@@ -26,16 +26,19 @@ function awkwardDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'relay a&b $(x) `y` \'q\' -'))
 }
 
-/** Runs `node main.ts relay <args>` as Claude Code's exec form does: an argv, no shell. */
+/**
+ * Runs `node main.ts relay <args>` as Claude Code's exec form does: an argv, no
+ * shell. `afterLog` is how long the process lived after its first stderr
+ * line, which every failure writes once the relay is done.
+ */
 function runMode(args: string[], stdin: string | null, env: NodeJS.ProcessEnv = process.env) {
   const child = spawn(process.execPath, [MAIN, 'relay', ...args], { shell: false, env, stdio: ['pipe', 'pipe', 'pipe'] })
-  let out = '', err = ''
+  let out = '', err = '', logged = 0
   child.stdout.setEncoding('utf8').on('data', (d) => { out += d })
-  child.stderr.setEncoding('utf8').on('data', (d) => { err += d })
+  child.stderr.setEncoding('utf8').on('data', (d) => { logged ||= Date.now(); err += d })
   if (stdin !== null) child.stdin.end(stdin)
-  const started = Date.now()
-  return new Promise<{ code: number | null; out: string; err: string; ms: number }>((resolve) => {
-    child.on('close', (code) => resolve({ code, out, err, ms: Date.now() - started }))
+  return new Promise<{ code: number | null; out: string; err: string; afterLog: number }>((resolve) => {
+    child.on('close', (code) => resolve({ code, out, err, afterLog: logged ? Date.now() - logged : NaN }))
   })
 }
 
@@ -97,7 +100,50 @@ test('relay mode, spawned with an argv and no shell (as Claude Code\'s exec form
   } finally { await h.server.close() }
 })
 
-test('relay mode: every failure still exits 0 with nothing on stdout, and quickly', async () => {
+/** A server that takes the request and never answers. */
+async function hungServer() {
+  const hung = http.createServer(() => {})
+  await new Promise<void>((r) => hung.listen(0, '127.0.0.1', () => r()))
+  const url = `http://127.0.0.1:${(hung.address() as { port: number }).port}/hook`
+  const close = async () => {
+    hung.closeAllConnections()
+    await new Promise<void>((r) => hung.close(() => r()))
+  }
+  return { url, close }
+}
+
+// Timed in-process, so only the relay's own timer is measured: a spawned
+// process's time also counts Node's startup, which a loaded machine (CI)
+// stretches by seconds.
+test('relay: gives up within its own timeout, whether stdin or the server stalls', async () => {
+  const hung = await hungServer()
+  try {
+    const dir = awkwardDir()
+    const hanging = path.join(dir, 'hanging.json')
+    writeRelayFile(hanging, { url: hung.url, token: TOKEN })
+    const h = await hookServer()
+    const open = path.join(dir, 'open.json')
+    writeRelayFile(open, { url: h.server.url, token: h.link.token })
+    const timed = async (why: string, file: string, close: boolean) => {
+      const input = new PassThrough()
+      const logged: string[] = []
+      const started = Date.now()
+      const done = runRelay([file], input, (m) => logged.push(m))
+      if (close) input.end(JSON.stringify(START))
+      await done
+      const ms = Date.now() - started
+      assert.ok(ms >= RELAY_TIMEOUT_MS - 50 && ms < RELAY_TIMEOUT_MS + 1000, `${why}: took ${ms} ms`)
+      assert.equal(logged.length, 1, why)
+      assert.ok(!logged[0]!.includes(TOKEN), `${why}: the token isn't logged`)
+    }
+    try {
+      await Promise.all([timed('hanging server', hanging, true), timed('stdin never closed', open, false)])
+      assert.deepEqual(h.got, [], 'nothing posted without the whole input')
+    } finally { await h.server.close() }
+  } finally { await hung.close() }
+})
+
+test('relay mode: every failure still exits 0 with nothing on stdout, at once when the relay is done', { timeout: 30_000 }, async () => {
   const dir = awkwardDir()
   // Nothing listening: a port that was just freed.
   const gone = await hookServer()
@@ -109,16 +155,16 @@ test('relay mode: every failure still exits 0 with nothing on stdout, and quickl
   const h = await hookServer()
   const wrong = path.join(dir, 'wrong.json')
   writeRelayFile(wrong, { url: h.server.url, token: TOKEN })
-  // A server that never answers.
-  const hung = http.createServer(() => {})
-  await new Promise<void>((r) => hung.listen(0, '127.0.0.1', () => r()))
+  // A server that never answers: the process must not wait on its socket.
+  const hung = await hungServer()
   const hanging = path.join(dir, 'hanging.json')
-  writeRelayFile(hanging, { url: `http://127.0.0.1:${(hung.address() as { port: number }).port}/hook`, token: TOKEN })
+  writeRelayFile(hanging, { url: hung.url, token: TOKEN })
   try {
     const cases: [string, string[], string | null][] = [
       ['no server', [closed], JSON.stringify(START)],
       ['wrong token', [wrong], JSON.stringify(START)],
       ['hanging server', [hanging], JSON.stringify(START)],
+      // stdin still open: the process must not wait on it.
       ['stdin never closed', [closed], null],
       ['missing relay file', [path.join(dir, 'missing.json')], JSON.stringify(START)],
       ['no arguments', [], JSON.stringify(START)],
@@ -129,14 +175,14 @@ test('relay mode: every failure still exits 0 with nothing on stdout, and quickl
       const r = results[i]!
       assert.equal(r.code, 0, why)
       assert.equal(r.out, '', why)
-      assert.ok(r.ms < RELAY_TIMEOUT_MS + 3000, `${why}: took ${r.ms} ms`)
       assert.ok(!r.err.includes(TOKEN), `${why}: the token isn't logged`)
+      // From the relay's last word to the exit: nothing left keeps it alive.
+      assert.ok(r.afterLog < 1000, `${why}: exited ${r.afterLog} ms after the relay was done`)
     })
     assert.deepEqual(h.got, [], 'a wrong token reaches no session')
   } finally {
     await h.server.close()
-    hung.closeAllConnections()
-    await new Promise<void>((r) => hung.close(() => r()))
+    await hung.close()
   }
 })
 

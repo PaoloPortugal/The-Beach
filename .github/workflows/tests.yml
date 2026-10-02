@@ -1,0 +1,132 @@
+# Runs every test on Windows, macOS and Linux at once (NOTES.md -> Running
+# it -> Continuous integration). Tests only: no secrets, no publishing, and
+# the real `claude` is never run (the Godot suites use the fake provider).
+name: Tests
+
+on:
+  push:
+    # Docs-only pushes don't need a run (the repo is private: minutes count).
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'assets/CREDITS.md'
+      - 'tests/live/checklist.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run still going.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+
+jobs:
+  sidecar:
+    name: Sidecar (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS only on main and by hand (Run workflow): its minutes count
+        # ten times, two thirds of a run's cost (NOTES.md -> Running it ->
+        # Continuous integration). Same list in both jobs.
+        os: ${{ fromJSON((github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && '["windows-latest", "macos-latest", "ubuntu-latest"]' || '["windows-latest", "ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sidecar
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # engines.node: the one Node version the sidecar is built for.
+          node-version-file: sidecar/package.json
+          cache: npm
+          cache-dependency-path: sidecar/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  godot:
+    name: Godot (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Same list as the sidecar job's (macOS only on main and by hand).
+        os: ${{ fromJSON((github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && '["windows-latest", "macos-latest", "ubuntu-latest"]' || '["windows-latest", "ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: sidecar/package.json
+          cache: npm
+          cache-dependency-path: sidecar/package-lock.json
+      # The Godot suites start the sidecar from source with `node`.
+      - run: npm ci
+        working-directory: sidecar
+      # Godot's release archive and the binary inside it, for this system.
+      - name: Pick the Godot build
+        run: |
+          case "$RUNNER_OS" in
+            Windows) archive=win64.exe.zip; binary="Godot_v${GODOT_VERSION}_win64_console.exe" ;;
+            macOS) archive=macos.universal.zip; binary=Godot.app/Contents/MacOS/Godot ;;
+            Linux) archive=linux.x86_64.zip; binary="Godot_v${GODOT_VERSION}_linux.x86_64" ;;
+            *) echo "no Godot build for $RUNNER_OS"; exit 1 ;;
+          esac
+          echo "GODOT_ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "GODOT_BINARY=$binary" >> "$GITHUB_ENV"
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/godot
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_ARCHIVE }}
+      - name: Download Godot
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -fsSL -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/$GODOT_VERSION/Godot_v${GODOT_VERSION}_$GODOT_ARCHIVE"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+      - name: Find Godot
+        run: |
+          godot="$RUNNER_TEMP/godot/$GODOT_BINARY"
+          ls "$RUNNER_TEMP/godot"
+          chmod +x "$godot"
+          "$godot" --version
+          echo "GODOT=$godot" >> "$GITHUB_ENV"
+      # A fresh checkout has no .godot/ folder: without an import the
+      # scripts' class names aren't known yet ("Could not find type").
+      - name: Import the project
+        run: '"$GODOT" --headless --path . --import'
+      # The commands in NOTES.md -> Running it, each failing the job on its own.
+      - name: Sidecar client
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/core/sidecar_client_test.gd'
+      - name: Sidecar client (fake provider)
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake'
+      - name: Session store (fake provider)
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake'
+      - name: World
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/world/world_test.gd'
+      - name: World (fake provider)
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake'
+      - name: Clusters
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/world/clusters_test.gd'
+      - name: Markdown
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/chat/markdown_test.gd'
