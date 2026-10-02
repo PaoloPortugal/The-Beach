@@ -1,25 +1,21 @@
 class_name SessionIslands
 extends Node3D
 ## One island per live session, each with its orchestrator bound to the
-## session and its subagents (IslandAgents). A stand-in for W04 (rise /
-## sink) and W05 (archipelagos): an island appears once its session is
-## up and goes when it ends, and islands sit on rings around the spawn
-## platform, reusing free spots.
+## session and its subagents (IslandAgents). Islands are placed by
+## cluster (W05, [SessionClusters]). A stand-in for W04 (rise / sink): an
+## island appears once its session is up and goes when it ends.
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
 ## Emitted just before the island is taken away and freed.
 signal island_removed(session_id: String, island: Island)
 
 const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
-## Distance from the platform to the first ring of islands, and between
-## rings, metres. An island's mesh reaches about 67 m from its centre.
-const RING_SPACING := 180.0
-const PER_RING := 6
 
 var store: SessionStore
+## Which cluster each session is in, and where its island goes.
+var clusters := SessionClusters.new()
 
 var _islands := {} # session id → Island
-var _slots := {} # slot number → session id
 
 
 ## Call once, before anything else that listens for new sessions (see
@@ -52,32 +48,26 @@ func arrival_point(session_id: String) -> Vector3:
 	return i.global_position + Vector3(0.0, i.height_at(0.0, 6.0) + 0.1, 6.0)
 
 
-## The session whose island is under [param point], or "".
+## The session whose island is under [param point] (the nearest, as a
+## cluster's islands are close together), or "".
 func session_at(point: Vector3) -> String:
+	var found := ""
+	var best := INF
 	for id in _islands:
 		var i: Island = _islands[id]
-		var d := Vector2(point.x - i.global_position.x, point.z - i.global_position.z)
-		if d.length() < i.generator.radius * 2.0:
-			return id
-	return ""
-
-
-static func slot_position(slot: int) -> Vector3:
-	var ring := slot / PER_RING
-	# Each ring is turned half a step so islands don't line up behind each other.
-	var angle := (slot % PER_RING + ring * 0.5) * TAU / PER_RING
-	var r := RING_SPACING * (ring + 1)
-	return Vector3(cos(angle) * r, 0.0, sin(angle) * r)
+		var d := Vector2(point.x - i.global_position.x, point.z - i.global_position.z).length()
+		if d < i.generator.radius * 2.0 and d < best:
+			found = id
+			best = d
+	return found
 
 
 func _on_added(id: String, _created: bool) -> void:
-	var slot := 0
-	while _slots.has(slot):
-		slot += 1
+	clusters.add(id, store.session(id))
 	var i := Island.new()
-	i.name = "Island%d" % slot
-	i.position = slot_position(slot)
-	add_child(i) # generates the island
+	i.name = "Island"
+	i.position = clusters.island_position(id)
+	add_child(i, true) # generates the island
 	var o: Orchestrator = ORCHESTRATOR.instantiate()
 	o.name = "Orchestrator"
 	o.session_id = id
@@ -87,9 +77,7 @@ func _on_added(id: String, _created: bool) -> void:
 	agents.name = "Agents"
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
-	i.set_meta("slot", slot)
 	_islands[id] = i
-	_slots[slot] = id
 	island_added.emit(id, i, o)
 
 
@@ -100,5 +88,5 @@ func _on_removed(id: String, _reason: String) -> void:
 	# Still listed while the signal runs, so session_at() can find it.
 	island_removed.emit(id, i)
 	_islands.erase(id)
-	_slots.erase(i.get_meta("slot"))
+	clusters.remove(id)
 	i.queue_free()
