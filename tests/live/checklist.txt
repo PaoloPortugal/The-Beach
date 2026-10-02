@@ -1,26 +1,18 @@
-LIVE CHECK: a session that never starts
+LIVE CHECK: sessions as terminal tabs
 Start the game from a separate terminal
 (not Claude's Run button).
 
-1. Tab > New session... > notes-app.
-   In the terminal, decline folder trust
-   (or refuse the channel if trust isn't
-   asked): within about a second the game
-   says "The session didn't start." Tab:
-   you can start another.
-2. Again, but close the terminal window
-   while it asks: same message, about a
-   second later.
-3. Again, and leave the terminal asking.
-   Tab: "Stop waiting for the session
-   starting" is listed. Click it: the game
-   says it stopped waiting, and you can
-   start another (then close that one's
-   terminal).
-4. Back to the first terminal: confirm.
-   The session comes up: Tab shows it
-   under Running and an island appears,
-   without teleporting you there.
-5. /exit every terminal.
+1. Tab > New session... > notes-app,
+   confirm: a new Windows Terminal
+   window opens (not a tab in the one
+   you started the game from).
+2. Tab > New session... > todo-game:
+   a second tab in that same window.
+   Confirm there; both islands are up.
+3. /exit in one tab: its island sinks,
+   the other session keeps going.
+4. Close that whole window. Start one
+   more session: a new window opens.
+5. /exit every session.
 
 Tell Claude what you saw; paste red errors.
