@@ -51,6 +51,14 @@ included (`SessionStore.activity`): the user had seen sessions shown as
 idle while their orchestrator waited on a subagent's report. The Running
 list uses it too.
 
+## Live check
+
+Passed with the user and the real `claude` (2026-10-02): the session
+showed "working" while its subagent worked, the dialog listed it with
+the `/exit` hint and followed its state, Back to the game and Esc gave
+the controls back, Quit left its terminal running, and with no session
+the game closed at once.
+
 ## Also found
 
 After a restart, sessions still running from before are listed under

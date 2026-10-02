@@ -1574,7 +1574,11 @@ session's `SessionStore.activity`, subagents included: waiting for you
 if any agent waits, else working if any works (so an idle orchestrator
 waiting on its subagents' reports counts as working), else stopped or
 idle (the user had seen such sessions shown as idle). The Running list
-(W07) uses it too.
+(W07) uses it too. *Live check passed (2026-10-02)* with the user and
+the real `claude`: "working" while a subagent works, the dialog with the
+session and the `/exit` hint, following its state, Back to the game and
+Esc, Quit leaving the terminal running, and closing at once with no
+session.
 
 **Known issue: a session from before a restart can be resumed twice**
 (seen live, 2026-10-02). After the game restarts, sessions still running
@@ -1789,9 +1793,10 @@ must be properly designed later, like all UI. S05 (end session), on
 branch `s05-end-session` (from `s04-resume`): ending sessions from the
 game is shelved as a watch item (no clean way in Claude Code); built
 instead: the **quit warning** and session-wide activity in the Running
-list, tested headless; live check under way (resuming a session still
+list, **live check passed (2026-10-02)** (resuming a session still
 running from before a restart runs it twice: a known issue, for
-attaching). Then W05
+attaching). Both branches are ready for the user's review; merging
+`s05-end-session` brings in `s04-resume` too. Then W05
 (archipelagos), A05 (attention cue) and W07 proper, each designed with
 the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
