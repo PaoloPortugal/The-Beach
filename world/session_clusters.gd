@@ -3,7 +3,8 @@ extends RefCounted
 ## Clusters (W05; user's decisions, 2026-10-02): islands of the same git
 ## repository, worktrees included, sit together. A session joins its
 ## repository's cluster on its own (by project folder outside git); the
-## first one of a repository makes a new cluster, named after it. When
+## first one of a repository makes a new cluster, named after it, and
+## later ones join that cluster (not one a session of it was moved to). When
 ## starting or resuming, the sessions menu can pick another running
 ## cluster or a new one instead. A cluster lasts while it has sessions:
 ## with the last one gone, it and its spot are freed.
@@ -29,12 +30,11 @@ const PER_RING := 6
 const ISLAND_SPACING := 100.0
 
 ## Cluster id → {"name": String, "slot": int, "sessions": {session id →
-## island index}}.
+## island index}, "key": the repository (or folder outside git) it was
+## made for automatically, "" for one made by hand}.
 var _clusters := {}
 ## Session id → cluster id.
 var _of := {}
-## Session id → its repository, or its folder outside git.
-var _keys := {}
 ## Session id → the choice made when it was started, until it comes up.
 var _choices := {}
 var _next_id := 1
@@ -56,21 +56,20 @@ func add(session_id: String, session: Dictionary) -> String:
 	_choices.erase(session_id)
 	var id := ""
 	if choice == NEW:
-		id = _new_cluster(SessionsMenu.project_name(project))
+		id = _new_cluster(SessionsMenu.project_name(project), "")
 	elif _clusters.has(choice):
 		id = choice
 	else:
 		id = _cluster_for(_key(project))
 		if id.is_empty():
 			var repo: String = project.get("repo", "")
-			id = _new_cluster(repo.get_file() if not repo.is_empty() else SessionsMenu.project_name(project))
+			id = _new_cluster(repo.get_file() if not repo.is_empty() else SessionsMenu.project_name(project), _key(project))
 	var members: Dictionary = _clusters[id]["sessions"]
 	var index := 0
 	while index in members.values():
 		index += 1
 	members[session_id] = index
 	_of[session_id] = id
-	_keys[session_id] = _key(project)
 	changed.emit()
 	return id
 
@@ -78,7 +77,6 @@ func add(session_id: String, session: Dictionary) -> String:
 ## Takes a session out; its cluster goes with its last session.
 func remove(session_id: String) -> void:
 	_choices.erase(session_id)
-	_keys.erase(session_id)
 	if not _of.has(session_id):
 		return
 	var id: String = _of[session_id]
@@ -150,17 +148,16 @@ static func _key(project: Dictionary) -> String:
 	return repo if not repo.is_empty() else str(project.get("path", ""))
 
 
-## The cluster holding a session of this repository (the earliest spot),
-## or "".
+## The cluster made automatically for this repository, or "". Sessions
+## of it put elsewhere by hand don't count.
 func _cluster_for(key: String) -> String:
-	for id in ids():
-		for s in _clusters[id]["sessions"]:
-			if _keys.get(s, "") == key:
-				return id
+	for id in _clusters:
+		if _clusters[id]["key"] == key:
+			return id
 	return ""
 
 
-func _new_cluster(base: String) -> String:
+func _new_cluster(base: String, key: String) -> String:
 	var names := {}
 	for c in _clusters.values():
 		names[c["name"]] = true
@@ -179,5 +176,5 @@ func _new_cluster(base: String) -> String:
 		slot += 1
 	var id := str(_next_id)
 	_next_id += 1
-	_clusters[id] = {"name": cluster_name, "slot": slot, "sessions": {}}
+	_clusters[id] = {"name": cluster_name, "slot": slot, "sessions": {}, "key": key}
 	return id
