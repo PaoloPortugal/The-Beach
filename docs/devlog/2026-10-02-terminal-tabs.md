@@ -43,4 +43,8 @@ relay timing check that already flakes.
 
 ## Live check
 
-To do.
+Passed (2026-10-02) with the user and the real `claude` (notes-app and
+todo-game sandboxes): the first session opened a new window, not a tab
+in the user's own; the second was a tab in it; `/exit` in one tab sank
+only its island; after closing the window, the next session opened a
+new one.

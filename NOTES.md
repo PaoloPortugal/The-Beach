@@ -276,7 +276,10 @@ the same `~/.claude` layout. What differs, and how we handle it:
   window by that name the first time and adds tabs to it after; once
   it's closed, the next session opens it again. The classic console has
   no tabs. macOS and Linux: still a window each; how far tabs can go
-  there is open (Open questions).
+  there is open (Open questions). *Live check passed (2026-10-02)* with
+  the user and the real `claude`: the first session opened its own
+  window, the second a tab in it, `/exit` in one left the other going,
+  and after closing the window the next session opened a new one.
 - **Node runtime.** The sidecar is built into one self-contained
   executable per platform and shipped with each Godot export. The same
   executable runs as the channel bridge (Claude Code starts it by absolute
@@ -1808,7 +1811,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 2026-10-01). **Next: W05 (archipelagos)**, designed with the user
 first. **On branch `terminal-tabs` (2026-10-02):** sessions open as tabs
 in one Windows Terminal window of their own (Architecture → Terminal
-windows); live check next. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+windows); live check passed (2026-10-02), waiting for the user's review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
