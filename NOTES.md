@@ -1324,6 +1324,18 @@ It connects back to the sidecar over loopback with the session's token.
 - **Permission relay:** Claude Code sends each permission prompt to the
   bridge (with a five-letter `request_id`) while the terminal shows its
   dialog; a verdict from the world closes that dialog.
+- **Sender gating:** the channels reference calls an ungated channel a
+  prompt injection vector and says to check each sender before
+  forwarding, and to relay permissions only if the sender is
+  authenticated. Ours has a single possible sender, the game, which
+  proves itself at each step instead of passing an allowlist: the
+  bridge listens nowhere (it connects out to the sidecar with a
+  one-time session token); the sidecar forwards only chat and verdicts
+  that arrive as commands on Godot's authenticated WebSocket (token,
+  `Origin` refused, `Host` checked); and those come only from the
+  user's typing and clicks (Security rules). Tested in
+  `security.test.ts` and `bridge.test.ts`. Like Anthropic's iMessage
+  channel, which only lets the user's own messages through.
 
 **Seeing the session: HTTP hooks** posted to one loopback endpoint per
 sidecar (`POST /hook`, a token per session, `Origin` and foreign `Host`
@@ -2283,8 +2295,11 @@ exists.
     Code's own checks decide) is Claude Code's feature, and we don't
     override it. Hooks and channels are documented for this kind of use
     (Anthropic's fakechat demo is a localhost chat UI).
-  - *Ask Anthropic before the Steam release* (and preferably now; both
-    drafted 2026-10-02, not yet sent). The terms questions (is the
+  - *Ask Anthropic before the public release* (to do; user's decision,
+    2026-10-02: not now). Both messages are drafted in the dev log
+    (2026-10-02-terms-steam); before sending, confirm the contacts
+    below are still the right ones and refresh the drafts against the
+    terms. The planned routes: the terms questions (is the
     subscription use fine, free and paid; is the Commercial Terms step
     the right one) go by email through the contact-sales form, which the
     legal page names for "questions about permitted authentication

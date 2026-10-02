@@ -62,6 +62,14 @@ is left for C06 (recommendation: no).
   questions, and no dedicated address for developers' terms questions
   turned up. So the user agreed to split it: the terms questions by
   email through contact-sales, the channel-flag question as a public
-  issue on anthropics/claude-code. Not sent yet; record the answers
-  under Anthropic's terms when they come.
+  issue on anthropics/claude-code. Then the user decided to leave
+  sending them until before the public release, without looking for
+  better contacts now. The drafts are below; recheck the contacts and
+  the terms before sending, and record the answers under Anthropic's
+  terms.
+- An automated Anthropic agent the user talked to pointed at the
+  channels reference's advice to gate inbound messages by sender. We
+  already do: the game is the only sender and is authenticated at each
+  step (NOTES.md → S02 → Sender gating, added here). The email gained a
+  line saying so.
 - Not legal advice; Anthropic's written answer is the only certainty.
