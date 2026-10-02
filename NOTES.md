@@ -857,8 +857,9 @@ game isn't in front:
   Windows, the Dock icon bounces on macOS, the window is marked urgent
   on Linux) and a short chime plays. The chime only plays then, never
   while you're in the game.
-- **Chime:** a CC0 sound the user picks (`assets/audio/attention.ogg`);
-  silent until the file is there. On by default at one quiet volume,
+- **Chime:** a CC0 sound the user picks (`assets/audio/attention.ogg`:
+  Kenney Interface Sounds' `question_002`, the user's pick; silent if
+  the file is missing). On by default at one quiet volume,
   with "Sound when waiting: on/off" in the sessions menu (Tab), saved
   between runs. Placeholder UI, like the rest; a settings screen comes
   later.
@@ -891,8 +892,8 @@ game isn't in front:
   arriving already waiting, the toggle, the setting kept (in a test
   file, never the user's). Screenshots under both renderers from the
   platform, another island and close up.
-- Not yet: the chime itself (the user picks it), and a live check of
-  the flash on Windows (macOS and Linux unchecked: only Windows here).
+- The chime's file loads (0.33 s; world test). Not yet: a live check
+  of the flash and the chime on Windows (macOS and Linux unchecked: only Windows here).
 
 ### C01 Walk up to chat
 *Planned (v1).* Walking up to an orchestrator opens the chat panel for its
@@ -2049,8 +2050,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 2026-10-01). **On branch `a05-attention` (2026-10-02): A05, the
 attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
-the game is in the background); waiting for the user's chime file and a
-live check. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
+the game is in the background; the chime is Kenney's `question_002`,
+the user's pick); waiting for a live check. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
 CI**: GitHub Actions runs every test on Windows and Linux on every push,
 and on macOS too on `main` and by hand (Running it → Continuous
 integration); read results with `gh`. **Also merged to `main`

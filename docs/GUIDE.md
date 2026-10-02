@@ -286,9 +286,7 @@ placeholder.
   enough.
 
 To turn the chime off, open the sessions menu (Tab) and untick **Sound
-when waiting** at the bottom; the game remembers it. The chime is a
-sound file you add yourself, `assets/audio/attention.ogg`; until it's
-there, the game stays silent and only flashes.
+when waiting** at the bottom; the game remembers it.
 
 ## The sidecar (S01)
 

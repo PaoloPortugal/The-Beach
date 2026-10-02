@@ -1,8 +1,6 @@
 LIVE CHECK: attention cue (A05)
 Start the game from a separate terminal
-(not Claude's Run button). Optional: put
-a CC0 .ogg at assets/audio/attention.ogg
-first (open the editor once to import).
+(not Claude's Run button).
 
 1. Tab > New session... > notes-app,
    confirm in the terminal.
@@ -18,8 +16,8 @@ first (open the editor once to import).
 5. Chat: "Create bye.txt containing
    bye." and at once click another
    window. When it asks: the taskbar
-   button flashes (and the chime plays
-   if you added one). Once, not on
+   button flashes and the chime plays.
+   Once, not on
    repeat?
 6. Back in the game, answer. Tab: untick
    "Sound when waiting", restart the
