@@ -235,10 +235,15 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       else s.notices.push({ ...e.notice })
       return null
     }
-    case 'session.updated':
-      if (e.native_id === s.native_id) return 'native_id unchanged'
-      s.native_id = e.native_id
+    case 'session.updated': {
+      // Only what changed goes out; nothing changed, nothing goes out.
+      const changed = (e.native_id !== undefined && e.native_id !== s.native_id) ||
+        (e.title !== undefined && e.title !== s.title)
+      if (!changed) return 'nothing changed'
+      if (e.native_id !== undefined) s.native_id = e.native_id
+      if (e.title !== undefined) s.title = e.title
       return null
+    }
     case 'question.resolved': {
       const qs = s.questions ?? []
       const i = qs.findIndex((q) => q.question === e.question)

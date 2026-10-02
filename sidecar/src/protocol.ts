@@ -90,7 +90,7 @@ export type SessionEvent =
   | { type: 'question.asked'; question: Question }
   | { type: 'question.resolved'; question: Id; by: 'app' | 'external' }
   | { type: 'session.notice'; notice: Notice }
-  | { type: 'session.updated'; native_id: string }
+  | { type: 'session.updated'; native_id?: string; title?: string | null }
   | { type: `ext.${string}`; [key: string]: unknown }
 
 export type EndReason = 'user' | 'exited' | 'error'

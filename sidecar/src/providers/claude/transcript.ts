@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
+import { titleIn, type Titles } from './store.ts'
 
 /** How often the file is checked for new lines. */
 export const POLL_MS = 250
@@ -24,6 +25,8 @@ export type TranscriptSignal =
    * when agent view moved it to a background session; 2.1.285).
    */
   | { kind: 'continued'; sessionId: string }
+  /** A name for the conversation: /rename (custom) or Claude Code's own (ai). */
+  | { kind: 'title'; titles: Partial<Titles> }
 
 /** Claude Code's session ids are UUIDs. */
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -37,6 +40,8 @@ export function signalsIn(line: string): TranscriptSignal[] {
     const id = e.continuedInSessionId
     return typeof id === 'string' && SESSION_ID.test(id) ? [{ kind: 'continued', sessionId: id }] : []
   }
+  const titles = typeof e === 'object' && e !== null ? titleIn(e) : null
+  if (titles) return [{ kind: 'title', titles }]
   // Subagents' own entries (their transcripts are separate files anyway).
   if (typeof e !== 'object' || e === null || e.type !== 'user' || e.isSidechain === true) return []
   const content = (e.message as { content?: unknown } | undefined)?.content

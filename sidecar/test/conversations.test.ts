@@ -157,7 +157,8 @@ const EARLIER_CHAT =
   line({ type: 'user', uuid: 'e1', timestamp: '2026-10-01T09:00:00Z', message: { role: 'user', content: 'old question' } }) +
   line({ type: 'assistant', timestamp: '2026-10-01T09:00:01Z', message: { id: 'm1', role: 'assistant', content: [{ type: 'text', text: 'old answer' }] } })
 
-const switches = (ms: Msg[]) => ms.filter((m) => m.type === 'session.updated' || m.type === 'session.notice')
+const switches = (ms: Msg[]) => ms.filter((m) => (m.type === 'session.updated' && 'native_id' in m) || m.type === 'session.notice')
+const titles = (ms: Msg[]) => ms.filter((m) => m.type === 'session.updated' && 'title' in m).map((m) => m.title)
 
 const historyTexts = async (x: Awaited<ReturnType<typeof liveSession>>) => {
   const h = await x.c.command({ type: 'session.get_history', session: x.id })
@@ -179,16 +180,42 @@ test('SessionStart clear: the switch reaches the world at once, before any promp
     const fresh = crypto.randomUUID()
     // Sent in the background right after /clear; the transcript may not exist yet.
     assert.deepEqual(await x.send('SessionStart', { source: 'clear' }, fresh), { status: 200, body: '' })
-    assert.equal((await x.c.next('session.updated')).native_id, fresh)
+    const cleared = await x.c.next((m) => m.type === 'session.updated' && 'native_id' in m)
+    assert.equal(cleared.native_id, fresh)
+    assert.equal(cleared.title, null, 'a new conversation has no name yet')
     assert.deepEqual((await x.c.next(notice('conversation_cleared'))).notice, CONVERSATION_CLEARED)
     assert.deepEqual(await historyTexts(x), [], 'the history empties at once: the world clears its chat')
     // Then /clear's own entries and the first prompt: no second switch, not taken for a resume.
     fs.writeFileSync(x.transcript(fresh), CLEAR_ENTRIES)
     await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'after' }, fresh)
     assert.equal((await x.c.next('message.completed')).text, 'after')
-    assert.deepEqual(switches(await x.c.quiet()), [], 'no second switch')
+    const after = await x.c.quiet()
+    assert.deepEqual(switches(after), [], 'no second switch')
+    assert.deepEqual(titles(after), ['after'], 'named by its first message')
     assert.deepEqual(await historyTexts(x), ['after'])
     await assert.rejects(x.p.resume({} as any, fresh), /already open/)
+    assert.deepEqual(x.c.invalid, [])
+  } finally { await x.close() }
+})
+
+test('titles: none at first, then the first message, Claude Code\'s own title, and a /rename that stays', async () => {
+  const x = await liveSession()
+  try {
+    assert.equal((x.created!.session as { title: unknown }).title, null, 'nothing to call it yet')
+    await x.send('UserPromptSubmit', { prompt_id: 'p1', prompt: '  fix the login bug\nplease' })
+    assert.equal((await x.c.next((m) => m.type === 'session.updated')).title, 'fix the login bug', 'its first line')
+    // Claude Code writes its title a moment later (2.1.287), and again now and then.
+    fs.appendFileSync(x.transcript(x.nativeId), line({ type: 'ai-title', aiTitle: 'Login bug fix', sessionId: x.nativeId }))
+    assert.equal((await x.c.next((m) => m.type === 'session.updated')).title, 'Login bug fix')
+    fs.appendFileSync(x.transcript(x.nativeId), line({ type: 'custom-title', customTitle: 'auth work', sessionId: x.nativeId }))
+    assert.equal((await x.c.next((m) => m.type === 'session.updated')).title, 'auth work', '/rename wins')
+    fs.appendFileSync(x.transcript(x.nativeId), line({ type: 'ai-title', aiTitle: 'Login bug fix again', sessionId: x.nativeId }) +
+      line({ type: 'custom-title', customTitle: 'auth work', sessionId: x.nativeId }))
+    await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'and the signup one' })
+    await x.c.next('message.completed')
+    assert.deepEqual(titles(await x.c.quiet(POLL_MS * 3)), [], 'and stays')
+    await x.c.command({ type: 'session.get_snapshot', session: x.id })
+    assert.equal(((await x.c.next('session.snapshot')).session as { title: string }).title, 'auth work', 'the snapshot has it too')
     assert.deepEqual(x.c.invalid, [])
   } finally { await x.close() }
 })
@@ -202,7 +229,9 @@ test('SessionStart resume: the resumed conversation\'s chat becomes the history 
     fs.writeFileSync(x.transcript(earlier), EARLIER_CHAT + CLEAR_ENTRIES.replaceAll('/clear', '/resume') +
       line({ type: 'user', uuid: 'e2', timestamp: '2026-10-01T10:00:00Z', message: { role: 'user', content: 'last question' } }))
     await x.send('SessionStart', { source: 'resume' }, earlier)
-    assert.equal((await x.c.next('session.updated')).native_id, earlier)
+    const resumed = await x.c.next((m) => m.type === 'session.updated' && 'native_id' in m)
+    assert.equal(resumed.native_id, earlier)
+    assert.equal(resumed.title, 'old question', 'its own name comes with it')
     assert.deepEqual((await x.c.next(notice('conversation_resumed'))).notice, CONVERSATION_RESUMED)
     assert.deepEqual(await historyTexts(x), ['old question', 'old answer', 'last question'])
     // The world's chat reaches it through the same bridge.
@@ -210,7 +239,9 @@ test('SessionStart resume: the resumed conversation\'s chat becomes the history 
     assert.deepEqual(x.fromSidecar.at(-1), { type: 'chat', text: 'hi' })
     await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'hi' }, earlier)
     assert.equal((await x.c.next('message.completed')).text, 'hi')
-    assert.deepEqual(switches(await x.c.quiet()), [], 'no second switch')
+    const later = await x.c.quiet()
+    assert.deepEqual(switches(later), [], 'no second switch')
+    assert.deepEqual(titles(later), [], 'it keeps its name')
     assert.deepEqual(await historyTexts(x), ['old question', 'old answer', 'last question', 'hi'])
     assert.deepEqual(x.c.invalid, [])
   } finally { await x.close() }
@@ -329,5 +360,7 @@ test('schema: session.updated carries at least one field', () => {
   assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, native_id: 'n' }).ok, true)
   assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2 }).ok, false)
   assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, native_id: '' }).ok, false)
-  assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, title: 'x' }).ok, false)
+  assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, title: 'x' }).ok, true)
+  assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, title: null }).ok, true)
+  assert.equal(checkMessage({ type: 'session.updated', session: 's', seq: 2, title: 5 }).ok, false)
 })
