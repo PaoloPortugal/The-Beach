@@ -2052,12 +2052,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **On branch `a05-attention` (2026-10-02): A05, the
-attention cue**, designed with the user and built (a beacon over
+2026-10-01). **Merged to `main` (2026-10-02), reviewed by the user:
+A05, the attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
 the game is in the background; the chime is Kenney's `question_002`,
-the user's pick); **live check passed (2026-10-02)**, ready for the
-user's review. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
+the user's pick); **live check passed (2026-10-02)**. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
 CI**: GitHub Actions runs every test on Windows and Linux on every push,
 and on macOS too on `main` and by hand (Running it → Continuous
 integration); read results with `gh`. **Also merged to `main`
