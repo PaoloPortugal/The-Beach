@@ -678,6 +678,13 @@ repository put in another cluster by hand makes later automatic
 sessions of that repository join it too (the first cluster holding one).
 Nothing in the world shows a cluster's name yet.
 
+*Live check passed (2026-10-02)* with the user and the real `claude`: a
+repository and its worktree in one cluster, close together; a folder
+outside git in its own cluster far away; "New cluster" ("notes-app 2")
+and a chosen running cluster; the Running list grouped and searched by
+cluster name; the selector back to Automatic on opening; a cluster gone
+with its last session, and a new one taking a free spot.
+
 ### W06 Bridges
 *Planned.* Walkable bridges connect islands within a cluster, for
 physical movement and the feel of the world. Build it as a general
@@ -1856,8 +1863,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the "many sessions" milestone (user's choice,
 2026-10-01). **W05 (clusters, renamed from archipelagos by the user)
 is built on branch `w05-clusters`** (design decided with the user
-2026-10-02; code, tests and docs done); **live check next**, then the
-user's review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+2026-10-02; code, tests and docs done; **live check passed
+2026-10-02**); waiting for the user's review before merging to `main`. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
