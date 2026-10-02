@@ -9,6 +9,7 @@ import {
 } from './protocol.ts'
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from './provider.ts'
 import type { Log } from './log.ts'
+import { withRepo } from './repo.ts'
 
 export type Outgoing = Record<string, unknown> & { type: string }
 
@@ -125,7 +126,7 @@ export class Registry {
       provider: entry.provider.id,
       native_id: intro.native_id,
       origin: 'app',
-      project: structuredClone(intro.project),
+      project: withRepo(intro.project),
       title: intro.title,
       started_at: new Date().toISOString(),
       capabilities: structuredClone(intro.capabilities),
