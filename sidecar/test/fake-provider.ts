@@ -20,9 +20,9 @@ export class FakeSession implements ProviderSession {
   readonly project: Project
   private readonly provider: FakeProvider
   history: HistoryMessage[] = []
-  /** What announce() reports; defaults to `native-<session id>` and "fake session". */
+  /** What announce() reports; defaults to `native-<session id>` and "fake session" (null: no title). */
   nativeId?: string
-  title?: string
+  title?: string | null
   answerQuestion?: ProviderSession['answerQuestion']
   interrupt?: ProviderSession['interrupt']
   extension?: ProviderSession['extension']
@@ -43,7 +43,7 @@ export class FakeSession implements ProviderSession {
     this.host.announce({
       native_id: this.nativeId ?? `native-${this.host.id}`,
       project: this.project,
-      title: this.title ?? 'fake session',
+      title: this.title === undefined ? 'fake session' : this.title,
       capabilities: this.provider.options.capabilities ?? {},
       extensions: this.provider.options.extensions ?? [],
       agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Orchestrator', state: 'idle', reason: null }],
