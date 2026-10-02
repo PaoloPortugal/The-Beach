@@ -20,6 +20,8 @@ const NOTICE_TEXT := {
 
 var store: SessionStore
 var sidecar: SidecarClient
+## Told which cluster a started session should join (W05).
+var clusters: SessionClusters
 ## The session being started, or "".
 var pending := ""
 ## What [signal status_changed] last said.
@@ -54,22 +56,24 @@ func busy() -> bool:
 	return _asking or not pending.is_empty()
 
 
-## Asks for a new session in the folder [param path].
-func create(path: String) -> void:
+## Asks for a new session in the folder [param path], to join
+## [param cluster] (a [SessionClusters] choice).
+func create(path: String, cluster := SessionClusters.AUTOMATIC) -> void:
 	if sidecar.providers.is_empty():
 		_say("Not connected to the sidecar yet.")
 		return
 	# Only one provider exists for now; choosing one is for S03 proper.
 	var provider: String = sidecar.providers[0]["provider"]
-	_start("session.create", {"provider": provider, "project": {"path": path}}, "Couldn't start a session: %s")
+	_start("session.create", {"provider": provider, "project": {"path": path}}, "Couldn't start a session: %s", cluster)
 
 
-## Asks to resume the stored session [param native_id] of [param provider].
-func resume(provider: String, native_id: String) -> void:
-	_start("session.resume", {"provider": provider, "native_id": native_id}, "Couldn't resume the session: %s")
+## Asks to resume the stored session [param native_id] of [param provider],
+## to join [param cluster].
+func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC) -> void:
+	_start("session.resume", {"provider": provider, "native_id": native_id}, "Couldn't resume the session: %s", cluster)
 
 
-func _start(command: String, fields: Dictionary, refused: String) -> void:
+func _start(command: String, fields: Dictionary, refused: String, cluster: String) -> void:
 	if busy():
 		_say("A session is already starting.")
 		return
@@ -80,6 +84,8 @@ func _start(command: String, fields: Dictionary, refused: String) -> void:
 			return
 		var result: Dictionary = reply.get("result", {})
 		pending = result.get("session", "")
+		if clusters != null and not pending.is_empty():
+			clusters.choose(pending, cluster)
 		_asked_at = Time.get_ticks_msec() / 1000.0
 		_still_said = false
 		var notice: Dictionary = result.get("notice", {})
