@@ -1867,7 +1867,8 @@ renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Continuous integration** (user's request, 2026-10-02; dev log
 2026-10-02-ci). `.github/workflows/tests.yml` (GitHub Actions) runs
-everything above on Windows, macOS and Linux at once: per OS a sidecar
+everything above on Windows and Linux at once, and on macOS too on
+`main` and by hand (below): per OS a sidecar
 job (`npm ci`, typecheck, `npm test`) and a Godot job (Godot
 `GODOT_VERSION` downloaded from its GitHub release and cached, the
 project imported, then each command above as its own step, so the
@@ -1876,11 +1877,18 @@ suites use the fake provider) and needs no secrets; the workflow can
 only read the repository. Runs on every push (a newer push to the same
 branch cancels the older run), except pushes that only touch docs or
 the live checklist, and by hand from the Actions tab (Run workflow,
-any branch). The repo is private, so runs use the account's Actions
-minutes, and macOS minutes count ten times, Windows twice: if that's
-too much, drop macOS from the matrices, or run it only on `main` and
-by hand. Bumping Godot means changing `GODOT_VERSION` and the binary
-names in the matrix. The actions are pinned to major versions
+any branch). **macOS only on `main` and by hand** (user's choice,
+2026-10-02): the repo is private, so runs use the account's Actions
+minutes, and a minute counts ten times on macOS and twice on Windows.
+A run on all three cost about 44 minutes (each job rounded up to a
+minute), 30 of them macOS, so about 45 pushes a month on the free
+2,000; without macOS a branch push costs about 14. Nothing here is
+built for macOS on its own and no one develops on a Mac, so checking it
+when a branch merges (or by hand before, with Run workflow) catches the
+same breakage for a third of the cost. The system list is one
+expression in both jobs' matrices; the Godot job picks its release
+archive and binary from the runner's OS, so bumping Godot means
+changing `GODOT_VERSION` only. The actions are pinned to major versions
 (`checkout@v7`, `setup-node@v7`, `cache@v6`); bump them when a run's
 annotations say their Node runtime is deprecated. Results can be read
 with `gh run list` and `gh run view <id> --log-failed`. Timing checks
@@ -1985,8 +1993,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the "many sessions" milestone (user's choice,
 2026-10-01). **On branch `ci-tests` (2026-10-02):** GitHub Actions runs
 every test on Windows, macOS and Linux (Running it → Continuous
-integration); green on all six jobs (2026-10-02), ready for the user's
-review. **Merged to `main` (2026-10-02)**, each live-checked with
+integration; macOS only on `main` and by hand, to save minutes); green
+on all six jobs (2026-10-02), ready for the user's review. **Merged to `main` (2026-10-02)**, each live-checked with
 the user and reviewed: **W05 clusters** (renamed from archipelagos by
 the user), the **start exit** fix (the world stops waiting at once when
 Claude Code closes before a session is up, and the menu can stop
