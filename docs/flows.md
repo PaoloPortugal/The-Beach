@@ -116,11 +116,12 @@ Platforms). Before any of this, Godot has started the sidecar (flow 0).
 `ok { session }` always comes before `session.created`; until the session
 is up, commands for it get `session_starting`.
 
-In the world for now (S03's quick version): the user picks the folder at
-the spawn platform's post, which shows the reply's `notice` until
-`session.created`; then the session's island appears and the player is
-taken there. A session that never comes up gets `session.ended` and the
-post says so (NOTES.md → S03, W01 → Islands for sessions).
+In the world for now (S03's quick version): the user picks the folder
+from the sessions menu (Tab), whose notice at the top of the screen shows
+the reply's `notice` until `session.created`; then the session's island
+appears and the player is taken there. A session that never comes up gets
+`session.ended` and the notice says so (NOTES.md → S03, W01 → Islands for
+sessions).
 
 ## 2. A chat turn
 
@@ -349,7 +350,7 @@ sequenceDiagram
     participant Store as Transcripts
     participant Claude as Claude Code (terminal)
 
-    User->>World: open the list of earlier sessions
+    User->>World: Tab: the sessions menu (its Resume list)
     World->>Sidecar: session.list_stored (optionally one project)
     Store->>Sidecar: each file's first and last 64 KiB (read-only):<br/>folder, where it started, name, first message
     Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)

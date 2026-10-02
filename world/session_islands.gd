@@ -23,7 +23,7 @@ var _slots := {} # slot number → session id
 
 
 ## Call once, before anything else that listens for new sessions (see
-## SessionPost.setup).
+## SessionsMenu.setup).
 func setup(p_store: SessionStore) -> void:
 	store = p_store
 	store.session_added.connect(_on_added)

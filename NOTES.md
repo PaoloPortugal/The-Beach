@@ -81,8 +81,9 @@ v1 slice.
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
 | W05 | Archipelagos (project clustering)         | planned | n/a           | n/a       |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
-| W07 | Teleport menu                             | planned | n/a           | n/a       |
+| W07 | Teleport menu                             | basic built (sessions menu) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
+| W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -97,9 +98,9 @@ v1 slice.
 | C07 | Plan approval                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
-| S03 | Create session from the world             | quick version built | S03 | `world/platform/` |
-| S04 | List and resume stored sessions           | sidecar side built (branch) | n/a | `sidecar/src/providers/claude/store.ts` |
-| S05 | End session                               | planned | n/a           | n/a       |
+| S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
+| S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `world/sessions_menu/` |
+| S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 
 ## When a feature lands
 
@@ -274,7 +275,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Starting and stopping.** Godot starts the sidecar with an argument
   array and a pipe; the sidecar exits when that pipe closes, which covers
   Godot quitting or crashing on every OS (Windows has no graceful stop
-  signal). Launched `claude` sessions keep running on their own.
+  signal). Launched `claude` sessions keep running on their own; closing
+  the game's window while some run asks first (S05).
 - **Finding `claude`.** Apps started from the macOS Dock or a Linux menu
   don't get the user's shell PATH. Look in PATH, then the documented
   install locations (native installer `~/.local/bin`, Homebrew, WinGet,
@@ -348,7 +350,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform and its "New session" post, S03). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -531,9 +533,10 @@ bound to it, and loses it when the session ends. An island only appears
 once its session is up (`session.snapshot` or `session.created`), never
 while it is still starting. Islands sit on rings around the spawn
 platform (six per ring, 180 m apart, each ring turned half a step), and a
-new island takes the first free spot. A session you started from the
-world (S03) takes you to its island, 6 m in front of the orchestrator
-(`world.gd` → `teleport`); sessions already running when the world
+new island takes the first free spot. A session you started or resumed
+from the sessions menu (S03, S04) takes you to its island, 6 m in front
+of the orchestrator (`world.gd` → `teleport`), and so does choosing a
+running one there (W07); sessions already running when the world
 connects don't move you. When a session ends, whoever stands on its
 island is put back on the platform.
 
@@ -583,13 +586,14 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   the way back from an island to the platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
-platform, the islands for sessions, ocean, sun, sky, chat and player
-together. The **spawn platform** (`world/platform/`, user's direction,
-2026-09-30) is a 12 m wooden square at the world's centre, its deck 1 m
-above the water, with the "New session" post (S03). The player starts on
-it, 3 m in front of the post, facing it. `world.gd` creates the
-`SessionStore` and connects the parts: the islands hear of a new session
-first, so its island exists when the post reports it started.
+platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
+and player together. The **spawn platform** (`world/platform/`, user's
+direction, 2026-09-30) is a 12 m wooden square at the world's centre, its
+deck 1 m above the water; the player starts on it, 3 m from its centre.
+(Its "New session" post was removed for the sessions menu, S03.)
+`world.gd` creates the `SessionStore` and connects the parts: the islands
+hear of a new session first, so its island exists when the menu's
+launcher reports it started.
 
 ### W04 Island rise / sink
 *Planned.* A new session makes an island rise out of the ocean; this doubles
@@ -621,6 +625,18 @@ mountains) plug into it.
 across the world to reach an orchestrator. Sorting, grouping and whether to
 add a minimap are open question 3.
 
+*Basic version built (user's decision, 2026-10-01), inside the sessions
+menu (S03). Scope: core.* The menu's "Running" list shows every live
+session as "title · project · state" (working, waiting for you, stopped
+or idle, from the whole session, subagents included: S05 →
+`SessionStore.activity`); a click closes the menu and puts you in
+front of that session's orchestrator (`world.gd` → `teleport`). The
+search box filters it with the rest. A **placeholder** (user's): W07
+proper adds the sorting, grouping and maybe a minimap (open question 3)
+and gets a real design. *Live check passed (2026-10-01)* with the user
+and the real `claude`: two sessions under Running, jumping between them,
+and Tab doing nothing while chatting.
+
 *Possible feature, not planned (from Agent Office):* a "go to whoever has
 waited longest" shortcut that jumps straight to the agent that has been
 waiting longest on a permission or question.
@@ -630,6 +646,13 @@ waiting longest on a permission or question.
 the island when you wade too deep (W03's placeholder), and a seabed worth
 seeing: varied depths (shallows, drop-offs, deeper water) rather than one
 flat sea floor, which also means the water can't stay opaque everywhere.
+
+### W09 Day/night cycle and weather
+*Planned (user's request, 2026-10-01).* The sun moves through a day and
+night cycle, and the weather changes (e.g. clouds, rain, wind on the
+waves). Not a provider feature: world only. Undesigned: the day's length
+(real time or faster), whether weather is random or reacts to anything,
+and what night looks like (readable islands and bubbles, lights).
 
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
@@ -1358,8 +1381,9 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   `/fork` (see Launch).
 - Switching permission mode with no prompt open (C06 covers switching at
   launch and while answering a prompt).
-- Ending the session: `session.end` answers `not_supported` until S05
-  decides how; `/exit` in the terminal ends it.
+- Ending the session: `session.end` answers `not_supported` (S05: not
+  from the world until Claude Code offers a clean way; Watch items →
+  Ending a session from the game); `/exit` in the terminal ends it.
 
 **Known gaps.**
 - **`/fork <prompt>` untested** with agent view off (`/fork` alone
@@ -1401,24 +1425,67 @@ themselves comes later (open question 5, decided); it uses the same hooks
 and channel, which such a session would need to be started with.
 
 *Quick version built (user's direction, 2026-09-30: "a quick create
-session feature that we can design better later"). Scope: core.*
-`SessionPost` (`world/platform/session_post.gd`), a signpost reading "New
-session" on the spawn platform. Near it (2.2 m), "Press E to start a
-session" appears; E opens a folder picker (Godot's own `FileDialog`,
-drawn inside the game window, starting in the home folder) and pauses the
-player until it closes (choose, Cancel or Esc). Not the system's native
-picker: that is a separate window, and on Windows alt-tab hid it behind
-the game, which then waited for it with no way back. The chosen folder goes to `session.create` with the first
-provider from `hello` (only one exists; choosing one is for S03 proper).
-A label above the sign tells how starting goes: "Starting…", then the
-reply's notice (Godot's own text for `confirm_in_terminal`: "Confirm in
-the terminal to start this session."), "Still starting; check the
-terminal." after 2 minutes, "Couldn't start a session: …" for a refused
-command, "The session didn't start." if it ends before coming up, or the
-sidecar's failure. One session starts at a time. Once the session is up,
-its island appears (W01 → Islands for sessions) and the player is taken
-there. Still to design: where you start sessions, recent folders, naming,
-choosing a provider, starting several at once.
+session feature that we can design better later"). Scope: core.* First a
+"New session" post on the spawn platform (M1); since 2026-10-01 the
+**sessions menu** (user's decisions, dev log 2026-10-01-sessions-menu):
+one menu, opened from anywhere, to start a session (S03), resume a stored
+one (S04) and go to a running one (W07). Rejected: keeping the post and
+giving it the menu, or a second post for resuming. The post is removed.
+The menu is a **placeholder** (user's): it only has to work, and gets a
+proper design later, like all UI.
+
+`SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`):
+- **Opening.** Tab (input action `sessions_menu`, the physical Tab key)
+  opens it anywhere while you have the controls, so not while chatting.
+  It frees the mouse and pauses the player. Tab or Esc closes it. While
+  no session runs and nothing is starting, "Press Tab for sessions"
+  shows at the bottom of the screen.
+- **Layout.** A centred panel: "Sessions", a search box (focused on
+  opening), then "+ New session…", "Running" (W07) and "Resume" (S04).
+  The search filters Running and Resume by title and project, like
+  Claude Code's own `/resume` list (user's choice).
+- **New session…** opens the **system's folder picker** on every
+  platform (user's decision, 2026-10-01, reversing M1's choice of
+  Godot's own): File Explorer's on Windows, the open panel on macOS, the
+  desktop portal's on Linux (X11 and Wayland), all through Godot's
+  cross-platform `DisplayServer.file_dialog_show`, starting in
+  the home folder, then the last folder chosen. Where the system has
+  none (`FEATURE_NATIVE_DIALOG_FILE` off, e.g. Linux without the desktop
+  portal, or headless), Godot's own `FileDialog`, drawn inside the game
+  window, is used instead. Cancelling either returns to the menu. The
+  chosen folder goes to `session.create` with the first provider from
+  `hello` (only one exists; choosing one is for S03 proper).
+- **A picker hidden behind the game can't trap you** (user's decision).
+  On Windows, alt-tab or a click on the game can cover the system's
+  picker (Watch items → Native folder picker on Windows), and Godot can
+  neither raise nor close it. macOS and Linux tie the picker to the game
+  window, but the safety net is the same everywhere: while it is open
+  the menu stays up with a note ("Choose the project folder in the
+  window that opened. Can't see it? It may be behind the game: switch to
+  it, or press Cancel.") and a Cancel button; Cancel, Esc or Tab close
+  the menu and give the controls back, and whatever the lost picker
+  answers later is ignored, so nothing starts on its own.
+- **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
+  and resumed sessions, one at a time). A notice at the top centre of
+  the screen (it replaced the post's sign; my choice) says how it goes:
+  "Starting…", then the reply's notice (Godot's own text for
+  `confirm_in_terminal`: "Confirm in the terminal to start this
+  session."), "Still starting; check the terminal." after 2 minutes,
+  "Couldn't start a session: …" / "Couldn't resume the session: …" for
+  a refused command, "The session didn't start." if it ends before
+  coming up, "A session is already starting.", or the sidecar's failure.
+  Once the session is up, its island appears (W01 → Islands for
+  sessions) and the player is taken there.
+
+*Live check passed (2026-10-01)* with the user and the real `claude`:
+Tab and Esc, the system's picker and its Cancel, the picker hidden
+behind the game (menu Cancel gives the controls back; a folder picked
+later starts nothing), starting a session and landing at its island with
+the controls, `/exit` back to the platform.
+
+Still to design: the menu itself, recent folders, naming, choosing a
+provider, starting several at once, and where archipelagos are chosen
+(W05).
 
 ### S04 List and resume sessions
 *Planned (after v1).* Claude Code stores transcripts as JSONL under
@@ -1432,9 +1499,20 @@ Deliberate limitations). Sessions run with transcripts off leave nothing to
 list or resume (S02 → When transcripts are off), and Claude Code deletes
 transcripts after `cleanupPeriodDays` (30 by default), so the list only
 reaches that far back.
-*Sidecar side built with S02 (the world's list and resume UI come later;
-a resume from the world hasn't been run live yet, only `--resume` itself
-with `claude -p`):* `providers/claude/store.ts` lists
+*Built. Scope: core* (`session.list_stored`, `session.resume`). The
+world side is the sessions menu's "Resume" list (S03; user's decisions,
+2026-10-01): stored sessions from every provider the sidecar announced,
+newest first, as "title · project · how long ago" ("Untitled session"
+without a title), asked for each time the menu opens, filtered by the
+search box. A click resumes it through the same launcher and notices as
+a new session; once up, you're taken to its island and its chat holds
+the conversation so far. A **placeholder**, like the rest of the menu.
+*Live check passed (2026-10-01)* with the user and the real `claude`:
+the ended session listed under Resume and found by search, resumed with
+`claude --resume`, its earlier messages in the chat, and Claude
+remembering them; then listed under Running, not Resume.
+
+The sidecar side, built with S02: `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
 (at most 200), reading only each file's first and last 64 KiB: project
 from `cwd`, title from the newest `custom-title` (our `--name`, or a
@@ -1463,6 +1541,52 @@ island (W04). Claude Code offers no documented way to close a session from
 outside, so until S05 decides how, `session.end` gets `not_supported` for
 Claude sessions (user's decision, S02); `/exit` in the terminal still ends
 a session and sinks its island (its channel bridge closes).
+
+*Decided (user's, 2026-10-01): sessions aren't ended from the game for
+now.* Claude Code has no documented way to end an interactive session
+from outside (checked 2026-10-01): a hook's `"continue": false` only
+stops the turn, `SessionEnd` only reports an exit, and a channel can't
+close the session or send slash commands. Every way left is at the
+process level. Probed on Windows (`claude` 2.1.287): a Ctrl+C console
+event (`GenerateConsoleCtrlEvent`, a signal, not a keystroke) ended an
+idle `claude` cleanly, `SessionEnd` hook included; busy, untested. But
+Node can only kill a process on Windows, so it needs a native helper
+(PowerShell compiling `kernel32` calls looks like malware; a small C
+helper adds a build step), and macOS and Linux would use signals,
+untested. Options rejected: closing the terminal, a kill, a helper. The
+user's rule if it comes back: always the least abrupt way that doesn't
+make the player close the terminal, and nothing that injects keystrokes.
+Kept as a watch item (Watch items → Ending a session from the game).
+
+*Built: the quit warning (user's decision, 2026-10-01). Scope: core.*
+Quitting doesn't end sessions either: they keep running in their
+terminals, out of the world's reach. So `QuitGuard`
+(`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
+window is closed (its close button, Alt+F4, Cmd+Q) while sessions run,
+asks first: "N sessions are still running:", each as "title · project ·
+what it's doing" (kept up to date while the dialog is open), then
+"Quitting won't end them: they keep running in their terminals, and the
+game can't reach them any more. To end one, type /exit in its
+terminal." Buttons: Quit, and Back to the game (or Esc), which gives the
+mouse and controls back as they were. With no session running it quits
+at once. A **placeholder**, like all UI. "What it's doing" is the
+session's `SessionStore.activity`, subagents included: waiting for you
+if any agent waits, else working if any works (so an idle orchestrator
+waiting on its subagents' reports counts as working), else stopped or
+idle (the user had seen such sessions shown as idle). The Running list
+(W07) uses it too. *Live check passed (2026-10-02)* with the user and
+the real `claude`: "working" while a subagent works, the dialog with the
+session and the `/exit` hint, following its state, Back to the game and
+Esc, Quit leaving the terminal running, and closing at once with no
+session.
+
+**Known issue: a session from before a restart can be resumed twice**
+(seen live, 2026-10-02). After the game restarts, sessions still running
+in their terminals are listed under Resume, since the new sidecar doesn't
+know them, and resuming one opens a new terminal resuming the same
+conversation while the old `claude` still runs. *To fix with attaching
+to running sessions* (user's decision; Open questions → 5): a session
+still running should be attached to, not resumed.
 
 ## Conventions
 
@@ -1503,9 +1627,10 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: you start on the spawn platform; the "New session" post
-starts a session in a folder you pick, and you're taken to its island to
-chat with its orchestrator (S03, W01–W03, A01, C01, C02). That runs the
+for the world: you start on the spawn platform; Tab opens the sessions
+menu, which starts a session in a folder you pick or resumes a stored
+one, and you're taken to its island to chat with its orchestrator (S03,
+S04, W01–W03, A01, C01, C02). That runs the
 real `claude`; to try the world without it, start Godot with
 `-- --sidecar-dev-fake` (e.g. `godot --path . -- --sidecar-dev-fake`, or
 the editor's Project Settings → Editor → Run → Main Run Args), and chat
@@ -1520,7 +1645,9 @@ In `sidecar/`:
   that part of a session (a prompt to answer, a two-item question: one
   choice, then several; n background subagents, a notice, a new
   conversation like `/clear`); anything else is echoed back. A stop from the world ends what's
-  running. `test/dev-fake.test.ts` plays every scenario.
+  running. It also lists three stored sessions to resume (S04), each
+  coming back with a two-message chat; a running one isn't listed.
+  `test/dev-fake.test.ts` plays every scenario.
 - `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
   provider, driven like Godot would. It opens a terminal with `claude`
   (confirm the development channel there), prints every event with the
@@ -1558,16 +1685,21 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping, the sea respawn), the post (its prompt, the
-picker opening and cancelling, a refused folder), islands for sessions applied to the store by hand (one
+platform, walking, jumping, the sea respawn), the sessions menu (the
+hint, Tab and Esc, Godot's picker opening and cancelling back to the
+menu; the system's picker through a stand-in: the waiting note,
+cancelling, Esc while it is lost and its late answer ignored, a refused
+folder), islands for sessions applied to the store by hand (one
 per session, apart, the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, a long chat built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the session ending under you), and walking up to chat (A01,
-C01, C02, C05). With `--sidecar-dev-fake` it also starts a session from
-the post, chats with it, and answers a permission prompt and a question
-on the card; choosing a folder in the picker is replaced
-by calling `SessionPost.create`, which it calls. It can't check looks or the mouse: for those, run the game, under both
+C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
+through the menu's launcher (choosing a folder in the picker is replaced
+by calling `SessionLauncher.create`, which it calls), chats with it,
+answers a permission prompt and a question on the card, then lists,
+searches and resumes a stored session (S04) and goes to a running one
+from the menu (W07). It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
@@ -1611,6 +1743,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    come with W05.
 3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
+   *Partly answered (user's, 2026-10-01):* travel lives in the one
+   sessions menu (Tab), which lists running sessions to jump to (W07's
+   basic version). Sorting, grouping and the minimap are still open.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -1624,6 +1759,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    we pass at launch (S02), and the channel from our launch flags. A
    session started elsewhere has none of these, so attaching must give
    it the same hooks, the relay included, and test both switches there.
+   *Also (user's, 2026-10-02):* sessions the game started before a
+   restart are still running but listed under Resume, and resuming one
+   runs the conversation twice (S05 → Known issue). Attaching should
+   cover them.
 6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
@@ -1644,7 +1783,22 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C03 Markdown rendering (chosen by the user as the
+**Current focus:** the "many sessions" milestone (user's choice,
+2026-10-01). First feature on branch `s04-resume`: the **sessions menu**
+(Tab anywhere: new session, jump to a running one, resume a stored one;
+the "New session" post is removed; S03, S04, W07), built and documented,
+**live check passed with the user and the real `claude` (2026-10-01)**;
+ready for the user's review before merging to `main`. The menu is a **placeholder** (user's, 2026-10-01): it
+must be properly designed later, like all UI. S05 (end session), on
+branch `s05-end-session` (from `s04-resume`): ending sessions from the
+game is shelved as a watch item (no clean way in Claude Code); built
+instead: the **quit warning** and session-wide activity in the Running
+list, **live check passed (2026-10-02)** (resuming a session still
+running from before a restart runs it twice: a known issue, for
+attaching). Both branches are ready for the user's review; merging
+`s05-end-session` brings in `s04-resume` too. Then W05
+(archipelagos), A05 (attention cue) and W07 proper, each designed with
+the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
 and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
@@ -1679,8 +1833,10 @@ window (re-checked live). Merged to `main` 2026-10-01.
 Still open: props (open question 8), and the
 proper designs for starting sessions (S03) and travel (W06, W07).
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
-bubble, C05 card, prompts, post sign and checklist overlay only have to
-work for now; the whole UI is to be designed properly later.
+bubble, C05 card, prompts, the sessions menu (Tab) with its hint and
+notice, and the checklist overlay only have to work for now; the whole
+UI is to be designed properly later. The sessions menu especially (the
+user's explicit note): it must be properly designed later.
 
 *M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
 is retried on opening the chat, and replies lost with a dropped
@@ -1794,6 +1950,15 @@ exists.
   Principles (no data leaving the machine, no logins handled by us).
 
 ### Watch items
+
+- **Ending a session from the game** (S05). Not built: Claude Code has
+  no clean way to end an interactive session from outside (S05 has what
+  was checked and probed). Build it if Claude Code ever offers one (a
+  documented command, hook output or channel message that ends the
+  session). The user's rule: the least abrupt way that doesn't make the
+  player close the terminal, and nothing that injects keystrokes. The
+  quit dialog would then offer to end the running sessions, warning only
+  if some are working (user's wish, 2026-10-01).
 
 - **Anthropic's terms (public release).** The app is meant for free public
   release (maybe donations later). Per Claude Code's legal and compliance
@@ -1932,6 +2097,29 @@ exists.
   - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
     is the fallback home for the Linux build if Steam's sandboxing blocks
     launching the terminal and `claude`.
+- **Native folder picker on Windows** (S03). Godot 4.7.2 shows the
+  system's picker from a hidden helper window created with no owner
+  (`platform/windows/display_server_windows.cpp`, `_thread_fd_monitor`:
+  `CreateWindowExW(..., nullptr /* parent */, ...)`; the same in master,
+  checked 2026-10-01). So Windows doesn't keep the picker above the
+  game: alt-tab or a click on the game covers it. It still has its own
+  taskbar button and Alt+Tab entry. Nothing in GDScript can fix it
+  (`WINDOW_FLAG_NO_FOCUS` would make the game always-on-top, worse), so
+  the menu's Cancel is the safety net. **Known upstream:** Godot issue
+  #104670 ("Native FileDialog isn't transient"; a maintainer describes
+  this exact symptom on Windows), fixed by the open pull request #114512
+  (by bruvzg, not merged as of 2026-10-01): on Windows the picker is
+  then shown owned by the window named in the call, which stays blocked
+  under it, and our call already names the game window. When a Godot
+  release includes it, update and re-check: the picker should stay in
+  front (the menu's Cancel may then be unclickable while it's open,
+  which is fine). Keep the Cancel safety net until then.
+  macOS and Linux don't have this bug, per the same source: macOS shows
+  the picker as a sheet attached to the game window
+  (`beginSheetModalForWindow`), and on Linux the portal is given the
+  game window as the picker's parent (the X11 window id, or the exported
+  Wayland handle). Not yet seen live (Watch items → Untested on macOS
+  and Linux).
 - **Export presets (when we make them):** leave out `tests/`, including
   the live-check checklist overlay (`tests/live/`); `world.gd` only loads
   it with `--checklist`, but it shouldn't ship (user's, M1 review).
