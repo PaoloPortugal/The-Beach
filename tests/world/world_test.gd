@@ -623,7 +623,7 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and it takes you there")
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[2].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
+	_check(menu.entries()[3].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
 	_press("ui_cancel")
 	await _frames(2)
 
@@ -680,10 +680,10 @@ func _live(world: Node3D, player: Player) -> void:
 	# The open menu follows a rename.
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[2].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
+	_check(menu.entries()[3].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
 	sidecar.send_command("message.send", {"session": id, "text": "rename Notes"})
-	await _until(func() -> bool: return menu.entries()[2].begins_with("Notes   ·"), 5.0)
-	_check(menu.entries()[2].begins_with("Notes   ·"), "live: and follows a rename while open")
+	await _until(func() -> bool: return menu.entries()[3].begins_with("Notes   ·"), 5.0)
+	_check(menu.entries()[3].begins_with("Notes   ·"), "live: and follows a rename while open")
 	_press("ui_cancel")
 	await _frames(2)
 
