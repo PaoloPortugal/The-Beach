@@ -55,8 +55,10 @@ designed yet (see Known issues and next steps → Deferred ideas).
   our side fails, the tool must fall back to its own normal behaviour (e.g.
   the terminal asks the question), never to "allowed". See Architecture →
   Security rules.
-- **Free public release** is the goal, so everything must hold up on other
-  people's machines, not just the developer's.
+- **Public release** is the goal (user's plan, 2026-10-02): free and open
+  source on GitHub, paid on Steam (Watch items → Anthropic's terms,
+  Steam). Everything must hold up on other people's machines, not just
+  the developer's.
 - **Windows, macOS and Linux are all first-class.** Every feature is
   designed for all three from the start; nothing may assume one OS's
   terminal, paths, shell or installed tools. See Architecture → Platforms.
@@ -1155,7 +1157,10 @@ Shift+Tab in the terminal; typing keystrokes was rejected). Safety rules:
 only on an explicit user choice, `session` destination only (never written
 to settings files), current mode always visible with plain descriptions.
 Claude Code refuses `setMode` to `bypassPermissions` unless the session was
-launched with bypass available, which we never do. Protocol fields are
+launched with bypass available, which we never do (whether to ever offer
+bypass is the user's call when C06 is built; the recommendation is no,
+especially for a paid product). Offering a picker is legally fine: it
+uses documented flags, as if the user typed them. Protocol fields are
 added when this is built.
 
 ### C07 Plan approval
@@ -1319,6 +1324,18 @@ It connects back to the sidecar over loopback with the session's token.
 - **Permission relay:** Claude Code sends each permission prompt to the
   bridge (with a five-letter `request_id`) while the terminal shows its
   dialog; a verdict from the world closes that dialog.
+- **Sender gating:** the channels reference calls an ungated channel a
+  prompt injection vector and says to check each sender before
+  forwarding, and to relay permissions only if the sender is
+  authenticated. Ours has a single possible sender, the game, which
+  proves itself at each step instead of passing an allowlist: the
+  bridge listens nowhere (it connects out to the sidecar with a
+  one-time session token); the sidecar forwards only chat and verdicts
+  that arrive as commands on Godot's authenticated WebSocket (token,
+  `Origin` refused, `Host` checked); and those come only from the
+  user's typing and clicks (Security rules). Tested in
+  `security.test.ts` and `bridge.test.ts`. Like Anthropic's iMessage
+  channel, which only lets the user's own messages through.
 
 **Seeing the session: HTTP hooks** posted to one loopback endpoint per
 sidecar (`POST /hook`, a token per session, `Origin` and foreign `Host`
@@ -2251,21 +2268,55 @@ exists.
   quit dialog would then offer to end the running sessions, warning only
   if some are working (user's wish, 2026-10-01).
 
-- **Anthropic's terms (public release).** The app is meant for free public
-  release (maybe donations later). Per Claude Code's legal and compliance
-  docs (checked 2026-09-29): third parties may not offer claude.ai login,
-  route requests through Free/Pro/Max credentials, or collect, store or
-  intermediate Claude credentials; this doesn't prevent a user signing in
-  to the **unmodified** Claude Code binary with their own subscription.
-  Hence the CLI route (S02): each user installs and signs in to Claude Code
-  themselves; we never bundle, modify or authenticate it. Recheck the terms
-  before each release; for certainty, ask Anthropic (the page points to
-  their sales contact).
+- **Anthropic's terms (public release).** *Plan (user's, 2026-10-02):*
+  free and open source (MIT) on GitHub, **paid on Steam** (Principles).
+  Per Claude Code's legal and compliance docs (rechecked 2026-10-02):
+  third parties may not offer claude.ai login, route requests through
+  Free/Pro/Max credentials, or collect, store or intermediate Claude
+  credentials; this doesn't prevent a user signing in to the
+  **unmodified** Claude Code binary with their own subscription. Hence the
+  CLI route (S02): each user installs and signs in to Claude Code
+  themselves; we never bundle, modify or authenticate it. What this means
+  for the paid release:
+  - *Commercial Terms:* "preinstalling or running Claude Code in your
+    products" requires agreeing to Anthropic's Commercial Terms, on two
+    conditions we meet: the binary is unmodified, and each user signs in
+    and pays with their own credentials. A paid Steam app is clearly a
+    product, so expect to agree to them (likely through a Claude Console
+    account) before the Steam release.
+  - *Never intermediate Claude usage:* players buy the app, not Claude.
+    No bundled Claude credit, no edition "with Claude included", no
+    trial on our key: each player pays Anthropic directly.
+  - *Automated access:* the Consumer Terms forbid "automated or
+    non-human means" except with an API key or where Anthropic permits
+    it. Our reading: we add no automation. The user types every message
+    and makes every choice; we never approve anything or pick a
+    permission mode. A mode the user sets (e.g. `auto`, where Claude
+    Code's own checks decide) is Claude Code's feature, and we don't
+    override it. Hooks and channels are documented for this kind of use
+    (Anthropic's fakechat demo is a localhost chat UI).
+  - *Ask Anthropic before the public release* (to do; user's decision,
+    2026-10-02: not now). Both messages are drafted in the dev log
+    (2026-10-02-terms-steam); before sending, confirm the contacts
+    below are still the right ones and refresh the drafts against the
+    terms. The planned routes: the terms questions (is the
+    subscription use fine, free and paid; is the Commercial Terms step
+    the right one) go by email through the contact-sales form, which the
+    legal page names for "questions about permitted authentication
+    methods". The channel-flag question (Channels are a research
+    preview, below) goes as a public issue on anthropics/claude-code,
+    where the channels docs ask for feedback; no terms questions there.
+    Other contacts found: support@anthropic.com (account help, not
+    rulings), marketing@anthropic.com (permission to use their names or
+    logos), notices@anthropic.com (formal legal notices only). Record
+    the answers here. Recheck the terms before each release.
 - **Claude branding.** Same page: a product may say in plain text that it
   runs Claude Code, but may not use the Claude Code or Anthropic names or
   logos in its own name or logo, or suggest Anthropic built or endorses it.
   Other use of their logos needs written permission. This affects the "logo
-  model" agents (A01, A02) in a public release.
+  model" agents (A01, A02) in a public release, and the Steam store page:
+  "Requires Claude Code" in plain text is fine; the name, capsule art,
+  logo and trailer must not use their names or logos.
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
   sidecar should detect missing hook events and explain this.
@@ -2298,6 +2349,15 @@ exists.
   need `--dangerously-load-development-channels` (confirmed by the user at
   startup), and Team/Enterprise organisations block channels unless an
   admin enables them. Pro/Max users without an organisation can use them.
+  The docs describe the development flag as the way "to test a channel
+  you're building"; plain `--channels` only accepts channels on
+  Anthropic's allowlist (or an organisation's). **Settle before the paid
+  Steam release:** a product whose main feature hangs on a testing flag
+  could break, and refunds would land on us. Ways out: get our channel
+  onto the allowlist (the plugin directory submission form may be the
+  route; our bridge would first have to become a plugin, a design
+  change), channels leaving the preview, or Anthropic confirming the flag
+  is fine (Anthropic's terms, above).
 - **A deny with a message from the channel.** The channel's verdict has
   no message, so a deny's note follows as the user's next chat message
   (S02 → Permissions). *Decided (user's, 2026-10-01):* if Claude Code
@@ -2351,9 +2411,18 @@ exists.
 - **Large chat histories.** `session.get_history` answers in one message;
   Godot's client accepts up to 32 MiB (S01). A very long session could
   exceed that; paging the history is the fix if it happens.
-- **Steam (likely, not certain).** The user plans to ship on Steam
-  (depots per OS, updates through SteamPipe; the bundled sidecar ships as
-  ordinary game files). Things to check before relying on it:
+- **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
+  on Steam while the source stays free on GitHub (depots per OS, updates
+  through SteamPipe; the bundled sidecar ships as ordinary game files).
+  Anthropic's side of a paid release is under Anthropic's terms and
+  Channels are a research preview (both above). Things to check before
+  relying on it:
+  - *Third-party account:* the store page must say "Requires 3rd-Party
+    Account": Claude Code with the player's own plan or API key. Saying
+    so plainly also heads off refunds.
+  - *Licences:* MIT allows selling builds. Every asset and dependency
+    must allow commercial use (CC0 Kenney packs do; the placeholder
+    Godot icon, CC BY, is replaced before release; `assets/CREDITS.md`).
   - *Linux sandboxing:* native Linux games may run inside the Steam Linux
     Runtime container, and Flatpak installs of Steam are sandboxed; either
     may stop the game from seeing or starting the user's terminal and
@@ -2367,7 +2436,11 @@ exists.
     build.
   - *AI disclosure:* Steam's content survey asks about AI, including
     live-generated content shown in the game; Claude's replies probably
-    count, and the answer must describe our safeguards.
+    count, and the answer must describe our safeguards (the player's own
+    session; nothing approved without them). Since Valve's January 2026
+    form (per developer guides; recheck in Steamworks), coding assistants
+    used while developing need no disclosure, and our art is never
+    AI-generated, so there is no pre-generated content to declare.
   - *Signing:* games installed by Steam don't trigger SmartScreen; check
     Valve's current macOS signing and notarization requirements (see Code
     signing).
