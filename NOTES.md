@@ -1492,6 +1492,12 @@ proper design later, like all UI.
   waiting. If that session starts later, it's listed under Running.");
   the sidecar isn't told, so a session that does come up later is an
   ordinary running session: its island appears, nobody is taken there.
+  *Live check passed (2026-10-02)* with the user and the real `claude`:
+  declining at the startup prompt and closing the terminal while it asks
+  both end the start within about a second ("The session didn't
+  start."); Stop waiting frees the menu for another start; the waiting
+  session confirmed afterwards comes up under Running with its island,
+  no teleport.
 
 *Live check passed (2026-10-01)* with the user and the real `claude`:
 Tab and Esc, the system's picker and its Cancel, the picker hidden
@@ -1804,7 +1810,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 first. **On branch `s03-start-exit` (2026-10-02):** the world stops waiting at
 once when Claude Code closes before a session is up (e.g. folder trust
 declined), and the menu can stop waiting (S02 → Starting up, S03); live
-check next. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+check passed (2026-10-02), waiting for the user's review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
