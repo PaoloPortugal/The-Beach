@@ -159,6 +159,7 @@ export class Registry {
     const ext = EXTENSION_TYPE.exec(event.type)
     if (ext && !s.extensions.includes(ext[1]!)) return refuse(`extension ${ext[1]} not declared`)
 
+    event = stamp(event)
     const { type, ...rest } = event
     const msg: Outgoing = { type, session: entry.id, seq: s.seq + 1, ...rest }
     const checked = checkMessage(msg)
@@ -181,6 +182,18 @@ export class Registry {
     // "starting" placeholder for the id it got in the create reply.
     this.send(entry, { type: 'session.ended', session: entry.id, seq, reason })
   }
+}
+
+/**
+ * Notes when a permission or question was asked, so the wait can be timed.
+ * The sidecar's clock decides, not the provider's: a provider's own value is
+ * replaced. Kept in the snapshot, so it survives Godot reconnecting.
+ */
+function stamp(e: SessionEvent): SessionEvent {
+  const asked_at = new Date().toISOString()
+  if (e.type === 'permission.requested') return { ...e, permission: { ...e.permission, asked_at } }
+  if (e.type === 'question.asked') return { ...e, question: { ...e.question, asked_at } }
+  return e
 }
 
 /**

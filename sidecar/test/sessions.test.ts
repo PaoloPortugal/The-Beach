@@ -155,6 +155,35 @@ test('a snapshot reflects every event and carries the current seq', async () => 
   } finally { await teardown(s, c) }
 })
 
+test('permissions and questions carry when the sidecar saw them, in events and snapshots', async () => {
+  const p = new FakeProvider({ capabilities: { questions: {} } })
+  const { s, c } = await setup(p)
+  try {
+    await created(c)
+    const h = p.sessions[0]!.host
+    const before = Date.now()
+    // A provider's own asked_at is replaced by the sidecar's clock.
+    h.emit({ type: 'permission.requested', permission: { permission: 'p1', agent: 'main', tool: 'Bash', summary: 'Run: ls', asked_at: '2000-01-01T00:00:00Z' } })
+    h.emit({ type: 'question.asked', question: { question: 'q1', agent: 'main', items: [{ text: 'Which?', options: [{ label: 'A' }], multi_select: false }] } })
+    const perm = (await c.next('permission.requested')).permission as { asked_at: string }
+    const quest = (await c.next('question.asked')).question as { asked_at: string }
+    const after = Date.now()
+    for (const at of [perm.asked_at, quest.asked_at]) {
+      const t = Date.parse(at)
+      assert.ok(t >= before && t <= after, at)
+    }
+
+    // A reconnect gets the same times, not new ones.
+    await new Promise((r) => setTimeout(r, 20))
+    const c2 = await connect(s.port, s.token)
+    const snap = (await c2.sync()).snapshots[0]!.session as { permissions: { asked_at: string }[]; questions: { asked_at: string }[] }
+    assert.equal(snap.permissions[0]!.asked_at, perm.asked_at)
+    assert.equal(snap.questions[0]!.asked_at, quest.asked_at)
+    assert.deepEqual(c2.invalid, [])
+    await c2.close()
+  } finally { await teardown(s, c) }
+})
+
 test('get_snapshot answers ok, then the snapshot', async () => {
   const { s, c } = await setup()
   try {

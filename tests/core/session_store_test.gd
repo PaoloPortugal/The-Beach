@@ -76,6 +76,16 @@ func _by_hand() -> void:
 	store.apply({"type": "question.resolved", "session": "b", "seq": 5, "question": "q1", "by": "external"})
 	_check(kinds.call() == ["permission p2", "permission p3"], "a resolved one leaves the queue")
 
+	# A session first seen in a snapshot: its requests go by asked_at,
+	# whatever their kind, and keep it.
+	var seen := _snapshot("c")
+	seen["permissions"] = [{"permission": "p9", "agent": "main", "tool": "Bash", "summary": "Run: ls", "asked_at": "2026-09-29T10:00:05.000Z"}]
+	seen["questions"] = [{"question": "q9", "agent": "main", "asked_at": "2026-09-29T10:00:01.000Z", "items": [{"text": "?", "options": [], "multi_select": false}]}]
+	store.apply({"type": "session.snapshot", "session": seen})
+	var waits: Array = store.pending("c").map(func(c: Dictionary) -> String: return "%s %s" % [c["item"][c["kind"]], c["item"]["asked_at"]])
+	_check(waits == ["q9 2026-09-29T10:00:01.000Z", "p9 2026-09-29T10:00:05.000Z"], "a snapshot's requests go oldest first by asked_at")
+	store.sessions.erase("c")
+
 	store.apply({"type": "session.notice", "session": "a", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	store.apply({"type": "session.notice", "session": "a", "seq": 12, "notice": {"code": "transcripts_off", "message": "y"}})
 	var notices: Array = store.session("a")["notices"]
@@ -143,6 +153,7 @@ func _live() -> void:
 	# The agent's state change can land a frame later.
 	await _until(func() -> bool: return store.agent(id, "main")["reason"] == "permission", 2.0)
 	_check(store.agent(id, "main")["reason"] == "permission", "live: waiting on a permission")
+	_check(str(store.session(id)["permissions"][0].get("asked_at", "")).length() > 0, "live: the sidecar timed the request")
 	var p: String = store.session(id)["permissions"][0]["permission"]
 	await _command(sidecar, "permission.respond", {"session": id, "permission": p, "decision": "allow"})
 	await _until(func() -> bool: return store.agent(id, "main")["state"] == "idle", 8.0)
