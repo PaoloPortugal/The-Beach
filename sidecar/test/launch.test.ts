@@ -62,11 +62,11 @@ function fakeOpen(platform: NodeJS.Platform, installed: string[], argv: string[]
   return { run, started, runDir }
 }
 
-test('Windows: Windows Terminal gets the launcher argv after --', async () => {
+test('Windows: Windows Terminal gets the launcher argv after --, as a tab in the sessions window', async () => {
   const argv = ['C:\\Program Files\\Game\\sidecar.exe', 'launch', 'C:\\Temp\\s\\launch.json']
   const { run, started } = fakeOpen('win32', ['wt.exe'], argv)
   assert.equal(await run, 'windows-terminal')
-  assert.deepEqual(started, [{ file: '/bin/wt.exe', args: ['-w', 'new', 'new-tab', '--title', 'T', '--', ...argv] }])
+  assert.deepEqual(started, [{ file: '/bin/wt.exe', args: ['-w', 'agent-sessions', 'new-tab', '--title', 'T', '--', ...argv] }])
 })
 
 test('Windows: never hands Windows Terminal a ; or " (it would split them); uses the console', async () => {

@@ -1,26 +1,18 @@
-LIVE CHECK: the quit warning (S05)
+LIVE CHECK: sessions as terminal tabs
 Start the game from a separate terminal
 (not Claude's Run button).
 
 1. Tab > New session... > notes-app,
-   confirm in the terminal.
-2. Chat: "Use a subagent to look at every
-   file here, then sum up." While the
-   subagent works, Tab: the session shows
-   "working" (also once the orchestrator
-   itself is idle).
-3. Close the game window (X or Alt+F4):
-   a dialog lists the session and what it
-   does, and says to type /exit in its
-   terminal. Back to the game: you can look
-   and walk. Again, then Esc: same.
-4. Close it again > Quit: the game closes,
-   the session's terminal keeps going.
-5. Start the game again. Tab: is that
-   session listed under Resume? Click it
-   (it's a sandbox): what happens in the
-   new terminal and in the old one?
-6. /exit every terminal. Close the game:
-   with no session it closes at once.
+   confirm: a new Windows Terminal
+   window opens (not a tab in the one
+   you started the game from).
+2. Tab > New session... > todo-game:
+   a second tab in that same window.
+   Confirm there; both islands are up.
+3. /exit in one tab: its island sinks,
+   the other session keeps going.
+4. Close that whole window. Start one
+   more session: a new window opens.
+5. /exit every session.
 
 Tell Claude what you saw; paste red errors.
