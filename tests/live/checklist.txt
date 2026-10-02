@@ -1,22 +1,26 @@
-LIVE CHECK: Markdown in the chat (C03)
+LIVE CHECK: the quit warning (S05)
+Start the game from a separate terminal
+(not Claude's Run button).
 
-1. Post (E) > C:\Users\paolo\sandbox\notes-app.
-   Confirm the dev channel in the terminal.
-2. Chat from the world: "Show me a short
-   Python example in a code block, a table,
-   a task list and a link to godotengine.org."
-3. While it streams, look at the bubble from
-   a few metres: formatted, last 4 lines,
-   small "..." above when cut. Readable?
-4. In the panel: headings, bold, the table,
-   the code panel (Copy, Shift+wheel, plain
-   wheel scrolls the chat), the task boxes.
-5. Hover the link: its address shows. Click:
-   a confirmation with the full address.
-   Esc: only that closes. Click again and
-   Open in browser: it opens.
-6. Send your own message with **bold** and a
-   ``` code fence. It is formatted too.
-7. /exit in the terminal.
+1. Tab > New session... > notes-app,
+   confirm in the terminal.
+2. Chat: "Use a subagent to look at every
+   file here, then sum up." While the
+   subagent works, Tab: the session shows
+   "working" (also once the orchestrator
+   itself is idle).
+3. Close the game window (X or Alt+F4):
+   a dialog lists the session and what it
+   does, and says to type /exit in its
+   terminal. Back to the game: you can look
+   and walk. Again, then Esc: same.
+4. Close it again > Quit: the game closes,
+   the session's terminal keeps going.
+5. Start the game again. Tab: is that
+   session listed under Resume? Click it
+   (it's a sandbox): what happens in the
+   new terminal and in the old one?
+6. /exit every terminal. Close the game:
+   with no session it closes at once.
 
 Tell Claude what you saw; paste red errors.

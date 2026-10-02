@@ -10,7 +10,7 @@ import { connect, type Msg } from './helpers.ts'
 
 const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
-test('dev:fake: echo, permission, question, agents, notice and stop all play out validly', { timeout: 60000 }, async () => {
+test('dev:fake: echo, permission, question, agents, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
@@ -72,6 +72,18 @@ test('dev:fake: echo, permission, question, agents, notice and stop all play out
 
     const history = (await c.command({ type: 'session.get_history', session })).result as { messages: any[] }
     assert.ok(history.messages.some((m) => m.role === 'user' && m.text === 'hello'))
+
+    // Stored sessions: listed newest first, resumed with their chat, and not
+    // listed while they run.
+    const list = async () => ((await c.command({ type: 'session.list_stored', provider: 'fake' })).result as { sessions: any[] }).sessions
+    assert.deepEqual((await list()).map((s) => s.native_id), ['stored-1', 'stored-2', 'stored-3'])
+    const resumed = (await c.command({ type: 'session.resume', provider: 'fake', native_id: 'stored-2' })).result as { session: string }
+    const back = await c.next('session.created', 3000)
+    assert.equal((back.session as any).native_id, 'stored-2')
+    assert.equal((back.session as any).title, 'Add a save system')
+    const chat = (await c.command({ type: 'session.get_history', session: resumed.session })).result as { messages: any[] }
+    assert.deepEqual(chat.messages.map((m) => m.text), ['Where were we?', 'Resumed **Add a save system**.'])
+    assert.deepEqual((await list()).map((s) => s.native_id), ['stored-1', 'stored-3'])
     assert.deepEqual(c.invalid, [])
     await c.close()
   } finally { child.kill() }

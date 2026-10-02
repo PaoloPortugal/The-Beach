@@ -10,9 +10,11 @@
 //   notice       a session notice (transcripts off)
 //   clear        a new conversation in the session, like /clear (S02)
 // A stop from the world (interrupt capability) ends whatever is running.
+// Three stored sessions can be listed and resumed (S04); a resumed one
+// comes back with a short chat so far, and isn't listed while it runs.
 import { serve } from '../src/serve.ts'
 import { FakeProvider, FakeSession } from './fake-provider.ts'
-import type { HistoryMessage, Id, SessionEvent } from '../src/protocol.ts'
+import type { HistoryMessage, Id, SessionEvent, StoredSession } from '../src/protocol.ts'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -195,7 +197,36 @@ class ScriptedSession extends FakeSession {
   }
 }
 
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString()
+
 class ScriptedProvider extends FakeProvider {
+  private readonly all: StoredSession[] = [
+    { provider: 'fake', native_id: 'stored-1', project: { path: process.cwd(), name: 'notes-app' }, title: 'Fix the player falling through the floor', updated_at: hoursAgo(2) },
+    { provider: 'fake', native_id: 'stored-2', project: { path: process.cwd(), name: 'my-game' }, title: 'Add a save system', updated_at: hoursAgo(26) },
+    { provider: 'fake', native_id: 'stored-3', project: { path: process.cwd(), name: 'notes-app' }, title: null, updated_at: hoursAgo(24 * 5) },
+  ]
+
+  override async listStored(project?: string) {
+    // Like the real store: sessions running here aren't listed.
+    const running = new Set(this.sessions.filter((s) => !s.host.ended).map((s) => s.nativeId))
+    return this.all.filter((s) => !running.has(s.native_id) && (!project || s.project.path === project))
+  }
+
+  override async resume(host: Parameters<FakeProvider['resume']>[0], nativeId: string) {
+    const stored = this.all.find((s) => s.native_id === nativeId)
+    if (!stored) throw new Error(`No stored session ${nativeId}`)
+    const s = new ScriptedSession(this, host, stored.project)
+    s.nativeId = nativeId
+    s.title = stored.title ?? undefined
+    s.history = [
+      { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
+      { message: 'r2', agent: 'main', role: 'assistant', text: `Resumed **${stored.title ?? 'this session'}**.`, at: stored.updated_at },
+    ]
+    this.sessions.push(s)
+    setTimeout(() => s.announce(), 500)
+    return s
+  }
+
   override async create(host: Parameters<FakeProvider['create']>[0], options: Parameters<FakeProvider['create']>[1]) {
     const s = new ScriptedSession(this, host, options.project)
     this.sessions.push(s)
