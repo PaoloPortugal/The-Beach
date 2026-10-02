@@ -1316,6 +1316,22 @@ now and then; the newest wins. Code: `store.ts` (`Titles`, `pickTitle`,
   conversation's titles from its transcript, and so does a session
   resumed from the world (S04).
 - The terminal window is still titled after the project folder.
+- **A first message from the world gets no generated title** (live
+  check, 2026-10-02; user's decision to keep it). Claude Code writes
+  `ai-title` only for a prompt typed in the terminal: world chat arrives
+  through the channel and is stored as `isMeta`, which it skips. Such a
+  session keeps its first message's line (still matching Claude Code's
+  own `/resume` list); a `/rename`, or an `ai-title` Claude Code writes
+  later, still replaces it. Not worked around: making a title ourselves
+  would mean calling a model or making Claude run `/rename` (Principles).
+  Watch items → Generated session titles.
+
+*Live check passed (2026-10-02)* with the user and the real `claude`
+(notes-app sandbox): "New session" until the first message, then its
+line, then Claude Code's title for a prompt typed in the terminal;
+`/rename` renamed it in the world, the open menu included; `/clear`
+made it "New session" again; `/resume` brought back the earlier name;
+the Resume list matched Claude Code's own `/resume` list.
 
 **Permissions** (C05's sidecar side). The relayed prompt names no tool
 call or agent, so the sidecar ties it to the open call of that tool whose
@@ -1827,8 +1843,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 first. **Session titles (S02 → Titles) built on branch
 `s02-titles`** (user's decisions, 2026-10-02): sessions are named like
 Claude Code names them (`/rename`, else its own generated title, else
-the first message's line), in the world and in the Resume list; tests
-pass, live check with the user and the real `claude` to do, then review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+the first message's line), in the world and in the Resume list; live
+check passed (2026-10-02), waiting for the user's review. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
@@ -2030,6 +2046,11 @@ exists.
   up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
   Claude Code updates: if it stops accepting older servers, or channels
   move to subscriptions, adopt the SDK once it supports the new revision.
+- **Generated session titles** (S02 → Titles). Claude Code doesn't
+  generate a title (`ai-title`) when a session's first message comes
+  from the world (a channel message, `isMeta`); such sessions are named
+  by that message's line. If Claude Code starts titling channel
+  messages, nothing needs changing: the newer title wins on its own.
 - **Transcript format.** Esc and terminal "No" are only visible in the
   transcript, whose line format isn't a documented interface; nor are
   the session titles in it (`custom-title`, `ai-title`; S02 → Titles). It is used
