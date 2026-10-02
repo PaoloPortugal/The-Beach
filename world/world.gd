@@ -3,12 +3,14 @@ extends Node3D
 ## opens the sessions menu, to start, resume or go to a session. Each live
 ## session gets an island with its orchestrator; one you started takes you
 ## there. Plus the ocean and the chat. Closing the window while sessions
-## run asks first (S05).
+## run asks first (S05). Sessions waiting on you draw attention (A05).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
 ## Asks before quitting while sessions run.
 var quit_guard := QuitGuard.new()
+## Says when sessions wait on you (A05; the beacons are on the agents).
+var attention := Attention.new()
 
 @onready var _player: Player = $Player
 @onready var _islands: SessionIslands = $SessionIslands
@@ -35,6 +37,9 @@ func _ready() -> void:
 	_menu.setup(store, Sidecar, _islands.clusters)
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
+	add_child(attention)
+	attention.setup(store)
+	_menu.attention = attention
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
 		_chat.watch(orchestrator))
 	_islands.island_removed.connect(func(id: String, _island: Island) -> void:

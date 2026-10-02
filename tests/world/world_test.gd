@@ -6,7 +6,8 @@ extends SceneTree
 ## sessions (applied to the store by hand), each orchestrator's bubble, and
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
 ## Markdown (C03); subagents'
-## placement, coming and going, and state markers (A02, A03, A04).
+## placement, coming and going, and state markers (A02, A03, A04); the
+## attention cue (A05).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -380,6 +381,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(1)
 	shown = panel.get_node("Layout/Notices").text
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
+	await _attention(world)
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
 	await _frames(2)
 	_check(islands.island("h1") == null and not chat.is_open() and player.controls_enabled, "an ended session's island goes, and its chat closes")
@@ -390,6 +392,72 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "session.ended", "session": "h2", "seq": 2, "reason": "exited"})
 	store.apply({"type": "session.ended", "session": "h3", "seq": 2, "reason": "exited"})
 	await _frames(2)
+
+
+# A05: h1's orchestrator waits on a permission; h2's comes and goes.
+func _attention(world: Node3D) -> void:
+	var store: SessionStore = world.store
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	var attention: Attention = world.attention
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
+	# Never the developer's own settings file.
+	attention.settings_path = "user://world_test_settings.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(attention.settings_path))
+	var focused := [true]
+	var asked := [0]
+	var chimes := [0]
+	attention.is_focused = func() -> bool: return focused[0]
+	attention.request_attention = func() -> void: asked[0] += 1
+	attention.play_chime = func() -> void: chimes[0] += 1
+	attention.sound_on = true
+	var h1: AgentStateMarker = islands.orchestrator("h1").get_node("StateMarker")
+	var h2: AgentStateMarker = islands.orchestrator("h2").get_node("StateMarker")
+	var state := func(seq: int, to: String, reason: Variant = null) -> void:
+		store.apply({"type": "agent.state_changed", "session": "h2", "seq": seq, "agent": "main", "state": to, "reason": reason})
+	_check(attention.count_text() == "1 session waiting" and h1.beacon_on() and not h2.beacon_on(), "attention: a waiting agent has a beacon, and the corner counts it")
+	state.call(3, "waiting", "permission")
+	await _frames(2)
+	_check(attention.count_text() == "2 sessions waiting" and h2.beacon_on(), "attention: counted by session")
+	_check(asked[0] == 0 and chimes[0] == 0, "attention: in the game, no flash and no chime")
+	var beacon: AttentionBeacon = h2.get_node("Beacon")
+	_check(beacon.visible, "attention: the beacon shows")
+	state.call(4, "working")
+	await _frames(2)
+	_check(attention.count_text() == "1 session waiting" and not h2.beacon_on(), "attention: it goes when the agent stops waiting")
+	await _until(func() -> bool: return not beacon.visible, 3.0)
+	_check(not beacon.visible, "attention: the beacon fades out")
+	focused[0] = false
+	state.call(5, "waiting", "question")
+	_check(asked[0] == 1 and chimes[0] == 1, "attention: in another window, a new wait flashes the window and chimes")
+	state.call(6, "waiting", "permission")
+	_check(asked[0] == 1 and chimes[0] == 1, "attention: once per wait")
+	var arriving := _snapshot("h5")
+	arriving["agents"][0]["state"] = "waiting"
+	arriving["agents"][0]["reason"] = "permission"
+	store.apply({"type": "session.snapshot", "session": arriving})
+	_check(attention.count_text() == "3 sessions waiting" and asked[0] == 2, "attention: a session that arrives waiting counts, and flashes")
+	store.apply({"type": "session.ended", "session": "h5", "seq": 2, "reason": "exited"})
+	_check(attention.count_text() == "2 sessions waiting", "attention: an ended session isn't counted")
+	asked[0] = 1
+	chimes[0] = 1
+	menu.open()
+	_check(menu.sound_toggle().visible and menu.sound_toggle().button_pressed, "attention: the sessions menu has the sound toggle, on")
+	menu.sound_toggle().button_pressed = false
+	menu.close()
+	_check(not attention.sound_on, "attention: the toggle turns the chime off")
+	state.call(7, "working")
+	state.call(8, "waiting", "permission")
+	_check(asked[0] == 2 and chimes[0] == 1, "attention: with the sound off, only the flash")
+	var again := Attention.new()
+	again.settings_path = attention.settings_path
+	again.setup(SessionStore.new())
+	_check(not again.sound_on, "attention: the sound setting is kept between runs")
+	again.free()
+	attention.sound_on = true
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(attention.settings_path))
+	focused[0] = true
+	state.call(9, "idle")
+	await _frames(1)
 
 
 # S05: closing the window with sessions h1 and h2 running asks first.
