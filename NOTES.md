@@ -1991,11 +1991,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **On branch `ci-tests` (2026-10-02):** GitHub Actions runs
-every test on Windows, macOS and Linux (Running it → Continuous
-integration; macOS only on `main` and by hand, to save minutes); green
-on all six jobs (2026-10-02), ready for the user's review. **Merged to `main` (2026-10-02)**, each live-checked with
-the user and reviewed: **W05 clusters** (renamed from archipelagos by
+2026-10-01). **Merged to `main` (2026-10-02), reviewed by the user:
+CI**: GitHub Actions runs every test on Windows and Linux on every push,
+and on macOS too on `main` and by hand (Running it → Continuous
+integration); read results with `gh`. **Also merged to `main`
+(2026-10-02)**, each live-checked with the user and reviewed: **W05 clusters** (renamed from archipelagos by
 the user), the **start exit** fix (the world stops waiting at once when
 Claude Code closes before a session is up, and the menu can stop
 waiting; S02 → Starting up, S03), **terminal tabs** (sessions open as
