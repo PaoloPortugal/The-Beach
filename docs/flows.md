@@ -165,6 +165,12 @@ without the channel tag. A `<task-notification>` or subagent hand-back
 prompt is not a user message (see flow 5). Tool calls in between are
 `tool.started` / `tool.finished` (flow 5 shows them).
 
+**Titles** (NOTES.md → S02 → Titles). While the session has no name, the
+first user message's line names it: a `session.updated` (title) along
+with its `message.completed`. Claude Code's own title (`ai-title`) and a
+`/rename` (`custom-title`) come as transcript lines the sidecar follows;
+each change of the title shown is another `session.updated` (title).
+
 ## 3. A permission prompt
 
 ```mermaid
@@ -392,10 +398,10 @@ sequenceDiagram
     alt source resume
         Sidecar->>Log: read the resumed transcript's chat (slash commands left out)
         Note over Sidecar: that chat becomes the session's history
-        Sidecar->>World: session.updated (native_id), session.notice (conversation_resumed)
+        Sidecar->>World: session.updated (native_id, title if it changed), session.notice (conversation_resumed)
     else source clear
         Note over Sidecar: the history starts empty
-        Sidecar->>World: session.updated (native_id), session.notice (conversation_cleared)
+        Sidecar->>World: session.updated (native_id, title null if it had one), session.notice (conversation_cleared)
     end
     Sidecar-->>Relay: nothing to add
     Relay-->>Claude: exit 0, nothing on stdout

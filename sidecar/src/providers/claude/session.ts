@@ -11,7 +11,7 @@ import type { BridgeLink } from './bridge-server.ts'
 import type { HookLink, HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
 import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, unwrapChannel, type RelayedPermission } from './hooks.ts'
-import { hasReply, readHistory } from './store.ts'
+import { hasReply, NO_TITLES, pickTitle, readHistory, readTitles, type Titles } from './store.ts'
 import { launcherGone } from '../../launch/launcher.ts'
 
 /**
@@ -132,7 +132,9 @@ export class ClaudeSession implements ProviderSession {
   /** The project's transcript folder, from the first hook: a new conversation must be in the same one. */
   private transcriptDir: string | null = null
   private readonly project: Project
-  private readonly name: string
+  /** What the conversation the world follows is called so far, and the title last announced. */
+  private titles: Titles
+  private shownTitle: string | null = null
   private readonly log: Log
   private readonly cleanup: () => void
   private readonly startupTimeoutMs: number
@@ -176,14 +178,14 @@ export class ClaudeSession implements ProviderSession {
   /** A first message to send once the session is up (session.create's prompt). */
   private prompt: string | null
 
-  constructor(host: SessionHost, launch: Launch, project: Project, name: string, log: Log,
+  constructor(host: SessionHost, launch: Launch, project: Project, titles: Titles, log: Log,
     cleanup: () => void, startupTimeoutMs: number, history: HistoryMessage[] = [], prompt?: string,
     hooksCheckMs = HOOKS_CHECK_MS) {
     this.host = host
     this.launch = launch
     this.nativeId = launch.nativeId
     this.project = project
-    this.name = name
+    this.titles = { ...titles }
     this.log = log
     this.cleanup = cleanup
     this.startupTimeoutMs = startupTimeoutMs
@@ -225,7 +227,7 @@ export class ClaudeSession implements ProviderSession {
     this.host.announce({
       native_id: this.nativeId,
       project: this.project,
-      title: this.name,
+      title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
       capabilities: { questions: {}, interrupt: { immediate: false } },
       extensions: [],
@@ -358,8 +360,13 @@ export class ClaudeSession implements ProviderSession {
       this.history.length = 0
       this.log.info(`session ${this.host.id}: a new conversation started in it (/clear)`)
     }
+    // Its own name: an earlier conversation's from its transcript, none yet for a new one.
+    this.titles = resumed ? readTitles(file) : { ...NO_TITLES }
+    const title = pickTitle(this.titles)
+    const renamed = title !== this.shownTitle
+    this.shownTitle = title
     // After the history: the world reloads it on session.updated.
-    this.host.emit({ type: 'session.updated', native_id: id })
+    this.host.emit({ type: 'session.updated', native_id: id, ...(renamed ? { title } : {}) })
     this.host.emit({ type: 'session.notice', notice: resumed ? CONVERSATION_RESUMED : CONVERSATION_CLEARED })
     this.onNativeId?.(from, id)
   }
@@ -408,6 +415,7 @@ export class ClaudeSession implements ProviderSession {
   private onTranscript(s: TranscriptSignal) {
     if (this.disposed || this.host.ended) return
     if (s.kind === 'continued') return this.onMoved(s.sessionId)
+    if (s.kind === 'title') return this.retitle({ ...this.titles, ...s.titles })
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
@@ -431,6 +439,15 @@ export class ClaudeSession implements ProviderSession {
     }
   }
 
+  /** New titles; the world hears when the one shown changes (only once the session is up). */
+  private retitle(titles: Titles) {
+    this.titles = titles
+    const title = pickTitle(titles)
+    if (title === this.shownTitle || this.startupTimer) return
+    this.shownTitle = title
+    this.host.emit({ type: 'session.updated', title })
+  }
+
   /** Keeps completed chat messages for session.get_history. */
   private remember(event: SessionEvent) {
     if (event.type === 'message.started') {
@@ -440,6 +457,7 @@ export class ClaudeSession implements ProviderSession {
       if (!started) return
       this.starting.delete(event.message)
       this.history.push({ message: event.message, ...started, text: event.text })
+      if (started.role === 'user' && started.agent === MAIN && !this.titles.prompt) this.retitle({ ...this.titles, prompt: event.text })
       if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX)
     }
   }

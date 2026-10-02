@@ -621,6 +621,11 @@ func _live(world: Node3D, player: Player) -> void:
 	var orchestrator := islands.orchestrator(id)
 	_check(orchestrator != null and menu.notice_text() == "", "live: the session is up, with its island")
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and it takes you there")
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_check(menu.entries()[2].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
+	_press("ui_cancel")
+	await _frames(2)
 
 	_check(chat.history_loaded(id), "live: its history is loaded")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
@@ -634,6 +639,11 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.shown_messages()[0] == "hello\nworld", "live: your message in the panel")
 	_check(panel.shown_messages().size() == 2 and panel.shown_messages()[1].contains("> world"), "live: the reply streamed into the panel")
 	_check(chat.bubble(id).shown_text().ends_with("(This is the fake provider.)"), "live: and into the bubble")
+	_check(world.store.sessions[id].get("title") == "hello", "live: the first message's first line names the session")
+	panel.set_draft("rename Tidy the notes")
+	panel.send()
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("Renamed"), 8.0)
+	_check(world.store.sessions[id].get("title") == "Tidy the notes", "live: renaming it renames it")
 
 	# Subagents: the fake provider spawns them, they work and walk back.
 	var agents := islands.agents(id)
@@ -667,6 +677,16 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _frames(2)
 
+	# The open menu follows a rename.
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_check(menu.entries()[2].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
+	sidecar.send_command("message.send", {"session": id, "text": "rename Notes"})
+	await _until(func() -> bool: return menu.entries()[2].begins_with("Notes   ·"), 5.0)
+	_check(menu.entries()[2].begins_with("Notes   ·"), "live: and follows a rename while open")
+	_press("ui_cancel")
+	await _frames(2)
+
 	sidecar.send_command("session.end", {"session": id})
 	await _until(func() -> bool: return islands.island(id) == null, 5.0)
 	await _frames(2)
@@ -674,7 +694,7 @@ func _live(world: Node3D, player: Player) -> void:
 
 	# S04: resume a stored session from the menu.
 	_press("sessions_menu")
-	await _until(func() -> bool: return menu.entries().any(func(e: String) -> bool: return e.begins_with("Add a save system")), 5.0)
+	await _until(func() -> bool: return menu.is_open() and menu.entries().any(func(e: String) -> bool: return e.begins_with("Add a save system")), 5.0)
 	var listed := menu.entries()
 	_check(listed.size() == 5 and listed[2].begins_with("Fix the player") and listed[3].begins_with("Add a save system") and listed[3].contains("my-game") and listed[3].ends_with("1 d ago"), "live: stored sessions listed newest first, with project and age")
 	menu.search("SAVE")

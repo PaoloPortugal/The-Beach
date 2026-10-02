@@ -48,7 +48,13 @@ function store() {
     { type: 'user', message: { content: 'first' }, ...meta(projA) },
     ...Array.from({ length: 800 }, (_, i) => ({ type: 'assistant', message: { id: `m${i}`, content: [{ type: 'text', text: 'x'.repeat(100) }] } })),
     { type: 'custom-title', customTitle: 'renamed later' },
+    { type: 'ai-title', aiTitle: 'not over a rename' },
   ), 3000)
+  // Named by Claude Code, after its first message.
+  put('b', ID(8), jsonl(
+    { type: 'user', message: { content: 'look at the logs' }, ...meta(projB) },
+    { type: 'ai-title', aiTitle: 'Log review' },
+  ), 6000)
   return { dir, projA, projB }
 }
 
@@ -56,13 +62,13 @@ test('list: terminal sessions, newest first, titled by name or first message; fi
   const s = store()
   const all = listStored({ dir: s.dir })
   assert.deepEqual(all.map((x) => [x.native_id, x.title]), [
-    [ID(1), 'cp1-project'], [ID(6), 'renamed later'], [ID(2), 'fix the login bug'],
+    [ID(1), 'cp1-project'], [ID(6), 'renamed later'], [ID(2), 'fix the login bug'], [ID(8), 'Log review'],
   ])
   assert.equal(all[0]!.provider, 'claude')
   assert.equal(all[0]!.project.path, s.projA)
   assert.ok(!Number.isNaN(Date.parse(all[0]!.updated_at)))
-  assert.deepEqual(listStored({ dir: s.dir, project: s.projB }).map((x) => x.native_id), [ID(2)])
-  assert.deepEqual(listStored({ dir: s.dir, exclude: new Set([ID(1)]) }).map((x) => x.native_id), [ID(6), ID(2)])
+  assert.deepEqual(listStored({ dir: s.dir, project: s.projB }).map((x) => x.native_id), [ID(2), ID(8)])
+  assert.deepEqual(listStored({ dir: s.dir, exclude: new Set([ID(1)]) }).map((x) => x.native_id), [ID(6), ID(2), ID(8)])
   assert.deepEqual(listStored({ dir: path.join(s.dir, 'missing') }), [])
   assert.equal(findStored(ID(2), s.dir)!.title, 'fix the login bug')
   assert.equal(findStored(ID(3), s.dir), null, 'desktop sessions are not resumed here')
@@ -157,7 +163,7 @@ test('through a session: list, resume with --resume in the project folder, its c
   try {
     await c.sync()
     const listed = (await c.command({ type: 'session.list_stored', provider: 'claude' })).result as { sessions: any[] }
-    assert.deepEqual(listed.sessions.map((x) => x.native_id), [ID(1), ID(6), ID(2)])
+    assert.deepEqual(listed.sessions.map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
 
     const r = await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(1) })
     assert.equal(r.type, 'ok', JSON.stringify(r))

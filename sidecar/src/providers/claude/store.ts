@@ -57,6 +57,46 @@ function peek(file: string, size: number): { head: string; tail: string } {
   } finally { fs.closeSync(fd) }
 }
 
+/**
+ * What a conversation can be called (NOTES.md -> S02 -> Titles): the name
+ * it was given (`custom-title`: --name or /rename), the title Claude Code
+ * generated for it (`ai-title`), and its first user message.
+ */
+export interface Titles { custom: string | null; ai: string | null; prompt: string | null }
+
+export const NO_TITLES: Titles = { custom: null, ai: null, prompt: null }
+
+/** The title shown, in Claude Code's own order; null if there's nothing yet. */
+export function pickTitle(t: Titles): string | null {
+  const line = t.prompt?.trim().split('\n', 1)[0]!.trim().slice(0, 80) || null
+  return t.custom || t.ai || line
+}
+
+/** The title entries of one transcript line (custom-title, ai-title), or null. */
+export function titleIn(e: Record<string, unknown>): Partial<Titles> | null {
+  if (e.type === 'custom-title' && typeof e.customTitle === 'string') return { custom: e.customTitle }
+  if (e.type === 'ai-title' && typeof e.aiTitle === 'string') return { ai: e.aiTitle }
+  return null
+}
+
+/** A conversation's titles, from its transcript's first and last 64 KiB. */
+export function readTitles(file: string): Titles {
+  let head: string, tail: string
+  try { ({ head, tail } = peek(file, fs.statSync(file).size)) } catch { return { ...NO_TITLES } }
+  return titlesIn(lines(head, false), tail ? lines(tail, true) : [])
+}
+
+function titlesIn(first: Record<string, unknown>[], last: Record<string, unknown>[]): Titles {
+  const out: Titles = { ...NO_TITLES }
+  for (const e of first) {
+    out.prompt ??= userText(e)
+    if (out.prompt) break
+  }
+  // Claude Code writes them again later on; the newest wins.
+  for (const e of [...first, ...last]) Object.assign(out, titleIn(e))
+  return out
+}
+
 /** Whole JSON lines of a chunk (a cut-off first or last line is dropped). */
 function lines(chunk: string, cutStart: boolean): Record<string, unknown>[] {
   const parts = chunk.split('\n')
@@ -105,19 +145,13 @@ export function describe(file: string): StoredInfo | null {
   const last = tail ? lines(tail, true) : []
   let cwd: string | null = null
   let entrypoint: string | null = null
-  let prompt: string | null = null
   for (const e of first) {
     if (!cwd && typeof e.cwd === 'string') cwd = e.cwd
     if (!entrypoint && typeof e.entrypoint === 'string') entrypoint = e.entrypoint
-    if (!prompt) prompt = userText(e)
   }
   if (!cwd || !entrypoint || !LISTED_ENTRYPOINTS.has(entrypoint)) return null
-  // The title: the newest name the session was given (--name or /rename),
-  // else how it began.
-  let title: string | null = null
-  for (const e of [...first, ...last]) if (e.type === 'custom-title' && typeof e.customTitle === 'string') title = e.customTitle
-  if (!title && !prompt) return null // nothing was ever said: nothing to resume
-  title ??= prompt!.split('\n', 1)[0]!.slice(0, 80)
+  const title = pickTitle(titlesIn(first, last))
+  if (!title) return null // nothing was ever said: nothing to resume
   return {
     provider: 'claude', native_id: id, project: { path: cwd }, title,
     updated_at: st.mtime.toISOString(), file,

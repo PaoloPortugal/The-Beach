@@ -50,3 +50,4 @@ reading; look things up by feature ID.
 | 2026-10-02 | [W05: clusters of islands by repository](2026-10-02-w05-clusters.md) | W05, S03, W07 |
 | 2026-10-02 | [Starting: Claude Code closing before it's up](2026-10-02-start-exit.md) | S02, S03 |
 | 2026-10-02 | [Sessions as tabs in one terminal window](2026-10-02-terminal-tabs.md) | S02, S03 |
+| 2026-10-02 | [Sessions named like Claude Code names them](2026-10-02-titles.md) | S02, S03, S04 |

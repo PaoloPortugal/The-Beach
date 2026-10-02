@@ -43,6 +43,9 @@ func setup(p_store: SessionStore, p_player: Player) -> void:
 		sig.connect(func(_a = null, _b = null) -> void:
 			if is_asking():
 				_dialog.dialog_text = warning())
+	store.session_changed.connect(func(_id: String, fields: Array) -> void:
+		if "title" in fields and is_asking():
+			_dialog.dialog_text = warning())
 
 
 func _notification(what: int) -> void:
@@ -79,7 +82,7 @@ func warning() -> String:
 	for id in store.sessions:
 		var s: Dictionary = store.sessions[id]
 		var project: Dictionary = s.get("project", {})
-		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title"), project), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
+		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
 	lines.append("")
 	lines.append("Quitting won't end them: they keep running in their terminals, and the game can't reach them any more. To end one, type /exit in its terminal.")
 	return "\n".join(lines)
