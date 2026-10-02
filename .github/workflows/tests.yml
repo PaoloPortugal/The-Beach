@@ -37,8 +37,8 @@ jobs:
       run:
         working-directory: sidecar
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # engines.node: the one Node version the sidecar is built for.
           node-version-file: sidecar/package.json
@@ -69,8 +69,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: sidecar/package.json
           cache: npm
@@ -80,7 +80,7 @@ jobs:
         working-directory: sidecar
       - name: Cache Godot
         id: cache-godot
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/godot
           key: godot-${{ env.GODOT_VERSION }}-${{ matrix.archive }}
