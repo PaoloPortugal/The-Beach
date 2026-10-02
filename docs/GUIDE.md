@@ -68,7 +68,9 @@ names as Claude Code's own `/resume` list.
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
   while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
-  its island, in front of its orchestrator.
+  its island, in front of its orchestrator. The order stays put, so
+  you always find a session in the same place: clusters in the order
+  they appeared, and each cluster's sessions in the order they started.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
   their project and how long ago you last used them. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions

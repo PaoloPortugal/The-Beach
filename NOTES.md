@@ -83,7 +83,7 @@ v1 slice.
 | W04 | Island rise / sink                        | planned | n/a           | n/a       |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
-| W07 | Teleport menu                             | basic built (sessions menu) | S03 | `world/sessions_menu/` |
+| W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -483,6 +483,11 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   text typed in the terminal shows up in the world.
 - `permission.resolved` has `by`: `app` or `external` (answered in the
   terminal).
+- Permissions and questions carry `asked_at`: when the sidecar first saw
+  them, set by the registry for every provider (a provider's own value
+  is replaced). Kept in the snapshot, so a reconnect doesn't restart the
+  clock. Nothing shows it yet; it's there to time waits (W07, user's
+  decision, 2026-10-02).
 - `session.notice` tells the user something about a session that isn't an
   agent's state: a `code` (Godot shows its own text for codes it knows)
   and an English fallback `message`. One per code (a new one replaces
@@ -706,30 +711,37 @@ with its last session, and a new one taking a free spot.
 *Planned.* Walkable bridges connect islands within a cluster, for
 physical movement and the feel of the world. Build it as a general
 "connect regions" system, not beach-specific, so that future biomes (hills,
-mountains) plug into it.
+mountains) plug into it. A minimap for travel on foot is decided here,
+with the real layout (user's, 2026-10-02; W07).
 
 ### W07 Teleport menu
-*Planned.* Instantly jumps to a session's island, so you never have to walk
-across the world to reach an orchestrator. Sorting, grouping and whether to
-add a minimap are open question 3.
-
-*Basic version built (user's decision, 2026-10-01), inside the sessions
-menu (S03). Scope: core.* The menu's "Running" list shows every live
-session, grouped under its cluster's name (W05), as "title · project ·
-state" (working, waiting for you, stopped
+*Built (2026-10-02), inside the sessions menu (S03); the UI is a
+placeholder. Scope: core.* Instantly jumps to a session's island, so you
+never have to walk across the world to reach an orchestrator. The menu's
+"Running" list shows every live session, grouped under its cluster's name
+(W05), as "title · project · state" (working, waiting for you, stopped
 or idle, from the whole session, subagents included: S05 →
 `SessionStore.activity`); a click closes the menu and puts you in
 front of that session's orchestrator (`world.gd` → `teleport`). The
-search box filters it with the rest, by cluster name too. A **placeholder** (user's): W07
-proper adds the sorting, grouping and maybe a minimap (open question 3)
-and gets a real design. *Live check passed (2026-10-01)* with the user
-and the real `claude`: two sessions under Running, jumping between them,
-and Tab doing nothing while chatting.
+search box filters it with the rest, by cluster name too. *Live check
+passed (2026-10-01)* with the user and the real `claude`: two sessions
+under Running, jumping between them, and Tab doing nothing while
+chatting.
 
-*Possible feature, not planned (from Agent Office):* a "go to whoever has
-waited longest" shortcut that jumps straight to the agent that has been
-waiting longest on a permission or question. *Comes with W07* (user's,
-2026-10-02, when A05 was designed: A05 shows only a count).
+*Decided with the user (2026-10-02), open question 3:*
+- **Order:** fixed, no pinning. Clusters in the order of their spots,
+  each cluster's sessions in the order of their islands
+  (`session_clusters.gd` → `ids`, `sessions`). Nothing moves while you
+  read it.
+- **No "go to whoever has waited longest" key** (the idea from Agent
+  Office, held back for W07 when A05 was designed): dropped. How long
+  each request has waited is still recorded, for a later feature that
+  may use it: the sidecar stamps every permission and question with
+  `asked_at` (Protocol → Core vocabulary), and `SessionStore.pending`
+  hands it on with the request. It also orders a snapshot's requests,
+  which before couldn't tell a permission's age from a question's (C05).
+- **Minimap:** not now; revisit with bridges and the real layout (W06).
+- **A real design** for the menu comes with the UI pass, like all UI.
 
 ### W08 Swimming and seabed
 *Planned (user's request, 2026-09-30).* Swim instead of being put back on
@@ -851,8 +863,9 @@ game isn't in front:
   islands; it fades out when the agent stops waiting. No art: an
   unshaded, see-through shape.
 - **HUD:** only a count in a corner ("2 sessions waiting"), while any
-  session waits. No edge pointers (offered), and no key to jump there:
-  the "go to whoever waited longest" key waits for W07 (user's).
+  session waits. No edge pointers (offered), and no key to jump there
+  (user's; the "go to whoever waited longest" key was later dropped,
+  W07).
 - **In the background:** when the game window isn't focused and
   something starts waiting, the window asks for attention once
   (Godot's `window_request_attention`: the taskbar button flashes on
@@ -1088,9 +1101,8 @@ declare it).
 `PendingCard` (`chat/pending_card.gd`), the `Pending` node of the chat
 panel (C02), between the chat and the status line, hidden when nothing
 waits. It reads `SessionStore.pending`: the session's permissions and
-questions in the order they arrived (`pending_order`; a snapshot doesn't
-say which kind came first, so its permissions count as older than its
-questions). The card lays itself out again only when the request on it
+questions in the order they arrived (`pending_order`; requests first
+seen in a snapshot go by their `asked_at`, W07). The card lays itself out again only when the request on it
 changes, so typing and progress aren't lost to other events.
 - *Header:* "The orchestrator asks to use Bash:" / "Subagent Explore
   asks:" (the agent's `name`; "A subagent" without one), and "1 of 3
@@ -2013,12 +2025,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    included) join one cluster automatically, and the sessions menu can
    put a session in another running cluster or a new one. Clusters last
    while they have sessions.
-3. **Teleport menu UX.** Sorted or grouped how (project, recency, custom
+3. ~~**Teleport menu UX.**~~ Sorted or grouped how (project, recency, custom
    pinning)? Is a minimap still wanted for on-foot travel alongside it?
    *Partly answered (user's, 2026-10-01):* travel lives in the one
    sessions menu (Tab), which lists running sessions to jump to (W07's
    basic version). Running sessions are grouped by cluster (W05).
-   Sorting and the minimap are still open.
+   *Answered (user's, 2026-10-02):* a fixed order with no pinning, and
+   the minimap waits for W06 (W07).
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -2069,11 +2082,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **Merged to `main` (2026-10-02), reviewed by the user:
+2026-10-01) is complete once **W07** merges: designed with the user
+(2026-10-02) and **built on branch `w07-proper`**, awaiting review: a
+fixed Running order, no "waited longest" key, the sidecar timing every
+permission and question (`asked_at`), the minimap left for W06. What
+comes next isn't chosen yet. **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
 the game is in the background; the chime is Kenney's `question_002`,
-the user's pick); **live check passed (2026-10-02)**. **Then W07 proper**, designed with the user first. **Merged to `main` (2026-10-02), reviewed by the user:
+the user's pick); **live check passed (2026-10-02)**. **Merged to `main` (2026-10-02), reviewed by the user:
 CI**: GitHub Actions runs every test on Windows and Linux on every push,
 and on macOS too on `main` and by hand (Running it → Continuous
 integration); read results with `gh`. **Also merged to `main`
