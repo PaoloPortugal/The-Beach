@@ -1880,8 +1880,12 @@ any branch). The repo is private, so runs use the account's Actions
 minutes, and macOS minutes count ten times, Windows twice: if that's
 too much, drop macOS from the matrices, or run it only on `main` and
 by hand. Bumping Godot means changing `GODOT_VERSION` and the binary
-names in the matrix. Until the relay timing test is fixed, the sidecar
-jobs may fail on it now and then.
+names in the matrix. The actions are pinned to major versions
+(`checkout@v7`, `setup-node@v7`, `cache@v6`); bump them when a run's
+annotations say their Node runtime is deprecated. Results can be read
+with `gh run list` and `gh run view <id> --log-failed`. Timing checks
+time the code itself, not a spawned process (Node's startup stretches
+by seconds on a loaded runner).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it) shows
@@ -1981,7 +1985,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the "many sessions" milestone (user's choice,
 2026-10-01). **On branch `ci-tests` (2026-10-02):** GitHub Actions runs
 every test on Windows, macOS and Linux (Running it → Continuous
-integration); first runs to check with the user. **Merged to `main` (2026-10-02)**, each live-checked with
+integration); green on all six jobs (2026-10-02), ready for the user's
+review. **Merged to `main` (2026-10-02)**, each live-checked with
 the user and reviewed: **W05 clusters** (renamed from archipelagos by
 the user), the **start exit** fix (the world stops waiting at once when
 Claude Code closes before a session is up, and the menu can stop
