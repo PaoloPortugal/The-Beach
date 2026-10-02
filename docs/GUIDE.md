@@ -40,9 +40,11 @@ sessions" reminds you at the bottom of the screen. Type in the search box
 at the top to filter the lists by title or project.
 
 Sessions are named the way Claude Code names them. A new one shows as
-"New session" until your first message, which names it for now; a
-moment later Claude Code gives it a short title of its own, and that
-replaces it. If you rename it with `/rename` in the terminal, that name
+"New session" until your first message, which names it for now. If you
+typed that message in the terminal, a moment later Claude Code gives the
+session a short title of its own, and that replaces it. Claude Code
+doesn't do this for messages sent from the game, so a session you start
+chatting with in the game keeps its first message as its name. If you rename it with `/rename` in the terminal, that name
 is used instead, everywhere in the game. The Resume list uses the same
 names as Claude Code's own `/resume` list.
 
