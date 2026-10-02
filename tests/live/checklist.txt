@@ -1,25 +1,28 @@
-LIVE CHECK: session names (S02 titles)
+LIVE CHECK: attention cue (A05)
 Start the game from a separate terminal
-(not Claude's Run button).
+(not Claude's Run button). Optional: put
+a CC0 .ogg at assets/audio/attention.ogg
+first (open the editor once to import).
 
 1. Tab > New session... > notes-app,
-   confirm in the terminal. Tab: it's
-   "New session" under Running.
-2. Chat: "What's in this folder? Answer
-   briefly." and send. Tab: it's named
-   by that line; a moment later (up to a
-   minute) by Claude Code's own title.
-3. In its terminal: /rename Beach test.
-   Tab: "Beach test". Leave the menu open
-   and /rename Beach two: it follows.
-4. In the terminal: /clear. Tab: "New
-   session" again.
-5. In the terminal: /resume, pick
-   "Beach two": the session is named
-   "Beach two" in the world.
-6. /exit. Tab: compare the Resume list
-   with Claude Code's own /resume list
-   (in a new claude in notes-app): same
-   names?
+   confirm in the terminal.
+2. Chat: "Create hello.txt containing
+   hi." A permission waits: an orange
+   beam rises from the orchestrator,
+   "1 session waiting" top right.
+3. Walk into the sea (back to the
+   platform) and look for the beam.
+   Easy to spot? Too much, too little?
+4. Deny in the terminal: the beam fades
+   out and the count goes.
+5. Chat: "Create bye.txt containing
+   bye." and at once click another
+   window. When it asks: the taskbar
+   button flashes (and the chime plays
+   if you added one). Once, not on
+   repeat?
+6. Back in the game, answer. Tab: untick
+   "Sound when waiting", restart the
+   game, Tab: still unticked? Tick it.
 
 Tell Claude what you saw; paste red errors.
