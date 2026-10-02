@@ -1,35 +1,26 @@
-LIVE CHECK: clusters (W05)
+LIVE CHECK: a session that never starts
 Start the game from a separate terminal
-(not Claude's Run button). Sandboxes in
-C:\Users\paolo\sandbox: todo-game (a git
-repo; its worktree is in
-.claude\worktrees\side), notes-app (no git).
+(not Claude's Run button).
 
-1. Tab > New session... > todo-game,
-   confirm in the terminal. Tab: Running
-   shows "> todo-game" with the session.
-2. Tab > New session... > todo-game\
-   .claude\worktrees\side: its island is
-   about 100 m from the first one, and
-   both are under "> todo-game".
-3. Tab > New session... > notes-app: its
-   island is far from todo-game's, under
-   its own "> notes-app".
-4. Tab > Cluster: lists Automatic,
-   todo-game, notes-app, New cluster.
-   Pick New cluster > New session... >
-   notes-app: a third cluster far away,
-   "notes-app 2".
-5. Tab > Cluster: todo-game > New
-   session... > notes-app: lands next to
-   todo-game's islands, under todo-game.
-6. Tab: Cluster is back to Automatic.
-   Search "todo": only todo-game's group.
-7. /exit the notes-app 2 session: Tab, its
-   heading and its Cluster entry are gone.
-   /exit the step-3 one: same for notes-app.
-8. Tab > New session... > notes-app:
-   a new "notes-app" cluster, far away.
-9. /exit every terminal, close the game.
+1. Tab > New session... > notes-app.
+   In the terminal, decline folder trust
+   (or refuse the channel if trust isn't
+   asked): within about a second the game
+   says "The session didn't start." Tab:
+   you can start another.
+2. Again, but close the terminal window
+   while it asks: same message, about a
+   second later.
+3. Again, and leave the terminal asking.
+   Tab: "Stop waiting for the session
+   starting" is listed. Click it: the game
+   says it stopped waiting, and you can
+   start another (then close that one's
+   terminal).
+4. Back to the first terminal: confirm.
+   The session comes up: Tab shows it
+   under Running and an island appears,
+   without teleporting you there.
+5. /exit every terminal.
 
 Tell Claude what you saw; paste red errors.

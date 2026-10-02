@@ -217,6 +217,21 @@ func _menu(world: Node3D, player: Player) -> void:
 	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
 	menu.native_picker = false
 
+	# A session that's slow to start (its terminal may have closed unseen):
+	# the menu can stop waiting for it.
+	var started := [0]
+	menu.launcher.session_started.connect(func(_id: String) -> void: started[0] += 1)
+	menu.launcher.pending = "slow"
+	_press("sessions_menu")
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_check(menu.entries().has("✕ Stop waiting for the session starting"), "a start under way: the menu offers to stop waiting")
+	menu.choose("✕ Stop waiting")
+	await _frames(2)
+	_check(not menu.launcher.busy() and menu.notice_text().begins_with("Stopped waiting") and not menu.entries().has("✕ Stop waiting for the session starting"), "stopping frees the launcher for another start")
+	_press("ui_cancel")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(started[0] == 0, "and nobody waits for it any more")
+
 
 func _snapshot(id: String) -> Dictionary:
 	return {

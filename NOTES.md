@@ -267,7 +267,9 @@ the same `~/.claude` layout. What differs, and how we handle it:
   the arguments from that file and starts the provider's CLI with an
   argument array in the same terminal. So no terminal ever gets a command
   line built from text, even where the terminal only accepts a script
-  (macOS). If no terminal can be opened, the world says so.
+  (macOS). If no terminal can be opened, the world says so. The launcher
+  also writes its process id to `launcher.pid` next to the session file,
+  so the provider can tell when it has exited (S02 → Starting up).
 - **Node runtime.** The sidecar is built into one self-contained
   executable per platform and shipped with each Godot export. The same
   executable runs as the channel bridge (Claude Code starts it by absolute
@@ -1221,8 +1223,14 @@ check the terminal" on its own (it knows when it asked). The island is only
 created once the session is ready (`session.created`); how the world shows
 a session waiting to start is decided when building the game (user's
 decision). The session counts as up when the bridge connects, or at its
-first hook; it counts as gone if neither happens within 15 min (the user
-chose Exit at a dialog).
+first hook. It counts as gone (`session.ended`, reason `exited`) as soon
+as the launcher has exited, checked every second while starting: Claude
+Code quit at a startup dialog (folder trust declined, the channel
+refused) or the terminal window was closed (found in the W05 live check,
+2026-10-02; before, the world waited the whole 15 min). Otherwise it
+counts as gone if neither happens within 15 min (e.g. a terminal that
+never ran the launcher). A reused process id would only mean falling
+back to that timeout.
 
 **Talking to the session: the channel bridge.** A channel is an MCP server
 Claude Code starts as a subprocess; ours is the sidecar executable in
@@ -1541,12 +1549,26 @@ proper design later, like all UI.
   the screen (it replaced the post's sign; my choice) says how it goes:
   "Starting…", then the reply's notice (Godot's own text for
   `confirm_in_terminal`: "Confirm in the terminal to start this
-  session."), "Still starting; check the terminal." after 2 minutes,
+  session."), "Still starting; check the terminal, or stop waiting in
+  the menu (Tab)." after 2 minutes,
   "Couldn't start a session: …" / "Couldn't resume the session: …" for
   a refused command, "The session didn't start." if it ends before
-  coming up, "A session is already starting.", or the sidecar's failure.
-  Once the session is up, its island appears (W01 → Islands for
+  coming up (at once if Claude Code closes before it's up: S02 →
+  Starting up), "A session is already starting.", or the sidecar's
+  failure. Once the session is up, its island appears (W01 → Islands for
   sessions) and the player is taken there.
+- **Stop waiting** (user's choice, 2026-10-02). While a session is
+  starting, the menu shows "✕ Stop waiting for the session starting"
+  under "+ New session…". It frees the launcher for another start ("Stopped
+  waiting. If that session starts later, it's listed under Running.");
+  the sidecar isn't told, so a session that does come up later is an
+  ordinary running session: its island appears, nobody is taken there.
+  *Live check passed (2026-10-02)* with the user and the real `claude`:
+  declining at the startup prompt and closing the terminal while it asks
+  both end the start within about a second ("The session didn't
+  start."); Stop waiting frees the menu for another start; the waiting
+  session confirmed afterwards comes up under Running with its island,
+  no teleport.
 
 *Live check passed (2026-10-01)* with the user and the real `claude`:
 Tab and Esc, the system's picker and its Cancel, the picker hidden
@@ -1860,10 +1882,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01). **W05 (clusters, renamed from archipelagos by the user)
-is built on branch `w05-clusters`** (design decided with the user
-2026-10-02; code, tests and docs done; **live check passed
-2026-10-02**); waiting for the user's review before merging to `main`. Done and **merged to `main` (2026-10-02)**, reviewed by the user:
+2026-10-01). **Merged to `main` (2026-10-02)**, each live-checked with
+the user and reviewed: **W05 clusters** (renamed from archipelagos by
+the user), the **start exit** fix (the world stops waiting at once when
+Claude Code closes before a session is up, and the menu can stop
+waiting; S02 → Starting up, S03), **terminal tabs** (sessions open as
+tabs in one Windows Terminal window of their own; Architecture →
+Terminal windows) and **session titles** (sessions named like Claude
+Code names them; S02 → Titles). **Next: A05 (attention cue) and W07 proper**, each
+designed with the user first. Also **merged to `main` (2026-10-02)**, reviewed by the user:
 the **sessions menu** (Tab anywhere: new session, jump to a running one,
 resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
 S05: ending sessions from the game is shelved as a watch item (no clean
@@ -1871,8 +1898,7 @@ way in Claude Code); built instead: the **quit warning** and
 session-wide activity in the Running list (live check passed
 2026-10-02; resuming a session still running from before a restart runs
 it twice: a known issue, for attaching). Both are **placeholders**, like
-all UI for now (user's): they must be properly designed later. After W05:
-A05 (attention cue) and W07 proper, each designed with the user first. Before that: C03 Markdown rendering (chosen by the user as the
+all UI for now (user's): they must be properly designed later. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
 and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
 comes after it isn't chosen yet (Milestones → After v1); the
