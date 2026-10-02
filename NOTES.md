@@ -1576,10 +1576,13 @@ waiting on its subagents' reports counts as working), else stopped or
 idle (the user had seen such sessions shown as idle). The Running list
 (W07) uses it too.
 
-*Not yet checked* (user's choice: test, then decide): after the game
-restarts, sessions still running in their terminals are listed under
-Resume, since the new sidecar doesn't know them; resuming one would
-likely run a second `claude` on the same conversation.
+**Known issue: a session from before a restart can be resumed twice**
+(seen live, 2026-10-02). After the game restarts, sessions still running
+in their terminals are listed under Resume, since the new sidecar doesn't
+know them, and resuming one opens a new terminal resuming the same
+conversation while the old `claude` still runs. *To fix with attaching
+to running sessions* (user's decision; Open questions → 5): a session
+still running should be attached to, not resumed.
 
 ## Conventions
 
@@ -1752,6 +1755,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    we pass at launch (S02), and the channel from our launch flags. A
    session started elsewhere has none of these, so attaching must give
    it the same hooks, the relay included, and test both switches there.
+   *Also (user's, 2026-10-02):* sessions the game started before a
+   restart are still running but listed under Resume, and resuming one
+   runs the conversation twice (S05 → Known issue). Attaching should
+   cover them.
 6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
@@ -1782,8 +1789,9 @@ must be properly designed later, like all UI. S05 (end session), on
 branch `s05-end-session` (from `s04-resume`): ending sessions from the
 game is shelved as a watch item (no clean way in Claude Code); built
 instead: the **quit warning** and session-wide activity in the Running
-list, tested headless, **live check next**; then the check of resuming a
-session still running from before a restart. Then W05
+list, tested headless; live check under way (resuming a session still
+running from before a restart runs it twice: a known issue, for
+attaching). Then W05
 (archipelagos), A05 (attention cue) and W07 proper, each designed with
 the user first. Before that: C03 Markdown rendering (chosen by the user as the
 first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**

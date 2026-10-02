@@ -56,7 +56,11 @@ list uses it too.
 After a restart, sessions still running from before are listed under
 Resume (the new sidecar doesn't know them), and resuming one would
 likely run the conversation twice. The user chose to test it first,
-then decide: step 5 of the live check.
+then decide: step 5 of the live check. **Confirmed live (2026-10-02):**
+resuming it opens a fresh terminal resuming the same conversation while
+the old one still runs. The user's decision: fix it with attaching to
+sessions already running (Open questions → 5), recorded as a known
+issue in S05.
 
 The crash in the sessions menu's first live check, the same day, was a
 Windows update of Claude desktop (see 2026-10-01-sessions-menu); since
