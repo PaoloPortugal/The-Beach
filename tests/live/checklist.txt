@@ -1,26 +1,35 @@
-LIVE CHECK: the quit warning (S05)
+LIVE CHECK: clusters (W05)
 Start the game from a separate terminal
-(not Claude's Run button).
+(not Claude's Run button). Sandboxes in
+C:\Users\paolo\sandbox: todo-game (a git
+repo; its worktree is in
+.claude\worktrees\side), notes-app (no git).
 
-1. Tab > New session... > notes-app,
-   confirm in the terminal.
-2. Chat: "Use a subagent to look at every
-   file here, then sum up." While the
-   subagent works, Tab: the session shows
-   "working" (also once the orchestrator
-   itself is idle).
-3. Close the game window (X or Alt+F4):
-   a dialog lists the session and what it
-   does, and says to type /exit in its
-   terminal. Back to the game: you can look
-   and walk. Again, then Esc: same.
-4. Close it again > Quit: the game closes,
-   the session's terminal keeps going.
-5. Start the game again. Tab: is that
-   session listed under Resume? Click it
-   (it's a sandbox): what happens in the
-   new terminal and in the old one?
-6. /exit every terminal. Close the game:
-   with no session it closes at once.
+1. Tab > New session... > todo-game,
+   confirm in the terminal. Tab: Running
+   shows "> todo-game" with the session.
+2. Tab > New session... > todo-game\
+   .claude\worktrees\side: its island is
+   about 100 m from the first one, and
+   both are under "> todo-game".
+3. Tab > New session... > notes-app: its
+   island is far from todo-game's, under
+   its own "> notes-app".
+4. Tab > Cluster: lists Automatic,
+   todo-game, notes-app, New cluster.
+   Pick New cluster > New session... >
+   notes-app: a third cluster far away,
+   "notes-app 2".
+5. Tab > Cluster: todo-game > New
+   session... > notes-app: lands next to
+   todo-game's islands, under todo-game.
+6. Tab: Cluster is back to Automatic.
+   Search "todo": only todo-game's group.
+7. /exit the notes-app 2 session: Tab, its
+   heading and its Cluster entry are gone.
+   /exit the step-3 one: same for notes-app.
+8. Tab > New session... > notes-app:
+   a new "notes-app" cluster, far away.
+9. /exit every terminal, close the game.
 
 Tell Claude what you saw; paste red errors.

@@ -11,7 +11,8 @@ export const PROTOCOL_VERSION = 1
 export type Id = string
 export type State = 'working' | 'waiting' | 'idle' | 'done' | 'error'
 
-export interface Project { path: string; name?: string }
+/** `repo`: set by the sidecar on sessions; see repo.ts. */
+export interface Project { path: string; name?: string; repo?: string }
 
 export interface Agent {
   agent: Id
