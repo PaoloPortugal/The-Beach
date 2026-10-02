@@ -652,8 +652,10 @@ and sessions in the same repository are grouped automatically.
 - *Godot* (`SessionClusters`, `world/session_clusters.gd`, owned by
   `SessionIslands`). When a session comes up, `add` puts it in a cluster:
   the one chosen for it, if still running; a new one if "New cluster" was
-  chosen; else the cluster already holding a session of its repository
-  (`repo`, or `path` outside git), else a new one. Names repeat with a
+  chosen; else the cluster made automatically for its repository
+  (`repo`, or `path` outside git), else a new one. A session moved to
+  another cluster by hand doesn't take its repository's later sessions
+  along (user's, 2026-10-02). Names repeat with a
   number ("game 2"). `remove` frees the island's spot and, with the last
   session, the cluster's. The choice reaches it through
   `SessionLauncher.create` / `resume`, which call `clusters.choose` with
@@ -673,10 +675,7 @@ and sessions in the same repository are grouped automatically.
 
 *Known limits.* A cluster of more than 7 islands reaches out 200 m and
 more, so it can come close to a neighbouring cluster's (spots 360 m
-apart); bridges and the real layout come with W06. A session of a
-repository put in another cluster by hand makes later automatic
-sessions of that repository join it too (the first cluster holding one).
-Nothing in the world shows a cluster's name yet.
+apart); bridges and the real layout come with W06. Nothing in the world shows a cluster's name yet.
 
 *Live check passed (2026-10-02)* with the user and the real `claude`: a
 repository and its worktree in one cluster, close together; a folder
