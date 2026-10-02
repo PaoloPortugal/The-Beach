@@ -2224,6 +2224,21 @@ exists.
   comes up: each OS's media-session interface (Windows media controls,
   macOS Now Playing, Linux MPRIS) versus each app's own API, and the
   Principles (no data leaving the machine, no logins handled by us).
+- **Provider roadmap** (user's decision, 2026-10-02): Claude now, then
+  Codex, then OpenCode last. [OpenCode](https://opencode.ai) is an
+  open-source coding agent of its own (not a Claude Code wrapper) that
+  works with many model providers. It runs a local server with a
+  documented HTTP API: sessions, messages, permission replies and a
+  Server-Sent Events stream. One adapter for it would cover
+  "bring your own model and key" (OpenAI, Gemini, local models, Claude
+  on an API key), with no terminal window and no hooks, which saves
+  writing a separate adapter per vendor. Not a replacement for S02: it
+  can't drive the `claude` CLI, and Anthropic doesn't allow third-party
+  tools to use Pro/Max sign-ins (OpenCode dropped Claude subscription
+  sign-in in v1.3.0). Claude on an API key already works through S02
+  (sign `claude` in with an API account). Before building, check its
+  server against the Security rules: its auth is an optional password,
+  and it can allow browser origins (CORS).
 
 ### Watch items
 
