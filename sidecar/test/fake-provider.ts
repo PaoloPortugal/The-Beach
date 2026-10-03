@@ -23,6 +23,8 @@ export class FakeSession implements ProviderSession {
   /** What announce() reports; defaults to `native-<session id>` and "fake session" (null: no title). */
   nativeId?: string
   title?: string | null
+  /** permission_modes: the mode announce() reports, if set. */
+  mode?: string | null
   answerQuestion?: ProviderSession['answerQuestion']
   answerPlan?: ProviderSession['answerPlan']
   interrupt?: ProviderSession['interrupt']
@@ -48,6 +50,7 @@ export class FakeSession implements ProviderSession {
       title: this.title === undefined ? 'fake session' : this.title,
       capabilities: this.provider.options.capabilities ?? {},
       extensions: this.provider.options.extensions ?? [],
+      ...(this.mode !== undefined ? { mode: this.mode } : {}),
       agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Orchestrator', state: 'idle', reason: null }],
     })
   }

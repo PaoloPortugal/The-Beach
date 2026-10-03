@@ -10,7 +10,7 @@ import { connect, type Msg } from './helpers.ts'
 
 const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
-test('dev:fake: echo, permission, question, agents, tools, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
+test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
@@ -27,7 +27,7 @@ test('dev:fake: echo, permission, question, agents, tools, notice, stop and resu
     const r = await c.command({ type: 'session.create', provider: 'fake', project: { path: os.tmpdir() } })
     const session = (r.result as { session: string }).session
     const created = await c.next('session.created', 3000)
-    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false } })
+    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} })
     const idle = (m: Msg) => m.type === 'agent.state_changed' && m.agent === 'main' && m.state === 'idle'
     const say = (text: string) => c.command({ type: 'message.send', session, text })
 
@@ -73,6 +73,38 @@ test('dev:fake: echo, permission, question, agents, tools, notice, stop and resu
     const agents = logged.filter((t) => t.tool === 'Agent').map((t) => t.tool_call)
     assert.equal(agents.length, 2)
     assert.ok(agents.every((a) => logged.filter((t) => t.within === a).length === 3))
+
+    // C06: Shift+Tab-like switches; a Bash prompt in Manual can switch to auto.
+    assert.equal((created.session as any).mode, 'auto')
+    await say('next mode')
+    assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'default')
+    await c.next(idle, 5000)
+    await say('permission again')
+    const switchable = (await c.next('permission.requested', 5000)).permission as any
+    assert.deepEqual(switchable.modes, ['auto'])
+    assert.equal((await c.command({ type: 'permission.respond', session, permission: switchable.permission, decision: 'allow', mode: 'auto' })).type, 'ok')
+    assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'auto')
+    await c.next(idle, 5000)
+
+    // C07: plan mode, a plan message, sent back with a note (a revised plan
+    // comes), then approved with a mode.
+    await say('make a plan')
+    assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'plan')
+    const planMessage = await c.next((m) => m.type === 'message.started' && m.kind === 'plan', 5000)
+    const asked = (await c.next('plan.asked', 8000)).plan as any
+    assert.deepEqual(asked.modes, ['auto', 'default'])
+    assert.equal((await c.next((m) => m.type === 'agent.state_changed' && m.agent === 'main', 5000)).reason, 'plan')
+    assert.equal((await c.command({ type: 'plan.answer', session, plan: asked.plan, approve: false, note: 'add tests' })).type, 'ok')
+    assert.equal((await c.next('plan.resolved', 5000)).decision, 'rejected')
+    const again = (await c.next('plan.asked', 15000)).plan as any
+    assert.match(again.text, /add tests/)
+    assert.equal((await c.command({ type: 'plan.answer', session, plan: again.plan, approve: true, mode: 'default' })).type, 'ok')
+    assert.equal((await c.next('plan.resolved', 5000)).decision, 'approved')
+    assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'default')
+    await c.next(idle, 5000)
+    const plans = ((await c.command({ type: 'session.get_history', session })).result as { messages: any[] }).messages.filter((m) => m.kind === 'plan')
+    assert.equal(plans.length, 2)
+    assert.equal(plans[0].message, planMessage.message)
 
     await say('send a notice')
     assert.equal(((await c.next('session.notice', 5000)).notice as any).code, 'transcripts_off')
