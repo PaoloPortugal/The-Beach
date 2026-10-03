@@ -328,6 +328,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return panel.link_asked().is_empty(), 2.0)
 	await _frames(2)
 	_check(chat.is_open() and panel.link_asked() == "", "Esc closes the question, not the chat")
+	await _tool_log(store, panel)
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 10, "agent": "main", "state": "waiting", "reason": "permission"})
 	_check(panel.status_text().contains("above or in the terminal"), "a permission wait points to the card and the terminal")
 	store.apply({"type": "session.notice", "session": "h1", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
@@ -392,6 +393,40 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "session.ended", "session": "h2", "seq": 2, "reason": "exited"})
 	store.apply({"type": "session.ended", "session": "h3", "seq": 2, "reason": "exited"})
 	await _frames(2)
+
+
+# C04: the tool calls after a message, folded into one line. h1's chat is
+# u1, a1, a2 so far.
+func _tool_log(store: SessionStore, panel: ChatPanel) -> void:
+	_check(not panel.tool_fold("a2").visible and not panel.tool_fold("").visible, "no tool calls, no fold")
+	store.apply({"type": "tool.started", "session": "h1", "seq": 83, "tool_call": "t1", "agent": "main", "tool": "Bash", "summary": "Run: [b]rm[/b] x", "input": {"command": "rm x"}})
+	var fold := panel.tool_fold("a2")
+	_check(fold.visible and fold.header_text() == "▸ 1 tool call (1 running)", "a call folds into one line after its message")
+	store.apply({"type": "tool.finished", "session": "h1", "seq": 84, "tool_call": "t1", "status": "error", "summary": "Exit code 1"})
+	_check(fold.header_text() == "▸ 1 tool call (1 failed)", "and follows it as it ends")
+	store.apply({"type": "tool.started", "session": "h1", "seq": 85, "tool_call": "t2", "agent": "main", "tool": "Agent", "summary": "Agent: look"})
+	store.apply({"type": "tool.started", "session": "h1", "seq": 86, "tool_call": "t3", "agent": "s1", "tool": "Read", "summary": "Read a.gd", "within": "t2"})
+	store.apply({"type": "tool.finished", "session": "h1", "seq": 87, "tool_call": "t3", "status": "denied"})
+	_check(fold.header_text() == "▸ 2 tool calls (1 running, 1 failed)", "a subagent's call isn't counted at the top")
+	fold.set_open(true)
+	_check(fold.shown_calls() == ["failed Run: [b]rm[/b] x / Exit code 1", "running Agent: look"], "opened: each call, how it went, its result; text as written")
+	var inner := fold.inner("t2")
+	_check(inner.visible and inner.header_text() == "▸ 1 tool call (1 denied)" and not fold.inner("t1").visible, "a subagent's calls fold inside its Agent call")
+	inner.set_open(true)
+	store.apply({"type": "tool.started", "session": "h1", "seq": 88, "tool_call": "t4", "agent": "s1", "tool": "Read", "summary": "Read b.gd", "within": "t2"})
+	_check(inner.shown_calls() == ["denied Read a.gd", "running Read b.gd"], "and grow there live")
+	fold.show_details("t1", true)
+	_check(fold.details_text("t1").contains("Tool: Bash") and fold.details_text("t1").contains("\"command\": \"rm x\""), "Details shows the input")
+	fold.show_details("t1", false)
+	_check(fold.details_text("t1") == "", "and hides it again")
+	_check(panel.shown_messages().size() == 3, "the log doesn't count as messages")
+	# Calls from the history land after their own message, laid out again.
+	store.load_history("h1", [], [{"tool_call": "t0", "agent": "main", "tool": "Read", "summary": "Read NOTES.md", "status": "ok", "after": "u1"}])
+	await _frames(2)
+	_check(panel.tool_fold("u1").visible and panel.tool_fold("u1").header_text() == "▸ 1 tool call", "history's calls go after their message")
+	_check(panel.tool_fold("a2").header_text() == "▸ 2 tool calls (1 running, 1 failed)", "and the live ones stay where they were")
+	for t in ["t2", "t4"]:
+		store.apply({"type": "tool.finished", "session": "h1", "seq": 89, "tool_call": t, "status": "ok"})
 
 
 # A05: h1's orchestrator waits on a permission; h2's comes and goes.
@@ -725,6 +760,19 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(agents.subagent_count() == 0, "live: and all walk back and go when done")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("reported back"), 8.0)
 	_check(panel.shown_messages()[-1].contains("reported back"), "live: the orchestrator sums up")
+	var order: Array = world.store.session(id)["message_order"]
+	var split := panel.tool_fold(order[-2])
+	split.set_open(true)
+	_check(split.shown_calls().size() == 3 and split.shown_calls().all(func(c: String) -> bool: return c.begins_with("ok Agent:")), "live: an Agent call per subagent in the log")
+	var inside := split.inner(world.store.tool_tree(id)["after"][order[-2]][0])
+	_check(inside.header_text() == "▸ 3 tool calls", "live: each holding its subagent's calls")
+
+	# C04: a turn with tools, one failing.
+	panel.set_draft("tools")
+	panel.send()
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("One test failed"), 8.0)
+	order = world.store.session(id)["message_order"]
+	_check(panel.tool_fold(order[-2]).header_text() == "▸ 3 tool calls (1 failed)", "live: the tools turn's calls fold after its first message")
 
 	# C05: answering a permission prompt and a question on the card.
 	var card := panel.pending_card()
