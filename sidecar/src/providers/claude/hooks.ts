@@ -461,20 +461,27 @@ export class HookTranslator {
 
   /**
    * A prompt's PermissionRequest hook (not a question's or a plan's): its
-   * options (C05) go on its open tool call, the newest of that tool with
-   * the same input whose hook hasn't come yet. Returns that call if the
-   * prompt has options (then the hook is held, so choosing one can answer
-   * it), else null.
+   * options (C05) go on its open tool call: the same agent's newest of
+   * that tool with the same input whose hook hasn't come yet. Returns that
+   * call if the prompt has options (then the hook is held, so choosing one
+   * can answer it), else null. A prompt the world was already shown
+   * without them (its hook came too late) keeps none.
    */
   promptHooked(p: HookPayload): Id | null {
     const tool = str(p.tool_name)
-    if (!tool) return null
+    const agent = this.agentOf(p)
+    if (!tool || !agent) return null
     const input = isObject(p.tool_input) ? p.tool_input : {}
     const json = JSON.stringify(input)
-    const found = [...this.openTools.entries()].filter(([, c]) => c.tool === tool && c.options === null && JSON.stringify(c.input) === json).at(-1)
+    const found = [...this.openTools.entries()]
+      .filter(([, c]) => c.agent === agent && c.tool === tool && c.options === null && JSON.stringify(c.input) === json).at(-1)
     if (!found) return null
     const [id, call] = found
-    const auto = this.agentOf(p) !== null && this.switchModes(tool, str(p.permission_mode) ?? this.mode).length > 0
+    if (call.permission) {
+      call.options = []
+      return null
+    }
+    const auto = this.switchModes(tool, str(p.permission_mode) ?? this.mode).length > 0
     call.options = promptOptions(tool, input, p.permission_suggestions, auto, this.cwd)
     return call.options.length > 0 ? id : null
   }
@@ -485,13 +492,6 @@ export class HookTranslator {
     const call = toolCall ? this.openTools.get(toolCall) : undefined
     const chosen = call?.options?.find((o) => o.option === option)
     return toolCall && call && chosen ? { toolCall, input: call.input, updates: chosen.updates } : null
-  }
-
-  /** A pending prompt's tool call and input, or null. */
-  permissionCall(requestId: Id): { toolCall: Id; input: Record<string, unknown> } | null {
-    const toolCall = this.permissions.get(requestId)?.toolCall
-    const call = toolCall ? this.openTools.get(toolCall) : undefined
-    return toolCall && call ? { toolCall, input: call.input } : null
   }
 
   /** The user answered a prompt in the world (the verdict went down the bridge). */
