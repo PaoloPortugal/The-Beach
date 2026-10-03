@@ -7,6 +7,7 @@
 //                (questions capability)
 //   agents [n]   the orchestrator spawns n subagents (default 3) that work
 //                in the background and report back (A02, A04)
+//   tools        a few tool calls, one failing (the tool-call log, C04)
 //   notice       a session notice (transcripts off)
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
@@ -17,7 +18,8 @@
 // comes back with a short chat so far, and isn't listed while it runs.
 import { serve } from '../src/serve.ts'
 import { FakeProvider, FakeSession } from './fake-provider.ts'
-import type { HistoryMessage, Id, SessionEvent, StoredSession } from '../src/protocol.ts'
+import type { Id, SessionEvent, StoredSession } from '../src/protocol.ts'
+import { HistoryLog } from '../src/history.ts'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -27,17 +29,17 @@ class ScriptedSession extends FakeSession {
   private pendingPermission: { id: Id; tool: Id; resolve: (allow: boolean) => void } | null = null
   private pendingQuestion: { id: Id; resolve: (answer: string) => void } | null = null
   private readonly working = new Set<Id>()
+  /** What get_history answers, kept from the events like a real provider. */
+  readonly chat = new HistoryLog()
 
   private emit(e: SessionEvent) {
     if (this.host.ended) return
-    this.host.emit(e)
-    if (e.type === 'message.completed') {
-      const who = this.speakers.get(e.message)
-      if (who) this.history.push({ message: e.message, agent: who.agent, role: who.role, text: e.text, at: new Date().toISOString() })
-    }
+    if (this.host.emit(e)) this.chat.remember(e)
   }
 
-  private readonly speakers = new Map<Id, Pick<HistoryMessage, 'agent' | 'role'>>()
+  override async getHistory() {
+    return this.chat.get()
+  }
   private state(agent: Id, state: 'working' | 'waiting' | 'idle' | 'done' | 'error', reason: string | null = null) {
     this.emit({ type: 'agent.state_changed', agent, state, reason })
   }
@@ -45,7 +47,6 @@ class ScriptedSession extends FakeSession {
   /** A whole message at once (user) or streamed in line batches (assistant). */
   private async say(role: 'user' | 'assistant', text: string, agent = 'main') {
     const message = `${role[0]}${++this.n}`
-    this.speakers.set(message, { agent, role })
     this.emit({ type: 'message.started', message, agent, role })
     if (role === 'assistant') {
       for (const line of text.split('\n')) {
@@ -66,6 +67,7 @@ class ScriptedSession extends FakeSession {
     if (word.includes('permission')) void this.permissionTurn()
     else if (word.includes('question')) void this.questionTurn()
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
+    else if (/tools/.test(word)) void this.toolsTurn()
     else if (word.includes('notice')) void this.noticeTurn()
     else if (/\bclear\b/.test(word)) void this.clearTurn()
     else if (/^rename\s+\S/.test(word)) void this.renameTurn(text.trim().slice(6).trim())
@@ -145,8 +147,10 @@ class ScriptedSession extends FakeSession {
     for (let i = 1; i <= count; i++) {
       const agent = `sub${this.n}_${i}`
       this.working.add(agent)
+      const call = `call_${agent}`
+      this.emit({ type: 'tool.started', tool_call: call, agent: 'main', tool: 'Agent', summary: `Agent: Look at part ${i}` })
       this.emit({ type: 'agent.spawned', agent: { agent, role: 'subagent', parent: 'main', name: 'Explore', task: `Look at part ${i}`, state: 'working', reason: null } })
-      runs.push(this.subagent(agent, i))
+      runs.push(this.subagent(agent, i, call).then(() => { this.emit({ type: 'tool.finished', tool_call: call, status: 'ok' }) }))
     }
     // Background agents: the orchestrator's turn ends while they work.
     this.state('main', 'idle')
@@ -156,17 +160,34 @@ class ScriptedSession extends FakeSession {
     return this.finish(`All ${count} agents reported back.`)
   }
 
-  private async subagent(agent: Id, i: number) {
+  private async subagent(agent: Id, i: number, within: Id) {
     for (let step = 1; step <= 3; step++) {
       await sleep(600 + 400 * ((i * step) % 4))
       if (this.stopped || !this.working.has(agent)) return
       const tool = `tool_${agent}_${step}`
-      this.emit({ type: 'tool.started', tool_call: tool, agent, tool: 'Read', summary: `Read part${i}/file${step}.ts` })
+      this.emit({ type: 'tool.started', tool_call: tool, agent, tool: 'Read', summary: `Read part${i}/file${step}.ts`, within })
       await sleep(300)
       this.emit({ type: 'tool.finished', tool_call: tool, status: 'ok' })
     }
     this.working.delete(agent)
     this.state(agent, 'done')
+  }
+
+  private async toolsTurn() {
+    await this.say('assistant', 'Let me look around first.')
+    const calls: [string, string, Record<string, unknown>, 'ok' | 'error', string?][] = [
+      ['Glob', 'Find: **/*.gd', { pattern: '**/*.gd' }, 'ok'],
+      ['Read', 'Read project.godot', { file_path: 'project.godot' }, 'ok'],
+      ['Bash', 'Run: npm test', { command: 'npm test', description: 'Run the tests' }, 'error', 'Exit code 1'],
+    ]
+    for (const [tool, summary, input, status, why] of calls) {
+      const id = `tool${++this.n}`
+      this.emit({ type: 'tool.started', tool_call: id, agent: 'main', tool, summary, input })
+      await sleep(500)
+      if (this.stopped) return
+      this.emit({ type: 'tool.finished', tool_call: id, status, ...(why ? { summary: why } : {}) })
+    }
+    return this.finish('One test failed; the rest looks fine.')
   }
 
   private async noticeTurn() {
@@ -234,10 +255,13 @@ class ScriptedProvider extends FakeProvider {
     const s = new ScriptedSession(this, host, stored.project)
     s.nativeId = nativeId
     s.title = stored.title
-    s.history = [
-      { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
-      { message: 'r2', agent: 'main', role: 'assistant', text: `Resumed **${stored.title ?? 'this session'}**.`, at: stored.updated_at },
-    ]
+    s.chat.replace({
+      messages: [
+        { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
+        { message: 'r2', agent: 'main', role: 'assistant', text: `Resumed **${stored.title ?? 'this session'}**.`, at: stored.updated_at },
+      ],
+      tools: [{ tool_call: 'rt1', agent: 'main', tool: 'Read', summary: 'Read NOTES.md', input: { file_path: 'NOTES.md' }, status: 'ok', after: 'r1' }],
+    })
     this.sessions.push(s)
     setTimeout(() => s.announce(), 500)
     return s

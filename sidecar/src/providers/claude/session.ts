@@ -5,7 +5,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { HistoryMessage, Project, SessionEvent } from '../../protocol.ts'
+import type { History, Project, SessionEvent } from '../../protocol.ts'
+import { HistoryLog } from '../../history.ts'
 import type { Log } from '../../log.ts'
 import type { BridgeLink } from './bridge-server.ts'
 import type { HookLink, HookPayload } from './hook-server.ts'
@@ -35,11 +36,7 @@ export const TRANSCRIPTS_OFF = {
   message: 'Transcript saving is off in Claude Code, so some features may not work as intended. Turning it on is recommended.',
 }
 
-/**
- * Most chat messages kept for history (oldest dropped first). In memory
- * only, never on disk (NOTES.md -> Security rules -> Private by default).
- */
-export const HISTORY_MAX = 5000
+export { HISTORY_MAX } from '../../history.ts'
 
 /**
  * A world message sent while the orchestrator is idle makes Claude Code fire
@@ -149,9 +146,7 @@ export class ClaudeSession implements ProviderSession {
    * The chat so far, as the world saw it through the hooks: every message
    * since launch, so the same whether transcripts are on or off.
    */
-  private readonly history: HistoryMessage[] = []
-  /** Messages started but not yet completed: who and when. */
-  private readonly starting = new Map<string, { agent: string; role: 'user' | 'assistant'; at: string }>()
+  private readonly chat: HistoryLog
   /** Whether any hook has arrived yet. */
   private hooksSeen = false
   /** Checking that hooks arrive (once, after the first world message sent while idle). */
@@ -179,7 +174,7 @@ export class ClaudeSession implements ProviderSession {
   private prompt: string | null
 
   constructor(host: SessionHost, launch: Launch, project: Project, titles: Titles, log: Log,
-    cleanup: () => void, startupTimeoutMs: number, history: HistoryMessage[] = [], prompt?: string,
+    cleanup: () => void, startupTimeoutMs: number, history: History = { messages: [], tools: [] }, prompt?: string,
     hooksCheckMs = HOOKS_CHECK_MS) {
     this.host = host
     this.launch = launch
@@ -190,7 +185,7 @@ export class ClaudeSession implements ProviderSession {
     this.cleanup = cleanup
     this.startupTimeoutMs = startupTimeoutMs
     this.translator = new HookTranslator(project.path)
-    this.history.push(...history)
+    this.chat = new HistoryLog(history)
     this.prompt = prompt ?? null
     this.hooksCheckMs = hooksCheckMs
   }
@@ -349,15 +344,15 @@ export class ClaudeSession implements ProviderSession {
    * history empties, so the world's chat window clears too (user's
    * decisions, 2026-10-01; the old conversation stays resumable).
    */
-  private switchTo(id: string, file: string, resumed: HistoryMessage[] | null) {
+  private switchTo(id: string, file: string, resumed: History | null) {
     const from = this.nativeId
     this.nativeId = id
     this.transcriptDir ??= path.dirname(file)
     if (resumed) {
-      this.history.splice(0, this.history.length, ...resumed.slice(-HISTORY_MAX))
+      this.chat.replace(resumed)
       this.log.info(`session ${this.host.id}: it switched to an earlier conversation (/resume)`)
     } else {
-      this.history.length = 0
+      this.chat.replace({ messages: [], tools: [] })
       this.log.info(`session ${this.host.id}: a new conversation started in it (/clear)`)
     }
     // Its own name: an earlier conversation's from its transcript, none yet for a new one.
@@ -448,18 +443,10 @@ export class ClaudeSession implements ProviderSession {
     this.host.emit({ type: 'session.updated', title })
   }
 
-  /** Keeps completed chat messages for session.get_history. */
+  /** Keeps completed chat messages and tool calls for session.get_history. */
   private remember(event: SessionEvent) {
-    if (event.type === 'message.started') {
-      this.starting.set(event.message, { agent: event.agent, role: event.role, at: new Date().toISOString() })
-    } else if (event.type === 'message.completed') {
-      const started = this.starting.get(event.message)
-      if (!started) return
-      this.starting.delete(event.message)
-      this.history.push({ message: event.message, ...started, text: event.text })
-      if (started.role === 'user' && started.agent === MAIN && !this.titles.prompt) this.retitle({ ...this.titles, prompt: event.text })
-      if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX)
-    }
+    const m = this.chat.remember(event)
+    if (m?.role === 'user' && m.agent === MAIN && !this.titles.prompt) this.retitle({ ...this.titles, prompt: m.text })
   }
 
   private release(question: string, reply?: Record<string, unknown>) {
@@ -561,9 +548,9 @@ export class ClaudeSession implements ProviderSession {
     // No documented way to close Claude Code from outside (S05 decides).
     throw new CommandError('not_supported', 'end the session with /exit in its terminal')
   }
-  /** The chat so far, oldest first. */
-  async getHistory(): Promise<HistoryMessage[]> {
-    return structuredClone(this.history)
+  /** The chat and tool calls so far, oldest first. */
+  async getHistory(): Promise<History> {
+    return this.chat.get()
   }
 }
 
@@ -572,10 +559,15 @@ export class ClaudeSession implements ProviderSession {
  * hears from it, without the prompt that woke it (that one arrives as a
  * live message). Empty for a new conversation, or without a transcript.
  */
-function earlierChat(file: string, p: HookPayload): HistoryMessage[] {
-  const chat = readHistory(file)
+function earlierChat(file: string, p: HookPayload): History {
+  const history = readHistory(file)
+  const chat = history.messages
   const last = chat.at(-1)
   if (p.hook_event_name === 'UserPromptSubmit' && typeof p.prompt === 'string' &&
-      last?.role === 'user' && last.text === unwrapChannel(p.prompt.trim())) chat.pop()
-  return chat
+      last?.role === 'user' && last.text === unwrapChannel(p.prompt.trim())) {
+    chat.pop()
+    // Nothing ran after it yet; anything tied to it would be orphaned.
+    history.tools = history.tools.filter((t) => t.after !== last.message)
+  }
+  return history
 }

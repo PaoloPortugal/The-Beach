@@ -7,7 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { HistoryMessage, Project, StoredSession } from '../../protocol.ts'
+import type { History, Project, StoredSession } from '../../protocol.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
 import { writeSessionFile } from '../../launch/launcher.ts'
@@ -92,7 +92,7 @@ export class ClaudeProvider implements Provider {
     // Named by Claude Code as it goes (no --name): NOTES.md -> S02 -> Titles.
     const name = options.project.name ?? path.basename(options.project.path)
     return this.start(host, {
-      project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false, history: [],
+      project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false, history: { messages: [], tools: [] },
       ...(options.prompt ? { prompt: options.prompt } : {}),
     })
   }
@@ -126,7 +126,7 @@ export class ClaudeProvider implements Provider {
 
   private async start(host: SessionHost, o: {
     /** name: the terminal window's title. */
-    project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: HistoryMessage[]; prompt?: string
+    project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: History; prompt?: string
   }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
