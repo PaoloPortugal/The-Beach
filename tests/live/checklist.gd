@@ -76,7 +76,11 @@ func _show() -> void:
 	# (the wrapped text isn't measured yet when it's resized).
 	_label.text = _text + "\n\n(F1 to hide)"
 	# Only the lines that fit the window, from the scrolled-to one.
-	var fits := maxi(int((get_viewport().get_visible_rect().size.y - 40.0) / _label.get_line_height()), 3)
+	# The window less the panel's offsets and margins; a line is its height
+	# plus the spacing between lines.
+	var room := get_viewport().get_visible_rect().size.y - 16.0 - 20.0
+	var spacing := float(_label.get_theme_constant("line_spacing"))
+	var fits := maxi(int((room + spacing) / (_label.get_line_height() + spacing)), 3)
 	if _label.get_line_count() > fits:
 		_label.text = "(mouse wheel or PgUp/PgDn to scroll)\n" + _label.text
 	_label.max_lines_visible = fits
