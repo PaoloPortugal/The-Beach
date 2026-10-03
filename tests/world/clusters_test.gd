@@ -5,7 +5,10 @@ extends SceneTree
 ##
 ##   godot --headless --path . --script res://tests/world/clusters_test.gd
 
+const ErrorWatch := preload("res://tests/error_watch.gd")
+
 var _failed := false
+var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
@@ -52,9 +55,10 @@ func _initialize() -> void:
 	for i in 19:
 		offsets[SessionClusters.island_offset(i)] = true
 	_check(offsets.size() == 19, "island spots don't repeat")
-	if not _failed:
+	var passed := not _failed and _errors.ok()
+	if passed:
 		print("PASS clusters_test")
-	quit(1 if _failed else 0)
+	quit(0 if passed else 1)
 
 
 func _s(path: String, project_name: String, repo := "") -> Dictionary:

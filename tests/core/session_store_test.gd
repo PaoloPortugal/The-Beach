@@ -5,7 +5,10 @@ extends SceneTree
 ##   godot --headless --path . --script res://tests/core/session_store_test.gd
 ##   ... -- --sidecar-dev-fake      also drives the fake provider's scenarios
 
+const ErrorWatch := preload("res://tests/error_watch.gd")
+
 var _failed := false
+var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
@@ -16,7 +19,7 @@ func _run() -> void:
 	_by_hand()
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live()
-	if not _failed:
+	if not _failed and _errors.ok():
 		print("PASS session_store_test")
 		quit(0)
 
