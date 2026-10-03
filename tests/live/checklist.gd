@@ -4,7 +4,8 @@ extends CanvasLayer
 ## everything, and reloads them when the file changes. The world adds it
 ## only when the game starts with `-- --checklist`. F1 hides it down to a
 ## small tab and shows it again. A list taller than the window shows what
-## fits; Page Up and Page Down scroll it.
+## fits; the mouse wheel (over the list, or while walking) or Page Up and
+## Page Down scroll it.
 
 const FILE := "res://tests/live/checklist.txt"
 
@@ -45,6 +46,17 @@ func _make_tab() -> PanelContainer:
 
 
 func _input(event: InputEvent) -> void:
+	var wheel := event as InputEventMouseButton
+	if wheel and wheel.pressed and not _hidden and _label.get_line_count() > _label.max_lines_visible \
+			and (wheel.button_index == MOUSE_BUTTON_WHEEL_UP or wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		# Over the list, or while walking (mouse captured, nothing else
+		# scrolls); else the wheel is left to the chat.
+		var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		if captured or $Panel.get_global_rect().has_point(wheel.position):
+			get_viewport().set_input_as_handled()
+			_scroll += 2 if wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN else -2
+			_show()
+		return
 	var key := event as InputEventKey
 	if not key or not key.pressed or _hidden and key.keycode != KEY_F1:
 		return
@@ -66,7 +78,7 @@ func _show() -> void:
 	# Only the lines that fit the window, from the scrolled-to one.
 	var fits := maxi(int((get_viewport().get_visible_rect().size.y - 40.0) / _label.get_line_height()), 3)
 	if _label.get_line_count() > fits:
-		_label.text = "(PgUp/PgDn to scroll)\n" + _label.text
+		_label.text = "(mouse wheel or PgUp/PgDn to scroll)\n" + _label.text
 	_label.max_lines_visible = fits
 	_scroll = clampi(_scroll, 0, maxi(_label.get_line_count() - fits, 0))
 	_label.lines_skipped = _scroll
