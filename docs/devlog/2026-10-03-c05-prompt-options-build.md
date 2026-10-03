@@ -79,7 +79,14 @@ fake failed once in six runs ("the panel shows the chat so far"), and
 `main`'s last CI run failed it on macOS ("Esc closes the chat"). Flagged
 as its own task.
 
-## Live check (in progress, 2026-10-03, the user, `claude` 2.1.288)
+## Live check (passed, 2026-10-03, the user, `claude` 2.1.288)
+
+Every checklist step passed, steps 11 and 12 included. Picking "don't
+ask again" from the world saved the hook's own rule; a `claude -p`
+probe then confirmed Claude Code saves exactly the rule echoed back
+(`Bash(npm pkg *)` suggested, `Bash(npm pkg *)` saved). A `Bash(npm *)`
+seen in `garden-live` came from the user answering in the terminal
+later, not from the world. Details:
 
 `tests/live/checklist.txt`: the fake's steps, then the spike's prompts
 with the real `claude` in `garden-live`.

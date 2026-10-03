@@ -1267,6 +1267,17 @@ AskUserQuestion (Claude Code's choice), so only their permission
 prompts reach the card. Then the note was changed to go with a deny
 only (above).
 
+*Prompt options live check passed (2026-10-03)* with the user and
+`claude` 2.1.288: the fake's list (Yes, options, No; No with a note);
+with the real `claude`, "don't ask again" from the world saving the
+hook's exact rule (also probed: Claude Code saves exactly the echoed
+rule), accept edits, reading outside the project, a `.claude` write
+with only Yes and No, a PowerShell prompt (a plain-labelled rule, saved
+as shown), example.com with No and a note, the switch to auto once the
+session was seen in Auto, and the terminal's dialog closing itself each
+time. Found: auto isn't offered if the session leaves Auto before its
+first message (kept, user's; Watch items → Auto availability).
+
 ### C06 Permission mode control
 *Built (2026-10-03). Scope: capability `permission_modes`* (other tools
 have similar approval modes). See the current mode, and switch it from
@@ -2407,7 +2418,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** C05 reopened, the terminal's other prompt options
 (user's pick, 2026-10-03), **built on branch `c05-prompt-options`**,
-ready for the live check with the user: Claude's own suggestions,
+live check passed (2026-10-03), awaiting the user's review: Claude's own suggestions,
 worded like the terminal where checked live and never allowing more
 than it; a terminal-style list on the card (Yes, the options, No); a
 general `options` list replacing C06's `modes` (dev logs
