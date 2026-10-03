@@ -2294,21 +2294,20 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C04, then C06 and C07 together (user's choice,
-2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
+**Current focus:** next feature to be picked with the user (a
+candidate: Deferred ideas → The terminal's other prompt options, C05
+reopened). **Merged to `main` (2026-10-03), reviewed by the user: C06 +
+C07, permission modes and plan approval** (live check passed with the
+fake and a real `claude` 2.1.288): the mode in the chat's header, "Allow
+and switch to auto mode" on Bash prompts, plans as their own message
+with the terminal's choices on the card (dev logs 2026-10-02-c06-c07-spike
+and 2026-10-03-c06-c07-build). Accepted at review: message `kind:
+"plan"`, the card's and header's wording, plans in resumed history.
+**Merged to `main` (2026-10-02), reviewed by the user:
 C04, the tool-call log** (live check passed with the fake and a real
 `claude`): the tool calls after each message fold
 into one line in the chat, subagents' calls inside their Agent call,
-history included (C04). **Now: C06 + C07 on branch
-`c06-c07-modes-plans`**: spike done (dev log 2026-10-02-c06-c07-spike),
-protocol approved by the user (2026-10-03: capabilities
-`permission_modes` and `plans`, "allow and switch to auto" on Bash
-prompts once auto was seen; aim: behave nigh equal to the terminal);
-schema, sidecar, Godot and the fake built and tested (2026-10-03); docs
-done (NOTES, the guide, flows 10 and 11, dev log 2026-10-03-c06-c07-build,
-the live checklist); **live check passed (2026-10-03)**. Next: review,
-then merge. No launch picker (user's correction of an earlier note): sessions
-start in Claude Code's own mode. The "many
+history included (C04). The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
@@ -2472,8 +2471,9 @@ exists.
   settings files included: Claude Code writes the rule, the world only
   passes on a choice the user could make in the terminal, over our
   secured route, so we don't withhold any option we can offer. (The
-  button still says what it does, in the terminal's words.) Follows:
-  hold the hook of every prompt with options beyond Yes/No.
+  button still says what it does, in the terminal's words.) And hold
+  the hook of every prompt with options beyond Yes/No (user's: we put
+  in the work wherever it stays truer to the terminal).
 
 - **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
   every assistant entry in the transcript records the API's token usage and
