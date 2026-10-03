@@ -94,3 +94,34 @@ print mode.
   other three the terminal applies something the hook doesn't report: a
   wider Bash prefix (1), a `.claude`-only session allowance (6), and
   apparently the folder only, without the mode switch (9).
+
+## Decided after the live run (user's, 2026-10-03)
+
+**Never allow more than the terminal** (my recommendation; the
+alternatives were offering every suggestion as it is, which would switch
+to Accept edits where the terminal doesn't, or only kinds seen to match,
+which drops Bash's "don't ask again"). Each option is labelled by exactly
+what it does. Where we know a suggestion allows more than the terminal's
+option (a mode switch on writes in a `.claude` folder, and on PowerShell
+prompts) that part is left out, and the option too if nothing is left.
+Bash's "don't ask again" saves the hook's narrower rule, with the exact
+rule on the button.
+
+**Why we offer what we offer** (asked by the user to be recorded):
+- The aim is the terminal's choices, no more and no less. The world only
+  knows what the hook tells it; the terminal's dialog sometimes does
+  things the hook never reports, so an exact copy isn't possible.
+- Where the two agree (six of the nine prompts tried), the world offers
+  the same choice with the same effect, worded like the terminal.
+- Where they differ, the world offers **less, never more**: a narrower
+  Bash rule (`npm --version` where the terminal saves `npm *`; the
+  terminal's prefix logic is undocumented, and copying it would be
+  re-implementing Claude Code), no extra option on `.claude` writes (the
+  only suggestion is a mode switch that would allow every edit), and
+  PowerShell's folder access for the session without the mode switch.
+  Allowing less only means Claude asks again later; allowing more would
+  be acting beyond what the user chose, which the Principles forbid.
+- Every button says exactly what it does, even where the terminal's
+  wording differs, so the user is never told one thing while another
+  happens. The terminal keeps its full options for anything the world
+  can't offer.
