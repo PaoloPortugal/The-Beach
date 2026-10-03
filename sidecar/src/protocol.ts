@@ -71,6 +71,23 @@ export interface HistoryMessage {
   at: string
 }
 
+/** A tool call in session.get_history (C04). */
+export interface HistoryTool {
+  tool_call: Id
+  agent: Id
+  tool: string
+  summary: string
+  input?: Record<string, unknown>
+  status: 'running' | 'ok' | 'error' | 'denied'
+  result?: string
+  /** The chat message it came after; null before the first. */
+  after: Id | null
+  within?: Id
+}
+
+/** session.get_history's result. */
+export interface History { messages: HistoryMessage[]; tools: HistoryTool[] }
+
 export interface StoredSession {
   provider: string
   native_id: string
@@ -87,7 +104,7 @@ export type SessionEvent =
   | { type: 'message.started'; message: Id; agent: Id; role: 'user' | 'assistant' }
   | { type: 'message.delta'; message: Id; text: string }
   | { type: 'message.completed'; message: Id; text: string }
-  | { type: 'tool.started'; tool_call: Id; agent: Id; tool: string; summary: string; input?: Record<string, unknown> }
+  | { type: 'tool.started'; tool_call: Id; agent: Id; tool: string; summary: string; input?: Record<string, unknown>; within?: Id }
   | { type: 'tool.finished'; tool_call: Id; status: 'ok' | 'error' | 'denied'; summary?: string }
   | { type: 'permission.requested'; permission: Permission }
   | { type: 'permission.resolved'; permission: Id; decision: 'allow' | 'deny'; by: 'app' | 'external' }

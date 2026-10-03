@@ -72,7 +72,8 @@ async function execute(
     }
     case 'session.get_history': {
       const control = findControl(registry, c.session)
-      return { messages: await control.getHistory() }
+      const { messages, tools } = await control.getHistory()
+      return { messages, tools }
     }
     case 'message.send':
       await findControl(registry, c.session).sendMessage(c.text)

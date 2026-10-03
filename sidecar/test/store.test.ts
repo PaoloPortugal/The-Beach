@@ -93,14 +93,64 @@ test('history: what the user said (typed or from the world) and Claude\'s text, 
     { type: 'assistant', message: { id: 'msg_2', content: [{ type: 'text', text: 'Done.' }] } },
     'not json' as unknown as object,
   ))
-  const h = readHistory(file)
+  const h = readHistory(file).messages
   assert.deepEqual(h.map((m) => [m.role, m.text]), [
     ['user', 'from the world'], ['assistant', 'Let me look.'], ['user', 'typed in the terminal'], ['assistant', 'Done.'],
   ])
   assert.equal(h[0]!.message, 'u1')
   assert.equal(h[0]!.at, '2026-09-29T10:00:00Z')
   assert.equal(h[1]!.message, 'msg_1')
-  assert.deepEqual(readHistory(path.join(dir, 'missing.jsonl')), [])
+  assert.deepEqual(readHistory(path.join(dir, 'missing.jsonl')), { messages: [], tools: [] })
+})
+
+test('history: tool calls, how each ended, where each came, and subagents\' inside their Agent call', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hist-'))
+  const id = ID(11)
+  const file = path.join(dir, `${id}.jsonl`)
+  const cwd = path.join(os.tmpdir(), 'proj')
+  const use = (msg: string, tool: string, name: string, input: object, text?: string) => ({
+    type: 'assistant', cwd, message: { id: msg, content: [...(text ? [{ type: 'text', text }] : []), { type: 'tool_use', id: tool, name, input }] },
+  })
+  const result = (tool: string, extra: object = {}, block: object = {}) => ({
+    type: 'user', ...extra, message: { content: [{ type: 'tool_result', tool_use_id: tool, content: 'out', ...block }] },
+  })
+  fs.writeFileSync(file, jsonl(
+    use('msg_0', 'early', 'Glob', { pattern: '*' }),
+    result('early'),
+    { type: 'user', uuid: 'u1', message: { content: 'go' } },
+    // Text and a call in one entry: the call comes after that text.
+    use('msg_1', 'read', 'Read', { file_path: path.join(cwd, 'a.ts') }, 'Looking.'),
+    result('read'),
+    use('msg_2', 'fail', 'Bash', { command: 'npm test' }),
+    result('fail', {}, { is_error: true, content: [{ type: 'text', text: 'Error: Exit code 1\nmore' }] }),
+    use('msg_3', 'deny', 'Bash', { command: 'rm x' }),
+    result('deny', { toolDenialKind: 'user-rejected' }, { is_error: true }),
+    use('msg_4', 'spawn', 'Agent', { description: 'Look around', subagent_type: 'Explore' }),
+    result('spawn'),
+    use('msg_5', 'cut', 'Bash', { command: 'sleep 99' }),
+  ))
+  const subs = path.join(dir, id, 'subagents')
+  fs.mkdirSync(subs, { recursive: true })
+  fs.writeFileSync(path.join(subs, 'agent-abc123.jsonl'), jsonl(
+    { ...use('s_1', 'sub_read', 'Read', { file_path: path.join(cwd, 'b.ts') }), isSidechain: true },
+    { ...result('sub_read'), isSidechain: true },
+  ))
+  fs.writeFileSync(path.join(subs, 'agent-abc123.meta.json'), JSON.stringify({ agentType: 'Explore', toolUseId: 'spawn' }))
+
+  const { messages, tools } = readHistory(file)
+  assert.deepEqual(messages.map((m) => m.message), ['u1', 'msg_1'])
+  const row = (t: (typeof tools)[number]) => [t.tool_call, t.agent, t.status, t.after, t.within ?? null, t.result ?? null]
+  assert.deepEqual(tools.map(row), [
+    ['early', 'main', 'ok', null, null, null],
+    ['read', 'main', 'ok', 'msg_1', null, null],
+    ['fail', 'main', 'error', 'msg_1', null, 'Error: Exit code 1'],
+    ['deny', 'main', 'denied', 'msg_1', null, null],
+    ['spawn', 'main', 'ok', 'msg_1', null, null],
+    ['cut', 'main', 'error', 'msg_1', null, 'No result was recorded.'],
+    ['sub_read', 'abc123', 'ok', null, 'spawn', null],
+  ])
+  assert.equal(tools[1]!.summary, `Read ${path.join('a.ts')}`)
+  assert.deepEqual(tools[1]!.input, { file_path: path.join(cwd, 'a.ts') })
 })
 
 // The start of a transcript /clear began, as Claude Code 2.1.285 wrote it
@@ -119,7 +169,7 @@ test('history: slash commands run in the terminal and their output aren\'t chat'
     { type: 'user', isMeta: true, message: { content: '<channel source="world-bridge" sender="user">\nhello\n</channel>' } },
     { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'text', text: 'Hi!' }] } },
   ))
-  assert.deepEqual(readHistory(file).map((m) => [m.role, m.text]), [['user', 'hello'], ['assistant', 'Hi!']])
+  assert.deepEqual(readHistory(file).messages.map((m) => [m.role, m.text]), [['user', 'hello'], ['assistant', 'Hi!']])
   // Listed by what was said, not by the command.
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'proj-'))
   const listed = path.join(dir, `${ID(10)}.jsonl`)

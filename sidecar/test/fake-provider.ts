@@ -1,7 +1,7 @@
 // A scriptable provider for tests and for developing the Godot side before a
 // real provider runs. Never shipped: the bundle only includes src/.
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from '../src/provider.ts'
-import type { HistoryMessage, Id, Project, StoredSession } from '../src/protocol.ts'
+import type { History, Id, Project, StoredSession } from '../src/protocol.ts'
 
 export interface FakeOptions {
   id?: string
@@ -19,7 +19,7 @@ export class FakeSession implements ProviderSession {
   readonly host: SessionHost
   readonly project: Project
   private readonly provider: FakeProvider
-  history: HistoryMessage[] = []
+  history: History = { messages: [], tools: [] }
   /** What announce() reports; defaults to `native-<session id>` and "fake session" (null: no title). */
   nativeId?: string
   title?: string | null

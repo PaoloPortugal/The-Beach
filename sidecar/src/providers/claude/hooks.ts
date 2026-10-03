@@ -72,7 +72,7 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
 /** Longest tool summary, in characters. */
 const SUMMARY_MAX = 120
 /** Tool inputs larger than this (as JSON) aren't forwarded; the summary still is. */
-const INPUT_MAX = 64 * 1024
+export const INPUT_MAX = 64 * 1024
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 
@@ -118,6 +118,8 @@ export class HookTranslator {
   private readonly userMessages = new Set<Id>()
   /** Agent tool calls, oldest first, each waiting for its SubagentStart. */
   private readonly spawning: { call: Id; caller: Id; type: string; task: string }[] = []
+  /** Each subagent's Agent call, for its own calls' `within` (C04). */
+  private readonly spawnedBy = new Map<Id, Id>()
 
   constructor(cwd: string) {
     this.cwd = cwd
@@ -322,7 +324,8 @@ export class HookTranslator {
     const summary = summarizeTool(tool, input, this.cwd)
     const small = JSON.stringify(input).length <= INPUT_MAX
     this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null })
-    out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}) })
+    const within = this.spawnedBy.get(agent)
+    out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
   }
 
   private toolFinished(p: HookPayload, status: 'ok' | 'error', out: SessionEvent[]) {
@@ -509,6 +512,7 @@ export class HookTranslator {
     }
     this.states.set(agent, 'working')
     this.reasons.set(agent, null)
+    if (call) this.spawnedBy.set(agent, call.call)
     out.push({ type: 'agent.spawned', agent: a })
   }
 
@@ -619,11 +623,11 @@ export function parseHandback(prompt: string): string | null {
   return m ? m[1]! : null
 }
 
-function firstLine(s: string): string {
+export function firstLine(s: string): string {
   return s.trim().split(/\r?\n/, 1)[0] ?? ''
 }
 
-function clip(s: string): string {
+export function clip(s: string): string {
   return s.length > SUMMARY_MAX ? s.slice(0, SUMMARY_MAX - 1) + '…' : s
 }
 
