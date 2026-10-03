@@ -8,7 +8,10 @@ extends SceneTree
 ##   ... -- --sidecar=<executable>  tests a packaged sidecar
 
 var _events: Array[Dictionary] = []
+const ErrorWatch := preload("res://tests/error_watch.gd")
+
 var _failed := false
+var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
@@ -63,7 +66,7 @@ func _run() -> void:
 	var pid: int = sidecar._pid
 	sidecar.stop()
 	_check(not OS.is_process_running(pid), "sidecar exits when stopped")
-	if not _failed:
+	if not _failed and _errors.ok():
 		print("PASS sidecar_client_test")
 		quit(0)
 

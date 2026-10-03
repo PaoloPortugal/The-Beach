@@ -6,6 +6,8 @@ extends SceneTree
 ##   godot --headless --path . --script res://tests/chat/markdown_test.gd
 ## Exit code 0 = all passed.
 
+const ErrorWatch := preload("res://tests/error_watch.gd")
+
 const SAMPLES := "res://tests/chat/markdown_samples/"
 
 ## Every tag the parser and view may emit. Anything else in the output means
@@ -16,6 +18,7 @@ var _p := MarkdownParser.new()
 var _b := MarkdownBBCode.new()
 var _failed := 0
 var _passed := 0
+var _errors := ErrorWatch.new(self)
 var _rtl: RichTextLabel
 
 
@@ -36,7 +39,7 @@ func _initialize() -> void:
 
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	# A script that failed to compile runs nothing: count that as a failure.
-	quit(1 if _failed > 0 or _passed == 0 else 0)
+	quit(1 if _failed > 0 or _passed == 0 or not _errors.ok() else 0)
 
 
 func _check(name: String, cond: bool, detail: Variant = "") -> void:

@@ -1,0 +1,53 @@
+extends Logger
+## Fails a headless suite on any error Godot logs: a GDScript runtime error
+## ("SCRIPT ERROR"), push_error, or an engine error. Warnings don't count.
+## A runtime error only aborts the function it happens in (an awaiting
+## caller carries on), so without this a suite could print PASS with checks
+## skipped. On the first error it quits with 1 at once; the suite's PASS
+## line checks `ok()` too, for an error in a suite's last, synchronous steps.
+##
+##   const ErrorWatch := preload("res://tests/error_watch.gd")
+##   var _errors := ErrorWatch.new(self)
+##   ...
+##   if not _failed and _errors.ok():
+##       print("PASS ...")
+##       quit(0)
+
+var _tree: SceneTree
+var _mutex := Mutex.new()
+var _count := 0
+
+
+func _init(tree: SceneTree) -> void:
+	_tree = tree
+	OS.add_logger(self)
+
+
+## False if an error was logged.
+func ok() -> bool:
+	_mutex.lock()
+	var count := _count
+	_mutex.unlock()
+	return count == 0
+
+
+func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String, _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
+	if error_type == ERROR_TYPE_WARNING:
+		return
+	_mutex.lock()
+	_count += 1
+	var first := _count == 1
+	_mutex.unlock()
+	if first:
+		_report.call_deferred()
+	# Logged from any thread: the exit code is set right away on the main
+	# one, so an error while the suite shuts down still fails it.
+	if OS.get_thread_caller_id() == OS.get_main_thread_id():
+		_tree.quit(1)
+	else:
+		_tree.quit.call_deferred(1)
+
+
+## Not printed from inside the logger: printing logs again.
+func _report() -> void:
+	printerr("FAIL an error was logged (above); the checks after it may not have run")
