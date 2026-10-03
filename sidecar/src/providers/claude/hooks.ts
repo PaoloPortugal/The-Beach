@@ -8,7 +8,6 @@ import crypto from 'node:crypto'
 import type { Agent, Id, Permission, QuestionItem, SessionEvent, State } from '../../protocol.ts'
 import type { HookPayload } from './hook-server.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
-import { SPIKE_DIR } from './spike.ts'
 
 /** The orchestrator's agent id. Subagents use Claude Code's agent_id. */
 export const MAIN = 'main'
@@ -60,7 +59,7 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
   for (const name of REPORTED_HOOKS) hooks[name] = hook(REPORT_TIMEOUT_S)
   // Questions only: plain permission prompts come through the channel's
   // relay, and holding them here would hold up the terminal's own answer.
-  hooks.PermissionRequest = [{ matcher: SPIKE_DIR ? '.*' : `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
+  hooks.PermissionRequest = [{ matcher: `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
   const [command, ...args] = relay
   if (!command) throw new Error('no relay command')
   hooks.SessionStart = [{
