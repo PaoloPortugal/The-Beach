@@ -84,9 +84,9 @@ func orchestrator(session_id: String) -> Dictionary:
 
 ## What the session waits on the user for, oldest first: permission
 ## prompts and questions, each as [code]{"kind": "permission" or
-## "question", "item": <the protocol's object>}[/code]. A snapshot doesn't
-## say which of the two kinds came first, so a snapshot's permissions count
-## as older than its questions.
+## "question", "item": <the protocol's object>}[/code]. Each item's
+## [code]asked_at[/code] is when the sidecar first saw it: it orders a
+## snapshot's new items, and times how long the session has waited.
 func pending(session_id: String) -> Array[Dictionary]:
 	var s := session(session_id)
 	var out: Array[Dictionary] = []
@@ -284,15 +284,24 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 		s["questions"] = []
 	if not s.has("notices"):
 		s["notices"] = []
-	# Keep the order we saw them in; ones new in the snapshot go last.
+	# Keep the order we saw them in; ones new in the snapshot go last, by
+	# when they were asked (without asked_at, permissions before questions).
 	var order: Array = []
 	for key in old.get("pending_order", []):
 		if _find(s, key[0], key[1]).size() > 0:
 			order.append(key)
+	var added: Array = []
 	for kind in ["permission", "question"]:
 		for item in s[kind + "s"]:
 			if not order.has([kind, item[kind]]):
-				order.append([kind, item[kind]])
+				added.append({"key": [kind, item[kind]], "at": str(item.get("asked_at", ""))})
+	# Stable: sort_custom isn't, so ties keep their place through the index.
+	for i in added.size():
+		added[i]["i"] = i
+	added.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a["at"] < b["at"] if a["at"] != b["at"] else a["i"] < b["i"])
+	for a in added:
+		order.append(a["key"])
 	s["pending_order"] = order
 	# A snapshot replaces the state, but the chat and tool log are ours.
 	s["messages"] = old.get("messages", {})

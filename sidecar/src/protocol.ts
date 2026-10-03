@@ -30,6 +30,8 @@ export interface Permission {
   tool: string
   summary: string
   input?: Record<string, unknown>
+  /** Set by the registry; see stamp() there. */
+  asked_at?: string
 }
 
 export interface QuestionItem {
@@ -39,7 +41,8 @@ export interface QuestionItem {
   multi_select: boolean
 }
 
-export interface Question { question: Id; agent: Id; items: QuestionItem[] }
+/** `asked_at`: set by the registry; see stamp() there. */
+export interface Question { question: Id; agent: Id; asked_at?: string; items: QuestionItem[] }
 
 export interface Notice { code: string; message: string }
 
