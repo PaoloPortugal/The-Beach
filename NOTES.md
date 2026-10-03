@@ -2160,8 +2160,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** C04, then C06 and C07 together (user's choice,
-2026-10-02). **C04 built on branch `c04-tool-log`, waiting for the
-user's live check and review**: the tool calls after each message fold
+2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
+C04, the tool-call log** (live check passed with the fake and a real
+`claude`): the tool calls after each message fold
 into one line in the chat, subagents' calls inside their Agent call,
 history included (C04). Next: C06 + C07 on one branch. For C06:
 the Shift+Tab four modes only (no Bypass, no Don't ask), and a launch
