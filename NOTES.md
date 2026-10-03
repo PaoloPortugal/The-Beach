@@ -1736,6 +1736,13 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   one line). Then **"Yes, and switch to auto mode"** (`auto`, C06's
   switch; `setMode auto` for the session), on Bash prompts asked in
   Manual or Accept edits once auto was seen; no suggestion carries it.
+  *Only once seen* (user's, 2026-10-03, at the live check): nothing
+  says whether auto is available (no startup hook carries the mode, and
+  `disableAutoMode` is only part of it), and Claude Code applies a
+  hook's switch to auto even where settings turn auto off, so seeing
+  the session in Auto is the only proof we trust. The cost: a session
+  switched out of Auto before its first message never offers it, though
+  the terminal does (Watch items → Auto availability).
 - **Never allowing more than the terminal** (user's rule). Offered
   unchanged: `addRules` with `behavior: allow`, `addDirectories`, and
   `setMode acceptEdits` for the session on a file edit (Edit, Write,
@@ -2637,7 +2644,24 @@ exists.
   PowerShell's own option: the terminal says "Yes, and always allow
   access to … from this project", but nothing was saved anywhere, so
   ours says "during this session". Recheck the pairing when Claude Code's
-  dialogs change.
+  dialogs change. Seen at the live check (2026-10-03): a PowerShell
+  command writing one file outside the project got a `PowerShell(<the
+  command>)` rule in `localSettings` (plain label; the terminal offered
+  to allow that file). Picked in the world, the rule was saved as shown;
+  the user accepted the plain label for it.
+
+- **Auto availability** (C05, C06). The world offers "Yes, and switch to
+  auto mode" only once the session was seen in Auto (S02 → Prompt
+  options), so leaving Auto before the first message hides it where the
+  terminal shows it. Use a real signal if Claude Code ever gives hooks
+  one (whether auto is available, or the mode on `SessionStart`).
+  Related, probed with `claude -p` 2.1.288 (dev log
+  2026-10-03-c05-prompt-options-build): a `PermissionRequest` hook's
+  `setMode auto` is applied even with `disableAutoMode: "disable"` in
+  `--settings` or `.claude/settings.local.json`, though that setting
+  does stop a session starting in auto. Never send a switch to auto
+  without proof it's available. A bug report is drafted for the user to
+  file; recheck after Claude Code updates.
 
 - **Ending a session from the game** (S05). Not built: Claude Code has
   no clean way to end an interactive session from outside (S05 has what
