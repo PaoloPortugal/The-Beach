@@ -2164,9 +2164,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 C04, the tool-call log** (live check passed with the fake and a real
 `claude`): the tool calls after each message fold
 into one line in the chat, subagents' calls inside their Agent call,
-history included (C04). Next: C06 + C07 on one branch. For C06:
-the Shift+Tab four modes only (no Bypass, no Don't ask), and a launch
-picker that defaults to Claude Code's own choice (no flag). The "many
+history included (C04). **Now: C06 + C07 on branch
+`c06-c07-modes-plans`**: decisions made with the user and a spike in
+progress (dev log 2026-10-02-c06-c07-spike: modes in hooks confirmed,
+plan approval with a mode switch from the world works; Bash prompts
+next). No launch picker (user's correction of an earlier note): sessions
+start in Claude Code's own mode. The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
