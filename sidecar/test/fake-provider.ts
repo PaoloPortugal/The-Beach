@@ -65,8 +65,8 @@ export class FakeSession implements ProviderSession {
   }
 
   async sendMessage(text: string) { this.record('sendMessage', [text]) }
-  async respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string, mode?: string) {
-    this.record('respondPermission', mode === undefined ? [permission, decision, note] : [permission, decision, note, mode])
+  async respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string, option?: Id) {
+    this.record('respondPermission', option === undefined ? [permission, decision, note] : [permission, decision, note, option])
   }
   async end() {
     this.record('end', [])

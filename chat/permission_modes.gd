@@ -1,9 +1,10 @@
 class_name PermissionModes
 extends RefCounted
 ## Godot's own words for permission modes (C06, the [code]permission_modes[/code]
-## capability) and for the choices that switch to them (C07's plan card, an
-## allow that switches). The protocol carries the provider's own mode ids;
-## ids we don't know show as they are.
+## capability) and for the choices that switch to them (C07's plan card; a
+## permission prompt's switch is one of its options, worded by the provider,
+## C05). The protocol carries the provider's own mode ids; ids we don't know
+## show as they are.
 
 ## The modes' names, by id.
 const NAMES := {
@@ -30,12 +31,6 @@ static func name_of(mode: String) -> String:
 ## The button that approves a plan and switches to [param mode].
 static func plan_choice(mode: String) -> String:
 	return PLAN_CHOICES.get(mode, "Yes, and switch to %s" % _mode_words(mode))
-
-
-## The button that allows a permission and switches to [param mode]
-## (Claude Code's own Bash prompt says "Yes, and switch to auto mode").
-static func allow_choice(mode: String) -> String:
-	return "Allow and switch to %s" % _mode_words(mode)
 
 
 # "auto mode", "accept edits mode"; an unknown id as it is, plus "mode".

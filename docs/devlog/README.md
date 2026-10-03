@@ -58,3 +58,5 @@ reading; look things up by feature ID.
 | 2026-10-02 | [C04: the tool-call log](2026-10-02-c04-tool-log.md) | C04, S02 |
 | 2026-10-02 | [C06 + C07: decisions and the modes/plan spike](2026-10-02-c06-c07-spike.md) | C06, C07, S02 |
 | 2026-10-03 | [C06 + C07: permission modes and plan approval, built](2026-10-03-c06-c07-build.md) | C06, C07, S02 |
+| 2026-10-03 | [C05 reopened: the terminal's other prompt options](2026-10-03-c05-prompt-options-spike.md) | C05, C06, S02 |
+| 2026-10-03 | [C05 reopened: the terminal's other prompt options, built](2026-10-03-c05-prompt-options-build.md) | C05, C06, S02 |

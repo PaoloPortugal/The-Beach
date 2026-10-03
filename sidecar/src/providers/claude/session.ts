@@ -19,10 +19,15 @@ import { launcherGone } from '../../launch/launcher.ts'
 
 /**
  * How long a relayed permission prompt waits for its tool call's
- * PreToolUse, which comes on another connection (about 100 ms earlier in
- * the S02 spike). After that it's shown without one, as the orchestrator's.
+ * PreToolUse and PermissionRequest hooks, which come on other connections
+ * (PreToolUse about 100 ms before the relay, PermissionRequest a few ms
+ * after it, in the S02 spike). It's shown as soon as both came; after this
+ * long, with what's known by then: without its options (C05), or without
+ * a tool call, as the orchestrator's. Generous, since a hook later than
+ * this means a prompt shown without the options the terminal has, while a
+ * hook that never comes (hooks blocked) only delays the card by this much.
  */
-export const PERMISSION_MATCH_MS = 300
+export const PERMISSION_MATCH_MS = 1000
 
 /**
  * How long after the first reply ends the transcript must exist. With
@@ -100,8 +105,8 @@ export const STOP_REASON = 'The user stopped this from the app.'
 /** What Claude is told when the world sends a plan back without a note (C07). */
 export const KEEP_PLANNING = 'The user wants to keep planning. Ask them what to change.'
 
-/** Why the world can't switch modes on a prompt whose hook isn't held. */
-export const NO_SWITCH_ERROR = 'This prompt can\'t switch modes right now. Allow it without switching, or answer in the terminal.'
+/** Why the world can't answer a prompt with an option when its hook isn't held (C05). */
+export const NO_OPTION_ERROR = 'This prompt can\'t be answered that way right now. Answer Yes or No, or answer in the terminal.'
 
 /**
  * The PreToolUse reply that stops a tool call and the agent's turn.
@@ -180,11 +185,16 @@ export class ClaudeSession implements ProviderSession {
   /** Held plan hooks, by plan id (C07). */
   private readonly heldPlans = new Map<string, (reply?: Record<string, unknown>) => void>()
   /**
-   * Held hooks of prompts that can switch modes, by tool call (C06). Only
-   * an allow with a mode answers one; any other answer comes through the
-   * relay or the terminal, and the hook is let go when the call ends.
+   * Held hooks of prompts with options, by tool call (C05). Only an allow
+   * with an option answers one; any other answer comes through the relay
+   * or the terminal, and the hook is let go when the call ends.
    */
   private readonly heldPrompts = new Map<string, (reply?: Record<string, unknown>) => void>()
+  /**
+   * Relayed prompts waiting for their tool call's hooks, by request id
+   * (see PERMISSION_MATCH_MS); tried again after each of those hooks.
+   */
+  private readonly waitingRelays = new Map<string, { relay: RelayedPermission; timer: NodeJS.Timeout }>()
 
   /** A first message to send once the session is up (session.create's prompt). */
   private prompt: string | null
@@ -272,7 +282,9 @@ export class ClaudeSession implements ProviderSession {
     if (p.hook_event_name === 'PermissionRequest') {
       if (p.tool_name === QUESTION_TOOL) return this.holdQuestion(p, gone)
       if (p.tool_name === PLAN_TOOL) return this.holdPlan(p, gone)
-      return this.holdPrompt(p, gone)
+      const held = this.holdPrompt(p, gone)
+      this.retryRelays()
+      return held
     }
     // A new turn: agents stopped in the last one may work again.
     if (p.hook_event_name === 'UserPromptSubmit') this.halted.clear()
@@ -290,6 +302,7 @@ export class ClaudeSession implements ProviderSession {
       this.emitAll(this.translator.stopped(p))
     }
     for (const a of [...this.stopping]) if (!this.translator.isBusy(a)) this.stopping.delete(a)
+    if (p.hook_event_name === 'PreToolUse') this.retryRelays()
     return reply
   }
 
@@ -429,9 +442,13 @@ export class ClaudeSession implements ProviderSession {
     })
   }
 
-  /** A prompt that can switch modes: held, in case the world allows it with a switch. */
+  /**
+   * Any other prompt's hook brings its options (C05). Held while it has
+   * some, in case the world allows it one of those ways; else answered at
+   * once with no decision, so the terminal asks as usual.
+   */
   private holdPrompt(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
-    const call = this.translator.switchableCall(p)
+    const call = this.translator.promptHooked(p)
     if (!call || this.heldPrompts.has(call)) return
     return new Promise((resolve) => {
       this.heldPrompts.set(call, resolve)
@@ -458,15 +475,31 @@ export class ClaudeSession implements ProviderSession {
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
-  /** Claude Code shows a permission prompt, relayed by the bridge. */
+  /**
+   * Claude Code shows a permission prompt, relayed by the bridge. Shown
+   * once its tool call's hooks came, which may be before or after it.
+   */
   private onPermissionRequest(p: RelayedPermission) {
-    if (this.disposed || this.host.ended) return
+    if (this.disposed || this.host.ended || this.waitingRelays.has(p.request_id)) return
     const events = this.translator.permissionRequested(p)
     if (events) return this.emitAll(events)
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
+      this.waitingRelays.delete(p.request_id)
       if (!this.disposed && !this.host.ended) this.emitAll(this.translator.permissionRequested(p, true) ?? [])
     }, PERMISSION_MATCH_MS)
-    t.unref()
+    timer.unref()
+    this.waitingRelays.set(p.request_id, { relay: p, timer })
+  }
+
+  /** Shows the waiting relayed prompts whose tool call's hooks have now come. */
+  private retryRelays() {
+    for (const [id, { relay, timer }] of [...this.waitingRelays]) {
+      const events = this.translator.permissionRequested(relay)
+      if (!events) continue
+      clearTimeout(timer)
+      this.waitingRelays.delete(id)
+      this.emitAll(events)
+    }
   }
 
   private emitAll(events: SessionEvent[]) {
@@ -533,6 +566,8 @@ export class ClaudeSession implements ProviderSession {
     if (this.startupTimer) clearTimeout(this.startupTimer)
     this.stopLauncherCheck()
     if (this.hooksCheck) clearTimeout(this.hooksCheck)
+    for (const { timer } of this.waitingRelays.values()) clearTimeout(timer)
+    this.waitingRelays.clear()
     this.link?.unregister()
     this.hookLink?.unregister()
     this.transcript.stop()
@@ -557,17 +592,18 @@ export class ClaudeSession implements ProviderSession {
   /**
    * The user answered a prompt in the world. The verdict goes down the
    * bridge and closes the terminal's dialog; nothing is allowed any other
-   * way (NOTES.md -> Security rules). An allow with a mode (C06) answers
-   * the prompt's held hook instead, which also switches the mode; Claude
+   * way (NOTES.md -> Security rules). An allow with an option (C05)
+   * answers the prompt's held hook instead, with the option's updates
+   * (Claude Code's own suggestions, or the switch to auto mode); Claude
    * Code then closes the terminal's dialog and the relayed prompt itself
    * (spike, 2026-10-03).
    */
-  async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string, mode?: string): Promise<void> {
+  async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string, option?: string): Promise<void> {
     const link = this.reachable()
-    if (mode !== undefined) {
-      const call = this.translator.permissionCall(permission)
-      if (!call || !this.heldPrompts.has(call.toolCall)) throw new CommandError('provider_error', NO_SWITCH_ERROR)
-      this.releasePrompt(call.toolCall, permissionReply({ behavior: 'allow', updatedInput: call.input, mode }))
+    if (option !== undefined) {
+      const chosen = this.translator.promptOption(permission, option)
+      if (!chosen || !this.heldPrompts.has(chosen.toolCall)) throw new CommandError('provider_error', NO_OPTION_ERROR)
+      this.releasePrompt(chosen.toolCall, permissionReply({ behavior: 'allow', updatedInput: chosen.input, updates: chosen.updates }))
     } else if (!link.send({ type: 'verdict', request_id: permission, behavior: decision })) {
       throw new CommandError('provider_error', UNREACHABLE_ERROR)
     }
@@ -618,6 +654,12 @@ export class ClaudeSession implements ProviderSession {
     // The stop lands through this conversation's hooks, which a moved one no longer sends.
     if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
+    // Prompts still waiting for their hooks are shown now, to be declined with the rest.
+    for (const [id, { relay, timer }] of [...this.waitingRelays]) {
+      clearTimeout(timer)
+      this.waitingRelays.delete(id)
+      this.emitAll(this.translator.permissionRequested(relay, true) ?? [])
+    }
     for (const permission of this.translator.pendingPermissions()) {
       if (this.link?.send({ type: 'verdict', request_id: permission, behavior: 'deny' })) {
         this.emitAll(this.translator.permissionAnswered(permission, 'deny'))
