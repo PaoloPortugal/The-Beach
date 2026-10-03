@@ -52,6 +52,7 @@ test('translator: a "No" denies the call\'s prompt; the interruption leaves the 
   t.translate({ hook_event_name: 'UserPromptSubmit', prompt: 'go' })
   t.translate({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git push' }, tool_use_id: 'toolu_1' })
   t.translate({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {}, tool_use_id: 'toolu_r' })
+  t.promptHooked({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'git push' } })
   t.permissionRequested({ request_id: 'abcde', tool_name: 'Bash', description: '', input_preview: '{"command":"git push"}' })
   assert.deepEqual(t.rejectedInTerminal('toolu_1'), [
     { type: 'permission.resolved', permission: 'abcde', decision: 'deny', by: 'external' },

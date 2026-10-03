@@ -544,19 +544,20 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	]}})
 	_check(card.visible and card.header_text() == "The orchestrator asks to use Bash:" and card.count_text() == "1 of 2 waiting", "card: the oldest request first, with how many wait")
 	var buttons := card.find_children("*", "Button", true, false)
-	var allow: Button = buttons.filter(func(b: Button) -> bool: return b.text == "Allow")[0]
-	_check(allow.focus_mode == Control.FOCUS_NONE, "card: no key can press Allow")
+	_check(buttons.map(func(b: Button) -> String: return b.text) == ["Details", "Yes", "No", "Send"], "card: Yes and No, one per line, without options")
+	var yes: Button = buttons[1]
+	_check(yes.focus_mode == Control.FOCUS_NONE, "card: no key can press Yes")
 	_check(card.find_children("*", "Label", true, false).any(func(l: Label) -> bool: return l.text == "Run: [b]rm[/b] x"), "card: the summary is shown as written")
-	_check(not _note(card).editable and _button(card, "Send").disabled, "card: the note and Send are locked until Deny")
-	_click(card, "Deny")
-	_check(card.denying() and _note(card).editable and not _button(card, "Send").disabled and card.error_text() == "", "card: Deny unlocks the note and Send, and answers nothing")
+	_check(not _note(card).editable and _button(card, "Send").disabled, "card: the note and Send are locked until No")
+	_click(card, "No")
+	_check(card.denying() and _note(card).editable and not _button(card, "Send").disabled and card.error_text() == "", "card: No unlocks the note and Send, and answers nothing")
 	card.set_note("not that one")
-	_click(card, "Allow")
+	_click(card, "Yes")
 	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer") and card.current()["kind"] == "permission", "card: a refused answer says so and stays")
-	_check(not card.denying() and not _note(card).editable and _note(card).text == "not that one", "card: Allow locks the note again, keeping it")
-	_click(card, "Deny")
-	_check(_note(card).text == "not that one", "card: Deny again, the note is still there")
+	_check(not card.denying() and not _note(card).editable and _note(card).text == "not that one", "card: Yes locks the note again, keeping it")
+	_click(card, "No")
+	_check(_note(card).text == "not that one", "card: No again, the note is still there")
 	_click(card, "Send")
 	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send denies")
@@ -597,8 +598,8 @@ class _Recorder extends SidecarClient:
 		return "r%d" % sent.size()
 
 
-# C06 and C07: the mode in the header, a plan in the chat and on the card,
-# a permission that can switch modes.
+# C06 and C07: the mode in the header, a plan in the chat and on the card;
+# C05: a permission's other ways to allow (its options).
 func _modes_and_plans(store: SessionStore, panel: ChatPanel) -> void:
 	var card := panel.pending_card()
 	_check(panel.mode_text() == "", "modes: no mode shown without permission_modes")
@@ -652,16 +653,25 @@ func _modes_and_plans(store: SessionStore, panel: ChatPanel) -> void:
 	_check(not card.visible, "plans: answered in the terminal, the card goes")
 	_check(panel.shown_messages().back().begins_with("The plan"), "plans: the plan stays in the chat")
 
+	var dont_ask := "Yes, and don't ask again for: npm test [b]*[/b]"
 	store.apply({"type": "permission.requested", "session": "h1", "seq": 29, "permission": {
-		"permission": "p5", "agent": "main", "tool": "Bash", "summary": "Run: npm test", "modes": ["auto"]}})
-	var switch := _button(card, "Allow and switch to auto mode")
-	_check(switch != null and switch.focus_mode == Control.FOCUS_NONE, "modes: a prompt with modes offers to switch, by click only")
-	_click(card, "Allow and switch to auto mode")
-	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow", "mode": "auto"}], "modes: allow and switch sends the mode")
-	_click(card, "Allow")
-	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow"}], "modes: plain Allow doesn't")
+		"permission": "p5", "agent": "main", "tool": "Bash", "summary": "Run: npm test", "options": [
+			{"option": "suggested", "label": dont_ask}, {"option": "auto", "label": "Yes, and switch to auto mode"}]}})
+	var choices := card.find_children("*", "Button", true, false)
+	_check(choices.map(func(b: Button) -> String: return b.text) == ["Yes", dont_ask, "Yes, and switch to auto mode", "No", "Send"], "options: one per line between Yes and No, in the provider's order and words, as written")
+	_check(choices.all(func(b: Button) -> bool: return b.focus_mode == Control.FOCUS_NONE), "options: by click only")
+	var option_line: Button = choices[1]
+	_check(option_line.autowrap_mode != TextServer.AUTOWRAP_OFF and option_line.size_flags_horizontal == Control.SIZE_EXPAND_FILL, "options: a long label wraps across the card")
+	_click(card, "Yes, and switch to auto mode")
+	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow", "option": "auto"}], "options: one sends its id")
+	_click(card, dont_ask)
+	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow", "option": "suggested"}], "options: each its own")
+	_click(card, "No")
+	card.set_note("never sent")
+	_click(card, "Yes")
+	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow"}], "options: plain Yes sends none, and never the note")
 	card.respond("allow", "default")
-	_check(recorder.sent.size() == 5, "modes: a mode the prompt doesn't offer isn't sent")
+	_check(recorder.sent.size() == 6, "options: one the prompt doesn't offer isn't sent")
 	store.apply({"type": "permission.resolved", "session": "h1", "seq": 30, "permission": "p5", "decision": "allow", "by": "app"})
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 31, "agent": "main", "state": "waiting", "reason": "permission"})
 	card.sidecar = real
@@ -880,7 +890,8 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("picked"), 8.0)
 	_check(not card.visible and panel.shown_messages()[-1].contains("Banana; Honey, Nuts"), "live: a two-item question answered from the card")
 
-	# C06 and C07: the mode in the header, a switch on a prompt, a plan.
+	# C06 and C07: the mode in the header, a switch on a prompt (one of its
+	# options, C05), a plan.
 	_check(panel.mode_text() == "Mode: Auto", "live: the session's mode in the header")
 	panel.set_draft("mode")
 	panel.send()
@@ -890,7 +901,8 @@ func _live(world: Node3D, player: Player) -> void:
 	panel.set_draft("permission")
 	panel.send()
 	await _until(func() -> bool: return card.visible, 8.0)
-	_click(card, "Allow and switch to auto mode")
+	_check(_button(card, "Yes, and don't ask again for: npm install") != null, "live: the prompt's options on the card")
+	_click(card, "Yes, and switch to auto mode")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("Installed"), 8.0)
 	_check(panel.mode_text() == "Mode: Auto" and not card.visible, "live: allowed and switched to auto from the card")
 	panel.set_draft("plan")

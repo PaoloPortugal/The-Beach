@@ -91,7 +91,7 @@ func _by_hand() -> void:
 	var planned := _snapshot("d")
 	planned["capabilities"] = {"permission_modes": {}, "plans": {}}
 	planned["mode"] = "plan"
-	planned["permissions"] = [{"permission": "p8", "agent": "main", "tool": "Bash", "summary": "Run: ls", "modes": ["auto"], "asked_at": "2026-09-29T10:00:09.000Z"}]
+	planned["permissions"] = [{"permission": "p8", "agent": "main", "tool": "Bash", "summary": "Run: ls", "options": [{"option": "auto", "label": "Yes, and switch to auto mode"}], "asked_at": "2026-09-29T10:00:09.000Z"}]
 	planned["plans"] = [{"plan": "x1", "agent": "main", "text": "# Plan", "modes": ["auto", "default"], "asked_at": "2026-09-29T10:00:02.000Z"}]
 	store.apply({"type": "session.snapshot", "session": planned})
 	var d_kinds := func() -> Array: return store.pending("d").map(func(c: Dictionary) -> String: return "%s %s" % [c["kind"], c["item"][c["kind"]]])

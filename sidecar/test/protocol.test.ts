@@ -38,6 +38,7 @@ test('valid commands pass', () => {
     { type: 'session.get_history', id: '1', session: 's' },
     { type: 'message.send', id: '1', session: 's', text: '' },
     { type: 'permission.respond', id: '1', session: 's', permission: 'p', decision: 'deny', note: 'no' },
+    { type: 'permission.respond', id: '1', session: 's', permission: 'p', decision: 'allow', option: 'suggested' },
     { type: 'question.answer', id: '1', session: 's', question: 'q', answers: [['A'], ['typed']] },
     { type: 'question.answer', id: '1', session: 's', question: 'q', response: 'free' },
     { type: 'ext.fake.thing', id: '1', session: 's', anything: [1, 2] },
@@ -57,6 +58,8 @@ test('bad commands fail', () => {
     { type: 'message.send', id: '1', session: 's', text: 1 },
     { type: 'message.send', id: '1', session: 's', text: 'x', extra: true },
     { type: 'permission.respond', id: '1', session: 's', permission: 'p', decision: 'always' },
+    { type: 'permission.respond', id: '1', session: 's', permission: 'p', decision: 'allow', mode: 'auto' },  // C06's, replaced by option
+    { type: 'permission.respond', id: '1', session: 's', permission: 'p', decision: 'allow', option: '' },
     { type: 'question.answer', id: '1', session: 's', question: 'q' },
     { type: 'question.answer', id: '1', session: 's', question: 'q', answers: [], response: 'x' },
     { type: 'session.create', id: '1', provider: 'Bad Name', project: { path: '/p' } },
@@ -67,6 +70,18 @@ test('bad commands fail', () => {
     { type: 'agent' },
   ]
   for (const m of bad) assert.equal(checkCommand(m).ok, false, JSON.stringify(m))
+})
+
+test('a permission\'s options: an id and a non-empty label each, at least one; C06\'s modes are gone', () => {
+  const perm = (over: Record<string, unknown>) => ({
+    type: 'permission.requested', session: 's', seq: 2,
+    permission: { permission: 'p', agent: 'a', tool: 'Bash', summary: 'Run: x', ...over },
+  })
+  assert.equal(checkMessage(perm({ options: [{ option: 'suggested', label: 'Yes, and don\'t ask again for: x' }, { option: 'auto', label: 'Yes, and switch to auto mode' }] })).ok, true)
+  for (const options of [[], [{ option: 'a' }], [{ option: 'a', label: '' }], [{ option: '', label: 'x' }], [{ option: 'a', label: 'x', updates: [] }], ['auto']]) {
+    assert.equal(checkMessage(perm({ options })).ok, false, JSON.stringify(options))
+  }
+  assert.equal(checkMessage(perm({ modes: ['auto'] })).ok, false)
 })
 
 test('date-time format is enforced on events', () => {
