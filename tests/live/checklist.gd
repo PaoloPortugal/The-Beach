@@ -3,13 +3,15 @@ extends CanvasLayer
 ## test (checklist.txt next to this file) in the top-left corner, over
 ## everything, and reloads them when the file changes. The world adds it
 ## only when the game starts with `-- --checklist`. F1 hides it down to a
-## small tab and shows it again.
+## small tab and shows it again. A list taller than the window shows what
+## fits; Page Up and Page Down scroll it.
 
 const FILE := "res://tests/live/checklist.txt"
 
 var _modified := 0
 var _text := ""
 var _hidden := false
+var _scroll := 0
 
 @onready var _label: Label = $Panel/Text
 @onready var _tab: PanelContainer = _make_tab()
@@ -22,6 +24,9 @@ func _ready() -> void:
 	add_child(timer)
 	timer.start()
 	_reload()
+	# Lines are counted at the label's width, known only after layout.
+	_show.call_deferred()
+	get_viewport().size_changed.connect(_show)
 
 
 # The small "F1: checklist" tab shown while the list is hidden.
@@ -41,9 +46,16 @@ func _make_tab() -> PanelContainer:
 
 func _input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key and key.pressed and not key.echo and key.keycode == KEY_F1:
+	if not key or not key.pressed or _hidden and key.keycode != KEY_F1:
+		return
+	if key.keycode == KEY_F1 and not key.echo:
 		get_viewport().set_input_as_handled()
 		_hidden = not _hidden
+		_show()
+	elif key.keycode == KEY_PAGEDOWN or key.keycode == KEY_PAGEUP:
+		get_viewport().set_input_as_handled()
+		var step := maxi(_label.max_lines_visible - 2, 1)
+		_scroll += step if key.keycode == KEY_PAGEDOWN else -step
 		_show()
 
 
@@ -51,8 +63,16 @@ func _show() -> void:
 	# Two panels, swapped: resizing one panel to fit didn't grow it back
 	# (the wrapped text isn't measured yet when it's resized).
 	_label.text = _text + "\n\n(F1 to hide)"
+	# Only the lines that fit the window, from the scrolled-to one.
+	var fits := maxi(int((get_viewport().get_visible_rect().size.y - 40.0) / _label.get_line_height()), 3)
+	if _label.get_line_count() > fits:
+		_label.text = "(PgUp/PgDn to scroll)\n" + _label.text
+	_label.max_lines_visible = fits
+	_scroll = clampi(_scroll, 0, maxi(_label.get_line_count() - fits, 0))
+	_label.lines_skipped = _scroll
 	$Panel.visible = not _hidden
 	_tab.visible = _hidden
+	$Panel.reset_size()
 
 
 func _reload() -> void:

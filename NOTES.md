@@ -2301,7 +2301,8 @@ time the code itself, not a spawned process (Node's startup stretches
 by seconds on a loaded runner).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
-(add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it) shows
+(add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
+Page Up and Page Down scroll a list taller than the window) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
 second when the file changes. Write the current live check's steps
