@@ -2081,12 +2081,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the "many sessions" milestone (user's choice,
-2026-10-01) is complete once **W07** merges: designed with the user
-(2026-10-02) and **built on branch `w07-proper`**, awaiting review: a
-fixed Running order, no "waited longest" key, the sidecar timing every
-permission and question (`asked_at`), the minimap left for W06. What
-comes next isn't chosen yet. **Merged to `main` (2026-10-02), reviewed by the user:
+**Current focus:** C04, then C06 and C07 together (user's choice,
+2026-10-03). **C04 in progress on branch `c04-tool-log`**: the sidecar
+side is built and tested (`session.get_history` brings tool calls too,
+`tool.started` has `within`); the Godot store and chat-panel UI are next,
+then docs. Decided with the user: the log is inline and collapsed (one
+"▸ N tool calls" line per gap between messages); history comes from the
+transcript too; a subagent's calls show inside its Agent call. For C06:
+the Shift+Tab four modes only (no Bypass, no Don't ask), and a launch
+picker that defaults to Claude Code's own choice (no flag). The "many
+sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
 waiting agents, a count in the corner, a taskbar flash and chime when
 the game is in the background; the chime is Kenney's `question_002`,
