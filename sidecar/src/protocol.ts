@@ -30,9 +30,16 @@ export interface Permission {
   tool: string
   summary: string
   input?: Record<string, unknown>
+  /** permission_modes: modes an allow can also switch to. */
+  modes?: string[]
   /** Set by the registry; see stamp() there. */
   asked_at?: string
 }
+
+/** A plan waiting for approval (plans capability). `asked_at`: set by the registry. */
+export interface Plan { plan: Id; agent: Id; text: string; modes: string[]; asked_at?: string }
+
+export type MessageKind = 'plan'
 
 export interface QuestionItem {
   text: string
@@ -60,6 +67,10 @@ export interface Session {
   agents: Agent[]
   permissions: Permission[]
   questions?: Question[]
+  /** permission_modes capability: the current mode, null until known. */
+  mode?: string | null
+  /** plans capability: plans waiting for approval. */
+  plans?: Plan[]
   notices: Notice[]
 }
 
@@ -67,6 +78,7 @@ export interface HistoryMessage {
   message: Id
   agent: Id
   role: 'user' | 'assistant'
+  kind?: MessageKind
   text: string
   at: string
 }
@@ -101,7 +113,7 @@ export interface StoredSession {
 export type SessionEvent =
   | { type: 'agent.spawned'; agent: Agent }
   | { type: 'agent.state_changed'; agent: Id; state: State; reason: string | null }
-  | { type: 'message.started'; message: Id; agent: Id; role: 'user' | 'assistant' }
+  | { type: 'message.started'; message: Id; agent: Id; role: 'user' | 'assistant'; kind?: MessageKind }
   | { type: 'message.delta'; message: Id; text: string }
   | { type: 'message.completed'; message: Id; text: string }
   | { type: 'tool.started'; tool_call: Id; agent: Id; tool: string; summary: string; input?: Record<string, unknown>; within?: Id }
@@ -110,8 +122,10 @@ export type SessionEvent =
   | { type: 'permission.resolved'; permission: Id; decision: 'allow' | 'deny'; by: 'app' | 'external' }
   | { type: 'question.asked'; question: Question }
   | { type: 'question.resolved'; question: Id; by: 'app' | 'external' }
+  | { type: 'plan.asked'; plan: Plan }
+  | { type: 'plan.resolved'; plan: Id; decision: 'approved' | 'rejected'; by: 'app' | 'external' }
   | { type: 'session.notice'; notice: Notice }
-  | { type: 'session.updated'; native_id?: string; title?: string | null }
+  | { type: 'session.updated'; native_id?: string; title?: string | null; mode?: string }
   | { type: `ext.${string}`; [key: string]: unknown }
 
 export type EndReason = 'user' | 'exited' | 'error'
@@ -125,7 +139,8 @@ export type Command =
   | { type: 'session.get_snapshot'; id: Id; session: Id }
   | { type: 'session.get_history'; id: Id; session: Id }
   | { type: 'message.send'; id: Id; session: Id; text: string }
-  | { type: 'permission.respond'; id: Id; session: Id; permission: Id; decision: 'allow' | 'deny'; note?: string }
+  | { type: 'permission.respond'; id: Id; session: Id; permission: Id; decision: 'allow' | 'deny'; note?: string; mode?: string }
+  | { type: 'plan.answer'; id: Id; session: Id; plan: Id; approve: boolean; mode?: string; note?: string }
   | { type: 'question.answer'; id: Id; session: Id; question: Id; answers?: string[][]; response?: string }
 
 export type ExtensionCommand = { type: `ext.${string}`; id?: Id; session?: Id; [key: string]: unknown }
@@ -134,19 +149,22 @@ export type ExtensionCommand = { type: `ext.${string}`; id?: Id; session?: Id; [
 export const COMMAND_TYPES: readonly Command['type'][] = [
   'session.create', 'session.list_stored', 'session.resume', 'session.end',
   'interrupt.request', 'session.get_snapshot', 'session.get_history',
-  'message.send', 'permission.respond', 'question.answer',
+  'message.send', 'permission.respond', 'question.answer', 'plan.answer',
 ]
 
 // Commands that belong to a capability: refused for sessions that don't declare it.
 export const COMMAND_CAPABILITY: Partial<Record<Command['type'], string>> = {
   'interrupt.request': 'interrupt',
   'question.answer': 'questions',
+  'plan.answer': 'plans',
 }
 
 // Events that belong to a capability: dropped if the session doesn't declare it.
 export const EVENT_CAPABILITY: Partial<Record<string, string>> = {
   'question.asked': 'questions',
   'question.resolved': 'questions',
+  'plan.asked': 'plans',
+  'plan.resolved': 'plans',
 }
 
 // Error codes sent in `error` messages.

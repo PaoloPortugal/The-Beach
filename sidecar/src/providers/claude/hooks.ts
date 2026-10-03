@@ -23,6 +23,16 @@ const DISPLAY_TIMEOUT_S = 2
 const QUESTION_TIMEOUT_S = 24 * 60 * 60
 /** Claude Code's clarifying-question tool. */
 export const QUESTION_TOOL = 'AskUserQuestion'
+/** The tool Claude calls to present its plan for approval (C07). */
+export const PLAN_TOOL = 'ExitPlanMode'
+/**
+ * The tools whose prompts can switch to auto mode, as the terminal's
+ * "Yes, and switch to auto mode" (C06; seen on Bash in the spike,
+ * 2026-10-03).
+ */
+export const AUTO_SWITCH_TOOLS: readonly string[] = ['Bash']
+/** The modes a Bash prompt offers the auto switch in (Manual, Accept edits). */
+const AUTO_SWITCH_FROM: readonly string[] = ['default', 'acceptEdits']
 
 /** Hook events we translate (SessionStart can't be an HTTP hook; see hookSettings). */
 export const REPORTED_HOOKS = [
@@ -57,9 +67,11 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
   }]
   const hooks: Record<string, unknown> = { MessageDisplay: hook(DISPLAY_TIMEOUT_S) }
   for (const name of REPORTED_HOOKS) hooks[name] = hook(REPORT_TIMEOUT_S)
-  // Questions only: plain permission prompts come through the channel's
-  // relay, and holding them here would hold up the terminal's own answer.
-  hooks.PermissionRequest = [{ matcher: `^${QUESTION_TOOL}$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
+  // Questions, plans, and prompts that can switch to auto mode: held until
+  // the user answers in either place (the terminal still shows them).
+  // Other permission prompts come through the channel's relay only.
+  const held = [QUESTION_TOOL, PLAN_TOOL, ...AUTO_SWITCH_TOOLS].join('|')
+  hooks.PermissionRequest = [{ matcher: `^(${held})$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
   const [command, ...args] = relay
   if (!command) throw new Error('no relay command')
   hooks.SessionStart = [{
@@ -87,9 +99,13 @@ interface OpenTool {
   permission: Id | null
   /** Its pending question, if it's a question. */
   question: Id | null
+  /** Its pending plan, if it's a plan. */
+  plan: Id | null
 }
 
 interface PendingQuestion { agent: Id; toolCall: Id | null; input: Record<string, unknown> }
+
+interface PendingPlan { agent: Id; toolCall: Id | null; input: Record<string, unknown> }
 
 interface PendingPermission { agent: Id; toolCall: Id | null }
 
@@ -114,6 +130,15 @@ export class HookTranslator {
   /** Pending permission prompts by request_id. */
   private readonly permissions = new Map<Id, PendingPermission>()
   private readonly questions = new Map<Id, PendingQuestion>()
+  private readonly plans = new Map<Id, PendingPlan>()
+  /** The permission mode, from the orchestrator's hooks (C06); null until one says. */
+  private mode: string | null = null
+  /**
+   * Whether this session has been in auto mode. Claude Code starts in auto
+   * when it's available (2.1.283+), so this is how we know it can be
+   * offered (user's rule, 2026-10-03).
+   */
+  private autoSeen = false
   private readonly streaming = new Map<Id, string>()
   private readonly userMessages = new Set<Id>()
   /** Agent tool calls, oldest first, each waiting for its SubagentStart. */
@@ -123,6 +148,34 @@ export class HookTranslator {
 
   constructor(cwd: string) {
     this.cwd = cwd
+  }
+
+  /**
+   * The mode an orchestrator hook reports (every hook but MessageDisplay
+   * and Notification carries it; a Shift+Tab shows with the next one).
+   * A subagent's hooks are left out: the session's mode is the
+   * orchestrator's.
+   */
+  noteMode(p: HookPayload): SessionEvent[] {
+    const mode = str(p.permission_mode)
+    if (!mode || p.agent_id !== undefined || mode === this.mode) return []
+    this.mode = mode
+    if (mode === 'auto') this.autoSeen = true
+    return [{ type: 'session.updated', mode }]
+  }
+
+  /** The modes approving a plan can switch to, in the terminal's order. */
+  planModes(): string[] {
+    return [this.autoSeen ? 'auto' : 'acceptEdits', 'default']
+  }
+
+  /**
+   * The modes a prompt for this tool can switch to (the terminal's "Yes,
+   * and switch to auto mode"), given the mode it was asked in.
+   */
+  switchModes(tool: string, mode: string | null = this.mode): string[] {
+    return this.autoSeen && AUTO_SWITCH_TOOLS.includes(tool) && mode !== null && AUTO_SWITCH_FROM.includes(mode)
+      ? ['auto'] : []
   }
 
   /** The events for one hook, in order. */
@@ -168,6 +221,7 @@ export class HookTranslator {
     if (!call) return out
     if (call.permission) this.resolvePermission(call.permission, 'deny', 'external', out, false)
     if (call.question) this.resolveQuestion(call.question, 'external', out, false)
+    if (call.plan) this.resolvePlan(call.plan, 'rejected', 'external', out, false)
     this.closeTool(toolUseId, 'denied', out)
     return out
   }
@@ -321,9 +375,17 @@ export class HookTranslator {
       this.spawning.push({ call: id, caller: agent, type: str(input.subagent_type) ?? '', task: str(input.description) ?? '' })
     }
     this.setState(agent, 'working', null, out)
+    // The plan, as its own message before the call that presents it (C07):
+    // the chat keeps it as a record, whatever the answer.
+    const plan = tool === PLAN_TOOL ? str(input.plan) : undefined
+    if (plan?.trim()) {
+      const message = `${id}:plan`
+      out.push({ type: 'message.started', message, agent, role: 'assistant', kind: 'plan' })
+      out.push({ type: 'message.completed', message, text: plan })
+    }
     const summary = summarizeTool(tool, input, this.cwd)
     const small = JSON.stringify(input).length <= INPUT_MAX
-    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null })
+    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
   }
@@ -335,6 +397,8 @@ export class HookTranslator {
     // It ran, so a prompt it had was allowed, and a question answered, in the terminal.
     if (call.permission) this.resolvePermission(call.permission, 'allow', 'external', out, true)
     if (call.question) this.resolveQuestion(call.question, 'external', out, true)
+    // A plan: it went ahead, so it was approved there; a failure, it didn't.
+    if (call.plan) this.resolvePlan(call.plan, status === 'ok' ? 'approved' : 'rejected', 'external', out, true)
     const error = status === 'error' ? str(p.error) : undefined
     this.closeTool(id, status, out, error ? clip(firstLine(error)) : undefined)
   }
@@ -371,7 +435,11 @@ export class HookTranslator {
     if (pick) {
       const [id, call] = pick
       call.permission = r.request_id
-      permission = { permission: r.request_id, agent: call.agent, tool: call.tool, summary: call.summary, ...(call.small ? { input: call.input } : {}) }
+      const modes = this.switchModes(call.tool)
+      permission = {
+        permission: r.request_id, agent: call.agent, tool: call.tool, summary: call.summary,
+        ...(call.small ? { input: call.input } : {}), ...(modes.length > 0 ? { modes } : {}),
+      }
       this.permissions.set(r.request_id, { agent: call.agent, toolCall: id })
     } else {
       const input = parseObject(r.input_preview)
@@ -385,6 +453,26 @@ export class HookTranslator {
     out.push({ type: 'permission.requested', permission })
     this.setState(permission.agent, 'waiting', 'permission', out)
     return out
+  }
+
+  /**
+   * The open tool call a held PermissionRequest is for: the newest of that
+   * tool, with the same input, whose prompt can switch modes. Null if
+   * there's none (then the hook isn't held).
+   */
+  switchableCall(p: HookPayload): Id | null {
+    const tool = str(p.tool_name)
+    if (!tool || this.agentOf(p) === null || this.switchModes(tool, str(p.permission_mode) ?? this.mode).length === 0) return null
+    const input = JSON.stringify(isObject(p.tool_input) ? p.tool_input : {})
+    const found = [...this.openTools.entries()].filter(([, c]) => c.tool === tool && JSON.stringify(c.input) === input).at(-1)
+    return found ? found[0] : null
+  }
+
+  /** A pending prompt's tool call and input, or null. */
+  permissionCall(requestId: Id): { toolCall: Id; input: Record<string, unknown> } | null {
+    const toolCall = this.permissions.get(requestId)?.toolCall
+    const call = toolCall ? this.openTools.get(toolCall) : undefined
+    return toolCall && call ? { toolCall, input: call.input } : null
   }
 
   /** The user answered a prompt in the world (the verdict went down the bridge). */
@@ -428,6 +516,76 @@ export class HookTranslator {
     // A question the agent moved on from was answered or dismissed (Esc) there.
     for (const [id, q] of [...this.questions]) {
       if (q.agent === agent) this.resolveQuestion(id, 'external', out, false)
+    }
+    // A plan the same way: sent back there (Esc, or the user typed).
+    for (const [id, q] of [...this.plans]) {
+      if (q.agent === agent) this.resolvePlan(id, 'rejected', 'external', out, false)
+    }
+  }
+
+  /**
+   * A plan to approve (the held PermissionRequest for ExitPlanMode, C07).
+   * Returns its id and events, or null if it can't be shown (then the hook
+   * is answered at once and the plan stays in the terminal only).
+   */
+  planAsked(p: HookPayload): { plan: Id; events: SessionEvent[] } | null {
+    const hookAgent = this.agentOf(p)
+    const input = isObject(p.tool_input) ? p.tool_input : null
+    const text = input ? str(input.plan) : undefined
+    if (!hookAgent || !input || text === undefined) return null
+    // Its PreToolUse came first, with the tool_use_id: the newest open plan
+    // call, preferably the same agent's.
+    const open = [...this.openTools.entries()].filter(([, c]) => c.tool === PLAN_TOOL && !c.plan)
+    const [toolCall, call] = open.filter(([, c]) => c.agent === hookAgent).at(-1) ?? open.at(-1) ?? [null, null]
+    const agent = call?.agent ?? hookAgent
+    const plan = toolCall && !this.plans.has(toolCall) ? toolCall : crypto.randomUUID()
+    if (call) call.plan = plan
+    this.plans.set(plan, { agent, toolCall, input })
+    const events: SessionEvent[] = [{ type: 'plan.asked', plan: { plan, agent, text, modes: this.planModes() } }]
+    this.setState(agent, 'waiting', 'plan', events)
+    return { plan, events }
+  }
+
+  /** The input the plan was presented with (echoed back when approving). */
+  planInput(plan: Id): Record<string, unknown> | null {
+    return this.plans.get(plan)?.input ?? null
+  }
+
+  /** Plans waiting for approval. */
+  pendingPlans(): Id[] {
+    return [...this.plans.keys()]
+  }
+
+  /**
+   * Answered in the world (the held hook was answered). Sent back, the
+   * call was denied, and Claude Code sends no hook for it (spike,
+   * 2026-10-03), so it's closed here.
+   */
+  planAnswered(plan: Id, approved: boolean): SessionEvent[] {
+    const out: SessionEvent[] = []
+    const call = this.plans.get(plan)?.toolCall
+    this.resolvePlan(plan, approved ? 'approved' : 'rejected', 'app', out, true)
+    if (!approved && call) this.closeTool(call, 'denied', out)
+    return out
+  }
+
+  /** Claude Code stopped waiting on the held hook (it exited, or the hook timed out). */
+  planGone(plan: Id): SessionEvent[] {
+    const out: SessionEvent[] = []
+    this.resolvePlan(plan, 'rejected', 'external', out, true)
+    return out
+  }
+
+  private resolvePlan(plan: Id, decision: 'approved' | 'rejected', by: 'app' | 'external', out: SessionEvent[], resume: boolean) {
+    const q = this.plans.get(plan)
+    if (!q) return
+    this.plans.delete(plan)
+    const call = q.toolCall ? this.openTools.get(q.toolCall) : undefined
+    if (call) call.plan = null
+    out.push({ type: 'plan.resolved', plan, decision, by })
+    const stillWaiting = [...this.plans.values()].some((x) => x.agent === q.agent)
+    if (resume && !stillWaiting && this.states.get(q.agent) === 'waiting' && this.reasons.get(q.agent) === 'plan') {
+      this.setState(q.agent, 'working', null, out)
     }
   }
 
@@ -581,7 +739,26 @@ export function questionReply(input: Record<string, unknown>, answer: { answers:
   return decision({ behavior: 'allow', updatedInput: { ...input, answers } })
 }
 
+/**
+ * A held PermissionRequest's reply (C06, C07): allow, echoing the input
+ * (Claude Code ignores an allow without it for plans; spike, 2026-10-03),
+ * optionally switching the mode for this session only (never written to
+ * a settings file), or deny with a message Claude reads.
+ */
+export function permissionReply(
+  d: { behavior: 'allow'; updatedInput: Record<string, unknown>; mode?: string } | { behavior: 'deny'; message: string },
+): Record<string, unknown> {
+  const decision = d.behavior === 'allow'
+    ? {
+        behavior: 'allow', updatedInput: d.updatedInput,
+        ...(d.mode ? { updatedPermissions: [{ type: 'setMode', mode: d.mode, destination: 'session' }] } : {}),
+      }
+    : { behavior: 'deny', message: d.message }
+  return { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } }
+}
+
 function parseObject(s: string): Record<string, unknown> | null {
+
   try {
     const v: unknown = JSON.parse(s)
     return isObject(v) ? v : null
@@ -658,6 +835,9 @@ export function summarizeTool(tool: string, input: Record<string, unknown>, cwd:
     case 'Task': s = `Start an agent: ${str(input.description) ?? ''}`; break
     case 'TodoWrite': s = 'Update the to-do list'; break
     case 'AskUserQuestion': s = 'Ask the user'; break
+    case 'ExitPlanMode': s = 'Present the plan'; break
+    case 'EnterPlanMode': s = 'Switch to plan mode'; break
+
     case 'SubagentHandback': s = 'Report back'; break
     default: {
       // MCP tools are mcp__<server>__<tool>.

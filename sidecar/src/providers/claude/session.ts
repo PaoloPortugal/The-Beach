@@ -11,7 +11,9 @@ import type { Log } from '../../log.ts'
 import type { BridgeLink } from './bridge-server.ts'
 import type { HookLink, HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
-import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, unwrapChannel, type RelayedPermission } from './hooks.ts'
+import {
+  HookTranslator, MAIN, PLAN_TOOL, QUESTION_TOOL, permissionReply, questionReply, unwrapChannel, type RelayedPermission,
+} from './hooks.ts'
 import { hasReply, NO_TITLES, pickTitle, readHistory, readTitles, type Titles } from './store.ts'
 import { launcherGone } from '../../launch/launcher.ts'
 
@@ -95,6 +97,12 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /** What a stopped tool call tells Claude, and what the terminal shows. */
 export const STOP_REASON = 'The user stopped this from the app.'
 
+/** What Claude is told when the world sends a plan back without a note (C07). */
+export const KEEP_PLANNING = 'The user wants to keep planning. Ask them what to change.'
+
+/** Why the world can't switch modes on a prompt whose hook isn't held. */
+export const NO_SWITCH_ERROR = 'This prompt can\'t switch modes right now. Allow it without switching, or answer in the terminal.'
+
 /**
  * The PreToolUse reply that stops a tool call and the agent's turn.
  * `continue: false` alone still let the call run (spike run 1), so it's
@@ -169,6 +177,14 @@ export class ClaudeSession implements ProviderSession {
   private readonly halted = new Set<string>()
   /** Held question hooks, by question id: call with the hook's reply (none = no decision). */
   private readonly held = new Map<string, (reply?: Record<string, unknown>) => void>()
+  /** Held plan hooks, by plan id (C07). */
+  private readonly heldPlans = new Map<string, (reply?: Record<string, unknown>) => void>()
+  /**
+   * Held hooks of prompts that can switch modes, by tool call (C06). Only
+   * an allow with a mode answers one; any other answer comes through the
+   * relay or the terminal, and the hook is let go when the call ends.
+   */
+  private readonly heldPrompts = new Map<string, (reply?: Record<string, unknown>) => void>()
 
   /** A first message to send once the session is up (session.create's prompt). */
   private prompt: string | null
@@ -224,7 +240,7 @@ export class ClaudeSession implements ProviderSession {
       project: this.project,
       title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
-      capabilities: { questions: {}, interrupt: { immediate: false } },
+      capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} },
       extensions: [],
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
@@ -252,8 +268,11 @@ export class ClaudeSession implements ProviderSession {
     if (!this.ownConversation(p)) return
     this.transcript.follow(p.transcript_path)
     if (p.hook_event_name === 'Stop' && !this.transcriptChecked) this.checkTranscript(p.transcript_path)
+    this.emitAll(this.translator.noteMode(p))
     if (p.hook_event_name === 'PermissionRequest') {
-      return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
+      if (p.tool_name === QUESTION_TOOL) return this.holdQuestion(p, gone)
+      if (p.tool_name === PLAN_TOOL) return this.holdPlan(p, gone)
+      return this.holdPrompt(p, gone)
     }
     // A new turn: agents stopped in the last one may work again.
     if (p.hook_event_name === 'UserPromptSubmit') this.halted.clear()
@@ -395,6 +414,31 @@ export class ClaudeSession implements ProviderSession {
     })
   }
 
+  private holdPlan(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
+    const asked = this.translator.planAsked(p)
+    if (!asked) return
+    return new Promise((resolve) => {
+      this.heldPlans.set(asked.plan, resolve)
+      // Answered in the terminal, the held hook stays open (spike,
+      // 2026-10-03): its PostToolUse (or the transcript) resolves the plan
+      // and lets go of the hook. This is only Claude Code exiting.
+      gone.addEventListener('abort', () => {
+        if (this.heldPlans.delete(asked.plan)) this.emitAll(this.translator.planGone(asked.plan))
+      })
+      this.emitAll(asked.events)
+    })
+  }
+
+  /** A prompt that can switch modes: held, in case the world allows it with a switch. */
+  private holdPrompt(p: HookPayload, gone: AbortSignal): void | Promise<Record<string, unknown> | void> {
+    const call = this.translator.switchableCall(p)
+    if (!call || this.heldPrompts.has(call)) return
+    return new Promise((resolve) => {
+      this.heldPrompts.set(call, resolve)
+      gone.addEventListener('abort', () => { this.heldPrompts.delete(call) })
+    })
+  }
+
   /** Tells the world if Claude Code isn't saving this session's transcript. */
   private checkTranscript(file: unknown) {
     if (typeof file !== 'string') return
@@ -431,6 +475,9 @@ export class ClaudeSession implements ProviderSession {
       // Answered or dismissed in the terminal: let go of the held hook
       // (Claude Code no longer waits on it; NOTES.md -> S02).
       if (event.type === 'question.resolved' && event.by === 'external') this.release(event.question)
+      if (event.type === 'plan.resolved' && event.by === 'external') this.releasePlan(event.plan)
+      // The call ended (ran, denied or stopped): its prompt's hook is moot.
+      if (event.type === 'tool.finished') this.releasePrompt(event.tool_call)
     }
   }
 
@@ -452,6 +499,18 @@ export class ClaudeSession implements ProviderSession {
   private release(question: string, reply?: Record<string, unknown>) {
     const resolve = this.held.get(question)
     this.held.delete(question)
+    resolve?.(reply)
+  }
+
+  private releasePlan(plan: string, reply?: Record<string, unknown>) {
+    const resolve = this.heldPlans.get(plan)
+    this.heldPlans.delete(plan)
+    resolve?.(reply)
+  }
+
+  private releasePrompt(toolCall: string, reply?: Record<string, unknown>) {
+    const resolve = this.heldPrompts.get(toolCall)
+    this.heldPrompts.delete(toolCall)
     resolve?.(reply)
   }
 
@@ -478,6 +537,8 @@ export class ClaudeSession implements ProviderSession {
     this.hookLink?.unregister()
     this.transcript.stop()
     for (const q of [...this.held.keys()]) this.release(q)
+    for (const q of [...this.heldPlans.keys()]) this.releasePlan(q)
+    for (const q of [...this.heldPrompts.keys()]) this.releasePrompt(q)
     this.cleanup()
   }
 
@@ -496,11 +557,18 @@ export class ClaudeSession implements ProviderSession {
   /**
    * The user answered a prompt in the world. The verdict goes down the
    * bridge and closes the terminal's dialog; nothing is allowed any other
-   * way (NOTES.md -> Security rules).
+   * way (NOTES.md -> Security rules). An allow with a mode (C06) answers
+   * the prompt's held hook instead, which also switches the mode; Claude
+   * Code then closes the terminal's dialog and the relayed prompt itself
+   * (spike, 2026-10-03).
    */
-  async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string): Promise<void> {
+  async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string, mode?: string): Promise<void> {
     const link = this.reachable()
-    if (!link.send({ type: 'verdict', request_id: permission, behavior: decision })) {
+    if (mode !== undefined) {
+      const call = this.translator.permissionCall(permission)
+      if (!call || !this.heldPrompts.has(call.toolCall)) throw new CommandError('provider_error', NO_SWITCH_ERROR)
+      this.releasePrompt(call.toolCall, permissionReply({ behavior: 'allow', updatedInput: call.input, mode }))
+    } else if (!link.send({ type: 'verdict', request_id: permission, behavior: decision })) {
       throw new CommandError('provider_error', UNREACHABLE_ERROR)
     }
     this.emitAll(this.translator.permissionAnswered(permission, decision))
@@ -524,6 +592,23 @@ export class ClaudeSession implements ProviderSession {
   }
 
   /**
+   * The user answered a plan in the world: the held hook gets the answer.
+   * Approving echoes the plan back (without it Claude Code ignores the
+   * reply; spike, 2026-10-03) and switches to the chosen mode; sending it
+   * back denies the call with the user's note, and Claude plans again.
+   */
+  async answerPlan(plan: string, answer: { approve: true; mode: string } | { approve: false; note?: string }): Promise<void> {
+    const input = this.translator.planInput(plan)
+    if (!input || !this.heldPlans.has(plan)) {
+      throw new CommandError('provider_error', 'The plan is no longer waiting for an answer.')
+    }
+    this.releasePlan(plan, answer.approve
+      ? permissionReply({ behavior: 'allow', updatedInput: input, mode: answer.mode })
+      : permissionReply({ behavior: 'deny', message: answer.note?.trim() || KEEP_PLANNING }))
+    this.emitAll(this.translator.planAnswered(plan, answer.approve))
+  }
+
+  /**
    * Stop from the world: the busy agents stop at their next tool call (the
    * current reply or command finishes first). Pending permission prompts
    * and questions are declined, or they'd block the stop; that never
@@ -542,6 +627,11 @@ export class ClaudeSession implements ProviderSession {
       this.release(question, questionReply({}, { response: STOP_REASON }))
       this.emitAll(this.translator.questionAnswered(question, true))
     }
+    for (const plan of [...this.heldPlans.keys()]) {
+      this.releasePlan(plan, permissionReply({ behavior: 'deny', message: STOP_REASON }))
+      this.emitAll(this.translator.planAnswered(plan, false))
+    }
+
   }
 
   async end(): Promise<void> {
