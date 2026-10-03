@@ -143,7 +143,10 @@ rule on the button.
 - **Prompts not seen yet** (MCP tools, other tools, other settings
   files): offered with an honest label built from what the entry does
   and where it's saved (my recommendation), rather than terminal-only
-  until checked. Mode switches in them are still dropped.
+  until checked. Mode switches in them are still dropped. **A stopgap**
+  (user's, 2026-10-03): each such kind is to be checked live later and
+  given the terminal's own wording, to stay truer to the terminal; NOTES
+  keeps the list.
 - **Mode switches** from a suggestion are kept only on file edits outside
   a `.claude` folder (seen to match the terminal); Bypass and Don't ask
   are never offered.
