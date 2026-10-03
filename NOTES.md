@@ -1173,7 +1173,9 @@ declare it).
 - *Permission card:* the summary with a Details toggle (raw input as
   plain text), Allow and Deny, an optional note; no keyboard shortcut
   for Allow, so Enter in the chat can never allow by accident.
-  Mode switches came with C06; "Don't ask again" isn't offered.
+  Mode switches came with C06; "Don't ask again" isn't offered yet
+  (reopened by the user, 2026-10-03: Deferred ideas → The terminal's
+  other prompt options).
 - *The note goes with a deny only* (user's, at the live check,
   2026-10-01): it is locked until you press Deny, then Send denies with
   it; Allow answers at once and never sends it. This matches Claude
@@ -2448,6 +2450,27 @@ exists.
 **After v1.** The remaining features in the index. They are not ordered yet.
 
 ### Deferred ideas (not features yet)
+
+- **The terminal's other prompt options** (C05 reopened by the user,
+  2026-10-03, for after C06/C07). The terminal's prompts offer more than
+  Yes/No: "Yes, and don't ask again for: node *", "Yes, and always allow
+  access to <folder>", "Yes, allow all edits during this session" (a
+  switch to Accept edits on edit prompts). The user's aim: offer each
+  prompt's own options, exactly as Claude Code reports them. What the
+  hooks give (hooks reference, checked 2026-10-03): `PermissionRequest`
+  has `permission_suggestions`, structured entries (`addRules`,
+  `setMode`, `addDirectories`, … each with a `destination`: `session`,
+  or a settings file: `localSettings`, `projectSettings`,
+  `userSettings`), **with no labels**; and the docs say the array
+  "isn't an exact list of the options you see": edit dialogs don't
+  read it, some options have no entry (switch to auto, C06), and some
+  entries are hidden by settings. So the options can be taken from
+  Claude Code, but their wording would be ours, per entry type. Echoing
+  an entry back as `updatedPermissions` applies it, which needs the
+  prompt's hook held (as for Bash in C06; the relay's verdict is only
+  allow or deny). Open: which destinations to allow from the world (a
+  settings-file write is a standing change, so the button must say so),
+  and whether to hold every prompt's hook.
 
 - **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
   every assistant entry in the transcript records the API's token usage and
