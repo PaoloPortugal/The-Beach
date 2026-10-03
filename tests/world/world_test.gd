@@ -14,7 +14,10 @@ extends SceneTree
 ##                                chats with the fake provider, which
 ##                                spawns subagents
 
+const ErrorWatch := preload("res://tests/error_watch.gd")
+
 var _failed := false
+var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
@@ -26,7 +29,7 @@ func _run() -> void:
 	_jump_assist()
 	_placement()
 	await _scene()
-	if not _failed:
+	if not _failed and _errors.ok():
 		print("PASS world_test")
 		quit(0)
 
