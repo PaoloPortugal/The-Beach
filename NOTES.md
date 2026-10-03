@@ -2357,15 +2357,19 @@ this file stays the source of truth:
   this file's suite list against `tests.yml`, and reads the branch's CI
   run with `gh`. It never runs the real `claude` and never starts a CI run.
 - `/land <ID>` (`.claude/skills/land/`): walks "When a feature lands",
-  then runs `/verify` and the two reviewers, commits the docs, pushes the
+  then runs `/verify`, `docs-sync` and (when the diff touches the
+  sidecar, `core/`, `protocol/`, process launching, session content or
+  CI) `security-reviewer`, commits the docs, pushes the
   branch and hands it to the user for review with the live-check steps.
   It never merges or pushes `main`.
-- `docs-sync` (`.claude/agents/`, read-only): checks the guide, flows,
-  feature index, dev log, CREDITS and codename list against this file.
-- `security-reviewer` (`.claude/agents/`, read-only): checks a branch's
-  diff against Principles, Security rules, Multi-provider rules,
-  Platforms and Conventions, including that safety behaviour is tested.
-Claude Code loads new skills and agents when a session starts. Change
+- `docs-sync` (`.claude/agents/`): checks the guide, flows, feature
+  index, dev log, CREDITS, codename list, Current focus and this file's
+  suite list against this file, `tests.yml` and the code.
+- `security-reviewer` (`.claude/agents/`): checks a branch's diff
+  against Principles, Security rules, Multi-provider rules, Platforms
+  and Conventions, including that safety behaviour is tested.
+The two reviewers report and don't edit (told to use Bash read-only;
+it isn't locked). Claude Code loads new skills and agents when a session starts. Change
 them in a branch like any other code.
 
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin

@@ -37,9 +37,10 @@ the cheap whole-repo checks (index, dev-log table, codename) every time.
    `Features:` line. A finished feature on this branch has an entry.
 6. **CREDITS.** Every asset file added under `assets/` on this branch has a
    row in `assets/CREDITS.md`.
-7. **Codename.** Grep for "The Beach" (case-insensitive, also `the_beach`,
-   `thebeach`, `the-beach`) outside the places listed in NOTES.md →
-   Conventions → Renaming the project. Any hit in code, identifiers,
+7. **Codename.** Take the codename from NOTES.md → Conventions → Renaming
+   the project, and grep for it (case-insensitive, also with `_`, `-` or no
+   space between the words) outside the places that section lists. A
+   common noun that happens to match isn't a hit. Any hit in code, identifiers,
    `protocol/` or package names is a finding.
 8. **Current focus.** The "Current focus" line mentions this branch's
    feature(s) if they're done.

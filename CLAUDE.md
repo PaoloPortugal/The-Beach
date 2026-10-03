@@ -16,7 +16,8 @@ Working rules for this repo. Read `NOTES.md` first every session.
 updates its NOTES section, its index row and its guide section in the same
 branch before merging. Then write the dev-log entry. Follow the
 "When a feature lands" checklist in NOTES.md: `/land <ID>` walks it and
-runs `/verify` and the `docs-sync` and `security-reviewer` subagents
+runs `/verify` and the `docs-sync` (and, for sidecar, protocol or CI
+changes, `security-reviewer`) subagents
 (NOTES.md → Running it → Claude Code workflow).
 
 ## How we work

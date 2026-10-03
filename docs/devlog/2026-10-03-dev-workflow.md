@@ -16,8 +16,10 @@ the tests, and a security reviewer.
 - **`/verify`**: runs the sidecar typecheck and tests, imports the Godot
   project and runs each suite on its own, compares NOTES.md's suite list
   with `tests.yml`, and reads the branch's CI run with `gh`.
-- **`/land <ID>`**: walks NOTES.md's "When a feature lands", runs the
-  three checks, commits the docs, pushes the branch and hands it over
+- **`/land <ID>`**: walks NOTES.md's "When a feature lands", runs
+  `/verify` and `docs-sync` (and `security-reviewer` when the diff
+  touches the sidecar, `core/`, `protocol/`, process launching, session
+  content or CI), commits the docs, pushes the branch and hands it over
   with the live-check steps in `tests/live/checklist.txt`.
 - **`docs-sync`** subagent (read-only): index vs Systems sections,
   provider scope stated, guide vs NOTES, flows after S02/Protocol
@@ -37,8 +39,10 @@ the tests, and a security reviewer.
 - **No test script.** A script would be a third copy of the suite list,
   and it would have to work on all three systems. The skill tells Claude
   to run the commands from NOTES.md one at a time.
-- **The reviewers can't edit.** Their tools are Read, Grep, Glob and
-  read-only Bash, so a review never changes the branch it is reviewing.
+- **The reviewers don't edit.** Their tools are Read, Grep, Glob and
+  Bash, and they are told to use Bash for read-only commands only, so a
+  review doesn't change the branch it is reviewing. That is an
+  instruction, not a lock: Bash itself isn't restricted.
   `/land` makes the fixes, or brings a finding to the user if fixing it
   would mean making a design decision.
 - **Named `security-reviewer`**, not `security-review`, so it doesn't
