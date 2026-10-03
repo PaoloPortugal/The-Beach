@@ -1,27 +1,44 @@
-LIVE CHECK: tool-call log (C04)
+LIVE CHECK: modes and plans (C06, C07)
 Part A: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
 
 1. Tab > New session... > any folder.
-   Walk up, E. Send "tools".
-2. Under "Let me look around first.":
-   "▸ 3 tool calls (1 failed)". Glyph ok?
-3. Click it: running/ok/failed words,
-   "Exit code 1" under npm test.
-   Details shows the input; again hides.
-4. Send "agents 2". Open the fold: 2
-   Agent calls, each with its own
-   "▸ 3 tool calls" inside. Open one.
-5. Tab > resume a stored session:
-   "▸ 1 tool call" under "Where were we?"
+   Walk up, E. Top right: "Mode: Auto".
+2. Send "mode": "Mode: Manual".
+3. Send "permission": the card has
+   "Allow and switch to auto mode".
+   Click it: card goes, "Mode: Auto".
+4. Send "plan": "Mode: Plan". The plan
+   spans the chat, bordered, "Plan" on
+   it. Card: 3 choices; status line says
+   a plan waits. Wording ok?
+5. "No, keep planning", type a note,
+   Send: a revised plan with your note.
+6. "Yes, manually approve edits": card
+   goes, "Mode: Manual".
 
 Part B: real claude (godot --path .)
-6. New session in an empty test folder.
-   Ask: "List the files here, then read
-   one." Calls fold under the reply.
-7. Ask for an Explore subagent: its calls
-   show inside the Agent call.
-8. /exit in the terminal, then Tab >
-   resume it: the calls come back.
+   Folder: AppData\Local\Temp\notes-app
+7. New session there. Say hi: the mode
+   shows after the reply.
+8. Shift+Tab to Plan in the terminal.
+   Ask: "Plan a README for this folder."
+   Plan in the chat, card under it.
+9. World: No, keep planning + a note.
+   A new plan comes (terminal too).
+10. Terminal: "No, keep planning", type
+   a change: the card goes. (Untested!)
+11. World: approve the next plan with
+   "Yes, manually approve edits":
+   "Mode: Manual"; Claude writes it.
+12. Ask it to run a command that writes
+   a file. Card: "Allow and switch to
+   auto mode"? Terminal offers it too?
+   Click it: "Mode: Auto". Note if the
+   tool was PowerShell, not Bash.
+13. Shift+Tab in the terminal, send a
+   message: the header follows.
+14. /exit, Tab > resume it: the plans
+   are still in the chat.
 
 Tell Claude what you saw; paste red errors.
