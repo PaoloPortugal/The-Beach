@@ -38,6 +38,8 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     await say('ask for permission please')
     const perm = await c.next('permission.requested', 5000)
     const pid = (perm.permission as any).permission
+    // In auto mode: "don't ask again" only, no switch.
+    assert.deepEqual((perm.permission as any).options, [{ option: 'suggested', label: 'Yes, and don\'t ask again for: npm install' }])
     assert.equal((await c.command({ type: 'permission.respond', session, permission: pid, decision: 'deny' })).type, 'ok')
     assert.equal((await c.next('tool.finished', 5000)).status, 'denied')
     await c.next(idle, 5000)
@@ -74,15 +76,16 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     assert.equal(agents.length, 2)
     assert.ok(agents.every((a) => logged.filter((t) => t.within === a).length === 3))
 
-    // C06: Shift+Tab-like switches; a Bash prompt in Manual can switch to auto.
+    // C06: Shift+Tab-like switches; a Bash prompt in Manual can switch to
+    // auto, one of its options (C05).
     assert.equal((created.session as any).mode, 'auto')
     await say('next mode')
     assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'default')
     await c.next(idle, 5000)
     await say('permission again')
     const switchable = (await c.next('permission.requested', 5000)).permission as any
-    assert.deepEqual(switchable.modes, ['auto'])
-    assert.equal((await c.command({ type: 'permission.respond', session, permission: switchable.permission, decision: 'allow', mode: 'auto' })).type, 'ok')
+    assert.deepEqual(switchable.options.map((o: any) => o.option), ['suggested', 'auto'])
+    assert.equal((await c.command({ type: 'permission.respond', session, permission: switchable.permission, decision: 'allow', option: 'auto' })).type, 'ok')
     assert.equal((await c.next((m) => m.type === 'session.updated' && m.mode !== undefined, 5000)).mode, 'auto')
     await c.next(idle, 5000)
 
