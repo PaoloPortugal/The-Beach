@@ -43,6 +43,8 @@ transcripts are off).
 - [7. When our side fails](#7-when-our-side-fails)
 - [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
 - [9. /clear or /resume: another conversation in the session](#9-clear-or-resume-another-conversation-in-the-session)
+- [10. A plan to approve (C07)](#10-a-plan-to-approve-c07)
+- [11. Allow and switch to auto mode (C06)](#11-allow-and-switch-to-auto-mode-c06)
 
 ## 0. Starting up
 
@@ -436,3 +438,107 @@ session; continue it in the terminal."). Separately, whenever the bridge
 isn't connected, `message.send` and `permission.respond` get
 `provider_error` saying the world can't reach the conversation right
 now, rather than losing the message.
+
+## 10. A plan to approve (C07)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Claude as Claude Code (terminal)
+    participant Log as Transcript
+
+    Note over Claude: In plan mode, Claude presents its plan.
+    Claude->>Sidecar: PreToolUse ExitPlanMode (the plan's Markdown in its input)
+    Sidecar-->>Claude: nothing to add
+    Sidecar->>World: message.started + message.completed (kind plan, id tool_use_id:plan),<br/>tool.started (Present the plan)
+    par Claude Code asks, and we hold the plan open
+        Claude->>User: the plan and its choices in the terminal
+    and
+        Claude->>Sidecar: PermissionRequest ExitPlanMode (held open)
+        Sidecar->>World: plan.asked (modes in the terminal's order, asked_at = now),<br/>agent → waiting (plan)
+    end
+    alt approved in the world
+        User->>World: Yes, and use auto mode (or another Yes)
+        World->>Sidecar: plan.answer (approve, mode)
+        Sidecar-->>World: ok
+        Sidecar-->>Claude: reply to the held hook: allow, the plan's input echoed back,<br/>setMode (that mode, this session only)
+        Note over Claude: The terminal's dialog closes; the mode switches.
+        Sidecar->>World: plan.resolved (approved, by app), agent → working
+        Claude->>Sidecar: PostToolUse ExitPlanMode (permission_mode: the new mode)
+        Sidecar-->>Claude: nothing to add
+        Sidecar->>World: session.updated (mode), tool.finished ok
+    else sent back from the world
+        User->>World: No, keep planning (and a note)
+        World->>Sidecar: plan.answer (approve: false, note)
+        Sidecar-->>World: ok
+        Sidecar-->>Claude: reply to the held hook: deny with the note<br/>(or "The user wants to keep planning…")
+        Sidecar->>World: plan.resolved (rejected, by app),<br/>tool.finished denied (no hook comes for it)
+        Note over Claude: Claude plans again, still in plan mode.
+    else approved in the terminal
+        User->>Claude: Yes (in a mode)
+        Claude->>Sidecar: PostToolUse ExitPlanMode
+        Sidecar-->>Claude: nothing to add
+        Sidecar->>World: session.updated (mode), plan.resolved (approved, by external),<br/>tool.finished ok
+        Sidecar-->>Claude: reply to the held hook: nothing to add<br/>(Claude Code no longer waits on it)
+    else "No, keep planning" in the terminal
+        User->>Claude: No, and what to change
+        Claude->>Log: the refusal
+        Log->>Sidecar: new lines (the sidecar follows the file)
+        Sidecar->>World: plan.resolved (rejected, by external)
+        Sidecar-->>Claude: reply to the held hook: nothing to add
+    end
+```
+
+Plans have no channel relay, so the held hook is the only way to answer
+one from the world (NOTES.md → S02 → Permission modes and plans). The
+plan's message stays in the chat whatever the answer; the card in the
+chat panel (NOTES.md → C07) goes when `plan.resolved` arrives, whichever
+side answered. A terminal "No" is also caught by the turn ending (for
+example with transcripts off). If Claude Code drops the held hook
+(`claude` exited), the plan resolves as rejected, by external. A stop
+from the world sends held plans back.
+
+## 11. Allow and switch to auto mode (C06)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant World as World (Godot)
+    participant Sidecar
+    participant Bridge
+    participant Claude as Claude Code (terminal)
+
+    Note over Sidecar: Every orchestrator hook carries permission_mode:<br/>a change goes out as session.updated (mode).
+    Claude->>Sidecar: PreToolUse Bash (permission_mode: default or acceptEdits)
+    Sidecar-->>Claude: empty reply (no decision)
+    par Claude Code asks in both places, and we hold its hook
+        Claude->>User: permission dialog in the terminal<br/>(with "Yes, and switch to auto mode")
+    and
+        Claude->>Bridge: permission request
+        Bridge->>Sidecar: permission request
+    and
+        Claude->>Sidecar: PermissionRequest Bash (held open, in case)
+    end
+    Sidecar->>World: permission.requested (modes: [auto], since the session was seen in auto)
+    alt allowed with the switch in the world
+        User->>World: Allow and switch to auto mode
+        World->>Sidecar: permission.respond (allow, mode auto)
+        Sidecar-->>World: ok
+        Sidecar-->>Claude: reply to the held hook: allow, the input echoed back,<br/>setMode (auto, this session only)
+        Note over Claude: The terminal's dialog and the relayed request close themselves.
+        Sidecar->>World: permission.resolved (by app)
+        Claude->>Sidecar: PostToolUse Bash (permission_mode: auto)
+        Sidecar-->>Claude: nothing to add
+        Sidecar->>World: session.updated (mode auto), tool.finished
+    else any other answer, in the world or the terminal
+        Note over Sidecar: As in flow 3 (an allow or deny from the world goes<br/>through the bridge). When the call ends (tool.finished),<br/>the held hook is let go with nothing to add.
+    end
+```
+
+If the held hook is gone (Claude Code stopped waiting on it) or the
+session was never seen in auto, an allow with a switch gets `error`
+(`provider_error`, "This prompt can't switch modes right now…"); allow
+without switching, or answer in the terminal. Only Bash prompts are held
+this way, and only in Manual or Accept edits.

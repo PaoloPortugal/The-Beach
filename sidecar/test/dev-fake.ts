@@ -2,9 +2,14 @@
 // be built and tried without a real AI tool. `npm run dev:fake` (from
 // sidecar/). Chat drives it; a message containing one of these words acts
 // out that part of a session, anything else is echoed back:
-//   permission   a tool call waits on a permission prompt (answer it: C05)
+//   permission   a tool call waits on a permission prompt (answer it: C05);
+//                in Manual or Accept edits it can also switch to auto (C06)
 //   question     a clarifying question, two items: one choice, then several
 //                (questions capability)
+//   plan         plan mode, then a plan to approve (C07): approve it with a
+//                mode, or send it back (with a note, a revised plan comes)
+//   mode         the next permission mode, like Shift+Tab in the terminal
+//                (auto, Manual, Accept edits, Plan, auto, ...)
 //   agents [n]   the orchestrator spawns n subagents (default 3) that work
 //                in the background and report back (A02, A04)
 //   tools        a few tool calls, one failing (the tool-call log, C04)
@@ -12,7 +17,8 @@
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
 // A new session has no title until its first message names it, like
-// Claude Code naming it.
+// Claude Code naming it. Sessions start in auto mode, like Claude Code
+// where auto is available.
 // A stop from the world (interrupt capability) ends whatever is running.
 // Three stored sessions can be listed and resumed (S04); a resumed one
 // comes back with a short chat so far, and isn't listed while it runs.
@@ -23,10 +29,14 @@ import { HistoryLog } from '../src/history.ts'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** The Shift+Tab cycle, from auto (C06). */
+const MODES = ['auto', 'default', 'acceptEdits', 'plan']
+
 class ScriptedSession extends FakeSession {
   private n = 0
   private stopped = false
   private pendingPermission: { id: Id; tool: Id; resolve: (allow: boolean) => void } | null = null
+  private pendingPlan: { id: Id; resolve: (answer: { approve: true; mode: string } | { approve: false; note?: string }) => void } | null = null
   private pendingQuestion: { id: Id; resolve: (answer: string) => void } | null = null
   private readonly working = new Set<Id>()
   /** What get_history answers, kept from the events like a real provider. */
@@ -40,14 +50,19 @@ class ScriptedSession extends FakeSession {
   override async getHistory() {
     return this.chat.get()
   }
+
+  private setMode(mode: string) {
+    this.mode = mode
+    this.emit({ type: 'session.updated', mode })
+  }
   private state(agent: Id, state: 'working' | 'waiting' | 'idle' | 'done' | 'error', reason: string | null = null) {
     this.emit({ type: 'agent.state_changed', agent, state, reason })
   }
 
   /** A whole message at once (user) or streamed in line batches (assistant). */
-  private async say(role: 'user' | 'assistant', text: string, agent = 'main') {
+  private async say(role: 'user' | 'assistant', text: string, agent = 'main', kind?: 'plan') {
     const message = `${role[0]}${++this.n}`
-    this.emit({ type: 'message.started', message, agent, role })
+    this.emit({ type: 'message.started', message, agent, role, ...(kind ? { kind } : {}) })
     if (role === 'assistant') {
       for (const line of text.split('\n')) {
         await sleep(150)
@@ -66,6 +81,8 @@ class ScriptedSession extends FakeSession {
     const word = text.toLowerCase()
     if (word.includes('permission')) void this.permissionTurn()
     else if (word.includes('question')) void this.questionTurn()
+    else if (/\bplan\b/.test(word)) void this.planTurn()
+    else if (/\bmode\b/.test(word)) void this.modeTurn()
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
     else if (/\btools?\b/.test(word)) void this.toolsTurn()
     else if (word.includes('notice')) void this.noticeTurn()
@@ -90,9 +107,12 @@ class ScriptedSession extends FakeSession {
     const input = { command: 'npm install', description: 'Install dependencies' }
     this.emit({ type: 'tool.started', tool_call: tool, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input })
     const id = `perm${this.n}`
+    // Like Claude Code's Bash prompt: "Yes, and switch to auto mode" in
+    // Manual and Accept edits.
+    const modes = this.mode === 'default' || this.mode === 'acceptEdits' ? { modes: ['auto'] } : {}
     const allowed = await new Promise<boolean>((resolve) => {
       this.pendingPermission = { id, tool, resolve }
-      this.emit({ type: 'permission.requested', permission: { permission: id, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input } })
+      this.emit({ type: 'permission.requested', permission: { permission: id, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input, ...modes } })
       this.state('main', 'waiting', 'permission')
     })
     this.state('main', 'working')
@@ -105,12 +125,57 @@ class ScriptedSession extends FakeSession {
     return this.finish('OK, I won\'t install anything. How should I go on?')
   }
 
-  override async respondPermission(permission: Id, decision: 'allow' | 'deny') {
+  override async respondPermission(permission: Id, decision: 'allow' | 'deny', _note?: string, mode?: string) {
     const p = this.pendingPermission
     if (!p || p.id !== permission) return
     this.pendingPermission = null
     this.emit({ type: 'permission.resolved', permission, decision, by: 'app' })
+    if (mode !== undefined) this.setMode(mode)
     p.resolve(decision === 'allow')
+  }
+
+  private async planTurn() {
+    if (this.mode !== 'plan') this.setMode('plan')
+    await this.say('assistant', 'I looked around; here is what I would do.')
+    let plan = ['# Add a dark theme', '', '1. Add a `theme` setting, light by default.', '2. Draw the panels from the theme\'s colours.', '3. Add a toggle in the menu.', '', '```gd', 'var theme := "light"', '```'].join('\n')
+    for (;;) {
+      const tool = `tool${++this.n}`
+      await this.say('assistant', plan, 'main', 'plan')
+      this.emit({ type: 'tool.started', tool_call: tool, agent: 'main', tool: 'ExitPlanMode', summary: 'Present the plan' })
+      const id = `plan${this.n}`
+      const answer = await new Promise<{ approve: true; mode: string } | { approve: false; note?: string }>((resolve) => {
+        this.pendingPlan = { id, resolve }
+        // Like Claude Code once auto mode is available: "Yes, and use auto
+        // mode", "Yes, manually approve edits".
+        this.emit({ type: 'plan.asked', plan: { plan: id, agent: 'main', text: plan, modes: ['auto', 'default'] } })
+        this.state('main', 'waiting', 'plan')
+      })
+      this.emit({ type: 'plan.resolved', plan: id, decision: answer.approve ? 'approved' : 'rejected', by: 'app' })
+      if (answer.approve) {
+        this.setMode(answer.mode)
+        this.emit({ type: 'tool.finished', tool_call: tool, status: 'ok' })
+        this.state('main', 'working')
+        return this.finish('Plan approved; going ahead.')
+      }
+      this.emit({ type: 'tool.finished', tool_call: tool, status: 'denied' })
+      if (this.stopped) return
+      this.state('main', 'working')
+      if (!answer.note) return this.finish('OK, I\'ll keep planning. What should I change?')
+      plan = `${plan}\n4. Also: ${answer.note}`
+      await this.say('assistant', 'Revised the plan.')
+    }
+  }
+
+  override answerPlan = async (plan: Id, answer: { approve: true; mode: string } | { approve: false; note?: string }) => {
+    const p = this.pendingPlan
+    if (!p || p.id !== plan) return
+    this.pendingPlan = null
+    p.resolve(answer)
+  }
+
+  private async modeTurn() {
+    this.setMode(MODES[(MODES.indexOf(this.mode ?? 'auto') + 1) % MODES.length]!)
+    return this.finish(`Now in ${this.mode} mode.`)
   }
 
   private async questionTurn() {
@@ -222,6 +287,7 @@ class ScriptedSession extends FakeSession {
   override interrupt = async () => {
     this.stopped = true
     if (this.pendingPermission) void this.respondPermission(this.pendingPermission.id, 'deny')
+    if (this.pendingPlan) void this.answerPlan(this.pendingPlan.id, { approve: false })
     if (this.pendingQuestion) {
       const q = this.pendingQuestion
       this.pendingQuestion = null
@@ -255,6 +321,7 @@ class ScriptedProvider extends FakeProvider {
     const s = new ScriptedSession(this, host, stored.project)
     s.nativeId = nativeId
     s.title = stored.title
+    s.mode = 'auto'
     s.chat.replace({
       messages: [
         { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
@@ -270,6 +337,7 @@ class ScriptedProvider extends FakeProvider {
   override async create(host: Parameters<FakeProvider['create']>[0], options: Parameters<FakeProvider['create']>[1]) {
     const s = new ScriptedSession(this, host, options.project)
     s.title = null
+    s.mode = 'auto'
     this.sessions.push(s)
     // Come up a moment later, like a real session starting in a terminal.
     setTimeout(() => s.announce(), 500)
@@ -277,4 +345,6 @@ class ScriptedProvider extends FakeProvider {
   }
 }
 
-await serve([new ScriptedProvider({ capabilities: { questions: {}, interrupt: { immediate: false } } })])
+await serve([new ScriptedProvider({
+  capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} },
+})])

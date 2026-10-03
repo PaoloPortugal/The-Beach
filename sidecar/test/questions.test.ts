@@ -148,7 +148,7 @@ async function liveSession() {
 test('through a session: questions declared; a held question answered in the world gets the answer', async () => {
   const x = await liveSession()
   try {
-    assert.deepEqual((x.created.session as any).capabilities, { questions: {}, interrupt: { immediate: false } })
+    assert.deepEqual((x.created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} })
     assert.deepEqual((x.created.session as any).questions, [])
     await x.send(ask('toolu_q')).done
     const hold = x.send(held())
