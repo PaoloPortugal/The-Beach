@@ -50,9 +50,10 @@ test('settings: every reported hook posts to our URL with the token; short timeo
       headers: { Authorization: `Bearer ${'a'.repeat(64)}` },
     }, name)
   }
-  // PermissionRequest only for questions, which are held; plain prompts
-  // come through the channel's relay.
-  assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '^(AskUserQuestion|ExitPlanMode|Bash)$')
+  // PermissionRequest for every prompt: questions and plans are held, and
+  // other prompts bring their options (C05); a plain Yes or No still goes
+  // through the channel's relay.
+  assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '*')
   assert.equal((s.hooks.PermissionRequest as any).length, 1)
 })
 

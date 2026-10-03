@@ -5,11 +5,12 @@ extends PanelContainer
 ## a time, oldest first, with "1 of 3 waiting"; subagents' too, naming the
 ## agent.
 ## - A permission prompt: its summary, a Details toggle (the raw input as
-##   plain text), Deny and Allow. Allow answers at once. Deny unlocks a
-##   note (sent as your next message) and Send, which denies; like Claude
-##   Code's own prompt, only a deny takes a note. A prompt that can also
-##   switch the permission mode (its [code]modes[/code], C06) gets one
-##   "Allow and switch to … mode" button per mode.
+##   plain text), then its choices one per line, like the terminal's list:
+##   "Yes", its other ways to allow (its [code]options[/code], in the
+##   provider's order and words: "Yes, and don't ask again for: …", "Yes,
+##   and switch to auto mode", …), and "No". Yes and an option answer at
+##   once. No unlocks a note (sent as your next message) and Send, which
+##   denies; like Claude Code's own prompt, only a deny takes a note.
 ## - A plan to approve (the [code]plans[/code] capability, C07; the plan
 ##   itself is a message in the chat): one "Yes, …" button per mode it can
 ##   switch to, in the provider's order, and "No, keep planning", which
@@ -18,8 +19,8 @@ extends PanelContainer
 ##   time. A click on a single-choice option moves straight on; checkboxes
 ##   (multi-select) and the "Other…" field need Next; Back goes back. On the
 ##   last item a click only selects, and Send answers.
-## Allow, Deny, the plan's choices and Send take no keyboard focus, so no key press (Enter in
-## the chat, say) can ever answer for you. Everything shown is untrusted
+## The answer buttons and Send take no keyboard focus, so no key press
+## (Enter in the chat, say) can ever answer for you. Everything shown is untrusted
 ## (NOTES.md → Security rules): plain labels and buttons only, no BBCode.
 
 const DIM := Color(0.6, 0.64, 0.7)
@@ -135,20 +136,21 @@ func refresh(force := false) -> void:
 
 # --- Permissions ---------------------------------------------------------
 
-## Answers the permission prompt on the card: "allow" (Allow), or "deny"
-## with the note (Send). The note goes only with a deny. An allow can also
-## switch the session to [param mode], one of the prompt's modes.
-func respond(decision: String, mode := "") -> void:
+## Answers the permission prompt on the card: "allow" (Yes), or "deny"
+## with the note (Send). The note goes only with a deny. An allow can be
+## one of the prompt's other ways to allow: [param option] is its id.
+func respond(decision: String, option := "") -> void:
 	var c := current()
 	if c.get("kind") != "permission" or _busy == _shown:
 		return
 	var id: String = c["item"]["permission"]
 	var fields := {"session": session_id, "permission": id, "decision": decision}
 	if decision == "allow":
-		if not mode.is_empty():
-			if not c["item"].get("modes", []).has(mode):
+		if not option.is_empty():
+			var offered: Array = c["item"].get("options", [])
+			if not offered.any(func(o: Dictionary) -> bool: return o["option"] == option):
 				return
-			fields["mode"] = mode
+			fields["option"] = option
 		_denying.erase(_k(id))
 	else:
 		var note: String = _notes.get(_k(id), "").strip_edges()
@@ -157,7 +159,7 @@ func respond(decision: String, mode := "") -> void:
 	_send("permission.respond", fields)
 
 
-## Deny (or "No, keep planning") pressed, or pressed again: unlocks the
+## No (or "No, keep planning") pressed, or pressed again: unlocks the
 ## note and Send, or locks them.
 func set_denying(on: bool) -> void:
 	var c := current()
@@ -203,23 +205,23 @@ func _render_permission(p: Dictionary) -> void:
 		_body.add_child(details)
 	var id: String = p["permission"]
 	var denying := _denying.has(_k(id))
-	var buttons := _row()
-	buttons.add_child(_spacer())
-	var deny := _answer_button("Deny", func() -> void: set_denying(not denying))
-	deny.toggle_mode = true
-	deny.set_pressed_no_signal(denying)
-	buttons.add_child(deny)
-	for mode in p.get("modes", []):
-		buttons.add_child(_answer_button(PermissionModes.allow_choice(mode), respond.bind("allow", mode)))
-	buttons.add_child(_answer_button("Allow", respond.bind("allow")))
-	_body.add_child(buttons)
+	# One choice per line, as the terminal lists them.
+	_body.add_child(_list_choice("Yes", respond.bind("allow")))
+	for option: Dictionary in p.get("options", []):
+		var label: String = option["label"]
+		var option_id: String = option["option"]
+		_body.add_child(_list_choice(label, respond.bind("allow", option_id)))
+	var no := _list_choice("No", func() -> void: set_denying(not denying))
+	no.toggle_mode = true
+	no.set_pressed_no_signal(denying)
+	_body.add_child(no)
 	_note_row(id, denying,
-		"Optional: what to do instead (sent as your next message)", "Press Deny to add a note",
+		"Optional: what to do instead (sent as your next message)", "Press No to add a note",
 		respond.bind("deny"))
 
 
 # The note and Send under a permission or plan: kept but locked unless
-# you're denying (or sending a plan back); only Send sends the note.
+# you're denying (No, or sending a plan back); only Send sends the note.
 func _note_row(id: String, denying: bool, hint: String, locked_hint: String, send_action: Callable) -> void:
 	var row := _row()
 	var note := LineEdit.new()
@@ -550,6 +552,16 @@ func _answer_button(text: String, action: Callable) -> Button:
 	b.custom_minimum_size = Vector2(96, 0)
 	b.disabled = _busy == _shown
 	b.pressed.connect(action)
+	return b
+
+
+# One line of a permission's list: as wide as the card, its text from the
+# left and wrapped (an option's label can be long, e.g. a whole command).
+func _list_choice(text: String, action: Callable) -> Button:
+	var b := _answer_button(text, action)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return b
 
 

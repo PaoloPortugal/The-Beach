@@ -260,12 +260,27 @@ answer first counts, and the card goes away.
 
 **A permission.** The card shows what Claude wants to do (for example
 "Run: npm install"). **Details** shows exactly what it would run or
-change. **Allow** answers at once. **Deny** opens the note field below
-it: type why you said no or what to do instead (or leave it empty) and
-press **Send**. Claude gets the note as your next message. As in Claude
-Code's own prompt, only a "no" takes a note: if you change your mind and
-press Allow, the note isn't sent. Some prompts also have **Allow and
-switch to auto mode** (see Permission modes and plans below).
+change. Below that, the choices are listed one per line, like the
+terminal's prompt:
+- **Yes** allows it this once.
+- Many prompts have more ways to say yes, the same ones the terminal
+  offers there, for example **Yes, and don't ask again for: npm test \***
+  (saved in the project's Claude Code settings, so Claude won't ask
+  for it again), **Yes, allow reading from … during this session**, or
+  **Yes, and switch to auto mode** (see Permission modes and plans
+  below). Each one says exactly what it does.
+- **No** opens the note field below it: type why you said no or what to
+  do instead (or leave it empty) and press **Send**. Claude gets the
+  note as your next message. As in Claude Code's own prompt, only a "no"
+  takes a note: if you change your mind and pick a "yes", the note
+  isn't sent.
+
+The world never offers more than the terminal does. Sometimes it offers
+a little less: Claude Code doesn't tell the world everything its own
+prompt can do. For example, where the terminal offers "don't ask again
+for: npm \*", the world may offer only the exact command, such as
+"npm --version", and a few prompts have no extra choice at all in the
+world. For those, answer in the terminal.
 
 **A plan** to approve comes on the same card; see Permission modes and
 plans below.
@@ -276,7 +291,7 @@ several, tick them and press **Next**. To answer in your own words, type
 in **Other…** and press **Next**. **Back** takes you to an earlier
 question. On the last one, nothing is sent until you press **Send**.
 
-Allow, Deny and Send only work with a click: no key presses them, so
+The answer buttons and Send only work with a click: no key presses them, so
 pressing Enter in the chat can never answer for you. If you close the
 chat, the card keeps what you've typed or picked so far. If an answer
 can't be delivered, the card says why; answer in the terminal then.
@@ -304,8 +319,10 @@ next time you send a message or Claude does something.
 **Switching from the world.** The world offers the same switches as the
 terminal, at the same moments, and nothing more:
 - On a prompt to run a command, in Manual or Accept edits, if the
-  session has been in Auto before: **Allow and switch to auto mode**
+  session has been in Auto before: **Yes, and switch to auto mode**
   allows it and switches the session to Auto.
+- On a prompt to edit a file, when the terminal offers it: **Yes, and
+  switch to accept edits (…) for this session**.
 - When you approve a plan (below).
 
 At any other time, switch with Shift+Tab in the terminal. A switch only

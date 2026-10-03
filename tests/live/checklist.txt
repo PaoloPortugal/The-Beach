@@ -1,44 +1,53 @@
-LIVE CHECK: modes and plans (C06, C07)
+LIVE CHECK: prompt options (C05)
 Part A: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
 
 1. Tab > New session... > any folder.
-   Walk up, E. Top right: "Mode: Auto".
-2. Send "mode": "Mode: Manual".
-3. Send "permission": the card has
-   "Allow and switch to auto mode".
-   Click it: card goes, "Mode: Auto".
-4. Send "plan": "Mode: Plan". The plan
-   spans the chat, bordered, "Plan" on
-   it. Card: 3 choices; status line says
-   a plan waits. Wording ok?
-5. "No, keep planning", type a note,
-   Send: a revised plan with your note.
-6. "Yes, manually approve edits": card
-   goes, "Mode: Manual".
+   Walk up, E. Send "mode": "Mode:
+   Manual".
+2. Send "permission". The card lists,
+   one per line: Yes, "Yes, and don't
+   ask again for: npm install", "Yes,
+   and switch to auto mode", No.
+   Click the auto one: card goes,
+   "Mode: Auto".
+3. Send "permission" again (in Auto:
+   no auto line). Press No: the note
+   unlocks. Type a note, Send: denied.
+4. "permission" once more, click
+   "don't ask again": card goes.
+   Wording and look ok?
 
 Part B: real claude (godot --path .)
-   Folder: AppData\Local\Temp\notes-app
-7. New session there. Say hi: the mode
-   shows after the reply.
-8. Shift+Tab to Plan in the terminal.
-   Ask: "Plan a README for this folder."
-   Plan in the chat, card under it.
-9. World: No, keep planning + a note.
-   A new plan comes (terminal too).
-10. Terminal: "No, keep planning", type
-   a change: the card goes. (Untested!)
-11. World: approve the next plan with
-   "Yes, manually approve edits":
-   "Mode: Manual"; Claude writes it.
-12. Ask it to run a command that writes
-   a file. Card: "Allow and switch to
-   auto mode"? Terminal offers it too?
-   Click it: "Mode: Auto". Note if the
-   tool was PowerShell, not Bash.
-13. Shift+Tab in the terminal, send a
-   message: the header follows.
-14. /exit, Tab > resume it: the plans
-   are still in the chat.
+   Folder: AppData\Local\Temp\garden-live
+   (I've reset its .claude settings.)
+5. New session there; Shift+Tab to
+   Manual if it starts in Auto.
+6. Ask Claude to run "npm --version"
+   with Bash. Card: Yes, "Yes, and don't
+   ask again for: npm --version", auto,
+   No. Pick "don't ask again".
+   .claude/settings.local.json now has
+   Bash(npm --version)? Ask again: no
+   prompt?
+7. Ask it to edit a.txt. Pick "Yes, and
+   switch to accept edits (...)":
+   "Mode: Accept edits". Shift+Tab back
+   to Manual.
+8. Ask it to read a file in
+   ..\outside-live. Pick "allow reading
+   ... during this session".
+9. Ask it to write .claude\agents\x.md:
+   only Yes and No on the card.
+10. Ask it to run a PowerShell command
+   that writes a file: "Yes, and allow
+   access to ... during this session",
+   no auto line. Pick it: mode stays
+   Manual.
+11. Ask it to fetch example.com: "don't
+   ask again for example.com". Pick
+   No + a note: Claude follows it.
+12. Each time: the terminal's dialog
+   closed by itself?
 
 Tell Claude what you saw; paste red errors.

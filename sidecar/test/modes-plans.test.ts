@@ -1,6 +1,7 @@
 // Permission modes (C06) and plan approval (C07), NOTES.md -> S02: the mode
-// from the orchestrator's hooks, plans held like questions, and Bash
-// prompts that can also switch to auto mode through their held hook.
+// from the orchestrator's hooks, plans held like questions, and the switch
+// to auto mode on Bash prompts, one of a prompt's options (C05) answered
+// through its held hook (prompt-options.test.ts has the other options).
 // Payloads and behaviour follow the C06/C07 spike (2026-10-02/03, claude
 // 2.1.288): see docs/devlog/2026-10-02-c06-c07-spike.md.
 import { test } from 'node:test'
@@ -12,7 +13,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { HookTranslator, MAIN, permissionReply } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { KEEP_PLANNING, NO_SWITCH_ERROR } from '../src/providers/claude/session.ts'
+import { AUTO_LABEL } from '../src/providers/claude/prompt-options.ts'
+import { KEEP_PLANNING, NO_OPTION_ERROR } from '../src/providers/claude/session.ts'
 import { FakeProvider } from './fake-provider.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
 
@@ -32,6 +34,8 @@ const heldBash = (mode: string) => hook('PermissionRequest', {
   // What the spike saw: only "don't ask again", never a switch to auto.
   permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: BASH.command }], behavior: 'allow', destination: 'localSettings' }],
 })
+const DONT_ASK = { option: 'suggested', label: 'Yes, and don\'t ask again for: node -e "1"' }
+const TO_AUTO = { option: 'auto', label: AUTO_LABEL }
 const relayed = (request_id: string) => ({
   request_id, tool_name: 'Bash', description: 'd', input_preview: JSON.stringify(BASH, null, 1),
 })
@@ -124,25 +128,42 @@ test('plan: a malformed one isn\'t shown; without a PreToolUse it still is, with
   assert.match(lone.plan, /^[0-9a-f-]{36}$/)
 })
 
-test('a Bash prompt carries modes once auto was seen; its held hook is tied to its call', () => {
+test('a Bash prompt offers the switch to auto once auto was seen, after its suggestion; its hook is tied to its call', () => {
   const t = new HookTranslator(CWD)
   t.noteMode(prompt('auto'))
   t.noteMode(prompt('default'))
   t.translate(bash('toolu_b', 'default'))
+  assert.equal(t.promptHooked({ ...heldBash('default'), tool_input: { command: 'other' } }), null, 'another input')
+  assert.equal(t.promptHooked(heldBash('default')), 'toolu_b')
   const ev = t.permissionRequested(relayed('reqid'))!
-  assert.deepEqual((ev[0] as any).permission.modes, ['auto'])
-  assert.equal(t.switchableCall(heldBash('default')), 'toolu_b')
-  assert.equal(t.switchableCall(heldBash('auto')), null, 'no switch in auto')
-  assert.equal(t.switchableCall({ ...heldBash('default'), tool_input: { command: 'other' } }), null)
-  assert.deepEqual(t.permissionCall('reqid'), { toolCall: 'toolu_b', input: BASH })
+  assert.deepEqual((ev[0] as any).permission.options, [DONT_ASK, TO_AUTO])
+  assert.deepEqual(t.promptOption('reqid', 'auto'), {
+    toolCall: 'toolu_b', input: BASH, updates: [{ type: 'setMode', mode: 'auto', destination: 'session' }],
+  })
+  assert.equal(t.promptOption('reqid', 'acceptEdits'), null)
+  assert.equal(t.promptOption('other', 'auto'), null)
+
+  // Asked in auto mode: no switch, only the suggestion.
+  const u = new HookTranslator(CWD)
+  u.noteMode(prompt('auto'))
+  u.translate(bash('toolu_c', 'auto'))
+  u.promptHooked(heldBash('auto'))
+  assert.deepEqual((u.permissionRequested(relayed('reqid'))![0] as any).permission.options, [DONT_ASK])
 })
 
-test('replies: allow echoes the input and switches for this session only; deny carries the message', () => {
+test('replies: allow echoes the input, with a switch for this session only or an option\'s updates; deny carries the message', () => {
   assert.deepEqual(permissionReply({ behavior: 'allow', updatedInput: PLAN, mode: 'auto' }), {
     hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: {
       behavior: 'allow', updatedInput: PLAN,
       updatedPermissions: [{ type: 'setMode', mode: 'auto', destination: 'session' }],
     } },
+  })
+  const rule = { type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'npm test' }], behavior: 'allow', destination: 'localSettings' }
+  assert.deepEqual(permissionReply({ behavior: 'allow', updatedInput: BASH, updates: [rule] }), {
+    hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow', updatedInput: BASH, updatedPermissions: [rule] } },
+  })
+  assert.deepEqual(permissionReply({ behavior: 'allow', updatedInput: BASH }), {
+    hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow', updatedInput: BASH } },
   })
   assert.deepEqual(permissionReply({ behavior: 'deny', message: 'smaller' }), {
     hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'deny', message: 'smaller' } },
@@ -184,7 +205,7 @@ test('registry: mode and plans only for sessions declaring them', async () => {
   }
 })
 
-test('commands: plan.answer and a permission\'s mode are checked against what was offered', async () => {
+test('commands: plan.answer\'s mode and a permission\'s option are checked against what was offered', async () => {
   const p = new FakeProvider({ capabilities: { permission_modes: {}, plans: {} } })
   const s = await testServer([p])
   const c = await connect(s.port, s.token)
@@ -195,7 +216,7 @@ test('commands: plan.answer and a permission\'s mode are checked against what wa
     const host = p.sessions[0]!.host
     const session = host.id
     host.emit({ type: 'plan.asked', plan: { plan: 'p1', agent: 'main', text: 't', modes: ['auto', 'default'] } })
-    host.emit({ type: 'permission.requested', permission: { permission: 'r1', agent: 'main', tool: 'Bash', summary: 's', modes: ['auto'] } })
+    host.emit({ type: 'permission.requested', permission: { permission: 'r1', agent: 'main', tool: 'Bash', summary: 's', options: [TO_AUTO] } })
     host.emit({ type: 'permission.requested', permission: { permission: 'r2', agent: 'main', tool: 'Edit', summary: 's' } })
     const answer = (m: object) => c.command({ type: 'plan.answer', session, plan: 'p1', ...m })
     assert.equal((await answer({ approve: true })).code, 'invalid_message', 'approving needs a mode')
@@ -206,10 +227,11 @@ test('commands: plan.answer and a permission\'s mode are checked against what wa
     assert.equal((await answer({ approve: true, mode: 'default' })).type, 'ok')
     assert.equal((await answer({ approve: false, note: 'smaller' })).type, 'ok')
     const respond = (m: object) => c.command({ type: 'permission.respond', session, ...m })
-    assert.equal((await respond({ permission: 'r1', decision: 'deny', mode: 'auto' })).code, 'invalid_message')
-    assert.equal((await respond({ permission: 'r2', decision: 'allow', mode: 'auto' })).code, 'invalid_message', 'not offered on this one')
-    assert.equal((await respond({ permission: 'r1', decision: 'allow', mode: 'acceptEdits' })).code, 'invalid_message')
-    assert.equal((await respond({ permission: 'r1', decision: 'allow', mode: 'auto' })).type, 'ok')
+    assert.equal((await respond({ permission: 'r1', decision: 'deny', option: 'auto' })).code, 'invalid_message')
+    assert.equal((await respond({ permission: 'r2', decision: 'allow', option: 'auto' })).code, 'invalid_message', 'not offered on this one')
+    assert.equal((await respond({ permission: 'r1', decision: 'allow', option: 'suggested' })).code, 'invalid_message')
+    assert.equal((await respond({ permission: 'r1', decision: 'allow', mode: 'auto' })).code, 'invalid_message', 'C06\'s mode is gone')
+    assert.equal((await respond({ permission: 'r1', decision: 'allow', option: 'auto' })).type, 'ok')
     assert.equal((await respond({ permission: 'r2', decision: 'allow' })).type, 'ok')
     assert.deepEqual(p.calls.filter((x) => x.method !== 'getHistory').map((x) => x.args), [
       ['p1', { approve: true, mode: 'default' }],
@@ -220,7 +242,7 @@ test('commands: plan.answer and a permission\'s mode are checked against what wa
   } finally { await c.close(); await s.close() }
 })
 
-test('commands: without the capabilities, plan.answer and modes are not supported', async () => {
+test('commands: without the capabilities, plan.answer is not supported; a permission\'s options are core', async () => {
   const p = new FakeProvider({ capabilities: {} })
   const s = await testServer([p])
   const c = await connect(s.port, s.token)
@@ -229,9 +251,11 @@ test('commands: without the capabilities, plan.answer and modes are not supporte
     await c.command({ type: 'session.create', provider: 'fake', project: { path: os.tmpdir() } })
     await c.next('session.created')
     const host = p.sessions[0]!.host
-    host.emit({ type: 'permission.requested', permission: { permission: 'r1', agent: 'main', tool: 'Bash', summary: 's' } })
+    host.emit({ type: 'permission.requested', permission: { permission: 'r1', agent: 'main', tool: 'Bash', summary: 's', options: [DONT_ASK] } })
     assert.equal((await c.command({ type: 'plan.answer', session: host.id, plan: 'p', approve: false })).code, 'not_supported')
-    assert.equal((await c.command({ type: 'permission.respond', session: host.id, permission: 'r1', decision: 'allow', mode: 'auto' })).code, 'not_supported')
+    assert.equal((await c.command({ type: 'permission.respond', session: host.id, permission: 'r1', decision: 'allow', option: 'suggested' })).type, 'ok')
+    assert.deepEqual(p.calls.filter((x) => x.method === 'respondPermission').map((x) => x.args), [['r1', 'allow', undefined, 'suggested']])
+    assert.deepEqual(c.invalid, [])
   } finally { await c.close(); await s.close() }
 })
 
@@ -382,17 +406,17 @@ test('through a session: Claude Code dropping a held plan resolves it; a stop de
   } finally { await x.close() }
 })
 
-test('through a session: a Bash prompt allowed with a switch to auto answers its held hook, not the relay', async () => {
+test('through a session: a Bash prompt allowed with the switch to auto answers its held hook, not the relay', async () => {
   const x = await liveSession()
   try {
     await x.send(prompt('auto')).done
     await x.send(bash('toolu_b', 'default')).done
     x.toSidecar({ type: 'permission_request', ...relayed('reqid') })
-    const requested = (await x.c.next('permission.requested')).permission as any
-    assert.deepEqual(requested.modes, ['auto'])
     const hold = x.send(heldBash('default'))
+    const requested = (await x.c.next('permission.requested')).permission as any
+    assert.deepEqual(requested.options, [DONT_ASK, TO_AUTO])
     assert.equal(await stillHeld(hold), 'held')
-    const ok = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqid', decision: 'allow', mode: 'auto' })
+    const ok = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqid', decision: 'allow', option: 'auto' })
     assert.equal(ok.type, 'ok')
     assert.deepEqual(decision(await hold.done), {
       behavior: 'allow', updatedInput: BASH, updatedPermissions: [{ type: 'setMode', mode: 'auto', destination: 'session' }],
@@ -404,14 +428,14 @@ test('through a session: a Bash prompt allowed with a switch to auto answers its
   } finally { await x.close() }
 })
 
-test('through a session: a plain answer to a held Bash prompt goes through the relay; the hook is let go when the call ends', async () => {
+test('through a session: a plain answer to a held prompt goes through the relay; the hook is let go when the call ends', async () => {
   const x = await liveSession()
   try {
     await x.send(prompt('auto')).done
     await x.send(bash('toolu_b', 'default')).done
     x.toSidecar({ type: 'permission_request', ...relayed('reqid') })
-    await x.c.next('permission.requested')
     const hold = x.send(heldBash('default'))
+    await x.c.next('permission.requested')
     assert.equal(await stillHeld(hold), 'held')
     assert.equal((await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqid', decision: 'allow' })).type, 'ok')
     await new Promise((r) => setTimeout(r, 50))
@@ -422,28 +446,30 @@ test('through a session: a plain answer to a held Bash prompt goes through the r
   } finally { await x.close() }
 })
 
-test('through a session: no switch before auto was seen, or once the hook is gone', async () => {
+test('through a session: no switch before auto was seen; no option once the hook is gone', async () => {
   const x = await liveSession()
   try {
     await x.send(prompt('default')).done
     await x.send(bash('toolu_1', 'default')).done
     x.toSidecar({ type: 'permission_request', ...relayed('reqaa') })
-    assert.equal(((await x.c.next('permission.requested')).permission as any).modes, undefined)
-    assert.deepEqual(await x.send(heldBash('default')).done, { status: 200, body: '' }, 'not held')
-    const r = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqaa', decision: 'allow', mode: 'auto' })
+    const first = x.send(heldBash('default'))
+    first.done.catch(() => {})
+    assert.deepEqual(((await x.c.next('permission.requested')).permission as any).options, [DONT_ASK])
+    const r = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqaa', decision: 'allow', option: 'auto' })
     assert.equal(r.code, 'invalid_message')
     await x.send(hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_1' })).done
+    assert.deepEqual(await first.done, { status: 200, body: '' }, 'let go when the call ended')
 
     await x.send(prompt('auto')).done
     await x.send(bash('toolu_2', 'acceptEdits')).done
-    x.toSidecar({ type: 'permission_request', ...relayed('reqbb') })
-    assert.deepEqual(((await x.c.next('permission.requested')).permission as any).modes, ['auto'])
     const hold = x.send(heldBash('acceptEdits'))
     hold.done.catch(() => {})
     await stillHeld(hold)
+    x.toSidecar({ type: 'permission_request', ...relayed('reqbb') })
+    assert.deepEqual(((await x.c.next('permission.requested')).permission as any).options, [DONT_ASK, TO_AUTO], 'hook before the relay')
     hold.abort()
     await new Promise((r) => setTimeout(r, 50))
-    const gone = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqbb', decision: 'allow', mode: 'auto' })
-    assert.deepEqual([gone.code, gone.message], ['provider_error', NO_SWITCH_ERROR])
+    const gone = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqbb', decision: 'allow', option: 'auto' })
+    assert.deepEqual([gone.code, gone.message], ['provider_error', NO_OPTION_ERROR])
   } finally { await x.close() }
 })
