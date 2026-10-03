@@ -96,8 +96,8 @@ v1 slice.
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
 | C04 | Tool-call log                             | built (UI placeholder) | C04 | `chat/tool_fold.gd`, `sidecar/src/history.ts` |
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd` |
-| C06 | Permission mode control                   | planned | n/a           | n/a       |
-| C07 | Plan approval                             | planned | n/a           | n/a       |
+| C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
+| C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -468,7 +468,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
 | `tool.started`, `tool.finished` | |
-| `permission.requested`, `permission.resolved` | |
+| `permission.requested`, `permission.resolved` | `permission.respond`'s `mode`: `permission_modes` capability |
 
 - `session.snapshot` places an island as is; `session.created` plays the rise
   animation.
@@ -479,10 +479,15 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   none yet; S02 → Titles, 2026-10-02). On a new `native_id` the session
   and its island stay; the world reloads the chat with
   `session.get_history`, which now holds the new conversation's (empty
-  after `/clear`). A new `title` relabels it wherever it's listed.
+  after `/clear`). A new `title` relabels it wherever it's listed. `mode`
+  belongs to the `permission_modes` capability (below).
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
-  text typed in the terminal shows up in the world.
+  text typed in the terminal shows up in the world. A message may have a
+  `kind` (on `message.started` and in the history) when it isn't plain
+  chat: `plan` is a plan presented for approval (the `plans` capability,
+  only sent when declared), shown full width (C07). Added 2026-10-03
+  without a version change (optional and additive).
 - `tool.started` has an optional `within`: for a subagent's call, the
   tool call that started that subagent (e.g. Claude's Agent call), so
   the log can show it inside (C04). Added 2026-10-02 without a version
@@ -524,6 +529,22 @@ Each one is added to the schema and listed here:
   `{ "immediate": true | false }`: `false` means the stop happens at the
   session's next step (e.g. before its next tool call), not mid-reply, so
   Godot can say "stopping after this step".
+- **`permission_modes`** (C06): the session's approval mode, the
+  provider's own id (e.g. Claude Code's `default`, `acceptEdits`, `plan`,
+  `auto`; Godot shows its own names for ids it knows). The session has
+  `mode` (null until known); changes come as `session.updated` with
+  `mode`. A `permission.requested`'s permission may carry `modes`: what
+  an allow can also switch to; `permission.respond` then takes an
+  optional `mode` (allow only, one of those).
+- **`plans`** (C07): an agent presents a plan for approval. `plan.asked`
+  (`plan`, `agent`, `text`, `modes`: what approving can switch to, in the
+  provider's own order, `asked_at`), `plan.resolved` (`decision`:
+  `approved` or `rejected`; `by`: `app` or `external`), and the command
+  `plan.answer` (`approve: true` with a `mode` from the plan's `modes`, or
+  `approve: false` with an optional `note`: what to change). Pending ones
+  are in the snapshot's `plans`; the agent is `waiting` with reason
+  `plan`. The plan's text also comes as a chat message of kind `plan`.
+  Whichever side answers first wins, as for questions.
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -979,13 +1000,14 @@ in a message shows as written (tested with an injected `[url]`).
   anchor, so it grows upwards.
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
-  project's name, and "Esc to close"), the session's notices (Godot's own
+  project's name, the permission mode when known (C06), and "Esc to
+  close"), the session's notices (Godot's own
   text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`,
   `conversation_resumed` and `conversation_moved`; of the two switch
   notices, only the latest shows), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
-  three quarters of the width, text selectable, both rendered as
-  Markdown by C03), a status line and the
+  three quarters of the width, a plan across the full width (C07), text
+  selectable, all rendered as Markdown by C03), a status line and the
   message box. Streaming updates the growing bubble in place and follows
   the end if you were already at the bottom. At most the last 200
   messages are shown (the store keeps up to 2000). Laying out a chat
@@ -993,8 +1015,8 @@ in a message shows as written (tested with an injected `[url]`).
   the same way once per frame, each above the rest; the view stays at
   the end, or keeps its distance from the end if you scrolled up
   (rendering Markdown costs tens of milliseconds per long message, C03). Status: "Working…",
-  "Waiting for a permission / an answer…: … above or in the terminal"
-  (the card above is C05), "Stopped." after an
+  "Waiting for a permission / an answer / you to approve the plan: …
+  above or in the terminal" (the card above is C05, C07), "Stopped." after an
   error, or a failed send.
 - **Sending:** Enter sends (`message.send`), Shift+Enter is a new line;
   the Send button too. The box clears at once; your message appears when
@@ -1151,7 +1173,7 @@ declare it).
 - *Permission card:* the summary with a Details toggle (raw input as
   plain text), Allow and Deny, an optional note; no keyboard shortcut
   for Allow, so Enter in the chat can never allow by accident.
-  "Don't ask again" and mode switches wait for C06.
+  Mode switches came with C06; "Don't ask again" isn't offered.
 - *The note goes with a deny only* (user's, at the live check,
   2026-10-01): it is locked until you press Deny, then Send denies with
   it; Allow answers at once and never sends it. This matches Claude
@@ -1224,43 +1246,88 @@ prompts reach the card. Then the note was changed to go with a deny
 only (above).
 
 ### C06 Permission mode control
-*Planned (after v1). Scope: capability `permission_modes`* (other tools have
-similar approval modes). The user's wish: switch permission modes from the
-world. What the CLI route allows (Claude docs, checked 2026-09-29):
-- **Choose the mode at launch:** a mode picker when creating or resuming a
-  session (`--permission-mode`).
-- **Switch while answering a prompt:** "allow, and switch to mode X", like
-  the terminal's own "Yes, and switch to auto mode". The `PermissionRequest`
-  hook's allow reply carries `updatedPermissions: [{ type: "setMode", mode,
-  destination: "session" }]`.
-- **Always show the current mode:** every hook carries `permission_mode`,
-  so switches made in the terminal (Shift+Tab) show up too.
+*Built (2026-10-03). Scope: capability `permission_modes`* (other tools
+have similar approval modes). See the current mode, and switch it from
+the world the way the terminal offers. Dev log 2026-10-02-c06-c07-spike
+(decisions, the spike's eight findings) and 2026-10-03-c06-c07-build.
 
-Not possible: switching at an arbitrary moment with no prompt open (only
-Shift+Tab in the terminal; typing keystrokes was rejected). Safety rules:
-only on an explicit user choice, `session` destination only (never written
-to settings files), current mode always visible with plain descriptions.
-Claude Code refuses `setMode` to `bypassPermissions` unless the session was
-launched with bypass available, which we never do (whether to ever offer
-bypass is the user's call when C06 is built; the recommendation is no,
-especially for a paid product). Offering a picker is legally fine: it
-uses documented flags, as if the user typed them. Protocol fields are
-added when this is built.
+*Decided (user's, 2026-10-02/03):*
+- **The Shift+Tab four only:** Manual (`default`), Accept edits
+  (`acceptEdits`), Plan (`plan`), Auto (`auto`). No Bypass, no Don't ask.
+- **No launch picker.** Sessions start in Claude Code's own choice (no
+  `--permission-mode` flag; since 2.1.283 that's auto where available,
+  else Manual). An earlier note said a picker was decided; it never was.
+- **The current mode shows in the chat panel's header only**, not in the
+  sessions menu or the world.
+- **Switching mirrors the terminal** (principle: behave nigh equal to
+  vanilla Claude Code): the plan's choices (C07), and "Allow and switch to
+  auto mode" on Bash prompts, as Claude Code's own Bash prompt offers in
+  Manual and Accept edits once auto mode is available. Nothing else:
+  there's no way to switch with no prompt open (only Shift+Tab in the
+  terminal; typing keystrokes was rejected).
+
+How it works:
+- **Protocol.** A session that declares `permission_modes` has `mode`:
+  the provider's id, null until known; changes come as `session.updated`
+  with `mode`. A permission may carry `modes`: what an allow can also
+  switch to; `permission.respond` takes an optional `mode` (allow only,
+  one of them; the sidecar refuses anything else).
+- **Godot.** The chat panel's header shows "Mode: Auto" (Godot's own
+  names, `PermissionModes` in `chat/permission_modes.gd`; an id it
+  doesn't know shows as is), only when the capability is declared and
+  the mode known, updated on `session.updated`. On the C05 card, a
+  permission with `modes` gets one "Allow and switch to auto mode"
+  button per mode beside Allow; like Allow, no keyboard focus, and it
+  never sends the note.
+- **Safety.** Switches happen only on the user's click; the switch is
+  for the session only (Claude's `setMode` with destination `session`,
+  never written to settings files). Claude Code refuses `setMode` to
+  `bypassPermissions` unless launched with bypass available, which we
+  never do.
+- **Claude's side:** S02 → Permission modes and plans.
 
 ### C07 Plan approval
-*Planned (after v1). Scope: capability `plans`* (plan modes exist in other
-tools too). Approve or reject a plan from the world, as well as in the
-terminal. In the terminal, when Claude finishes planning, it shows the plan
-and offers: **Yes, and use auto mode** (or "auto-accept edits"), **Yes,
-manually approve edits**, and **No, keep planning** (tell Claude what to
-change). This runs through Claude's `ExitPlanMode` tool, which Claude Code
-treats like `AskUserQuestion` (it needs a person), and hooks receive the
-plan's Markdown (`tool_input.plan`). Intended design, the same as for
-clarifying questions (S02): the plan shows in both places, the
-`PermissionRequest` hook is held, first answer wins. Approve → `allow`
-with the input echoed back plus the matching `setMode` (see C06); keep
-planning → `deny` with the user's feedback as the message. **Untested:**
-needs a short spike before it's built. Rendering the plan depends on C03.
+*Built (2026-10-03). Scope: capability `plans`* (plan modes exist in
+other tools too). Approve or send back a plan from the world, as well
+as in the terminal; whichever answers first wins.
+
+*Decided (user's, 2026-10-02):* the plan appears in the chat as **its own
+full-width Markdown message**, kept as a record whatever the answer; the
+card under the chat holds the terminal's choices and, for "No, keep
+planning", a feedback field like Deny's note (C05). To show it, a chat
+message can have `kind: "plan"` (my choice of how to carry the user's
+decision; for review).
+
+How it works:
+- **Protocol.** `plan.asked { plan: {plan, agent, text, modes, asked_at} }`
+  (`modes`: the modes approving can switch to, in the order the
+  provider's own interface lists them), `plan.resolved { plan, decision:
+  approved | rejected, by: app | external }`, and the command
+  `plan.answer { plan, approve: true, mode }` or `{ plan, approve: false,
+  note? }`. The snapshot has `plans` (only when declared); the agent
+  waits with reason `plan`. The plan's text also arrives as a chat
+  message of kind `plan` (`message.started`, and in the history), just
+  before the call that presents it.
+- **The plan message.** The chat panel draws a `plan` message across the
+  full width (not a left/right bubble), with a border and a "Plan"
+  caption, rendered as Markdown (C03).
+- **The card** (`PendingCard`, C05; plans queue with permissions and
+  questions, oldest first): "The orchestrator has a plan for you to
+  approve:", "Would you like to proceed? The plan is above, in the chat."
+  and one button per line, in the plan's order: "Yes, and use auto mode"
+  (`auto`) or "Yes, auto-accept edits" (`acceptEdits`), then "Yes,
+  manually approve edits" (`default`), then "No, keep planning". The
+  last unlocks the note and Send, like Deny; Send sends the plan back
+  with the note if one was typed. No button takes keyboard focus.
+- **Status line:** "Waiting for you to approve the plan: answer it above
+  or in the terminal."
+- **Claude's side:** S02 → Permission modes and plans.
+
+Tested: the store and the panel by hand (mode in the header, plan rows,
+the card's choices and commands through a recording stand-in for the
+sidecar), the fake end to end (`mode`, `permission`, `plan` in chat),
+and the sidecar (`modes-plans.test.ts`, `store.test.ts`,
+`dev-fake.test.ts`).
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -1341,8 +1408,9 @@ running, but the world loses them); export presets that copy the executable
 next to the game come with the first export.
 
 ### S02 Claude provider
-*Built (v1). Scope: core* (a provider; sessions declare the `questions`
-and `interrupt` capabilities, no extension yet). Code:
+*Built (v1). Scope: core* (a provider; sessions declare the `questions`,
+`interrupt`, `permission_modes` and `plans` capabilities, no extension
+yet). Code:
 `sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`, `bridge.ts`
 and `bridge-server.ts`, `transcript.ts`) and the generic
@@ -1373,9 +1441,11 @@ or bundles Claude Code.
 - a **clean environment** (Security rules): inherited session markers make
   `claude` treat itself as nested and stop saving transcripts.
 
-No permission mode is chosen for the user (C06 will let them pick one at
-launch); every hook carries `permission_mode`. With the common `auto` mode
-Claude Code rarely asks for permission at all.
+No permission mode is chosen for the user (no `--permission-mode`; no
+launch picker, user's decision for C06): Claude Code starts in its own
+choice, auto where available. Every hook carries `permission_mode`
+(Permission modes and plans, below). With `auto` Claude Code rarely
+asks for permission at all.
 
 **Starting up: confirm in the terminal** (user's decision, idea from Agent
 Office). Claude Code shows folder trust the first time in a folder, and the
@@ -1616,6 +1686,48 @@ user's words, which Claude reads as the answer. Answered in the terminal:
 its `PostToolUse` arrives and the sidecar releases the held hook
 (`by: external`). If Claude Code drops the held hook, or the turn ends,
 the question resolves by external.
+
+**Permission modes and plans (`permission_modes` and `plans`
+capabilities; C06, C07).** From the spike with `claude` 2.1.288 (dev log
+2026-10-02-c06-c07-spike, findings 1–8):
+- **The mode** comes from `permission_mode` on the orchestrator's hooks
+  (every one but `MessageDisplay` and `Notification`); subagents' hooks
+  are ignored. Each change goes out as `session.updated` with `mode`;
+  null until the first hook. A Shift+Tab switch shows with the next hook.
+- **What the terminal offers, mirrored.** Approving a plan offers
+  `['auto', 'default']` once the session has been seen in auto ("Yes,
+  and use auto mode", "Yes, manually approve edits"), else
+  `['acceptEdits', 'default']` ("Yes, auto-accept edits"; Claude Code
+  words it so when auto isn't available). A Bash prompt asked in
+  `default` or `acceptEdits` carries `modes: ['auto']` once auto was
+  seen ("Yes, and switch to auto mode"; `permission_suggestions` don't
+  include it, so we add it).
+- **Held hooks.** `PermissionRequest` is registered for
+  `AskUserQuestion|ExitPlanMode|Bash`. A plan's hook is held while the
+  terminal shows the plan too (plans have no channel relay). A Bash
+  prompt's hook is held only in case the world allows it with a switch;
+  any other answer goes through the relay as for every prompt, and the
+  held hook is let go when the call ends (`tool.finished`).
+- **Answers from the world.** Approve: `allow` with the plan's input
+  echoed back as `updatedInput` (without it Claude Code ignores the
+  reply) and `updatedPermissions: [{type: setMode, mode, destination:
+  session}]`. Send back: `deny` with the note, or "The user wants to keep
+  planning. Ask them what to change." without one; Claude Code sends no
+  hook for the denied call, so the sidecar closes it as denied. A Bash
+  allow with a mode answers its held hook the same way (`allow`, echoed
+  input, `setMode`); Claude Code then closes the terminal's dialog and the
+  relayed prompt resolves itself. If that hook is gone (or auto wasn't
+  seen), the switch is refused ("This prompt can't switch modes right
+  now…").
+- **Answers in the terminal.** The held hook stays open (spike), so the
+  plan resolves from the call's `PostToolUse` (approved, `by:
+  external`), a refusal in the transcript or the turn ending (rejected),
+  and the hook is released then. Claude Code dropping the hook (it
+  exited) resolves it as rejected. A stop declines held plans.
+- **The plan as a message.** The plan's Markdown goes out as a message of
+  kind `plan` (id `<tool_use_id>:plan`) just before the ExitPlanMode
+  call, live and in a transcript's history (`store.ts`), so a resumed
+  conversation shows its plans too.
 
 **Stopping (`interrupt` capability, `immediate: false`).** A stop answers
 the next `PreToolUse` of each agent busy when it was asked with
@@ -2169,7 +2281,9 @@ history included (C04). **Now: C06 + C07 on branch
 protocol approved by the user (2026-10-03: capabilities
 `permission_modes` and `plans`, "allow and switch to auto" on Bash
 prompts once auto was seen; aim: behave nigh equal to the terminal);
-schema and sidecar built and tested; Godot, docs and live check next. No launch picker (user's correction of an earlier note): sessions
+schema, sidecar, Godot and the fake built and tested (2026-10-03); NOTES
+C06/C07, Protocol and S02 written; the guide, flows, dev log, Running it
+and the live checklist next, then the live check. No launch picker (user's correction of an earlier note): sessions
 start in Claude Code's own mode. The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
