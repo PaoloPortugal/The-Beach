@@ -200,7 +200,7 @@ func _menu(world: Node3D, player: Player) -> void:
 	await new_session.call()
 	_check(pickers_shown[0] == 1 and menu.waiting_for_picker() and menu.is_open() and not menu.picker().visible, "system picker: the menu waits for it, with a note")
 	answer[0].call(false, PackedStringArray(), 0)
-	await _frames(2)
+	await _until(func() -> bool: return not menu.waiting_for_picker(), 2.0)
 	_check(menu.is_open() and not menu.waiting_for_picker() and not player.controls_enabled, "system picker: cancelling it goes back to the menu")
 	menu.choose("+ New session")
 	await _frames(2)
@@ -208,11 +208,11 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and not menu.waiting_for_picker() and player.controls_enabled, "system picker lost behind the game: Esc gives the controls back")
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir()]), 0)
-	await _frames(3)
+	await _settle()
 	_check(not menu.launcher.busy() and menu.notice_text() == "" and not menu.is_open(), "and its late answer is ignored")
 	await new_session.call()
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir().path_join("no-such-folder")]), 0)
-	await _frames(2)
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and player.controls_enabled, "system picker: choosing a folder closes the menu and gives the controls back")
 	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
 	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
@@ -293,7 +293,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0 and player.is_on_floor(), "teleport: in front of the orchestrator, on its island")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
-	await _frames(5)
+	await _until(func() -> bool: return chat.prompt_visible(), 2.0)
 	_check(chat.prompt_visible(), "walking close shows \"Press E to chat\"")
 	# The sidecar doesn't have h1, so fetching its history fails.
 	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
@@ -303,9 +303,11 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(chat._history.get("h1") == "asking", "opening the chat asks for the history again")
 	chat.close()
 	_press("interact")
-	await _frames(2)
+	await _until(func() -> bool: return chat.is_open(), 2.0)
 	var panel := chat.panel()
 	_check(chat.is_open() and panel.visible and not player.controls_enabled, "E opens the chat panel and pauses the player")
+	# The newest message is built at once, the older ones over a few frames.
+	await _until(func() -> bool: return not panel.is_loading(), 5.0)
 	_check(panel.shown_messages() == ["Hi there", "Looking at it.\ntwo\nthree\nfour\nfive"], "the panel shows the chat so far")
 	_check(panel.status_text() == "Working…", "and what the orchestrator is doing")
 	store.apply({"type": "message.completed", "session": "h1", "seq": 8, "message": "a1", "text": "Done. [url=https://x]click[/url]"})
@@ -326,7 +328,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 		esc.pressed = pressed
 		Input.parse_input_event(esc)
 	await _until(func() -> bool: return panel.link_asked().is_empty(), 2.0)
-	await _frames(2)
+	await _settle()
 	_check(chat.is_open() and panel.link_asked() == "", "Esc closes the question, not the chat")
 	await _tool_log(store, panel)
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 10, "agent": "main", "state": "waiting", "reason": "permission"})
@@ -348,12 +350,12 @@ func _sessions(world: Node3D, player: Player) -> void:
 	Input.action_release("move_forward")
 	_check(player.global_position.distance_to(walk_at) < 0.05, "no walking while chatting")
 	_press("ui_cancel")
-	await _frames(2)
+	await _until(func() -> bool: return not chat.is_open(), 2.0)
 	_check(not chat.is_open() and chat.prompt_visible() and player.controls_enabled, "Esc closes the chat")
 
 	# The session ends while you're on its island, with the chat open.
 	_press("interact")
-	await _frames(2)
+	await _until(func() -> bool: return chat.is_open(), 2.0)
 	# /resume in the terminal: the latest switch notice, and the resumed chat.
 	store.apply({"type": "session.notice", "session": "h1", "seq": 20, "notice": {"code": "conversation_cleared", "message": "x"}})
 	store.apply({"type": "session.notice", "session": "h1", "seq": 21, "notice": {"code": "conversation_resumed", "message": "x"}})
@@ -384,7 +386,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
 	await _attention(world)
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
-	await _frames(2)
+	await _until(func() -> bool: return islands.island("h1") == null and not chat.is_open(), 2.0)
 	_check(islands.island("h1") == null and not chat.is_open() and player.controls_enabled, "an ended session's island goes, and its chat closes")
 	_check(player.global_position.distance_to(player.spawn_point) < 0.5, "whoever stood on it is back on the platform")
 	_check(chat.bubble("h1") == null and not chat.prompt_visible(), "nothing of it is left")
@@ -422,7 +424,8 @@ func _tool_log(store: SessionStore, panel: ChatPanel) -> void:
 	_check(panel.shown_messages().size() == 3, "the log doesn't count as messages")
 	# Calls from the history land after their own message, laid out again.
 	store.load_history("h1", [], [{"tool_call": "t0", "agent": "main", "tool": "Read", "summary": "Read NOTES.md", "status": "ok", "after": "u1"}])
-	await _frames(2)
+	# Laid out again on the next frame, the oldest message (u1) last.
+	await _until(func() -> bool: return not panel._rebuild_queued and not panel.is_loading() and panel.tool_fold("u1") != null, 5.0)
 	_check(panel.tool_fold("u1").visible and panel.tool_fold("u1").header_text() == "▸ 1 tool call", "history's calls go after their message")
 	_check(panel.tool_fold("a2").header_text() == "▸ 2 tool calls (1 running, 1 failed)", "and the live ones stay where they were")
 	for t in ["t2", "t4"]:
@@ -435,8 +438,8 @@ func _attention(world: Node3D) -> void:
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var attention: Attention = world.attention
 	var menu: SessionsMenu = world.get_node("SessionsMenu")
-	# Never the developer's own settings file.
-	attention.settings_path = "user://world_test_settings.cfg"
+	# Never the developer's own settings file, nor another run's.
+	attention.settings_path = "user://world_test_settings_%d.cfg" % OS.get_process_id()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(attention.settings_path))
 	var focused := [true]
 	var asked := [0]
@@ -813,13 +816,14 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return menu.is_open(), 2.0)
 	_check(menu.entries()[3].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
 	_press("ui_cancel")
-	await _frames(2)
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
+	await _until(func() -> bool: return chat.history_loaded(id), 5.0)
 	_check(chat.history_loaded(id), "live: its history is loaded")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
-	await _frames(5)
+	await _until(func() -> bool: return chat.prompt_visible(), 2.0)
 	_press("interact")
-	await _frames(2)
+	await _until(func() -> bool: return chat.is_open(), 2.0)
 	var panel := chat.panel()
 	panel.set_draft("hello\nworld")
 	panel.send()
@@ -891,7 +895,8 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.mode_text() == "Mode: Auto" and not card.visible, "live: allowed and switched to auto from the card")
 	panel.set_draft("plan")
 	panel.send()
-	await _until(func() -> bool: return card.visible, 8.0)
+	# The plan and the orchestrator's wait are two events.
+	await _until(func() -> bool: return card.visible and panel.status_text().contains("approve the plan"), 8.0)
 	_check(panel.mode_text() == "Mode: Plan" and card.header_text().contains("plan"), "live: a plan on the card, in plan mode")
 	_check(panel.status_text().contains("approve the plan"), "live: the status says so")
 	var plan_rows: Array = world.store.messages(id).filter(func(m: Dictionary) -> bool: return m.get("kind") == "plan")
@@ -905,7 +910,7 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("approved"), 8.0)
 	_check(not card.visible and panel.mode_text() == "Mode: Manual", "live: approved from the card, in the chosen mode")
 	_press("ui_cancel")
-	await _frames(2)
+	await _until(func() -> bool: return not chat.is_open(), 2.0)
 
 	# The open menu follows a rename.
 	_press("sessions_menu")
@@ -915,7 +920,7 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return menu.entries()[3].begins_with("Notes   ·"), 5.0)
 	_check(menu.entries()[3].begins_with("Notes   ·"), "live: and follows a rename while open")
 	_press("ui_cancel")
-	await _frames(2)
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
 	sidecar.send_command("session.end", {"session": id})
 	await _until(func() -> bool: return islands.island(id) == null, 5.0)
@@ -960,6 +965,14 @@ func _press(action: String) -> void:
 func _frames(n: int) -> void:
 	for i in n:
 		await physics_frame
+
+
+# For checks that something did NOT happen: a whole main-loop iteration, so
+# input events and deferred calls have been handled. Physics frames don't
+# promise that: a slow iteration runs several physics steps in a row.
+func _settle() -> void:
+	for i in 2:
+		await process_frame
 
 
 func _until(cond: Callable, timeout_s: float) -> void:
