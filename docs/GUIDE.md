@@ -16,6 +16,7 @@ here; each section is labelled with its feature ID.
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
 - [What Claude did: the tool calls (C04)](#what-claude-did-the-tool-calls-c04)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
+- [Permission modes and plans (C06, C07)](#permission-modes-and-plans-c06-c07)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [The sidecar (S01)](#the-sidecar-s01)
@@ -193,9 +194,13 @@ select text to copy it. Type in the box at the bottom: **Enter** sends,
 **Shift+Enter** starts a new line. Your message shows up once the session
 has it; if it can't be sent, the chat says so and gives your text back.
 
+At the top right, next to "Esc to close", the chat shows the session's
+permission mode, such as **Mode: Auto** (see Permission modes and plans
+below).
+
 Above the box, a line says what the orchestrator is doing: working, or
-waiting for you. When it waits on a permission or a question, a card
-above that line lets you answer it (see below). Only the latest 200
+waiting for you. When it waits on a permission, a question or a plan, a
+card above that line lets you answer it (see below). Only the latest 200
 messages are shown at once. A long chat appears newest first, and the
 older messages fill in above it over a moment.
 
@@ -259,7 +264,11 @@ change. **Allow** answers at once. **Deny** opens the note field below
 it: type why you said no or what to do instead (or leave it empty) and
 press **Send**. Claude gets the note as your next message. As in Claude
 Code's own prompt, only a "no" takes a note: if you change your mind and
-press Allow, the note isn't sent.
+press Allow, the note isn't sent. Some prompts also have **Allow and
+switch to auto mode** (see Permission modes and plans below).
+
+**A plan** to approve comes on the same card; see Permission modes and
+plans below.
 
 **A question.** Questions come one at a time ("Question 1 of 2").
 Click an option to answer and move on to the next. When you may pick
@@ -271,6 +280,53 @@ Allow, Deny and Send only work with a click: no key presses them, so
 pressing Enter in the chat can never answer for you. If you close the
 chat, the card keeps what you've typed or picked so far. If an answer
 can't be delivered, the card says why; answer in the terminal then.
+
+## Permission modes and plans (C06, C07)
+
+Claude Code's **permission mode** sets how freely Claude may work
+before it asks you. In the terminal, Shift+Tab moves between four:
+- **Manual:** Claude asks before it edits files or runs commands that
+  change things.
+- **Accept edits:** Claude edits files without asking, but still asks
+  before running commands.
+- **Plan:** Claude looks around and writes a plan, without changing
+  anything, then asks you to approve it.
+- **Auto:** Claude rarely asks at all.
+
+A new session starts in Claude Code's own choice (Auto where it's
+available).
+
+**The current mode** shows at the top right of the chat, for example
+**Mode: Auto**. It appears with the session's first message. If you
+switch with Shift+Tab in the terminal, the chat shows the new mode the
+next time you send a message or Claude does something.
+
+**Switching from the world.** The world offers the same switches as the
+terminal, at the same moments, and nothing more:
+- On a prompt to run a command, in Manual or Accept edits, if the
+  session has been in Auto before: **Allow and switch to auto mode**
+  allows it and switches the session to Auto.
+- When you approve a plan (below).
+
+At any other time, switch with Shift+Tab in the terminal. A switch only
+lasts for this session: your Claude Code settings aren't changed.
+
+**Plans.** In Plan mode, when Claude has a plan ready, it appears in the
+chat as its own message across the whole width, marked **Plan**. It
+stays in the chat as a record, whatever you answer, and a resumed
+session shows its earlier plans too. The card under the chat says "The
+orchestrator has a plan for you to approve:" and offers the terminal's
+own choices:
+- **Yes, and use auto mode** (or **Yes, auto-accept edits** if the
+  session hasn't been in Auto): Claude goes ahead in that mode.
+- **Yes, manually approve edits:** Claude goes ahead in Manual mode,
+  asking before each change.
+- **No, keep planning:** opens the note field. Say what to change (or
+  leave it empty) and press **Send**: Claude reworks the plan.
+
+While a plan waits, the line above the message box says so. You can
+answer in the terminal instead: whichever answers first counts. As on
+the other cards, these buttons only work with a click.
 
 ## Subagents (A02, A03, A04)
 
@@ -344,8 +400,8 @@ reinstalling the game restores it if it goes missing.
 
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
-(C02), the tool-call log (C04) and answering prompts and questions (C05)
-work, but stopping from
+(C02), the tool-call log (C04), answering prompts and questions (C05),
+the permission mode and plans (C06, C07) work, but stopping from
 the world doesn't have a button yet, so use the terminal for that.
 
 **What you need.** Claude Code installed on your computer (version
@@ -374,16 +430,20 @@ session, and you can use either at any time:
   it before carrying on.
 - When Claude asks you a question with options, answer in either place,
   pick several options when allowed, or type your own answer.
+- When Claude has a plan for you to approve, approve it or send it back
+  with a note in either place.
 - **Stop** from the world stops Claude before its next step (the current
   reply or command finishes first); anything it was waiting on you for is
   declined. Pressing Esc in the terminal stops it at once.
 
 How often Claude asks for permission depends on the permission mode you
-use in Claude Code: in its `auto` mode it rarely asks at all.
+use in Claude Code: in Auto it rarely asks at all (see Permission modes
+and plans).
 
 **Only in the terminal.** Claude Code's own startup questions, its slash
 commands (such as `/model` or `/clear`), and switching permission mode
-outside a prompt. Ending a session is `/exit` in the terminal for now.
+(Shift+Tab) except where a prompt or plan offers it. Ending a session
+is `/exit` in the terminal for now.
 
 **Starting over with `/clear`.** If you type `/clear` in the terminal,
 Claude starts a fresh conversation in the same session. It stays on the

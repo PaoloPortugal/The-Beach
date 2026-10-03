@@ -2080,7 +2080,13 @@ In `sidecar/`:
   question: one choice, then several; n background subagents, each
   started by an Agent call with its own calls inside; three tool calls,
   the last failing; a notice, a new conversation like `/clear`), and `rename <name>` renames the session
-  like `/rename`; anything else is echoed back. A new session is
+  like `/rename`; anything else is echoed back. Sessions start in auto
+  mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
+  Accept edits, Plan); in Manual or Accept edits, `permission`'s prompt
+  also offers "Allow and switch to auto mode". `plan` switches to plan
+  mode and presents a plan to approve (Yes with auto or Manual, or No,
+  keep planning): approved, the mode switches; sent back with a note, a
+  revised plan comes; without one, the turn ends. A new session is
   unnamed until its first message names it (S02 → Titles). A stop from the world ends what's
   running. It also lists three stored sessions to resume (S04), each
   coming back with a two-message chat and one tool call; a running one
@@ -2094,7 +2100,9 @@ In `sidecar/`:
   permission; the latest unless an id is given; text after it is sent as
   a note), `/answer <label>` (a
   question; `A|B` for multi-select), `/reply <text>` (free answer),
-  `/stop`, `/history`. Use a neutrally named folder: Claude once guessed
+  `/switch [id] <mode>` (allow a permission and switch mode),
+  `/approve [id] <mode>` and `/keep [id] [note]` (approve a plan, or
+  send it back: "No, keep planning"), `/stop`, `/history`. Use a neutrally named folder: Claude once guessed
   this repo's path from a test folder's name and wrote there.
 - `npm run build`: the bundle, `dist/sidecar.cjs`. To run the process tests
   against it or a packaged executable, set `SIDECAR_CMD` to a JSON array,
@@ -2135,12 +2143,16 @@ per session, in the folder's cluster, the bubble streaming and rendering Markdow
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
-question, the session ending under you), and walking up to chat (A01,
+question, the mode in the header, a plan message and the plan card's
+choices and commands through a recording stand-in for the sidecar (C06,
+C07), the session ending under you), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
 through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
 checks the log's Agent calls and a tools turn (C04),
-answers a permission prompt and a question on the card, then lists,
+answers a permission prompt and a question on the card, follows a mode
+switch in the header, allows a prompt with the switch to auto, sends a
+plan back with a note and approves the revised one (C06, C07), then lists,
 searches and resumes a stored session (S04) and goes to a running one
 from the menu (W07), listed under its cluster. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).
@@ -2281,9 +2293,9 @@ history included (C04). **Now: C06 + C07 on branch
 protocol approved by the user (2026-10-03: capabilities
 `permission_modes` and `plans`, "allow and switch to auto" on Bash
 prompts once auto was seen; aim: behave nigh equal to the terminal);
-schema, sidecar, Godot and the fake built and tested (2026-10-03); NOTES
-C06/C07, Protocol and S02 written; the guide, flows, dev log, Running it
-and the live checklist next, then the live check. No launch picker (user's correction of an earlier note): sessions
+schema, sidecar, Godot and the fake built and tested (2026-10-03); docs
+done (NOTES, the guide, flows 10 and 11, dev log 2026-10-03-c06-c07-build,
+the live checklist). Next: the live check with the user, then review. No launch picker (user's correction of an earlier note): sessions
 start in Claude Code's own mode. The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
