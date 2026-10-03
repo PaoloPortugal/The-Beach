@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
+import { fitInputs } from '../src/history.ts'
 
 test('history: user and assistant messages, completed ones only, as the world saw them', async () => {
   let launch: { args: string[] } = { args: [] }
@@ -66,4 +67,16 @@ test('history: user and assistant messages, completed ones only, as the world sa
     for (const m of history.messages) assert.ok(!Number.isNaN(Date.parse(m.at)))
     assert.deepEqual(c.invalid, [])
   } finally { sock?.destroy(); await c.close(); await s.close(); await p.shutdown() }
+})
+
+test('history: past a budget, the oldest tool calls lose their input, nothing else', () => {
+  const call = (id: string, size: number) => ({
+    tool_call: id, agent: 'main', tool: 'Write', summary: `Write ${id}`, status: 'ok' as const, after: null,
+    input: { content: 'x'.repeat(size) },
+  })
+  const tools = [call('a', 100), call('b', 100), call('c', 100)]
+  const fitted = fitInputs({ messages: [], tools }, 250)
+  assert.deepEqual(fitted.tools.map((t) => [t.tool_call, t.summary, 'input' in t]), [['a', 'Write a', false], ['b', 'Write b', true], ['c', 'Write c', true]])
+  assert.ok('input' in tools[0]!, 'the kept history is untouched')
+  assert.equal(fitInputs({ messages: [], tools }).tools.filter((t) => t.input).length, 3)
 })
