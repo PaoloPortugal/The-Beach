@@ -14,11 +14,11 @@ const SAMPLES := "res://tests/chat/markdown_samples/"
 ## message content got through as BBCode.
 const ALLOWED_TAGS := ["b", "i", "s", "u", "code", "bgcolor", "url", "color", "font_size", "ul", "indent", "table", "cell", "lb"]
 
+var _errors := ErrorWatch.new(self)  # first: it watches the members after it too
 var _p := MarkdownParser.new()
 var _b := MarkdownBBCode.new()
 var _failed := 0
 var _passed := 0
-var _errors := ErrorWatch.new(self)
 var _rtl: RichTextLabel
 
 
