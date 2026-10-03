@@ -10,6 +10,9 @@
 //   /allow [id]   /deny [id] [note] answer a permission (default: the latest)
 //   /answer [id] <label>[|label...]  answer a question (one item; | for multi-select)
 //   /reply [id] <text>                answer a question with free text
+//   /switch [id] <mode>               allow a permission and switch mode (C06)
+//   /approve [id] <mode>              approve a plan, switching to that mode (C07)
+//   /keep [id] [note]                 send a plan back: "No, keep planning"
 //   /stop                             interrupt.request
 //   /history                          session.get_history
 // Ctrl+C quits; the claude session keeps running in its terminal.
@@ -48,6 +51,7 @@ let n = 0
 // Pending prompts and questions, newest last, for the / commands.
 const permissions: string[] = []
 const questions: string[] = []
+const plans: string[] = []
 const send = (m: Record<string, unknown>) => ws.send(JSON.stringify({ ...m, id: `t${++n}` }))
 
 ws.on('message', (data) => {
@@ -68,6 +72,8 @@ ws.on('message', (data) => {
   if (m.type === 'permission.resolved') drop(permissions, m.permission)
   if (m.type === 'question.asked') questions.push(m.question.question)
   if (m.type === 'question.resolved') drop(questions, m.question)
+  if (m.type === 'plan.asked') plans.push(m.plan.plan)
+  if (m.type === 'plan.resolved') drop(plans, m.plan)
 })
 
 function drop(list: string[], id: string) {
@@ -98,9 +104,22 @@ function command(line: string) {
         ? { type: 'question.answer', session, question: id, answers: [rest.split('|').map((x) => x.trim())] }
         : { type: 'question.answer', session, question: id, response: rest })
     }
+    case 'switch': {
+      const { id, rest } = target(permissions, words)
+      if (!id) return console.log('no pending permission')
+      return send({ type: 'permission.respond', session, permission: id, decision: 'allow', mode: rest.trim() })
+    }
+    case 'approve':
+    case 'keep': {
+      const { id, rest } = target(plans, words)
+      if (!id) return console.log('no pending plan')
+      return send(cmd === 'approve'
+        ? { type: 'plan.answer', session, plan: id, approve: true, mode: rest.trim() }
+        : { type: 'plan.answer', session, plan: id, approve: false, ...(rest ? { note: rest } : {}) })
+    }
     case 'stop': return send({ type: 'interrupt.request', session })
     case 'history': return send({ type: 'session.get_history', session })
-    default: console.log('commands: /allow /deny /answer /reply /stop /history')
+    default: console.log('commands: /allow /deny /switch /answer /reply /approve /keep /stop /history')
   }
 }
 
