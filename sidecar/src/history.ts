@@ -73,6 +73,29 @@ export class HistoryLog {
   }
 }
 
+/** Most bytes of tool inputs in one get_history answer (see fitInputs). */
+export const HISTORY_INPUT_BYTES = 8 * 1024 * 1024
+
+/**
+ * Drops the inputs of the oldest tool calls until the rest fit in `budget`
+ * bytes (as JSON), so a history full of large edits stays well under what
+ * Godot accepts in one message (32 MiB). Summaries and statuses stay.
+ */
+export function fitInputs(history: History, budget = HISTORY_INPUT_BYTES): History {
+  let total = 0
+  const tools = history.tools.slice()
+  for (let i = tools.length - 1; i >= 0; i--) {
+    const t = tools[i]!
+    if (!t.input) continue
+    total += JSON.stringify(t.input).length
+    if (total > budget) {
+      const { input: _, ...rest } = t
+      tools[i] = rest
+    }
+  }
+  return { messages: history.messages, tools }
+}
+
 function trim(list: unknown[]) {
   if (list.length > HISTORY_MAX) list.splice(0, list.length - HISTORY_MAX)
 }
