@@ -1329,6 +1329,15 @@ sidecar), the fake end to end (`mode`, `permission`, `plan` in chat),
 and the sidecar (`modes-plans.test.ts`, `store.test.ts`,
 `dev-fake.test.ts`).
 
+*Live check passed (2026-10-03)* with the user and `claude` 2.1.288
+(C06 and C07 together): the fake's steps; with the real `claude`, a plan
+sent back from the world with a note and from the terminal ("No, keep
+planning": the card went), one approved from the world with a mode, a
+Bash prompt allowed and switched to auto from the card, the header
+following Shift+Tab with the next message (no hook fires on Shift+Tab
+itself), and plans back in a resumed conversation. Not seen: a
+PowerShell prompt (the switch is offered on Bash only).
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -2295,7 +2304,8 @@ protocol approved by the user (2026-10-03: capabilities
 prompts once auto was seen; aim: behave nigh equal to the terminal);
 schema, sidecar, Godot and the fake built and tested (2026-10-03); docs
 done (NOTES, the guide, flows 10 and 11, dev log 2026-10-03-c06-c07-build,
-the live checklist). Next: the live check with the user, then review. No launch picker (user's correction of an earlier note): sessions
+the live checklist); **live check passed (2026-10-03)**. Next: review,
+then merge. No launch picker (user's correction of an earlier note): sessions
 start in Claude Code's own mode. The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
