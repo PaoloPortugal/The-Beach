@@ -41,8 +41,9 @@ From the repo root:
 
 The exit code is the result. Every suite installs `tests/error_watch.gd`, so
 any logged error already exits with 1 (NOTES.md → Running it → "Any error
-fails a suite"); warnings are expected and don't count. A suite that exits 0
-without its PASS line is a failure too. Quote the first failing lines; don't
+fails a suite"); warnings are expected and don't count. Most suites end with a
+`PASS <suite>` line; the Markdown test ends with `N passed, 0 failed`. A
+suite that exits 0 without its closing line is a failure too. Quote the first failing lines; don't
 paraphrase them. If the branch adds a suite, check it installs the error
 watch (the file's header shows how).
 
