@@ -14,6 +14,7 @@ import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
 import { HookTranslator, MAIN, QUESTION_TOOL, questionReply, unwrapChannel, type RelayedPermission } from './hooks.ts'
 import { hasReply, NO_TITLES, pickTitle, readHistory, readTitles, type Titles } from './store.ts'
 import { launcherGone } from '../../launch/launcher.ts'
+import { SPIKE_DIR, spikeHold, spikeLog } from './spike.ts'
 
 /**
  * How long a relayed permission prompt waits for its tool call's
@@ -242,6 +243,7 @@ export class ClaudeSession implements ProviderSession {
    */
   onHook(p: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void> {
     if (this.disposed || this.host.ended) return
+    spikeLog(p)
     // Comes through the relay (a command hook), not as one of the HTTP
     // hooks the checks below are about.
     if (p.hook_event_name === 'SessionStart') return this.sessionStarted(p)
@@ -253,7 +255,8 @@ export class ClaudeSession implements ProviderSession {
     this.transcript.follow(p.transcript_path)
     if (p.hook_event_name === 'Stop' && !this.transcriptChecked) this.checkTranscript(p.transcript_path)
     if (p.hook_event_name === 'PermissionRequest') {
-      return p.tool_name === QUESTION_TOOL ? this.holdQuestion(p, gone) : undefined
+      if (p.tool_name === QUESTION_TOOL) return this.holdQuestion(p, gone)
+      return SPIKE_DIR ? spikeHold(p, gone) : undefined
     }
     // A new turn: agents stopped in the last one may work again.
     if (p.hook_event_name === 'UserPromptSubmit') this.halted.clear()
