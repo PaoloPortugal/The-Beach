@@ -7,8 +7,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { HistoryMessage, StoredSession } from '../../protocol.ts'
-import { unwrapChannel, parseHandback, parseTaskNotification } from './hooks.ts'
+import type { History, HistoryMessage, HistoryTool, StoredSession } from '../../protocol.ts'
+import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, summarizeTool, unwrapChannel } from './hooks.ts'
 
 /**
  * Where a session was started, from the transcript's `entrypoint`. Only
@@ -220,17 +220,20 @@ export function hasReply(file: string): boolean {
 /**
  * A stored session's chat, oldest first: what the user said (typed or from
  * the world) and Claude's replies (the text parts of each assistant
- * message). Tool calls, thinking, subagents and injected context are left
- * out. Empty if the file can't be read.
+ * message); thinking and injected context are left out. And its tool calls
+ * (C04): the main conversation's, then each subagent's from its own
+ * transcript (`<id>/subagents/agent-*.jsonl`), tied to the Agent call that
+ * started it by the `.meta.json` beside it. Empty if the file can't be read.
  */
-export function readHistory(file: string): HistoryMessage[] {
+export function readHistory(file: string): History {
   let text: string
   try {
-    if (fs.statSync(file).size > HISTORY_MAX_BYTES) return []
+    if (fs.statSync(file).size > HISTORY_MAX_BYTES) return { messages: [], tools: [] }
     text = fs.readFileSync(file, 'utf8')
-  } catch { return [] }
+  } catch { return { messages: [], tools: [] } }
   const out: HistoryMessage[] = []
   const byId = new Map<string, HistoryMessage>()
+  const tools = new ToolReader()
   for (const e of lines(text, false)) {
     const at = typeof e.timestamp === 'string' ? e.timestamp : new Date(0).toISOString()
     const said = userText(e)
@@ -238,19 +241,88 @@ export function readHistory(file: string): HistoryMessage[] {
       out.push({ message: typeof e.uuid === 'string' ? e.uuid : `u${out.length}`, agent: 'main', role: 'user', text: said, at })
       continue
     }
-    if (e.type !== 'assistant' || e.isSidechain === true) continue
+    if (e.isSidechain === true) continue
     const msg = e.message as { id?: unknown; content?: unknown } | undefined
-    if (!msg || typeof msg.id !== 'string' || !Array.isArray(msg.content)) continue
-    const texts = msg.content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string)
-    if (texts.length === 0) continue
-    // One API message is written as several entries, one per content block.
-    const known = byId.get(msg.id)
-    if (known) known.text += texts.join('')
-    else {
-      const h: HistoryMessage = { message: msg.id, agent: 'main', role: 'assistant', text: texts.join(''), at }
-      byId.set(msg.id, h)
-      out.push(h)
+    if (e.type === 'assistant' && msg && typeof msg.id === 'string' && Array.isArray(msg.content)) {
+      const texts = msg.content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string)
+      // One API message is written as several entries, one per content block.
+      const known = byId.get(msg.id)
+      if (known) known.text += texts.join('')
+      else if (texts.length > 0) {
+        const h: HistoryMessage = { message: msg.id, agent: 'main', role: 'assistant', text: texts.join(''), at }
+        byId.set(msg.id, h)
+        out.push(h)
+      }
+    }
+    // After the text: a call comes after what was said before it.
+    tools.read(e, MAIN, out.at(-1)?.message ?? null)
+  }
+  readSubagents(file, tools)
+  return { messages: out, tools: tools.list }
+}
+
+/** Tool calls from transcript entries: a tool_use starts one, its tool_result ends it. */
+class ToolReader {
+  readonly list: HistoryTool[] = []
+  private readonly byId = new Map<string, HistoryTool>()
+
+  read(e: Record<string, unknown>, agent: string, after: string | null, within?: string) {
+    const content = (e.message as { content?: unknown } | undefined)?.content
+    if (!Array.isArray(content)) return
+    const cwd = typeof e.cwd === 'string' ? e.cwd : ''
+    for (const c of content) {
+      if (e.type === 'assistant' && c?.type === 'tool_use' && typeof c.id === 'string' && typeof c.name === 'string') {
+        if (this.byId.has(c.id)) continue
+        const input = c.input !== null && typeof c.input === 'object' && !Array.isArray(c.input) ? c.input as Record<string, unknown> : {}
+        const t: HistoryTool = {
+          tool_call: c.id, agent, tool: c.name, summary: summarizeTool(c.name, input, cwd),
+          ...(JSON.stringify(input).length <= INPUT_MAX ? { input } : {}),
+          // Ended with the transcript (Claude Code closed mid-call), unless a result follows.
+          status: 'error', result: 'No result was recorded.', after, ...(within ? { within } : {}),
+        }
+        this.byId.set(c.id, t)
+        this.list.push(t)
+      } else if (e.type === 'user' && c?.type === 'tool_result' && typeof c.tool_use_id === 'string') {
+        const t = this.byId.get(c.tool_use_id)
+        if (!t) continue
+        delete t.result
+        // toolDenialKind (undocumented, seen as user-rejected, permission-rule,
+        // automode-blocked...) marks a call that was refused, not one that failed.
+        if (typeof e.toolDenialKind === 'string') t.status = 'denied'
+        else if (c.is_error === true) {
+          t.status = 'error'
+          const why = clip(firstLine(resultText(c.content)))
+          if (why) t.result = why
+        } else t.status = 'ok'
+      }
     }
   }
-  return out
+}
+
+function resultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string).join('\n')
+}
+
+/** Each subagent's tool calls, inside the call that started it. */
+function readSubagents(file: string, tools: ToolReader) {
+  const dir = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents')
+  let names: string[]
+  try { names = fs.readdirSync(dir) } catch { return }
+  for (const name of names.sort()) {
+    const m = /^agent-([A-Za-z0-9_-]+)\.jsonl$/.exec(name)
+    if (!m) continue
+    let within: string | undefined
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(dir, `agent-${m[1]}.meta.json`), 'utf8')) as { toolUseId?: unknown }
+      if (typeof meta.toolUseId === 'string') within = meta.toolUseId
+    } catch { /* no meta: listed without a parent call */ }
+    let text: string
+    try {
+      if (fs.statSync(path.join(dir, name)).size > HISTORY_MAX_BYTES) continue
+      text = fs.readFileSync(path.join(dir, name), 'utf8')
+    } catch { continue }
+    for (const e of lines(text, false)) tools.read(e, m[1]!, null, within)
+  }
 }

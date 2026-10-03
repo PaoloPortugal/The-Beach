@@ -2,7 +2,7 @@
 // protocol's generic vocabulary (NOTES.md -> Multi-provider rules). The core
 // never names a specific tool; providers never touch the WebSocket.
 import type {
-  Agent, EndReason, ErrorCode, ExtensionCommand, HistoryMessage, Id, Notice, Project,
+  Agent, EndReason, ErrorCode, ExtensionCommand, History, Id, Notice, Project,
   SessionEvent, StoredSession,
 } from './protocol.ts'
 
@@ -53,7 +53,8 @@ export interface ProviderSession {
   interrupt?(): Promise<void>
   /** Ends the session; the provider calls host.end('user') once it has. */
   end(): Promise<void>
-  getHistory(): Promise<HistoryMessage[]>
+  /** The chat and tool calls so far (session.get_history's result). */
+  getHistory(): Promise<History>
   /** Commands in this provider's extension namespace. Resolves to the ok result. */
   extension?(command: ExtensionCommand): Promise<Record<string, unknown> | void>
 }

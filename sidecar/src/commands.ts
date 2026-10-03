@@ -9,6 +9,7 @@ import {
   type Command, type ErrorCode, type ExtensionCommand, type Project,
 } from './protocol.ts'
 import { CommandError, type ProviderSession } from './provider.ts'
+import { fitInputs } from './history.ts'
 import type { Entry, Registry } from './registry.ts'
 import type { Log } from './log.ts'
 
@@ -72,7 +73,8 @@ async function execute(
     }
     case 'session.get_history': {
       const control = findControl(registry, c.session)
-      return { messages: await control.getHistory() }
+      const { messages, tools } = fitInputs(await control.getHistory())
+      return { messages, tools }
     }
     case 'message.send':
       await findControl(registry, c.session).sendMessage(c.text)

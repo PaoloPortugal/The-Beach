@@ -56,6 +56,7 @@ func _by_hand() -> void:
 	store.apply({"type": "tool.started", "session": "a", "seq": 7, "tool_call": "t1", "agent": "s1", "tool": "Bash", "summary": "Run: ls"})
 	store.apply({"type": "tool.finished", "session": "a", "seq": 8, "tool_call": "t1", "status": "denied"})
 	_check(store.session("a")["tools"]["t1"]["status"] == "denied", "tool calls")
+	_check(store.session("a")["tools"]["t1"]["after"] == "m1", "a tool call comes after the latest message")
 
 	store.apply({"type": "permission.requested", "session": "a", "seq": 9, "permission": {"permission": "p1", "agent": "main", "tool": "Bash", "summary": "Run: ls"}})
 	_check(store.session("a")["permissions"].size() == 1, "permission pending")
@@ -106,15 +107,37 @@ func _by_hand() -> void:
 	var chat := store.messages("a")
 	_check(chat.size() == 2 and chat[0]["text"] == "hi" and chat[1]["text"] == "Hello.", "history goes first; live messages win")
 
+	# Tool calls in the history (C04): older ones go first, a known one
+	# takes the history's copy, a subagent's call goes within its Agent call.
+	var loaded := []
+	store.tools_loaded.connect(func(id: String) -> void: loaded.append(id))
+	store.load_history("a", [], [
+		{"tool_call": "t0", "agent": "main", "tool": "Agent", "summary": "Agent: look", "status": "ok", "after": "u0"},
+		{"tool_call": "t2", "agent": "s1", "tool": "Read", "summary": "Read x", "input": {"file_path": "x"}, "status": "error", "result": "No such file", "after": null, "within": "t0"},
+		{"tool_call": "t1", "agent": "s1", "tool": "Bash", "summary": "Run: ls", "status": "denied", "after": "m1", "extra": 1},
+	])
+	var calls: Array = store.tool_calls("a").map(func(c: Dictionary) -> String: return c["tool_call"])
+	_check(calls == ["t0", "t2", "t1"] and loaded == ["a"], "history's tool calls go first")
+	_check(store.session("a")["tools"]["t2"]["result"] == "No such file" and not store.session("a")["tools"]["t1"].has("extra"), "they keep their result, only known fields")
+	var tree := store.tool_tree("a")
+	_check(tree["after"] == {"u0": ["t0"], "m1": ["t1"]} and tree["within"] == {"t0": ["t2"]}, "the log's tree: after messages, within calls")
+	_check(store.top_tool("a", "t2")["tool_call"] == "t0" and store.top_tool("a", "t1")["tool_call"] == "t1", "a subagent's call belongs to its Agent call")
+	store.apply({"type": "tool.started", "session": "a", "seq": 14, "tool_call": "t3", "agent": "s1", "tool": "Read", "summary": "Read y", "within": "gone"})
+	_check(store.tool_tree("a")["after"]["m1"] == ["t1", "t3"], "within an unknown call: after its message instead")
+
 	# Switching conversations (/resume): the chat is replaced by the
 	# sidecar's history; a message that came after the switch is kept.
 	store.apply({"type": "session.updated", "session": "a", "seq": 15, "native_id": "n3"})
 	store.apply({"type": "message.started", "session": "a", "seq": 16, "message": "live", "agent": "main", "role": "assistant"})
+	store.apply({"type": "tool.started", "session": "a", "seq": 17, "tool_call": "t9", "agent": "main", "tool": "Read", "summary": "Read z"})
 	var replaced := []
 	store.messages_replaced.connect(func(id: String) -> void: replaced.append(id))
-	store.replace_history("a", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}])
+	store.replace_history("a", [{"message": "r1", "agent": "main", "role": "user", "text": "earlier", "at": "2026-09-29T08:00:00Z"}],
+		[{"tool_call": "rt1", "agent": "main", "tool": "Read", "summary": "Read NOTES.md", "status": "ok", "after": "r1"}])
 	chat = store.messages("a")
 	_check(chat.map(func(m: Dictionary) -> String: return m["message"]) == ["r1", "live"] and replaced == ["a"], "a switch replaces the chat, keeping what came after it")
+	calls = store.tool_calls("a").map(func(c: Dictionary) -> String: return c["tool_call"])
+	_check(calls == ["rt1", "t9"] and store.tool_tree("a")["after"] == {"r1": ["rt1"], "live": ["t9"]}, "and its tool calls")
 
 	# A resync after a gap: the snapshot replaces the state, not the chat.
 	var fresh := _snapshot("a", 20)
@@ -168,8 +191,23 @@ func _live() -> void:
 	await _until(func() -> bool: return store.session(id)["notices"].size() == 1, 5.0)
 	_check(store.session(id)["notices"][0]["code"] == "transcripts_off", "live: a notice")
 
+	await _command(sidecar, "message.send", {"session": id, "text": "use some tools"})
+	await _until(func() -> bool: return store.messages(id).back()["text"].begins_with("One test failed") and store.messages(id).back()["complete"], 8.0)
 	var history := await _command(sidecar, "session.get_history", {"session": id})
-	_check(history["result"]["messages"].size() >= 6, "live: history")
+	_check(history["result"]["messages"].size() >= 8, "live: history")
+	var live := store.tool_calls(id)
+	var from_history: Array = history["result"]["tools"]
+	_check(live.size() == from_history.size() and from_history.size() == 1 + 2 * 4 + 3, "live: every tool call is in the history too")
+	var same := true
+	for i in live.size():
+		for key in ["tool_call", "status", "after", "within", "result"]:
+			same = same and live[i].get(key) == from_history[i].get(key)
+	_check(same, "live: the store places them as the sidecar does")
+	var tree := store.tool_tree(id)
+	var agent_calls: Array = store.tool_calls(id).filter(func(c: Dictionary) -> bool: return c["tool"] == "Agent")
+	_check(agent_calls.size() == 2 and agent_calls.all(func(c: Dictionary) -> bool: return tree["within"].get(c["tool_call"], []).size() == 3), "live: each subagent's calls within its Agent call")
+	var last_turn: Array = tree["after"].get(store.messages(id)[-2]["message"], [])
+	_check(last_turn.size() == 3 and store.session(id)["tools"][last_turn[2]]["status"] == "error", "live: the tools turn's calls after its message, one failed")
 	await _command(sidecar, "session.end", {"session": id})
 	await _until(func() -> bool: return not store.sessions.has(id), 5.0)
 	_check(not store.sessions.has(id), "live: ended")

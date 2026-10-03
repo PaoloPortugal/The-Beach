@@ -220,6 +220,27 @@
       "additionalProperties": false
     },
 
+    "history_tool": {
+      "description": "A tool call in session.get_history (C04).",
+      "type": "object",
+      "required": ["tool_call", "agent", "tool", "summary", "status", "after"],
+      "properties": {
+        "tool_call": { "$ref": "#/$defs/id" },
+        "agent": { "$ref": "#/$defs/id" },
+        "tool": { "description": "The provider's tool name.", "type": "string" },
+        "summary": { "description": "One human-readable line, as in tool.started.", "type": "string" },
+        "input": { "type": "object" },
+        "status": { "description": "running: not finished yet.", "enum": ["running", "ok", "error", "denied"] },
+        "result": { "description": "One line about how it ended, as tool.finished's summary.", "type": "string" },
+        "after": {
+          "description": "The chat message (history_message id) it came after; null before the first.",
+          "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "within": { "description": "As in tool.started.", "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+
     "stored_session": {
       "type": "object",
       "required": ["provider", "native_id", "project", "title", "updated_at"],
@@ -433,7 +454,8 @@
         "agent": { "$ref": "#/$defs/id" },
         "tool": { "description": "The provider's tool name.", "type": "string" },
         "summary": { "description": "One human-readable line, e.g. \"Read NOTES.md\".", "type": "string" },
-        "input": { "type": "object" }
+        "input": { "type": "object" },
+        "within": { "description": "A subagent's call: the tool call that started that subagent (e.g. Claude's Agent call). Absent for the orchestrator's own calls, or when unknown.", "$ref": "#/$defs/id" }
       },
       "additionalProperties": false
     },
@@ -576,7 +598,7 @@
       "additionalProperties": false
     },
     "session.get_history": {
-      "description": "Godot -> sidecar. Fetch the chat history, e.g. when the chat panel opens. Reply result: {\"messages\": [history_message, ...]}, oldest first.",
+      "description": "Godot -> sidecar. Fetch the chat history, e.g. when the chat panel opens. Reply result: {\"messages\": [history_message, ...], \"tools\": [history_tool, ...]}, each oldest first.",
       "type": "object",
       "required": ["type", "id", "session"],
       "properties": {
