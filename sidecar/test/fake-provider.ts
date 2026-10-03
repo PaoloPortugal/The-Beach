@@ -23,7 +23,10 @@ export class FakeSession implements ProviderSession {
   /** What announce() reports; defaults to `native-<session id>` and "fake session" (null: no title). */
   nativeId?: string
   title?: string | null
+  /** permission_modes: the mode announce() reports, if set. */
+  mode?: string | null
   answerQuestion?: ProviderSession['answerQuestion']
+  answerPlan?: ProviderSession['answerPlan']
   interrupt?: ProviderSession['interrupt']
   extension?: ProviderSession['extension']
 
@@ -33,6 +36,7 @@ export class FakeSession implements ProviderSession {
     this.project = project
     const caps = provider.options.capabilities ?? {}
     if ('questions' in caps) this.answerQuestion = async (...args) => this.record('answerQuestion', args)
+    if ('plans' in caps) this.answerPlan = async (...args) => this.record('answerPlan', args)
     if ('interrupt' in caps) this.interrupt = async () => this.record('interrupt', [])
     if ((provider.options.extensions ?? []).length > 0) {
       this.extension = async (cmd) => { this.record('extension', [cmd]); return { echoed: cmd.type } }
@@ -46,6 +50,7 @@ export class FakeSession implements ProviderSession {
       title: this.title === undefined ? 'fake session' : this.title,
       capabilities: this.provider.options.capabilities ?? {},
       extensions: this.provider.options.extensions ?? [],
+      ...(this.mode !== undefined ? { mode: this.mode } : {}),
       agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Orchestrator', state: 'idle', reason: null }],
     })
   }
@@ -60,8 +65,8 @@ export class FakeSession implements ProviderSession {
   }
 
   async sendMessage(text: string) { this.record('sendMessage', [text]) }
-  async respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string) {
-    this.record('respondPermission', [permission, decision, note])
+  async respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string, mode?: string) {
+    this.record('respondPermission', mode === undefined ? [permission, decision, note] : [permission, decision, note, mode])
   }
   async end() {
     this.record('end', [])

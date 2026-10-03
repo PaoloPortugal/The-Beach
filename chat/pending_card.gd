@@ -7,12 +7,18 @@ extends PanelContainer
 ## - A permission prompt: its summary, a Details toggle (the raw input as
 ##   plain text), Deny and Allow. Allow answers at once. Deny unlocks a
 ##   note (sent as your next message) and Send, which denies; like Claude
-##   Code's own prompt, only a deny takes a note.
+##   Code's own prompt, only a deny takes a note. A prompt that can also
+##   switch the permission mode (its [code]modes[/code], C06) gets one
+##   "Allow and switch to … mode" button per mode.
+## - A plan to approve (the [code]plans[/code] capability, C07; the plan
+##   itself is a message in the chat): one "Yes, …" button per mode it can
+##   switch to, in the provider's order, and "No, keep planning", which
+##   unlocks a note (what to change) and Send, like Deny.
 ## - A question set (the [code]questions[/code] capability): one item at a
 ##   time. A click on a single-choice option moves straight on; checkboxes
 ##   (multi-select) and the "Other…" field need Next; Back goes back. On the
 ##   last item a click only selects, and Send answers.
-## Allow, Deny and Send take no keyboard focus, so no key press (Enter in
+## Allow, Deny, the plan's choices and Send take no keyboard focus, so no key press (Enter in
 ## the chat, say) can ever answer for you. Everything shown is untrusted
 ## (NOTES.md → Security rules): plain labels and buttons only, no BBCode.
 
@@ -24,12 +30,12 @@ var sidecar: SidecarClient
 ## The session whose requests are shown, or "".
 var session_id := ""
 
-var _shown := "" # key ("permission:<id>" / "question:<id>") of the request on the card
+var _shown := "" # key ("permission:<id>" / "question:<id>" / "plan:<id>") of the request on the card
 var _busy := "" # key of the request whose answer is on its way
 var _error := "" # why the last answer was refused, for the request on the card
 # Kept while the chat is closed, keyed by session and request id.
-var _notes := {} # "<session>/<permission>" → the note typed so far
-var _denying := {} # "<session>/<permission>" → true once Deny is pressed (the note unlocked)
+var _notes := {} # "<session>/<permission or plan>" → the note typed so far
+var _denying := {} # "<session>/<permission or plan>" → true once Deny (or "No, keep planning") is pressed: the note unlocked
 var _progress := {} # "<session>/<question>" → {step, chosen: Array per item, other: Array per item}
 
 var _box: VBoxContainer
@@ -39,7 +45,7 @@ var _body: VBoxContainer
 var _error_label: Label
 var _options: Array[BaseButton] = []
 var _next: Button
-var _note: LineEdit # the permission's note field, while one is shown
+var _note: LineEdit # the permission's or plan's note field, while one is shown
 
 
 func _init() -> void:
@@ -72,7 +78,7 @@ func _init() -> void:
 func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store = p_store
 	sidecar = p_sidecar
-	for sig in [store.permissions_changed, store.questions_changed, store.agent_changed, store.agent_added]:
+	for sig in [store.permissions_changed, store.questions_changed, store.plans_changed, store.agent_changed, store.agent_added]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
 				refresh())
@@ -130,14 +136,19 @@ func refresh(force := false) -> void:
 # --- Permissions ---------------------------------------------------------
 
 ## Answers the permission prompt on the card: "allow" (Allow), or "deny"
-## with the note (Send). The note goes only with a deny.
-func respond(decision: String) -> void:
+## with the note (Send). The note goes only with a deny. An allow can also
+## switch the session to [param mode], one of the prompt's modes.
+func respond(decision: String, mode := "") -> void:
 	var c := current()
 	if c.get("kind") != "permission" or _busy == _shown:
 		return
 	var id: String = c["item"]["permission"]
 	var fields := {"session": session_id, "permission": id, "decision": decision}
 	if decision == "allow":
+		if not mode.is_empty():
+			if not c["item"].get("modes", []).has(mode):
+				return
+			fields["mode"] = mode
 		_denying.erase(_k(id))
 	else:
 		var note: String = _notes.get(_k(id), "").strip_edges()
@@ -146,15 +157,16 @@ func respond(decision: String) -> void:
 	_send("permission.respond", fields)
 
 
-## Deny pressed (or pressed again): unlocks the note and Send, or locks them.
+## Deny (or "No, keep planning") pressed, or pressed again: unlocks the
+## note and Send, or locks them.
 func set_denying(on: bool) -> void:
 	var c := current()
-	if c.get("kind") != "permission":
+	if c.get("kind") not in ["permission", "plan"]:
 		return
 	if on:
-		_denying[_k(c["item"]["permission"])] = true
+		_denying[_k(c["item"][c["kind"]])] = true
 	else:
-		_denying.erase(_k(c["item"]["permission"]))
+		_denying.erase(_k(c["item"][c["kind"]]))
 	_render()
 	if on and _note.is_inside_tree() and _note.editable:
 		_note.grab_focus()
@@ -163,13 +175,13 @@ func set_denying(on: bool) -> void:
 ## Whether the note and Send are unlocked on the card.
 func denying() -> bool:
 	var c := current()
-	return c.get("kind") == "permission" and _denying.has(_k(c["item"]["permission"]))
+	return c.get("kind") in ["permission", "plan"] and _denying.has(_k(c["item"][c["kind"]]))
 
 
 func set_note(text: String) -> void:
 	var c := current()
-	if c.get("kind") == "permission":
-		_notes[_k(c["item"]["permission"])] = text
+	if c.get("kind") in ["permission", "plan"]:
+		_notes[_k(c["item"][c["kind"]])] = text
 		_render()
 
 
@@ -197,23 +209,77 @@ func _render_permission(p: Dictionary) -> void:
 	deny.toggle_mode = true
 	deny.set_pressed_no_signal(denying)
 	buttons.add_child(deny)
+	for mode in p.get("modes", []):
+		buttons.add_child(_answer_button(PermissionModes.allow_choice(mode), respond.bind("allow", mode)))
 	buttons.add_child(_answer_button("Allow", respond.bind("allow")))
 	_body.add_child(buttons)
-	# The note is kept but locked unless you're denying; only Send sends it.
+	_note_row(id, denying,
+		"Optional: what to do instead (sent as your next message)", "Press Deny to add a note",
+		respond.bind("deny"))
+
+
+# The note and Send under a permission or plan: kept but locked unless
+# you're denying (or sending a plan back); only Send sends the note.
+func _note_row(id: String, denying: bool, hint: String, locked_hint: String, send_action: Callable) -> void:
 	var row := _row()
 	var note := LineEdit.new()
 	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	note.placeholder_text = "Optional: what to do instead (sent as your next message)" if denying else "Press Deny to add a note"
+	note.placeholder_text = hint if denying else locked_hint
 	note.text = _notes.get(_k(id), "")
 	note.editable = denying and _busy != _shown
 	note.add_theme_font_size_override("font_size", 16)
 	note.text_changed.connect(func(t: String) -> void: _notes[_k(id)] = t)
 	row.add_child(note)
-	var send := _answer_button("Send", respond.bind("deny"))
+	var send := _answer_button("Send", send_action)
 	send.disabled = send.disabled or not denying
 	row.add_child(send)
 	_body.add_child(row)
 	_note = note
+
+
+# --- Plans ---------------------------------------------------------------
+
+## Approves the plan on the card, switching the session to [param mode]
+## (one of the plan's modes).
+func approve_plan(mode: String) -> void:
+	var c := current()
+	if c.get("kind") != "plan" or _busy == _shown or not c["item"]["modes"].has(mode):
+		return
+	_denying.erase(_k(c["item"]["plan"]))
+	_send("plan.answer", {"session": session_id, "plan": c["item"]["plan"], "approve": true, "mode": mode})
+
+
+## Sends the plan on the card back to keep planning, with the note if one
+## was typed (Send, after "No, keep planning").
+func keep_planning() -> void:
+	var c := current()
+	if c.get("kind") != "plan" or _busy == _shown:
+		return
+	var id: String = c["item"]["plan"]
+	var fields := {"session": session_id, "plan": id, "approve": false}
+	var note: String = _notes.get(_k(id), "").strip_edges()
+	if not note.is_empty():
+		fields["note"] = note
+	_send("plan.answer", fields)
+
+
+func _render_plan(p: Dictionary) -> void:
+	_body.add_child(_label("Would you like to proceed? The plan is above, in the chat.", 18))
+	var id: String = p["plan"]
+	var denying := _denying.has(_k(id))
+	# One choice per line, in the provider's order, as the terminal lists them.
+	for mode in p["modes"]:
+		var b := _answer_button(PermissionModes.plan_choice(mode), approve_plan.bind(mode))
+		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		_body.add_child(b)
+	var no := _answer_button("No, keep planning", func() -> void: set_denying(not denying))
+	no.toggle_mode = true
+	no.set_pressed_no_signal(denying)
+	no.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_body.add_child(no)
+	_note_row(id, denying,
+		"Optional: what to change in the plan", "Press \"No, keep planning\" to say what to change",
+		keep_planning)
 
 
 # --- Questions -----------------------------------------------------------
@@ -423,10 +489,13 @@ func _render() -> void:
 	if c.is_empty():
 		return
 	_who.text = _who_text(c)
-	if c["kind"] == "permission":
-		_render_permission(c["item"])
-	else:
-		_render_question(c["item"])
+	match c["kind"]:
+		"permission":
+			_render_permission(c["item"])
+		"plan":
+			_render_plan(c["item"])
+		_:
+			_render_question(c["item"])
 
 
 func _send(type: String, fields: Dictionary) -> void:
@@ -464,8 +533,11 @@ func _who_text(c: Dictionary) -> String:
 	var who := "The orchestrator"
 	if a.get("role") == "subagent":
 		who = "Subagent %s" % a["name"] if a.get("name", "") != "" else "A subagent"
-	if c["kind"] == "permission":
-		return "%s asks to use %s:" % [who, c["item"]["tool"]]
+	match c["kind"]:
+		"permission":
+			return "%s asks to use %s:" % [who, c["item"]["tool"]]
+		"plan":
+			return "%s has a plan for you to approve:" % who
 	return "%s asks:" % who
 
 

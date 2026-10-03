@@ -43,6 +43,12 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 24
 text_overrun_behavior = 3
 
+[node name="Mode" type="Label" parent="Layout/Header"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.82, 0.92, 1)
+theme_override_font_sizes/font_size = 16
+
 [node name="Hint" type="Label" parent="Layout/Header"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)

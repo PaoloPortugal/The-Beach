@@ -81,13 +81,34 @@ async function execute(
       return undefined
     case 'permission.respond': {
       const entry = findSession(registry, c.session)
-      if (!entry.state!.permissions.some((p) => p.permission === c.permission)) {
-        throw new CommandError('invalid_message', 'no such pending permission')
+      const pending = entry.state!.permissions.find((p) => p.permission === c.permission)
+      if (!pending) throw new CommandError('invalid_message', 'no such pending permission')
+      if (c.mode !== undefined) {
+        if (!('permission_modes' in entry.state!.capabilities)) {
+          throw new CommandError('not_supported', 'session does not declare permission_modes')
+        }
+        if (c.decision !== 'allow') throw new CommandError('invalid_message', 'only an allow can switch modes')
+        if (!(pending.modes ?? []).includes(c.mode)) {
+          throw new CommandError('invalid_message', 'this permission cannot switch to that mode')
+        }
       }
-      await entry.control!.respondPermission(c.permission, c.decision,
-        ...(c.note !== undefined ? [c.note] : []))
+      await entry.control!.respondPermission(c.permission, c.decision, c.note, c.mode)
       return undefined
     }
+    case 'plan.answer': {
+      const entry = findSession(registry, c.session, true, c.type)
+      const plan = (entry.state!.plans ?? []).find((p) => p.plan === c.plan)
+      if (!plan) throw new CommandError('invalid_message', 'no such pending plan')
+      if (!entry.control!.answerPlan) throw new CommandError('not_supported', 'provider cannot answer plans')
+      if (c.approve) {
+        if (!plan.modes.includes(c.mode!)) throw new CommandError('invalid_message', 'this plan cannot switch to that mode')
+        await entry.control!.answerPlan(c.plan, { approve: true, mode: c.mode! })
+      } else {
+        await entry.control!.answerPlan(c.plan, { approve: false, ...(c.note !== undefined ? { note: c.note } : {}) })
+      }
+      return undefined
+    }
+
     case 'question.answer': {
       const entry = findSession(registry, c.session, true, c.type)
       if (!(entry.state!.questions ?? []).some((q) => q.question === c.question)) {

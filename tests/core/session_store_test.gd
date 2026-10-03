@@ -87,6 +87,41 @@ func _by_hand() -> void:
 	_check(waits == ["q9 2026-09-29T10:00:01.000Z", "p9 2026-09-29T10:00:05.000Z"], "a snapshot's requests go oldest first by asked_at")
 	store.sessions.erase("c")
 
+	# Modes and plans (C06, C07).
+	var planned := _snapshot("d")
+	planned["capabilities"] = {"permission_modes": {}, "plans": {}}
+	planned["mode"] = "plan"
+	planned["permissions"] = [{"permission": "p8", "agent": "main", "tool": "Bash", "summary": "Run: ls", "modes": ["auto"], "asked_at": "2026-09-29T10:00:09.000Z"}]
+	planned["plans"] = [{"plan": "x1", "agent": "main", "text": "# Plan", "modes": ["auto", "default"], "asked_at": "2026-09-29T10:00:02.000Z"}]
+	store.apply({"type": "session.snapshot", "session": planned})
+	var d_kinds := func() -> Array: return store.pending("d").map(func(c: Dictionary) -> String: return "%s %s" % [c["kind"], c["item"][c["kind"]]])
+	_check(store.session("d")["mode"] == "plan" and d_kinds.call() == ["plan x1", "permission p8"], "a snapshot's mode, and its plans by asked_at with the rest")
+	var plan_signals := []
+	store.plans_changed.connect(func(id: String) -> void: plan_signals.append(id))
+	store.apply({"type": "plan.asked", "session": "d", "seq": 2, "plan": {"plan": "x2", "agent": "main", "text": "# Again", "modes": ["acceptEdits", "default"]}})
+	_check(d_kinds.call() == ["plan x1", "permission p8", "plan x2"] and plan_signals == ["d"], "plan.asked queues it")
+	store.apply({"type": "plan.resolved", "session": "d", "seq": 3, "plan": "x1", "decision": "approved", "by": "app"})
+	_check(d_kinds.call() == ["permission p8", "plan x2"] and store.session("d")["plans"].size() == 1 and plan_signals == ["d", "d"], "plan.resolved clears it")
+	var mode_changes := []
+	store.session_changed.connect(func(id: String, fields: Array) -> void: mode_changes.append([id, fields]))
+	store.apply({"type": "session.updated", "session": "d", "seq": 4, "mode": "auto"})
+	_check(store.session("d")["mode"] == "auto" and mode_changes == [["d", ["mode"]]], "session.updated changes the mode")
+	var resynced := planned.duplicate(true)
+	resynced["seq"] = 5
+	resynced["mode"] = "default"
+	store.apply({"type": "session.snapshot", "session": resynced})
+	_check(mode_changes.back() == ["d", ["mode"]], "a resync that changes the mode says so")
+	store.apply({"type": "message.started", "session": "d", "seq": 6, "message": "pm", "agent": "main", "role": "assistant", "kind": "plan"})
+	store.load_history("d", [
+		{"message": "hp", "agent": "main", "role": "assistant", "kind": "plan", "text": "# Old plan", "at": "2026-09-29T09:00:00Z"},
+		{"message": "hm", "agent": "main", "role": "assistant", "text": "Hi", "at": "2026-09-29T09:00:01Z"},
+	])
+	var d_chat := store.messages("d")
+	_check(d_chat.map(func(m: Dictionary) -> String: return m.get("kind", "-")) == ["plan", "-", "plan"], "a message's kind, live and from the history")
+	store.replace_history("d", [{"message": "rp", "agent": "main", "role": "assistant", "kind": "plan", "text": "# R", "at": "2026-09-29T09:00:00Z"}])
+	_check(store.messages("d")[0].get("kind") == "plan", "and after a switch")
+	store.sessions.erase("d")
+
 	store.apply({"type": "session.notice", "session": "a", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	store.apply({"type": "session.notice", "session": "a", "seq": 12, "notice": {"code": "transcripts_off", "message": "y"}})
 	var notices: Array = store.session("a")["notices"]

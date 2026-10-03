@@ -52,7 +52,7 @@ test('settings: every reported hook posts to our URL with the token; short timeo
   }
   // PermissionRequest only for questions, which are held; plain prompts
   // come through the channel's relay.
-  assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '^AskUserQuestion$')
+  assert.equal((s.hooks.PermissionRequest as any)[0].matcher, '^(AskUserQuestion|ExitPlanMode|Bash)$')
   assert.equal((s.hooks.PermissionRequest as any).length, 1)
 })
 
