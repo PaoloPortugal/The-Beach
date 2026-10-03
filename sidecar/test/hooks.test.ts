@@ -162,6 +162,16 @@ test('huge tool inputs are not forwarded, the summary still is', () => {
   assert.equal('input' in started!, false)
 })
 
+test('the tool input limit counts UTF-8 bytes, not characters', () => {
+  const t = new HookTranslator(CWD)
+  const [, started] = run(t, hook('PreToolUse', {
+    tool_name: 'Write', tool_input: { file_path: '/elsewhere/cjk.txt', content: '日'.repeat(30_000) }, tool_use_id: 'w',
+  }))
+  // 30k characters, under the 64 KiB limit, but 90 kB as UTF-8.
+  assert.equal(started!.type, 'tool.started')
+  assert.equal('input' in started!, false)
+})
+
 test('a subagent: spawned under the agent that called it, its tools, then done', () => {
   const t = new HookTranslator(CWD)
   const ev = run(t,

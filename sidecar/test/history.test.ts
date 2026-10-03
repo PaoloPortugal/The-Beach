@@ -9,7 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
-import { fitInputs } from '../src/history.ts'
+import { fitInputs, jsonBytes } from '../src/history.ts'
 
 test('history: user and assistant messages, completed ones only, as the world saw them', async () => {
   let launch: { args: string[] } = { args: [] }
@@ -79,4 +79,18 @@ test('history: past a budget, the oldest tool calls lose their input, nothing el
   assert.deepEqual(fitted.tools.map((t) => [t.tool_call, t.summary, 'input' in t]), [['a', 'Write a', false], ['b', 'Write b', true], ['c', 'Write c', true]])
   assert.ok('input' in tools[0]!, 'the kept history is untouched')
   assert.equal(fitInputs({ messages: [], tools }).tools.filter((t) => t.input).length, 3)
+})
+
+test('history: the input budget counts UTF-8 bytes, not characters', () => {
+  // Godot's 32 MiB limit is in bytes: CJK takes 3 each, an emoji 4 (2 UTF-16 units).
+  const call = (id: string, content: string) => ({
+    tool_call: id, agent: 'main', tool: 'Write', summary: `Write ${id}`, status: 'ok' as const, after: null, input: { content },
+  })
+  const tools = [call('a', '日本語'.repeat(14)), call('b', '😀'.repeat(20)), call('c', '日本語'.repeat(14))]
+  assert.ok(tools.every((t) => JSON.stringify(t.input).length < 60), 'each is under 60 characters')
+  assert.equal(jsonBytes(tools[0]!.input), 14 + 42 * 3)
+  assert.equal(jsonBytes(tools[1]!.input), 14 + 20 * 4)
+  // As characters all three fit in 200; as bytes only the newest does.
+  const fitted = fitInputs({ messages: [], tools }, 200)
+  assert.deepEqual(fitted.tools.map((t) => [t.tool_call, 'input' in t]), [['a', false], ['b', false], ['c', true]])
 })
