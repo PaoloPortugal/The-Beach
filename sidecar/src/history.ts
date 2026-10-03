@@ -26,7 +26,9 @@ export class HistoryLog {
   remember(event: SessionEvent): HistoryMessage | null {
     switch (event.type) {
       case 'message.started':
-        this.starting.set(event.message, { agent: event.agent, role: event.role, at: new Date().toISOString() })
+        this.starting.set(event.message, {
+          agent: event.agent, role: event.role, ...(event.kind ? { kind: event.kind } : {}), at: new Date().toISOString(),
+        })
         this.last = event.message
         return null
       case 'message.completed': {

@@ -134,6 +134,8 @@ export class Registry {
       agents: structuredClone(intro.agents),
       permissions: [],
       ...('questions' in intro.capabilities ? { questions: [] } : {}),
+      ...('permission_modes' in intro.capabilities ? { mode: intro.mode ?? null } : {}),
+      ...('plans' in intro.capabilities ? { plans: [] } : {}),
       notices: [],
     }
     const msg = { type: 'session.created', session: state }
@@ -158,6 +160,17 @@ export class Registry {
     }
     const ext = EXTENSION_TYPE.exec(event.type)
     if (ext && !s.extensions.includes(ext[1]!)) return refuse(`extension ${ext[1]} not declared`)
+
+    // A mode change is the permission_modes capability's; native_id and
+    // title in the same event still go out.
+    if (event.type === 'session.updated' && event.mode !== undefined && !('permission_modes' in s.capabilities)) {
+      const { mode: _, ...rest } = event
+      if (Object.keys(rest).length === 1) return refuse('capability permission_modes not declared')
+      event = rest
+    }
+    if (event.type === 'message.started' && event.kind === 'plan' && !('plans' in s.capabilities)) {
+      return refuse('capability plans not declared')
+    }
 
     event = stamp(event)
     const { type, ...rest } = event
@@ -193,6 +206,7 @@ function stamp(e: SessionEvent): SessionEvent {
   const asked_at = new Date().toISOString()
   if (e.type === 'permission.requested') return { ...e, permission: { ...e.permission, asked_at } }
   if (e.type === 'question.asked') return { ...e, question: { ...e.question, asked_at } }
+  if (e.type === 'plan.asked') return { ...e, plan: { ...e.plan, asked_at } }
   return e
 }
 
@@ -252,12 +266,29 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
     case 'session.updated': {
       // Only what changed goes out; nothing changed, nothing goes out.
       const changed = (e.native_id !== undefined && e.native_id !== s.native_id) ||
-        (e.title !== undefined && e.title !== s.title)
+        (e.title !== undefined && e.title !== s.title) ||
+        (e.mode !== undefined && e.mode !== s.mode)
       if (!changed) return 'nothing changed'
       if (e.native_id !== undefined) s.native_id = e.native_id
       if (e.title !== undefined) s.title = e.title
+      if (e.mode !== undefined) s.mode = e.mode
       return null
     }
+    case 'plan.asked': {
+      const plans = (s.plans ??= [])
+      if (!agent(e.plan.agent)) return `unknown agent ${e.plan.agent}`
+      if (plans.some((p) => p.plan === e.plan.plan)) return 'plan already pending'
+      plans.push(structuredClone(e.plan))
+      return null
+    }
+    case 'plan.resolved': {
+      const plans = s.plans ?? []
+      const i = plans.findIndex((p) => p.plan === e.plan)
+      if (i < 0) return `no pending plan ${e.plan}`
+      plans.splice(i, 1)
+      return null
+    }
+
     case 'question.resolved': {
       const qs = s.questions ?? []
       const i = qs.findIndex((q) => q.question === e.question)

@@ -22,6 +22,8 @@ export interface SessionIntro {
   title: string | null
   capabilities: Record<string, Record<string, unknown>>
   extensions: string[]
+  /** permission_modes: the current mode, if already known. */
+  mode?: string | null
   /** Orchestrator first. */
   agents: Agent[]
 }
@@ -46,7 +48,10 @@ export interface ProviderSession {
    */
   readonly startupNotice?: Notice
   sendMessage(text: string): Promise<void>
-  respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string): Promise<void>
+  /** `mode` (permission_modes): allow, and switch to this mode, one of the permission's modes. */
+  respondPermission(permission: Id, decision: 'allow' | 'deny', note?: string, mode?: string): Promise<void>
+  /** `plans` capability. */
+  answerPlan?(plan: Id, answer: { approve: true; mode: string } | { approve: false; note?: string }): Promise<void>
   /** `questions` capability. */
   answerQuestion?(question: Id, answer: { answers: string[][] } | { response: string }): Promise<void>
   /** `interrupt` capability. */
