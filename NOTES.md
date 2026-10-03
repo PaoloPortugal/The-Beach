@@ -2294,9 +2294,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next feature to be picked with the user (a
-candidate: Deferred ideas → The terminal's other prompt options, C05
-reopened). **Merged to `main` (2026-10-03), reviewed by the user: C06 +
+**Current focus:** C05 reopened, the terminal's other prompt options
+(user's pick, 2026-10-03), on branch `c05-prompt-options`: decisions and
+a `claude -p` probe in dev log 2026-10-03-c05-prompt-options-spike
+(Claude's own suggestions, worded like the terminal; a terminal-style
+list on the card; a general `options` list replacing C06's `modes`).
+Next: a live session for the terminal's wording, then the protocol
+draft for the user. **Merged to `main` (2026-10-03), reviewed by the user: C06 +
 C07, permission modes and plan approval** (live check passed with the
 fake and a real `claude` 2.1.288): the mode in the chat's header, "Allow
 and switch to auto mode" on Bash prompts, plans as their own message
