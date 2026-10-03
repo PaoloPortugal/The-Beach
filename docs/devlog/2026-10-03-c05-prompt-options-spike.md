@@ -65,6 +65,32 @@ What each prompt's hook carried:
 Every prompt had at most one or two entries. Print mode may differ from
 the interactive terminal; the live session checks the same prompts.
 
-Next: a live session with the user at the terminal, screenshots of each
-dialog, to take the terminal's words per entry type and see whether the
-terminal shows one option per entry.
+## Live (claude 2.1.288, the user at the terminal, default mode)
+
+A logger answered every `PermissionRequest` (matcher `*`) with no
+decision, so the terminal asked as usual; the user screenshot each
+dialog. Same nine prompts; the hooks carried the same suggestions as in
+print mode.
+
+| Step | The terminal's extra option | The hook's suggestion | Same effect? |
+|------|------------------------------|-----------------------|--------------|
+| 1 Bash `npm --version` | "Yes, and don't ask again for: npm \*" | `Bash(npm --version)`, localSettings | **No**: the terminal saved `Bash(npm *)` (run 2) |
+| 2 Bash `git status && npm test` | "Yes, and don't ask again for: npm test \*" | `Bash(npm test *)`, localSettings | yes |
+| 3 Edit a.txt | "Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab)" | setMode acceptEdits, session | yes |
+| 4 Read outside | "Yes, allow reading from /c/Users/…/outside-live during this session" | `Read(//c/…/outside-live/**)`, session | yes |
+| 5 Bash `cd <outside> && node -e "1"` | "Yes, and allow access to /c/…/outside-live and \"node -e \\"1\\"\" commands" | one entry, two rules, localSettings | yes (one option for the entry) |
+| 6 Write `.claude/agents/x.md` | "Yes, and allow Claude to edit files in this project's .claude folder for this session" | setMode acceptEdits, session | **No**: the terminal's choice left the mode at default (run 2) |
+| 7 WebFetch | "Yes, and don't ask again for example.com"; No reads "No, and tell Claude what to do differently (esc)" | `WebFetch(domain:example.com)`, localSettings | yes |
+| 8 WebSearch | "Yes, and don't ask again for Web Search commands in ~\AppD…" (cut off) | `WebSearch`, localSettings | yes |
+| 9 PowerShell | "Yes, and always allow access to C:\…\garden-live from this project" | addDirectories (the folder) + setMode acceptEdits, both session | **No**: the mode stayed default, nothing was written to settings files or `~/.claude.json` (run 2) |
+
+- **One extra option per prompt**, plus "Yes, and switch to auto mode" on
+  Bash only (as C06 does; not on PowerShell, as the docs say). It stands
+  for all the entries together (steps 5 and 9).
+- Run 2 picked the extra option on steps 1, 6 and 9; repeats of 1 and 6
+  then didn't ask. `.claude/settings.local.json` got only `Bash(npm *)`;
+  every later hook still reported `default` mode.
+- So echoing the suggestion matches the terminal in six of nine; in the
+  other three the terminal applies something the hook doesn't report: a
+  wider Bash prefix (1), a `.claude`-only session allowance (6), and
+  apparently the folder only, without the mode switch (9).
