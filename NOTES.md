@@ -2421,6 +2421,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Ready for review: the world test's flaky checks** (branch
+`fix/world-test-flaky`, dev log 2026-10-03-world-test-flaky): its checks
+wait on conditions, not frame counts.
 **Merged to `main` (2026-10-03), reviewed by the user: C05 reopened, the
 terminal's other prompt options** (live check passed with the fake and
 a real `claude` 2.1.288): Claude's own suggestions,
