@@ -2316,7 +2316,11 @@ changing `GODOT_VERSION` only. The actions are pinned to major versions
 annotations say their Node runtime is deprecated. Results can be read
 with `gh run list` and `gh run view <id> --log-failed`. Timing checks
 time the code itself, not a spawned process (Node's startup stretches
-by seconds on a loaded runner).
+by seconds on a loaded runner). In the Godot suites, a check after an
+input, a deferred call, a reply or a layout waits on its condition
+(`_until`), never on a number of physics frames: a late iteration runs
+several physics steps before the next input is handled (dev log
+2026-10-03-world-test-flaky).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
@@ -2417,6 +2421,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Merged to `main` (2026-10-03), reviewed by the user: the world test's
+flaky checks** (dev log 2026-10-03-world-test-flaky): its checks wait on
+conditions, not frame counts.
 **Merged to `main` (2026-10-03), reviewed by the user: C05 reopened, the
 terminal's other prompt options** (live check passed with the fake and
 a real `claude` 2.1.288): Claude's own suggestions,
