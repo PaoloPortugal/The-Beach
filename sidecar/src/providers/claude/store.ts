@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { History, HistoryMessage, HistoryTool, StoredSession } from '../../protocol.ts'
-import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, summarizeTool, unwrapChannel } from './hooks.ts'
+import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, PLAN_TOOL, summarizeTool, unwrapChannel } from './hooks.ts'
 
 /**
  * Where a session was started, from the transcript's `entrypoint`. Only
@@ -234,6 +234,7 @@ export function readHistory(file: string): History {
   const out: HistoryMessage[] = []
   const byId = new Map<string, HistoryMessage>()
   const tools = new ToolReader()
+  const plans = new Set<string>()
   for (const e of lines(text, false)) {
     const at = typeof e.timestamp === 'string' ? e.timestamp : new Date(0).toISOString()
     const said = userText(e)
@@ -252,6 +253,17 @@ export function readHistory(file: string): History {
         const h: HistoryMessage = { message: msg.id, agent: 'main', role: 'assistant', text: texts.join(''), at }
         byId.set(msg.id, h)
         out.push(h)
+      }
+    }
+    // A plan presented for approval: its own message, before its call, with
+    // the id the live one has (C07).
+    if (e.type === 'assistant' && msg && Array.isArray(msg.content)) {
+      for (const c of msg.content) {
+        const plan = c?.type === 'tool_use' && c.name === PLAN_TOOL && typeof c.id === 'string' ? c.input?.plan : undefined
+        if (typeof plan === 'string' && plan.trim() && !plans.has(c.id)) {
+          plans.add(c.id)
+          out.push({ message: `${c.id}:plan`, agent: 'main', role: 'assistant', kind: 'plan', text: plan, at })
+        }
       }
     }
     // After the text: a call comes after what was said before it.
