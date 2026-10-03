@@ -2,8 +2,10 @@
 // be built and tried without a real AI tool. `npm run dev:fake` (from
 // sidecar/). Chat drives it; a message containing one of these words acts
 // out that part of a session, anything else is echoed back:
-//   permission   a tool call waits on a permission prompt (answer it: C05);
-//                in Manual or Accept edits it can also switch to auto (C06)
+//   permission   a tool call waits on a permission prompt (answer it: C05)
+//                with the terminal's other options: "don't ask again" (the
+//                fake asks again anyway) and, in Manual or Accept edits,
+//                the switch to auto (C06)
 //   question     a clarifying question, two items: one choice, then several
 //                (questions capability)
 //   plan         plan mode, then a plan to approve (C07): approve it with a
@@ -107,12 +109,15 @@ class ScriptedSession extends FakeSession {
     const input = { command: 'npm install', description: 'Install dependencies' }
     this.emit({ type: 'tool.started', tool_call: tool, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input })
     const id = `perm${this.n}`
-    // Like Claude Code's Bash prompt: "Yes, and switch to auto mode" in
-    // Manual and Accept edits.
-    const modes = this.mode === 'default' || this.mode === 'acceptEdits' ? { modes: ['auto'] } : {}
+    // Like Claude Code's Bash prompt: "don't ask again", and "Yes, and
+    // switch to auto mode" in Manual and Accept edits.
+    const options = [
+      { option: 'suggested', label: 'Yes, and don\'t ask again for: npm install' },
+      ...(this.mode === 'default' || this.mode === 'acceptEdits' ? [{ option: 'auto', label: 'Yes, and switch to auto mode' }] : []),
+    ]
     const allowed = await new Promise<boolean>((resolve) => {
       this.pendingPermission = { id, tool, resolve }
-      this.emit({ type: 'permission.requested', permission: { permission: id, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input, ...modes } })
+      this.emit({ type: 'permission.requested', permission: { permission: id, agent: 'main', tool: 'Bash', summary: 'Run: npm install', input, options } })
       this.state('main', 'waiting', 'permission')
     })
     this.state('main', 'working')
@@ -125,12 +130,12 @@ class ScriptedSession extends FakeSession {
     return this.finish('OK, I won\'t install anything. How should I go on?')
   }
 
-  override async respondPermission(permission: Id, decision: 'allow' | 'deny', _note?: string, mode?: string) {
+  override async respondPermission(permission: Id, decision: 'allow' | 'deny', _note?: string, option?: Id) {
     const p = this.pendingPermission
     if (!p || p.id !== permission) return
     this.pendingPermission = null
     this.emit({ type: 'permission.resolved', permission, decision, by: 'app' })
-    if (mode !== undefined) this.setMode(mode)
+    if (option === 'auto') this.setMode('auto')
     p.resolve(decision === 'allow')
   }
 

@@ -10,7 +10,8 @@
 //   /allow [id]   /deny [id] [note] answer a permission (default: the latest)
 //   /answer [id] <label>[|label...]  answer a question (one item; | for multi-select)
 //   /reply [id] <text>                answer a question with free text
-//   /switch [id] <mode>               allow a permission and switch mode (C06)
+//   /option [id] <option>             allow a permission one of its other ways (C05:
+//                                     an option id from permission.requested, e.g. auto)
 //   /approve [id] <mode>              approve a plan, switching to that mode (C07)
 //   /keep [id] [note]                 send a plan back: "No, keep planning"
 //   /stop                             interrupt.request
@@ -104,10 +105,10 @@ function command(line: string) {
         ? { type: 'question.answer', session, question: id, answers: [rest.split('|').map((x) => x.trim())] }
         : { type: 'question.answer', session, question: id, response: rest })
     }
-    case 'switch': {
+    case 'option': {
       const { id, rest } = target(permissions, words)
       if (!id) return console.log('no pending permission')
-      return send({ type: 'permission.respond', session, permission: id, decision: 'allow', mode: rest.trim() })
+      return send({ type: 'permission.respond', session, permission: id, decision: 'allow', option: rest.trim() })
     }
     case 'approve':
     case 'keep': {
@@ -119,7 +120,7 @@ function command(line: string) {
     }
     case 'stop': return send({ type: 'interrupt.request', session })
     case 'history': return send({ type: 'session.get_history', session })
-    default: console.log('commands: /allow /deny /switch /answer /reply /approve /keep /stop /history')
+    default: console.log('commands: /allow /deny /option /answer /reply /approve /keep /stop /history')
   }
 }
 

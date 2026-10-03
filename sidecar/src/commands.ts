@@ -83,16 +83,13 @@ async function execute(
       const entry = findSession(registry, c.session)
       const pending = entry.state!.permissions.find((p) => p.permission === c.permission)
       if (!pending) throw new CommandError('invalid_message', 'no such pending permission')
-      if (c.mode !== undefined) {
-        if (!('permission_modes' in entry.state!.capabilities)) {
-          throw new CommandError('not_supported', 'session does not declare permission_modes')
-        }
-        if (c.decision !== 'allow') throw new CommandError('invalid_message', 'only an allow can switch modes')
-        if (!(pending.modes ?? []).includes(c.mode)) {
-          throw new CommandError('invalid_message', 'this permission cannot switch to that mode')
+      if (c.option !== undefined) {
+        if (c.decision !== 'allow') throw new CommandError('invalid_message', 'only an allow can have an option')
+        if (!(pending.options ?? []).some((o) => o.option === c.option)) {
+          throw new CommandError('invalid_message', 'this permission has no such option')
         }
       }
-      await entry.control!.respondPermission(c.permission, c.decision, c.note, c.mode)
+      await entry.control!.respondPermission(c.permission, c.decision, c.note, c.option)
       return undefined
     }
     case 'plan.answer': {

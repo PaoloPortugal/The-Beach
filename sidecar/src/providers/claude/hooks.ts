@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import type { Agent, Id, Permission, QuestionItem, SessionEvent, State } from '../../protocol.ts'
 import type { HookPayload } from './hook-server.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
+import { promptOptions, type PermissionUpdate, type PromptOption } from './prompt-options.ts'
 
 /** The orchestrator's agent id. Subagents use Claude Code's agent_id. */
 export const MAIN = 'main'
@@ -67,11 +68,11 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
   }]
   const hooks: Record<string, unknown> = { MessageDisplay: hook(DISPLAY_TIMEOUT_S) }
   for (const name of REPORTED_HOOKS) hooks[name] = hook(REPORT_TIMEOUT_S)
-  // Questions, plans, and prompts that can switch to auto mode: held until
-  // the user answers in either place (the terminal still shows them).
-  // Other permission prompts come through the channel's relay only.
-  const held = [QUESTION_TOOL, PLAN_TOOL, ...AUTO_SWITCH_TOOLS].join('|')
-  hooks.PermissionRequest = [{ matcher: `^(${held})$`, hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
+  // Every prompt: questions and plans are held until the user answers in
+  // either place (the terminal still shows them); other prompts bring
+  // their options (C05), and are held only while they have some. A plain
+  // Yes or No still goes through the channel's relay.
+  hooks.PermissionRequest = [{ matcher: '*', hooks: hook(QUESTION_TIMEOUT_S)[0]!.hooks }]
   const [command, ...args] = relay
   if (!command) throw new Error('no relay command')
   hooks.SessionStart = [{
@@ -101,6 +102,8 @@ interface OpenTool {
   question: Id | null
   /** Its pending plan, if it's a plan. */
   plan: Id | null
+  /** Its prompt's options, from its PermissionRequest hook (C05); null until that came. */
+  options: PromptOption[] | null
 }
 
 interface PendingQuestion { agent: Id; toolCall: Id | null; input: Record<string, unknown> }
@@ -385,7 +388,7 @@ export class HookTranslator {
     }
     const summary = summarizeTool(tool, input, this.cwd)
     const small = JSON.stringify(input).length <= INPUT_MAX
-    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null })
+    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: null })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
   }
@@ -429,16 +432,17 @@ export class HookTranslator {
     const candidates = [...this.openTools.entries()].filter(([, c]) => c.tool === r.tool_name && !c.permission)
     const exact = candidates.filter(([, c]) => previewMatches(r.input_preview, c.input))
     const pick = (exact.length > 0 ? exact : candidates).at(-1)
-    if (!pick && !force) return null
+    // Its options come with its PermissionRequest hook; wait for that too.
+    if ((!pick || pick[1].options === null) && !force) return null
     const out: SessionEvent[] = []
     let permission: Permission
     if (pick) {
       const [id, call] = pick
       call.permission = r.request_id
-      const modes = this.switchModes(call.tool)
+      const options = (call.options ?? []).map(({ option, label }) => ({ option, label }))
       permission = {
         permission: r.request_id, agent: call.agent, tool: call.tool, summary: call.summary,
-        ...(call.small ? { input: call.input } : {}), ...(modes.length > 0 ? { modes } : {}),
+        ...(call.small ? { input: call.input } : {}), ...(options.length > 0 ? { options } : {}),
       }
       this.permissions.set(r.request_id, { agent: call.agent, toolCall: id })
     } else {
@@ -456,23 +460,38 @@ export class HookTranslator {
   }
 
   /**
-   * The open tool call a held PermissionRequest is for: the newest of that
-   * tool, with the same input, whose prompt can switch modes. Null if
-   * there's none (then the hook isn't held).
+   * A prompt's PermissionRequest hook (not a question's or a plan's): its
+   * options (C05) go on its open tool call: the same agent's newest of
+   * that tool with the same input whose hook hasn't come yet. Returns that
+   * call if the prompt has options (then the hook is held, so choosing one
+   * can answer it), else null. A prompt the world was already shown
+   * without them (its hook came too late) keeps none.
    */
-  switchableCall(p: HookPayload): Id | null {
+  promptHooked(p: HookPayload): Id | null {
     const tool = str(p.tool_name)
-    if (!tool || this.agentOf(p) === null || this.switchModes(tool, str(p.permission_mode) ?? this.mode).length === 0) return null
-    const input = JSON.stringify(isObject(p.tool_input) ? p.tool_input : {})
-    const found = [...this.openTools.entries()].filter(([, c]) => c.tool === tool && JSON.stringify(c.input) === input).at(-1)
-    return found ? found[0] : null
+    const agent = this.agentOf(p)
+    if (!tool || !agent) return null
+    const input = isObject(p.tool_input) ? p.tool_input : {}
+    const json = JSON.stringify(input)
+    const found = [...this.openTools.entries()]
+      .filter(([, c]) => c.agent === agent && c.tool === tool && c.options === null && JSON.stringify(c.input) === json).at(-1)
+    if (!found) return null
+    const [id, call] = found
+    if (call.permission) {
+      call.options = []
+      return null
+    }
+    const auto = this.switchModes(tool, str(p.permission_mode) ?? this.mode).length > 0
+    call.options = promptOptions(tool, input, p.permission_suggestions, auto, this.cwd)
+    return call.options.length > 0 ? id : null
   }
 
-  /** A pending prompt's tool call and input, or null. */
-  permissionCall(requestId: Id): { toolCall: Id; input: Record<string, unknown> } | null {
+  /** A pending prompt's option: its tool call, input and the updates choosing it applies; null if it has none such. */
+  promptOption(requestId: Id, option: Id): { toolCall: Id; input: Record<string, unknown>; updates: PermissionUpdate[] } | null {
     const toolCall = this.permissions.get(requestId)?.toolCall
     const call = toolCall ? this.openTools.get(toolCall) : undefined
-    return toolCall && call ? { toolCall, input: call.input } : null
+    const chosen = call?.options?.find((o) => o.option === option)
+    return toolCall && call && chosen ? { toolCall, input: call.input, updates: chosen.updates } : null
   }
 
   /** The user answered a prompt in the world (the verdict went down the bridge). */
@@ -740,19 +759,21 @@ export function questionReply(input: Record<string, unknown>, answer: { answers:
 }
 
 /**
- * A held PermissionRequest's reply (C06, C07): allow, echoing the input
- * (Claude Code ignores an allow without it for plans; spike, 2026-10-03),
- * optionally switching the mode for this session only (never written to
- * a settings file), or deny with a message Claude reads.
+ * A held PermissionRequest's reply (C05, C06, C07): allow, echoing the
+ * input (Claude Code ignores an allow without it for plans; spike,
+ * 2026-10-03), optionally with updates to apply: a plan's mode switch (for
+ * this session only), or a prompt option's, which are Claude Code's own
+ * suggestions sent back unchanged (prompt-options.ts). Or deny with a
+ * message Claude reads.
  */
 export function permissionReply(
-  d: { behavior: 'allow'; updatedInput: Record<string, unknown>; mode?: string } | { behavior: 'deny'; message: string },
+  d: { behavior: 'allow'; updatedInput: Record<string, unknown>; mode?: string; updates?: PermissionUpdate[] } | { behavior: 'deny'; message: string },
 ): Record<string, unknown> {
+  const updates = d.behavior === 'allow'
+    ? [...(d.mode ? [{ type: 'setMode', mode: d.mode, destination: 'session' }] : []), ...(d.updates ?? [])]
+    : []
   const decision = d.behavior === 'allow'
-    ? {
-        behavior: 'allow', updatedInput: d.updatedInput,
-        ...(d.mode ? { updatedPermissions: [{ type: 'setMode', mode: d.mode, destination: 'session' }] } : {}),
-      }
+    ? { behavior: 'allow', updatedInput: d.updatedInput, ...(updates.length > 0 ? { updatedPermissions: updates } : {}) }
     : { behavior: 'deny', message: d.message }
   return { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } }
 }

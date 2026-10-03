@@ -24,14 +24,17 @@ export interface Agent {
   reason: string | null
 }
 
+/** A way to allow beyond a plain allow; `label` is the provider's words, shown as is. */
+export interface PermissionOption { option: Id; label: string }
+
 export interface Permission {
   permission: Id
   agent: Id
   tool: string
   summary: string
   input?: Record<string, unknown>
-  /** permission_modes: modes an allow can also switch to. */
-  modes?: string[]
+  /** Other ways to allow, in the provider's own order (C05). */
+  options?: PermissionOption[]
   /** Set by the registry; see stamp() there. */
   asked_at?: string
 }
@@ -139,7 +142,7 @@ export type Command =
   | { type: 'session.get_snapshot'; id: Id; session: Id }
   | { type: 'session.get_history'; id: Id; session: Id }
   | { type: 'message.send'; id: Id; session: Id; text: string }
-  | { type: 'permission.respond'; id: Id; session: Id; permission: Id; decision: 'allow' | 'deny'; note?: string; mode?: string }
+  | { type: 'permission.respond'; id: Id; session: Id; permission: Id; decision: 'allow' | 'deny'; note?: string; option?: Id }
   | { type: 'plan.answer'; id: Id; session: Id; plan: Id; approve: boolean; mode?: string; note?: string }
   | { type: 'question.answer'; id: Id; session: Id; question: Id; answers?: string[][]; response?: string }
 
