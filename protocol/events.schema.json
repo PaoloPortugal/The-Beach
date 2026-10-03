@@ -95,7 +95,8 @@
         "agent": { "$ref": "#/$defs/id" },
         "tool": { "description": "The provider's tool name.", "type": "string" },
         "summary": { "description": "One human-readable line, e.g. \"Run: npm install\".", "type": "string" },
-        "input": { "description": "Raw tool input, for a details view.", "type": "object" }
+        "input": { "description": "Raw tool input, for a details view.", "type": "object" },
+        "asked_at": { "description": "Set by the sidecar: when it first saw the request. Ignored from providers.", "$ref": "#/$defs/timestamp" }
       },
       "additionalProperties": false
     },
@@ -107,6 +108,7 @@
       "properties": {
         "question": { "$ref": "#/$defs/id" },
         "agent": { "$ref": "#/$defs/id" },
+        "asked_at": { "description": "Set by the sidecar: when it first saw the questions. Ignored from providers.", "$ref": "#/$defs/timestamp" },
         "items": {
           "type": "array",
           "minItems": 1,

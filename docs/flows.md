@@ -191,7 +191,7 @@ sequenceDiagram
         Bridge->>Sidecar: permission request
     end
     Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits up to 300 ms for its PreToolUse.
-    Sidecar->>World: permission.requested (ID = request ID),<br/>agent → waiting (permission)
+    Sidecar->>World: permission.requested (ID = request ID, asked_at = now),<br/>agent → waiting (permission)
     alt answered in the world
         User->>World: allow or deny
         World->>Sidecar: permission.respond
@@ -240,7 +240,7 @@ sequenceDiagram
         Claude->>User: question in the terminal
     and
         Claude->>Sidecar: PermissionRequest AskUserQuestion (held open)
-        Sidecar->>World: question.asked, agent → waiting (question)
+        Sidecar->>World: question.asked (asked_at = now), agent → waiting (question)
     end
     alt answered in the world
         User->>World: picks options or types an answer
