@@ -94,7 +94,7 @@ v1 slice.
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
-| C04 | Tool-call log                             | planned | n/a           | n/a       |
+| C04 | Tool-call log                             | built (UI placeholder) | C04 | `chat/tool_fold.gd`, `sidecar/src/history.ts` |
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd` |
 | C06 | Permission mode control                   | planned | n/a           | n/a       |
 | C07 | Plan approval                             | planned | n/a           | n/a       |
@@ -426,7 +426,9 @@ protocol version it doesn't know. A snapshot is a session's full state
 follow. This covers Godot restarting in v1 and attaching to outside
 sessions later (open question 5): both are "send a snapshot, then changes".
 Chat history isn't in the snapshot; Godot asks for it with
-`session.get_history`, and again after `session.updated` changes
+`session.get_history` (its result: `messages` and `tools`, each oldest
+first; a `history_tool` is a tool call with its `status`, `result`,
+`after` and `within`, C04), and again after `session.updated` changes
 `native_id` (the session switched conversations), replacing its chat
 with the answer. An event whose `seq` is not above the last one Godot
 has for that session (e.g. from a snapshot) is stale and ignored.
@@ -481,6 +483,10 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
   text typed in the terminal shows up in the world.
+- `tool.started` has an optional `within`: for a subagent's call, the
+  tool call that started that subagent (e.g. Claude's Agent call), so
+  the log can show it inside (C04). Added 2026-10-02 without a version
+  change (optional and additive), like `tools` in the history's result.
 - `permission.resolved` has `by`: `app` or `external` (answered in the
   terminal).
 - Permissions and questions carry `asked_at`: when the sidecar first saw
@@ -1002,8 +1008,9 @@ in a message shows as written (tested with an injected `[url]`).
   panel out again once, deferred, for the whole batch.
 
 Pending permission prompts and questions show on a card between the
-chat and the status line (C05). Not yet: a Stop button (the `interrupt`
-capability) and the tool-call log (C04).
+chat and the status line (C05); the tool calls after each message fold
+into one line under it (C04). Not yet: a Stop button (the `interrupt`
+capability).
 
 ### C03 Markdown rendering
 *Built. Scope: core* (it renders the generic `message` text). Godot's
@@ -1060,8 +1067,73 @@ HTML, reference links, footnotes, table column alignment. Tested by
 covers the bubble's rendering too) and the world test.
 
 ### C04 Tool-call log
-*Planned.* Some form of log of the tool calls the session made, visible from
-the chat panel.
+*Built (UI placeholder). Scope: core* (`tool.started` / `tool.finished`
+and the history's `tools` are generic; any provider that reports tool
+calls gets the log). Dev log 2026-10-02-c04-tool-log.
+
+*Decided (user's, 2026-10-02):* the log is **inline and collapsed** in
+the chat panel, not a tab and not a line per call: after each message,
+the calls that followed it fold into one line. It includes calls from
+**before the world was watching** (a resumed conversation, a reconnect),
+read from the transcript. A **subagent's calls show inside the Agent
+call** that started it, not mixed into the top level.
+
+How it works:
+- **Where a call goes.** Each call has `after`: the chat message it came
+  after (the latest message started, live; the last one before it in
+  the transcript), null before the first. A subagent's call also has
+  `within`: the tool call that started that subagent (Claude's Agent
+  call). A call goes within its parent when the store has it, else
+  after its message.
+- **The fold** (`ToolFold`, `chat/tool_fold.gd`): a line under each
+  message, "▸ 5 tool calls (1 running, 1 failed)", counting the
+  top-level calls; hidden when there are none. A click opens it: per
+  call its status (the words running / ok / failed / denied, coloured;
+  no ✓/✗ glyphs, the font lacks them), its summary, its result line, and
+  a **Details** toggle with the tool, the agent and the input as JSON
+  (cut at 4000 characters). A call with a subagent's calls inside holds
+  a fold of its own, the same way. A fold at the very top holds calls
+  from before the first message, shown only while every message is (the
+  panel shows the latest 200, C02).
+- **Untrusted text** (Security rules): tool summaries, results and
+  inputs only go in plain `Label`s, never BBCode (tested with `[b]` in
+  a summary).
+- **Live.** The store records `after` (its latest message) and `within`
+  on `tool.started`; the panel adds the call to its fold and updates it
+  in place (`tool_changed`). The log's layout is one pass over the calls
+  (`SessionStore.tool_tree`), made when the chat is laid out.
+- **History.** `session.get_history` brings `tools` with the messages.
+  The store puts unknown calls before the live ones, and a call it
+  already has takes the history's copy: the reply follows every event
+  sent before it, so it's as new, and it knows `after` even for a call
+  seen before the chat had loaded. The panel lays the chat out again
+  once (`tools_loaded`). A switched conversation (`/clear`, `/resume`)
+  replaces the calls like the messages, keeping calls that came after
+  the switch.
+- **Limits.** The store keeps 5000 calls per session (as the sidecar's
+  history). One history answer carries at most 8 MiB of tool inputs:
+  past that, the oldest calls come without theirs (`fitInputs` in
+  `sidecar/src/history.ts`), so the answer stays under the 32 MiB Godot
+  accepts.
+
+Claude's side (S02): live, `within` comes from pairing a `SubagentStart`
+with its Agent call (the oldest open Agent call of that subagent type,
+the same pairing that finds the parent); in the history it's exact, from
+the `toolUseId` in `subagents/agent-<id>.meta.json` beside each
+subagent's own transcript. A transcript call with no result ended with
+Claude Code closing mid-call: it shows as failed, "No result was
+recorded.". A refused call (its result entry carries `toolDenialKind`,
+undocumented; seen `user-rejected`, `permission-rule`,
+`automode-blocked`, `automode-unavailable`) shows as denied. A subagent
+transcript without its `.meta.json` lists its calls at the top, with no
+message to follow.
+
+Tested: the store by hand and with the fake (each live call placed as
+the sidecar's history has it, subagents' calls within their Agent
+calls), the panel in the world test (fold, counts, statuses, nesting,
+live growth, Details, markup shown as written, history arriving), the
+sidecar's live history and transcript reading (`history.test.ts`,
+`store.test.ts`) and the fake's tools turn (`dev-fake.test.ts`).
 
 ### C05 Permission approve / deny
 *Built (v1: pulled into M1 by the user, 2026-09-30, together with the
@@ -1251,13 +1323,14 @@ console window. Which sidecar runs: next to the game executable in exports;
 built with S02): a plain class (no autoload) that the world
 creates and `attach`es to the client. It applies every event to its copy
 of each session (the protocol's session object, plus the chat so far and a
-tool-call log, capped at 2000 messages and 500 calls per session) and emits
+tool-call log, capped at 2000 messages and 5000 calls per session) and emits
 fine-grained signals (`session_added` with `created` for the rise
 animation, `agent_changed`, `message_changed`, `permissions_changed`,
 `questions_changed`, `notices_changed`, `session_changed` with the
 fields a `session.updated` changed, ...). Extension messages pass
 through untouched (`extension_event`) for the provider's UI module.
-`load_history` puts `session.get_history`'s messages before the live ones.
+`load_history` puts `session.get_history`'s messages and tool calls
+before the live ones (C04).
 A snapshot (resync) replaces the state but keeps the chat. After a
 reconnect, sessions without a snapshot ended meanwhile and are removed;
 the client's `sync_started` signal (on `hello`) marks where a reconnect's
@@ -1581,9 +1654,10 @@ notice. For development, what's limited:
 - **Resuming** isn't possible, and the session isn't listed (S04).
 - **Attaching** (later) shows nothing from before we joined.
 
-**History.** `session.get_history` returns the completed messages the
-sidecar saw through the hooks since launch (for a resumed session, first
-what the transcript held), in memory only, at most 5000.
+**History.** `session.get_history` returns the completed messages and
+the tool calls (C04) the sidecar saw through the hooks since launch (for
+a resumed session, first what the transcript held, subagents' calls from
+their own transcripts), in memory only, at most 5000 of each.
 
 **Fail-safe (verified).** With the hook endpoint hanging, erroring or
 offline, Claude Code fell back to its own terminal prompts every time and
@@ -1889,14 +1963,16 @@ In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
 - `npm run dev:fake`: the sidecar with a scripted fake provider, for
   building the world without Claude. Chat drives it: a message containing
-  `permission`, `question`, `agents [n]`, `notice` or `clear` acts out
-  that part of a session (a prompt to answer, a two-item question: one
-  choice, then several; n background subagents, a notice, a new
-  conversation like `/clear`), and `rename <name>` renames the session
+  `permission`, `question`, `agents [n]`, `tools`, `notice` or `clear`
+  acts out that part of a session (a prompt to answer, a two-item
+  question: one choice, then several; n background subagents, each
+  started by an Agent call with its own calls inside; three tool calls,
+  the last failing; a notice, a new conversation like `/clear`), and `rename <name>` renames the session
   like `/rename`; anything else is echoed back. A new session is
   unnamed until its first message names it (S02 → Titles). A stop from the world ends what's
   running. It also lists three stored sessions to resume (S04), each
-  coming back with a two-message chat; a running one isn't listed.
+  coming back with a two-message chat and one tool call; a running one
+  isn't listed.
   `test/dev-fake.test.ts` plays every scenario.
 - `npm run try:claude -- <empty folder>`: the sidecar with the real Claude
   provider, driven like Godot would. It opens a terminal with `claude`
@@ -1944,12 +2020,14 @@ menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
 folder), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, the bubble streaming and rendering Markdown, the teleport, the chat
-panel (Markdown, a link's confirmation, a long chat built newest first),
+panel (Markdown, a link's confirmation, the tool-call log, a long chat
+built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the session ending under you), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
 through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
+checks the log's Agent calls and a tools turn (C04),
 answers a permission prompt and a question on the card, then lists,
 searches and resumes a stored session (S04) and goes to a running one
 from the menu (W07), listed under its cluster. It can't check looks or the mouse: for those, run the game, under both
@@ -2082,12 +2160,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** C04, then C06 and C07 together (user's choice,
-2026-10-03). **C04 in progress on branch `c04-tool-log`**: the sidecar
-side is built and tested (`session.get_history` brings tool calls too,
-`tool.started` has `within`); the Godot store and chat-panel UI are next,
-then docs. Decided with the user: the log is inline and collapsed (one
-"▸ N tool calls" line per gap between messages); history comes from the
-transcript too; a subagent's calls show inside its Agent call. For C06:
+2026-10-02). **C04 built on branch `c04-tool-log`, waiting for the
+user's live check and review**: the tool calls after each message fold
+into one line in the chat, subagents' calls inside their Agent call,
+history included (C04). Next: C06 + C07 on one branch. For C06:
 the Shift+Tab four modes only (no Bypass, no Don't ask), and a launch
 picker that defaults to Claude Code's own choice (no flag). The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
@@ -2431,7 +2507,8 @@ exists.
   and sign with ours (S01).
 - **Large chat histories.** `session.get_history` answers in one message;
   Godot's client accepts up to 32 MiB (S01). A very long session could
-  exceed that; paging the history is the fix if it happens.
+  exceed that; paging the history is the fix if it happens. Tool inputs
+  are already capped at 8 MiB per answer (C04).
 - **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
   on Steam while the source stays free on GitHub (depots per OS, updates
   through SteamPipe; the bundled sidecar ships as ordinary game files).

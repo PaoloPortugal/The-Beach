@@ -14,6 +14,7 @@ here; each section is labelled with its feature ID.
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
+- [What Claude did: the tool calls (C04)](#what-claude-did-the-tool-calls-c04)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
@@ -217,6 +218,32 @@ messages are never downloaded: you see their description instead.
 The window above the orchestrator's head is formatted too, in a simpler
 way: code shows in a monospace font, and links can't be clicked there.
 
+## What Claude did: the tool calls (C04)
+
+This is a placeholder look: it will be designed properly later.
+
+Under a message, a grey line like **▸ 5 tool calls** sums up what Claude
+did after it: reading files, running commands, starting subagents. It
+also says how many are still running, failed or were denied, for
+example "▸ 3 tool calls (1 failed)". It updates as Claude works.
+
+Click the line to open it (**▾**). Each call shows how it went
+(running, ok, failed or denied), what it was ("Run: npm test"), and a
+line about how it ended when there is one, such as an error. **Details**
+shows exactly what Claude sent the tool. Click the line again to fold
+it.
+
+A subagent's work is folded inside the call that started it, with its
+own "▸ 3 tool calls" line, so the list stays about the orchestrator's
+own steps.
+
+The log includes calls from before the world was watching: when you
+resume a stored session, its calls are read back from Claude Code's own
+records along with the chat. A call that never got a
+result there (Claude Code was closed in the middle of it) shows as
+failed, "No result was recorded.". On a very long session, the oldest
+calls may come back without their Details.
+
 ## Answering Claude's requests (C05)
 
 When Claude, or one of its subagents, asks your permission or asks you a
@@ -317,7 +344,8 @@ reinstalling the game restores it if it goes missing.
 
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
-(C02) and answering prompts and questions (C05) work, but stopping from
+(C02), the tool-call log (C04) and answering prompts and questions (C05)
+work, but stopping from
 the world doesn't have a button yet, so use the terminal for that.
 
 **What you need.** Claude Code installed on your computer (version

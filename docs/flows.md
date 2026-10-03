@@ -163,7 +163,8 @@ sequenceDiagram
 A message typed in the terminal arrives the same way, as plain text
 without the channel tag. A `<task-notification>` or subagent hand-back
 prompt is not a user message (see flow 5). Tool calls in between are
-`tool.started` / `tool.finished` (flow 5 shows them).
+`tool.started` / `tool.finished` (flow 5 shows them); the world files
+each under the latest message, folded into one line (C04).
 
 **Titles** (NOTES.md → S02 → Titles). While the session has no name, the
 first user message's line names it: a `session.updated` (title) along
@@ -273,6 +274,7 @@ sequenceDiagram
 
     Claude->>Sidecar: PreToolUse Agent (from the orchestrator,<br/>or carries the calling subagent's agent_id)
     Sidecar-->>Claude: nothing to add
+    Sidecar->>World: tool.started (the Agent call)
     Claude->>Sidecar: SubagentStart (agent_id, agent_type)
     Sidecar-->>Claude: nothing to add
     Sidecar->>World: agent.spawned (parent inferred from the Agent call)
@@ -284,7 +286,7 @@ sequenceDiagram
     loop the subagent's steps
         Claude->>Sidecar: PreToolUse / PostToolUse carrying its agent_id
         Sidecar-->>Claude: nothing to add
-        Sidecar->>World: tool.started / tool.finished
+        Sidecar->>World: tool.started (within: its Agent call) / tool.finished
     end
     Claude->>Sidecar: SubagentStop (its report)
     Sidecar-->>Claude: nothing to add
@@ -370,12 +372,12 @@ sequenceDiagram
     Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
     User->>World: pick one
     World->>Sidecar: session.resume (native_id)
-    Store->>Sidecar: its whole transcript: the chat so far
+    Store->>Sidecar: its whole transcript: the chat and tool calls so far<br/>(subagents' calls from their own transcripts)
     Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel
     Sidecar-->>World: ok { session }
     Note over Claude,Sidecar: From here it's flow 1: the confirmation, the bridge<br/>connects, session.created. The session keeps its id.
     World->>Sidecar: session.get_history
-    Sidecar-->>World: ok { messages } (the earlier chat, then what's new)
+    Sidecar-->>World: ok { messages, tools } (the earlier chat and tool calls,<br/>then what's new)
 ```
 
 ## 9. /clear or /resume: another conversation in the session
@@ -396,7 +398,7 @@ sequenceDiagram
     Sidecar->>Log: poll the followed transcript: no continued-in
     Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>followed. native_id switches; the old id becomes stored (resumable).
     alt source resume
-        Sidecar->>Log: read the resumed transcript's chat (slash commands left out)
+        Sidecar->>Log: read the resumed transcript's chat (slash commands left out)<br/>and tool calls
         Note over Sidecar: that chat becomes the session's history
         Sidecar->>World: session.updated (native_id, title if it changed), session.notice (conversation_resumed)
     else source clear

@@ -55,3 +55,4 @@ reading; look things up by feature ID.
 | 2026-10-02 | [A05: the attention cue](2026-10-02-a05-attention.md) | A05, W07 |
 | 2026-10-02 | [Anthropic's terms, a paid Steam release, and OpenCode](2026-10-02-terms-steam.md) | docs |
 | 2026-10-02 | [W07 proper: a fixed order, and timing every wait](2026-10-02-w07-proper.md) | W07, A05, C05 |
+| 2026-10-02 | [C04: the tool-call log](2026-10-02-c04-tool-log.md) | C04, S02 |
