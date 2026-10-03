@@ -79,8 +79,83 @@ fake failed once in six runs ("the panel shows the chat so far"), and
 `main`'s last CI run failed it on macOS ("Esc closes the chat"). Flagged
 as its own task.
 
-## Live check
+## Live check (in progress, 2026-10-03, the user, `claude` 2.1.288)
 
-Not yet: `tests/live/checklist.txt` has the fake's steps and, with the
-real `claude`, the spike's prompts in `garden-live`, picking options
-from the world and checking `.claude/settings.local.json`.
+`tests/live/checklist.txt`: the fake's steps, then the spike's prompts
+with the real `claude` in `garden-live`.
+
+- **The checklist overlay** got too long for the window: it now scrolls
+  with the mouse wheel (over the list, or while walking) and Page Up /
+  Page Down. A first version measured lines without their spacing, so
+  the end was off screen; fixed.
+- **Step 10, PowerShell:** with another command (one file written
+  outside the project, in Claude's scratchpad) Claude Code suggested a
+  `PowerShell(<the command>)` rule in `localSettings`, a kind not seen in
+  the spike, so it got the plain label. The terminal offered to allow
+  that file. Picked in the world, the rule landed in
+  `.claude/settings.local.json` as the button said. The user accepted
+  the plain label: it works and doesn't loosen anything.
+- **Step 6, Bash, no auto option:** the terminal offered "Yes, and
+  switch to auto mode", the world didn't. The checklist had the user
+  Shift+Tab to Manual before the first message, so the sidecar never
+  saw the session in Auto, which is when C06's rule starts offering it.
+
+### Looking for a signal that auto is available (user's pick)
+
+Asked whether to remember auto per machine, keep the rule, or look for
+a real signal first, the user chose to look. Found (docs and `claude
+-p` 2.1.288 probes, 2026-10-03):
+
+- No hook says whether auto is available. `SessionStart` and
+  `InstructionsLoaded`, the hooks before the first message, carry no
+  `permission_mode` (probed; the docs' examples agree).
+- In a terminal on 2.1.283 or later, a session with no mode set starts
+  in auto, and in Manual when auto isn't available (docs). That would be
+  a signal, but nothing reports the starting mode before the first
+  message.
+- The transcript's `permission-mode` entries (undocumented) are first
+  written with the first message, after any Shift+Tab. `~/.claude.json`
+  only has undocumented feature-flag caches. Neither is usable.
+- `disableAutoMode: "disable"` in a settings file is documented and
+  does stop `--permission-mode auto` (the session started in `default`).
+  But availability also depends on the model, provider and server, so
+  the setting can only say "off".
+- **A `PermissionRequest` hook's `setMode auto` is applied even when
+  `disableAutoMode` is `"disable"`**, in `--settings` and in the
+  project's `.claude/settings.local.json`: the next call came with
+  `permission_mode: auto` and ran without a prompt. (Managed settings
+  not tried.) So Claude Code won't catch a wrong offer: sending a switch
+  to auto where it isn't available gets around the user's setting.
+
+*Decided (user's, 2026-10-03):* **keep the rule**: offer the switch only
+once the session was seen in Auto, the only proof we trust. The gap is
+recorded in NOTES.md → Watch items → Auto availability. Rejected:
+remembering auto per machine (my first recommendation, made before the
+probe; I had wrongly assumed Claude Code would refuse a switch to auto
+where it's off), which could switch to auto where the terminal
+wouldn't.
+
+### Draft bug report for Claude Code (for the user to file)
+
+> **PermissionRequest hook can switch to auto mode when
+> `disableAutoMode` is "disable"**
+>
+> Version: Claude Code 2.1.288, Windows 11.
+>
+> Steps: in a project, set `{"permissions": {"disableAutoMode":
+> "disable"}}` in `.claude/settings.local.json` (also reproduced with
+> `--settings`). Register a `PermissionRequest` command hook (matcher
+> `*`) that answers `{"hookSpecificOutput": {"hookEventName":
+> "PermissionRequest", "decision": {"behavior": "allow",
+> "updatedInput": <tool_input>, "updatedPermissions": [{"type":
+> "setMode", "mode": "auto", "destination": "session"}]}}}`. Run
+> `claude -p 'Run these two Bash commands separately: npm pkg set
+> description=one, then npm pkg set description=two.'`.
+>
+> Expected: the `setMode auto` update is refused (as
+> `--permission-mode auto` is: that session starts in `default`), and
+> the second command asks for permission.
+>
+> Seen: the second command's `PreToolUse` reports `permission_mode:
+> "auto"` and it runs without a permission request. A hook can thus
+> enable a mode that settings disable.
