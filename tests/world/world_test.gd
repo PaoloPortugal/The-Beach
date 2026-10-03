@@ -580,6 +580,89 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send on the last item")
 	store.apply({"type": "question.resolved", "session": "h1", "seq": 16, "question": "q1", "by": "external"})
 	_check(not card.visible, "card: hidden again when nothing waits")
+	_modes_and_plans(store, panel)
+
+
+# Records the commands sent and refuses each, so a card can be clicked again.
+class _Recorder extends SidecarClient:
+	var sent := []
+
+	func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
+		sent.append([type, fields])
+		if on_reply.is_valid():
+			on_reply.call({"type": "error", "message": "recorded"})
+		return "r%d" % sent.size()
+
+
+# C06 and C07: the mode in the header, a plan in the chat and on the card,
+# a permission that can switch modes.
+func _modes_and_plans(store: SessionStore, panel: ChatPanel) -> void:
+	var card := panel.pending_card()
+	_check(panel.mode_text() == "", "modes: no mode shown without permission_modes")
+	var snap := store.session("h1").duplicate(true)
+	snap["seq"] = 17
+	snap["capabilities"] = {"permission_modes": {}, "plans": {}}
+	snap["mode"] = null
+	store.apply({"type": "session.snapshot", "session": snap})
+	_check(panel.mode_text() == "", "modes: none shown while it isn't known")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 18, "mode": "default"})
+	_check(panel.mode_text() == "Mode: Manual", "modes: the header shows the mode in our words")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 19, "mode": "acceptEdits"})
+	_check(panel.mode_text() == "Mode: Accept edits", "modes: and follows it")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 20, "mode": "someNewMode"})
+	_check(panel.mode_text() == "Mode: someNewMode", "modes: an unknown mode shows as its id")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 21, "mode": "plan"})
+
+	var recorder := _Recorder.new()
+	var real := card.sidecar
+	card.sidecar = recorder
+	store.apply({"type": "message.started", "session": "h1", "seq": 22, "message": "plan1", "agent": "main", "role": "assistant", "kind": "plan"})
+	store.apply({"type": "message.completed", "session": "h1", "seq": 23, "message": "plan1", "text": "# The plan\n\n1. Do [b]this[/b]"})
+	var plan_shown: String = panel.shown_messages().back()
+	_check(plan_shown.begins_with("The plan\n") and plan_shown.contains("Do [b]this[/b]"),"plans: the plan is a message, rendered as Markdown")
+	var line: HBoxContainer = panel._messages.get_children().back().get_child(0)
+	_check(line.get_child_count() == 1 and line.get_child(0).find_children("*", "Label", true, false).any(func(l: Label) -> bool: return l.text == "Plan"), "plans: full width, marked as a plan")
+	store.apply({"type": "plan.asked", "session": "h1", "seq": 24, "plan": {"plan": "x1", "agent": "main", "text": "# The plan", "modes": ["auto", "default"]}})
+	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 25, "agent": "main", "state": "waiting", "reason": "plan"})
+	_check(panel.status_text().contains("approve the plan") and panel.status_text().contains("terminal"), "plans: the status points to the card and the terminal")
+	_check(card.visible and card.header_text() == "The orchestrator has a plan for you to approve:", "plans: the card asks")
+	var texts: Array = card.find_children("*", "Button", true, false).map(func(b: Button) -> String: return b.text)
+	_check(texts == ["Yes, and use auto mode", "Yes, manually approve edits", "No, keep planning", "Send"], "plans: its choices in the provider's order")
+	_check(card.find_children("*", "Button", true, false).all(func(b: Button) -> bool: return b.focus_mode == Control.FOCUS_NONE), "plans: no key can press them")
+	_click(card, "Yes, and use auto mode")
+	_check(recorder.sent.back() == ["plan.answer", {"session": "h1", "plan": "x1", "approve": true, "mode": "auto"}], "plans: approving sends the mode")
+	_check(not _note(card).editable and _button(card, "Send").disabled, "plans: the note is locked until \"No, keep planning\"")
+	_click(card, "No, keep planning")
+	_check(card.denying() and _note(card).editable and not _button(card, "Send").disabled, "plans: \"No, keep planning\" unlocks it")
+	_click(card, "Send")
+	_check(recorder.sent.back() == ["plan.answer", {"session": "h1", "plan": "x1", "approve": false}], "plans: Send without a note")
+	card.set_note("  smaller steps ")
+	_click(card, "Send")
+	_check(recorder.sent.back() == ["plan.answer", {"session": "h1", "plan": "x1", "approve": false, "note": "smaller steps"}], "plans: Send with the note")
+	card.approve_plan("acceptEdits")
+	_check(recorder.sent.size() == 3, "plans: a mode the plan doesn't offer isn't sent")
+	store.apply({"type": "plan.resolved", "session": "h1", "seq": 26, "plan": "x1", "decision": "rejected", "by": "app"})
+	store.apply({"type": "plan.asked", "session": "h1", "seq": 27, "plan": {"plan": "x2", "agent": "main", "text": "# Again", "modes": ["acceptEdits", "default"]}})
+	texts = card.find_children("*", "Button", true, false).map(func(b: Button) -> String: return b.text)
+	_check(texts[0] == "Yes, auto-accept edits" and card.error_text() == "" and not card.denying(), "plans: without auto, the terminal's other words; a fresh card")
+	store.apply({"type": "plan.resolved", "session": "h1", "seq": 28, "plan": "x2", "decision": "approved", "by": "external"})
+	_check(not card.visible, "plans: answered in the terminal, the card goes")
+	_check(panel.shown_messages().back().begins_with("The plan"), "plans: the plan stays in the chat")
+
+	store.apply({"type": "permission.requested", "session": "h1", "seq": 29, "permission": {
+		"permission": "p5", "agent": "main", "tool": "Bash", "summary": "Run: npm test", "modes": ["auto"]}})
+	var switch := _button(card, "Allow and switch to auto mode")
+	_check(switch != null and switch.focus_mode == Control.FOCUS_NONE, "modes: a prompt with modes offers to switch, by click only")
+	_click(card, "Allow and switch to auto mode")
+	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow", "mode": "auto"}], "modes: allow and switch sends the mode")
+	_click(card, "Allow")
+	_check(recorder.sent.back() == ["permission.respond", {"session": "h1", "permission": "p5", "decision": "allow"}], "modes: plain Allow doesn't")
+	card.respond("allow", "default")
+	_check(recorder.sent.size() == 5, "modes: a mode the prompt doesn't offer isn't sent")
+	store.apply({"type": "permission.resolved", "session": "h1", "seq": 30, "permission": "p5", "decision": "allow", "by": "app"})
+	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 31, "agent": "main", "state": "waiting", "reason": "permission"})
+	card.sidecar = real
+	recorder.free()
 
 
 func _button(card: PendingCard, text: String) -> BaseButton:
