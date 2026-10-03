@@ -23,7 +23,11 @@ signal agent_added(session: String, agent: String)
 signal agent_changed(session: String, agent: String)
 ## A chat message started, grew, or completed.
 signal message_changed(session: String, message: String)
+## A tool call started or finished (C04).
 signal tool_changed(session: String, tool_call: String)
+## Tool calls were added or changed in bulk ([method load_history]): lay the
+## log out again.
+signal tools_loaded(session: String)
 signal permissions_changed(session: String)
 signal questions_changed(session: String)
 signal notices_changed(session: String)
@@ -39,13 +43,15 @@ signal extension_event(session: String, msg: Dictionary)
 
 ## Chat messages kept per session; the oldest go first.
 const MAX_MESSAGES := 2000
-## Finished tool calls kept per session, for the tool-call log (C04).
-const MAX_TOOLS := 500
+## Tool calls kept per session, for the tool-call log (C04); the oldest go
+## first. As many as the sidecar's history keeps.
+const MAX_TOOLS := 5000
 
 ## Session id → the protocol's session object (agents, permissions,
 ## questions, notices, ...), plus [code]messages[/code] (id → message) and
 ## [code]message_order[/code] (ids, oldest first), [code]tools[/code]
-## (tool call id → call) and [code]tool_order[/code], and
+## (tool call id → call, shaped like the protocol's [code]history_tool[/code])
+## and [code]tool_order[/code], and
 ## [code]pending_order[/code] ([code][kind, id][/code] per pending permission
 ## and question, oldest first; read it through [method pending]).
 var sessions := {}
@@ -123,9 +129,63 @@ func messages(session_id: String) -> Array[Dictionary]:
 	return out
 
 
-## Fills in the chat from [code]session.get_history[/code]'s messages. Ones
-## already known (seen live) are kept as they are.
-func load_history(session_id: String, history: Array) -> void:
+## The tool calls, oldest first.
+func tool_calls(session_id: String) -> Array[Dictionary]:
+	var s := session(session_id)
+	var out: Array[Dictionary] = []
+	for id in s.get("tool_order", []):
+		out.append(s["tools"][id])
+	return out
+
+
+## The tool-call log as the chat shows it (C04), in one pass:
+## [code]{"after": {message id → [call ids]}, "within": {call id → [call
+## ids]}}[/code], each list oldest first. A call goes [code]within[/code]
+## the call that started its subagent when that one is known, else
+## [code]after[/code] the message it followed ([code]""[/code]: before the
+## first).
+func tool_tree(session_id: String) -> Dictionary:
+	var s := session(session_id)
+	var tree := {"after": {}, "within": {}}
+	for id in s.get("tool_order", []):
+		place_tool(tree, s["tools"], s["tools"][id])
+	return tree
+
+
+## Adds one call to a [method tool_tree] ([param tools]: the session's
+## [code]tools[/code]). Returns the list it went in.
+static func place_tool(tree: Dictionary, tools: Dictionary, call: Dictionary) -> Array:
+	var within = call.get("within")
+	var list: Array
+	if within is String and tools.has(within):
+		list = tree["within"].get_or_add(within, [])
+	else:
+		var after = call.get("after")
+		list = tree["after"].get_or_add(after if after is String else "", [])
+	list.append(call["tool_call"])
+	return list
+
+
+## The top-level call a call is part of (itself, unless it's a subagent's
+## call within another), or an empty dictionary.
+func top_tool(session_id: String, tool_call: String) -> Dictionary:
+	var tools: Dictionary = session(session_id).get("tools", {})
+	var call: Dictionary = tools.get(tool_call, {})
+	# Bounded, in case of a loop.
+	for i in 16:
+		var within = call.get("within")
+		if not (within is String and tools.has(within)):
+			break
+		call = tools[within]
+	return call
+
+
+## Fills in the chat from [code]session.get_history[/code]'s messages and
+## tool calls. Messages already known (seen live) are kept as they are; a
+## tool call already known takes the history's copy, which is as new (the
+## reply comes after every event before it) and knows where the call goes
+## ([code]after[/code]) even when it was seen before the chat had loaded.
+func load_history(session_id: String, history: Array, tools := []) -> void:
 	var s := session(session_id)
 	if s.is_empty():
 		return
@@ -140,15 +200,26 @@ func load_history(session_id: String, history: Array) -> void:
 			order.append(id)
 	s["message_order"] = order + s["message_order"]
 	_trim_messages(s)
+	var tool_order: Array = []
+	for t in tools:
+		var id: String = t["tool_call"]
+		if not s["tools"].has(id):
+			tool_order.append(id)
+		s["tools"][id] = _tool(t)
+	s["tool_order"] = tool_order + s["tool_order"]
+	_trim_tools(s)
 	for id in order:
 		message_changed.emit(session_id, id)
+	if not tools.is_empty():
+		tools_loaded.emit(session_id)
 
 
 ## Replaces the chat with [code]session.get_history[/code]'s messages,
 ## after the provider switched conversations ([code]native_id[/code]
-## changed). Messages that arrived since the switch and aren't in
-## [param history] are kept after it (a reply still streaming, say).
-func replace_history(session_id: String, history: Array) -> void:
+## changed), and the tool calls with [param tools]. Messages and calls that
+## arrived since the switch and aren't in the history are kept after it (a
+## reply still streaming, say).
+func replace_history(session_id: String, history: Array, tools := []) -> void:
 	var s := session(session_id)
 	if s.is_empty():
 		return
@@ -170,6 +241,20 @@ func replace_history(session_id: String, history: Array) -> void:
 	s["message_order"] = order
 	s.erase("chat_before_switch")
 	_trim_messages(s)
+	var tools_before: Array = s.get("tools_before_switch", [])
+	var calls := {}
+	var tool_order: Array = []
+	for t in tools:
+		calls[t["tool_call"]] = _tool(t)
+		tool_order.append(t["tool_call"])
+	for id in s["tool_order"]:
+		if not tools_before.has(id) and not calls.has(id):
+			calls[id] = s["tools"][id]
+			tool_order.append(id)
+	s["tools"] = calls
+	s["tool_order"] = tool_order
+	s.erase("tools_before_switch")
+	_trim_tools(s)
 	messages_replaced.emit(session_id)
 
 
@@ -206,6 +291,7 @@ func apply(msg: Dictionary) -> void:
 				# Messages from now on belong to the new conversation, whatever
 				# replace_history() brings.
 				s["chat_before_switch"] = s["message_order"].duplicate()
+				s["tools_before_switch"] = s["tool_order"].duplicate()
 			session_changed.emit(id, fields)
 		"agent.spawned":
 			s["agents"].append(msg["agent"])
@@ -238,14 +324,15 @@ func apply(msg: Dictionary) -> void:
 				m["complete"] = true
 				message_changed.emit(id, msg["message"])
 		"tool.started":
-			var call := {
-				"tool_call": msg["tool_call"], "agent": msg["agent"], "tool": msg["tool"],
-				"summary": msg["summary"], "status": "running",
-			}
-			if msg.has("input"):
-				call["input"] = msg["input"]
+			# It came after the latest message started, like the sidecar's
+			# history has it.
+			var order: Array = s["message_order"]
+			var call := _tool(msg)
+			call["status"] = "running"
+			call["after"] = order.back() if not order.is_empty() else null
+			if not s["tools"].has(call["tool_call"]):
+				s["tool_order"].append(call["tool_call"])
 			s["tools"][call["tool_call"]] = call
-			s["tool_order"].append(call["tool_call"])
 			_trim_tools(s)
 			tool_changed.emit(id, call["tool_call"])
 		"tool.finished":
@@ -331,6 +418,15 @@ func _on_synced() -> void:
 		if not _seen_since_sync.has(id):
 			sessions.erase(id)
 			session_removed.emit(id, "exited")
+
+
+# A tool call as the store keeps it, from tool.started or a history_tool.
+static func _tool(t: Dictionary) -> Dictionary:
+	var call := {}
+	for key in ["tool_call", "agent", "tool", "summary", "input", "status", "result", "after", "within"]:
+		if t.has(key):
+			call[key] = t[key]
+	return call
 
 
 # A pending permission or question ([param kind]) by id, or {}.

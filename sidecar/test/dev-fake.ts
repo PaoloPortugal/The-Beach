@@ -67,7 +67,7 @@ class ScriptedSession extends FakeSession {
     if (word.includes('permission')) void this.permissionTurn()
     else if (word.includes('question')) void this.questionTurn()
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
-    else if (/tools/.test(word)) void this.toolsTurn()
+    else if (/\btools?\b/.test(word)) void this.toolsTurn()
     else if (word.includes('notice')) void this.noticeTurn()
     else if (/\bclear\b/.test(word)) void this.clearTurn()
     else if (/^rename\s+\S/.test(word)) void this.renameTurn(text.trim().slice(6).trim())
