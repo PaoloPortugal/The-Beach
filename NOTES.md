@@ -2660,8 +2660,8 @@ exists.
   `setMode auto` is applied even with `disableAutoMode: "disable"` in
   `--settings` or `.claude/settings.local.json`, though that setting
   does stop a session starting in auto. Never send a switch to auto
-  without proof it's available. A bug report is drafted for the user to
-  file; recheck after Claude Code updates.
+  without proof it's available. Reported to Anthropic by the user with
+  `/bug` (2026-10-03); recheck after Claude Code updates.
 
 - **Ending a session from the game** (S05). Not built: Claude Code has
   no clean way to end an interactive session from outside (S05 has what

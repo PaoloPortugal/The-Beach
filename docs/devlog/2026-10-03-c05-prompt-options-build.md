@@ -135,7 +135,7 @@ probe; I had wrongly assumed Claude Code would refuse a switch to auto
 where it's off), which could switch to auto where the terminal
 wouldn't.
 
-### Draft bug report for Claude Code (for the user to file)
+### Bug report for Claude Code (sent by the user with `/bug`, 2026-10-03, without session history)
 
 > **PermissionRequest hook can switch to auto mode when
 > `disableAutoMode` is "disable"**
