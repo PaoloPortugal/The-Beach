@@ -1,4 +1,4 @@
-# C05 reopened: the terminal's other prompt options (in progress)
+# C05 reopened: the terminal's other prompt options
 
 Features: C05, C06, S02
 
@@ -125,3 +125,27 @@ rule on the button.
   wording differs, so the user is never told one thing while another
   happens. The terminal keeps its full options for anything the world
   can't offer.
+
+## Protocol and wording (approved by the user, 2026-10-03)
+
+- **Protocol:** a permission's optional `options` (`{option, label}`, in
+  the provider's own order: the extra ways to allow) replace C06's
+  `modes`; `permission.respond`'s optional `option` (allow only, one of
+  them) replaces `mode`. Core scope: any tool's prompt can have them.
+  Labels come from the provider; Godot shows them as they are. A mode
+  change still comes as `session.updated` (`permission_modes`). Plans
+  keep their `modes`.
+- **Card:** Yes, the options, No (No keeps the note and Send).
+- **Fixed "Yes" and "No"** (my recommendation): the terminal's No on
+  WebFetch reads "No, and tell Claude what to do differently (esc)", but
+  it does the same, and the note field covers it. Rejected: sending the
+  Yes/No words per prompt too.
+- **Prompts not seen yet** (MCP tools, other tools, other settings
+  files): offered with an honest label built from what the entry does
+  and where it's saved (my recommendation), rather than terminal-only
+  until checked. Mode switches in them are still dropped.
+- **Mode switches** from a suggestion are kept only on file edits outside
+  a `.claude` folder (seen to match the terminal); Bypass and Don't ask
+  are never offered.
+- **Holding:** a prompt's hook is held whenever it has options; prompts
+  without any are answered at once, as before.
