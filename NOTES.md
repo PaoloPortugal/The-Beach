@@ -95,7 +95,7 @@ v1 slice.
 | C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
 | C04 | Tool-call log                             | built (UI placeholder) | C04 | `chat/tool_fold.gd`, `sidecar/src/history.ts` |
-| C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd` |
+| C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd`, `sidecar/src/providers/claude/prompt-options.ts` |
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
@@ -1183,9 +1183,15 @@ declare it).
 - *Permission card:* the summary with a Details toggle (raw input as
   plain text), Allow and Deny, an optional note; no keyboard shortcut
   for Allow, so Enter in the chat can never allow by accident.
-  Mode switches came with C06; "Don't ask again" isn't offered yet
-  (reopened by the user, 2026-10-03: Deferred ideas → The terminal's
-  other prompt options).
+- *The terminal's other prompt options* (reopened by the user,
+  2026-10-03; dev log 2026-10-03-c05-prompt-options-spike): the card
+  offers the extra ways to allow that the terminal's prompt has ("Yes,
+  and don't ask again for: …", "Yes, allow reading from … during this
+  session", "Yes, and switch to auto mode", ...), settings-file rules
+  included, taken from Claude Code's own suggestions and **never
+  allowing more than the terminal** (S02 → Prompt options). As **a
+  terminal-style list**: Yes, the options, No; it replaced the
+  Allow/Deny row (and C06's separate switch button).
 - *The note goes with a deny only* (user's, at the live check,
   2026-10-01): it is locked until you press Deny, then Send denies with
   it; Allow answers at once and never sends it. This matches Claude
@@ -1214,14 +1220,18 @@ changes, so typing and progress aren't lost to other events.
   asks:" (the agent's `name`; "A subagent" without one), and "1 of 3
   waiting" when more than one waits.
 - *Permission:* the summary, Details (the input as indented JSON, in a
-  140 px scroll box), Deny and Allow, and under them the note field and
-  Send, both locked until Deny is pressed ("Press Deny to add a note").
-  Deny is a toggle: pressed, it unlocks them and focuses the note;
-  pressed again, it locks them. Send → `permission.respond` deny, with
-  the note if one was typed ("sent as your next message", S02 →
-  Permissions). Allow → `permission.respond` allow at once, never with
-  the note; a note already typed is kept, locked, in case the answer is
-  refused.
+  140 px scroll box), then one button per line, full width, in the
+  terminal's order: "Yes", each of the permission's `options` by its
+  label (left-aligned, wrapping, shown in full: a long Bash rule makes a
+  tall button), and "No". Under them the note field and Send, both
+  locked until No is pressed ("Press No to add a note"). No is a toggle:
+  pressed, it unlocks them and focuses the note; pressed again, it locks
+  them. Send → `permission.respond` deny, with the note if one was typed
+  ("sent as your next message", S02 → Permissions). Yes →
+  `permission.respond` allow at once; an option → allow with its
+  `option` id; neither ever sends the note, and a note already typed is
+  kept, locked, in case the answer is refused. (Until 2026-10-03 these
+  were Allow and Deny side by side, plus C06's switch button.)
 - *Question:* "Question 1 of 2" and the item's header, its text, options
   as toggle buttons (single) or checkboxes (multi) with their
   descriptions, "Other…", Back / Next, Send on the last item →
@@ -1229,7 +1239,7 @@ changes, so typing and progress aren't lost to other events.
   options' order plus your own words for a multi-select, or one or the
   other for a single choice (the sidecar joins a multi-select's with
   ", "). Next and Send stay disabled until the item is answered.
-- *Safety:* Allow, Deny and Send have no keyboard focus (`FOCUS_NONE`),
+- *Safety:* Yes, the options, No and Send have no keyboard focus (`FOCUS_NONE`),
   so no key press can answer; Enter in the note or "Other…" does
   nothing. Text is shown in plain `Label`s and buttons (no BBCode).
 - *Sending:* buttons are disabled while an answer is on its way; the
@@ -1241,7 +1251,7 @@ changes, so typing and progress aren't lost to other events.
 - Status line: "Waiting for a permission: answer it above or in the
   terminal." (and the same for questions).
 - Polish left: unticked checkboxes are faint in Godot's default theme;
-  Deny's pressed look is only a darker button; no in-world cue yet
+  No's pressed look is only a darker button; no in-world cue yet
   (A05). Not checked under the Compatibility renderer.
 
 *Live check (2026-10-01, the user, `claude` 2.1.285, default mode):*
@@ -1272,25 +1282,29 @@ the world the way the terminal offers. Dev log 2026-10-02-c06-c07-spike
 - **The current mode shows in the chat panel's header only**, not in the
   sessions menu or the world.
 - **Switching mirrors the terminal** (principle: behave nigh equal to
-  vanilla Claude Code): the plan's choices (C07), and "Allow and switch to
+  vanilla Claude Code): the plan's choices (C07), and "Yes, and switch to
   auto mode" on Bash prompts, as Claude Code's own Bash prompt offers in
-  Manual and Accept edits once auto mode is available. Nothing else:
+  Manual and Accept edits once auto mode is available (since 2026-10-03
+  one of C05's prompt options; it was C06's own "Allow and switch to
+  auto mode" button), and Accept edits on a file edit where Claude Code
+  suggests it (C05). Nothing else:
   there's no way to switch with no prompt open (only Shift+Tab in the
   terminal; typing keystrokes was rejected).
 
 How it works:
 - **Protocol.** A session that declares `permission_modes` has `mode`:
   the provider's id, null until known; changes come as `session.updated`
-  with `mode`. A permission may carry `modes`: what an allow can also
-  switch to; `permission.respond` takes an optional `mode` (allow only,
-  one of them; the sidecar refuses anything else).
+  with `mode`. The switch on a prompt is one of the permission's
+  `options` (C05; option id `auto`), sent back as `permission.respond`'s
+  `option`. (Until 2026-10-03 a permission carried `modes` and the
+  answer a `mode`; C05's general list replaced them.) Plans keep their
+  `modes` (C07).
 - **Godot.** The chat panel's header shows "Mode: Auto" (Godot's own
   names, `PermissionModes` in `chat/permission_modes.gd`; an id it
   doesn't know shows as is), only when the capability is declared and
-  the mode known, updated on `session.updated`. On the C05 card, a
-  permission with `modes` gets one "Allow and switch to auto mode"
-  button per mode beside Allow; like Allow, no keyboard focus, and it
-  never sends the note.
+  the mode known, updated on `session.updated`. On the C05 card the
+  switch is a line in the prompt's list, "Yes, and switch to auto mode";
+  like Yes, no keyboard focus, and it never sends the note.
 - **Safety.** Switches happen only on the user's click; the switch is
   for the session only (Claude's `setMode` with destination `session`,
   never written to settings files). Claude Code refuses `setMode` to
@@ -1348,7 +1362,8 @@ planning": the card went), one approved from the world with a mode, a
 Bash prompt allowed and switched to auto from the card, the header
 following Shift+Tab with the next message (no hook fires on Shift+Tab
 itself), and plans back in a resumed conversation. Not seen: a
-PowerShell prompt (the switch is offered on Bash only).
+PowerShell prompt (the switch is offered on Bash only). Since then the
+switch button became one of C05's prompt options (2026-10-03).
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -1746,7 +1761,8 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   project's .claude/settings.local.json)" or "Yes, and allow access to
   /a during this session" (PowerShell's folder; the terminal words it
   "always allow access to … from this project", but nothing was saved).
-  **A stopgap** (user's): Known issues → Prompt options not seen live.
+  **A stopgap** (user's): Known issues and next steps → Watch items →
+  Prompt options not seen live.
 - **Why we offer what we offer** (asked by the user to be recorded): the
   aim is the terminal's choices, no more and no less, but the world only
   knows what the hook says, and the terminal's dialog sometimes does
@@ -2177,8 +2193,9 @@ In `sidecar/`:
   the last failing; a notice, a new conversation like `/clear`), and `rename <name>` renames the session
   like `/rename`; anything else is echoed back. Sessions start in auto
   mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
-  Accept edits, Plan); in Manual or Accept edits, `permission`'s prompt
-  also offers "Allow and switch to auto mode". `plan` switches to plan
+  Accept edits, Plan); `permission`'s prompt offers "Yes, and don't ask
+  again for: npm install" (the fake asks again anyway) and, in Manual or
+  Accept edits, "Yes, and switch to auto mode" (C05's options). `plan` switches to plan
   mode and presents a plan to approve (Yes with auto or Manual, or No,
   keep planning): approved, the mode switches; sent back with a note, a
   revised plan comes; without one, the turn ends. A new session is
@@ -2195,7 +2212,8 @@ In `sidecar/`:
   permission; the latest unless an id is given; text after it is sent as
   a note), `/answer <label>` (a
   question; `A|B` for multi-select), `/reply <text>` (free answer),
-  `/switch [id] <mode>` (allow a permission and switch mode),
+  `/option [id] <option>` (allow a permission one of its other ways,
+  by option id, e.g. `suggested` or `auto`),
   `/approve [id] <mode>` and `/keep [id] [note]` (approve a plan, or
   send it back: "No, keep planning"), `/stop`, `/history`. Use a neutrally named folder: Claude once guessed
   this repo's path from a test folder's name and wrote there.
@@ -2379,13 +2397,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** C05 reopened, the terminal's other prompt options
-(user's pick, 2026-10-03), on branch `c05-prompt-options`: decisions and
-a `claude -p` probe in dev log 2026-10-03-c05-prompt-options-spike
-(Claude's own suggestions, worded like the terminal; a terminal-style
-list on the card; a general `options` list replacing C06's `modes`).
-Live pairing done, protocol approved (2026-10-03); building: sidecar
-in progress (WIP commit, typecheck not clean yet), then Godot, the fake,
-tests and docs. **Merged to `main` (2026-10-03), reviewed by the user: C06 +
+(user's pick, 2026-10-03), **built on branch `c05-prompt-options`**,
+ready for the live check with the user: Claude's own suggestions,
+worded like the terminal where checked live and never allowing more
+than it; a terminal-style list on the card (Yes, the options, No); a
+general `options` list replacing C06's `modes` (dev logs
+2026-10-03-c05-prompt-options-spike and -build). **Merged to `main` (2026-10-03), reviewed by the user: C06 +
 C07, permission modes and plan approval** (live check passed with the
 fake and a real `claude` 2.1.288): the mode in the chat's header, "Allow
 and switch to auto mode" on Bash prompts, plans as their own message
@@ -2539,30 +2556,24 @@ exists.
 
 ### Deferred ideas (not features yet)
 
-- **The terminal's other prompt options** (C05 reopened by the user,
-  2026-10-03, for after C06/C07). The terminal's prompts offer more than
-  Yes/No: "Yes, and don't ask again for: node *", "Yes, and always allow
-  access to <folder>", "Yes, allow all edits during this session" (a
-  switch to Accept edits on edit prompts). The user's aim: offer each
-  prompt's own options, exactly as Claude Code reports them. What the
-  hooks give (hooks reference, checked 2026-10-03): `PermissionRequest`
-  has `permission_suggestions`, structured entries (`addRules`,
-  `setMode`, `addDirectories`, … each with a `destination`: `session`,
-  or a settings file: `localSettings`, `projectSettings`,
-  `userSettings`), **with no labels**; and the docs say the array
-  "isn't an exact list of the options you see": edit dialogs don't
-  read it, some options have no entry (switch to auto, C06), and some
-  entries are hidden by settings. So the options can be taken from
-  Claude Code, but their wording would be ours, per entry type. Echoing
-  an entry back as `updatedPermissions` applies it, which needs the
-  prompt's hook held (as for Bash in C06; the relay's verdict is only
-  allow or deny). *Decided (user's, 2026-10-03):* every destination,
-  settings files included: Claude Code writes the rule, the world only
-  passes on a choice the user could make in the terminal, over our
-  secured route, so we don't withhold any option we can offer. (The
-  button still says what it does, in the terminal's words.) And hold
-  the hook of every prompt with options beyond Yes/No (user's: we put
-  in the work wherever it stays truer to the terminal).
+- **The terminal's other prompt options:** built (C05, 2026-10-03).
+
+- **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
+  The sidecar and its protocol don't depend on the game: others could
+  build on them (a web dashboard, another engine, another provider such
+  as OpenCode). *Agreed: not yet.* The protocol still changes (C05 just
+  replaced C06's `modes`), and outside users need versioning and
+  compatibility promises; it relies on Claude Code's early-access
+  development channel and on behaviour found by testing; a public
+  sidecar must be secured for clients we didn't write; Anthropic's terms
+  need checking for a standalone tool (dev log 2026-10-02-terms-steam);
+  and a second repository is upkeep. Until then, keep the boundary
+  clean: no game assumptions in the sidecar, and the protocol fully
+  described by `protocol/events.schema.json`. Revisit once the protocol
+  has gone a few features without breaking changes, ideally around the
+  public release. Cheapest first step: publish the sidecar from this
+  repository as its own package with a versioned protocol; a separate
+  repository later if interest justifies it.
 
 - **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
   every assistant entry in the transcript records the API's token usage and
@@ -2611,6 +2622,20 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **Prompt options not seen live** (C05; a stopgap, user's,
+  2026-10-03). The live check (`claude` 2.1.288) paired nine prompts
+  with the terminal's words (S02 → Prompt options). Every other kind of
+  suggestion is offered with our own plain label ("Yes, and always allow
+  … (saved in …)"), honest but not the terminal's words. To check live
+  and word like the terminal: MCP tools; other tools (Glob, Grep,
+  NotebookEdit, ...); rules saved to `projectSettings` or `userSettings`;
+  session `addRules` for tools other than Read; `addDirectories` on
+  anything but PowerShell; a prompt with several entries. Also
+  PowerShell's own option: the terminal says "Yes, and always allow
+  access to … from this project", but nothing was saved anywhere, so
+  ours says "during this session". Recheck the pairing when Claude Code's
+  dialogs change.
 
 - **Ending a session from the game** (S05). Not built: Claude Code has
   no clean way to end an interactive session from outside (S05 has what

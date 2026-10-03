@@ -44,7 +44,7 @@ transcripts are off).
 - [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
 - [9. /clear or /resume: another conversation in the session](#9-clear-or-resume-another-conversation-in-the-session)
 - [10. A plan to approve (C07)](#10-a-plan-to-approve-c07)
-- [11. Allow and switch to auto mode (C06)](#11-allow-and-switch-to-auto-mode-c06)
+- [11. A prompt's other options (C05, C06)](#11-a-prompts-other-options-c05-c06)
 
 ## 0. Starting up
 
@@ -192,11 +192,16 @@ sequenceDiagram
     and
         Claude->>Bridge: permission request (request ID, tool, input preview)
         Bridge->>Sidecar: permission request
+    and
+        Claude->>Sidecar: PermissionRequest (permission_suggestions)
     end
-    Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits up to 300 ms for its PreToolUse.
-    Sidecar->>World: permission.requested (ID = request ID, asked_at = now),<br/>agent → waiting (permission)
+    Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits for that call's PreToolUse<br/>and PermissionRequest, in either order, up to 1 s.
+    opt the prompt has no options (flow 11)
+        Sidecar-->>Claude: reply to PermissionRequest: no decision (the terminal asks as usual)
+    end
+    Sidecar->>World: permission.requested (ID = request ID, asked_at = now,<br/>options if any), agent → waiting (permission)
     alt answered in the world
-        User->>World: allow or deny
+        User->>World: Yes or No
         World->>Sidecar: permission.respond
         Sidecar-->>World: ok
         Sidecar->>Bridge: verdict (request ID)
@@ -217,10 +222,14 @@ sequenceDiagram
     end
 ```
 
-In the world, "allow or deny" and "picks options or types an answer"
+In the world, "Yes or No" and "picks options or types an answer"
 (flow 4) happen on the card in the chat panel (NOTES.md → C05): one
 request at a time, oldest first; it moves on when `permission.resolved`
 or `question.resolved` arrives, whichever side answered.
+
+Picking one of the prompt's other options goes through its held hook
+instead (flow 11). If a prompt still has a held hook when its call ends
+(`tool.finished`), the hook is let go with nothing to add.
 
 The "No" line names the call's `tool_use_id`, so the sidecar resolves that
 exact prompt and closes the call as `denied`. When transcripts are off, a
@@ -500,7 +509,11 @@ example with transcripts off). If Claude Code drops the held hook
 (`claude` exited), the plan resolves as rejected, by external. A stop
 from the world sends held plans back.
 
-## 11. Allow and switch to auto mode (C06)
+## 11. A prompt's other options (C05, C06)
+
+The terminal's prompts offer more than Yes and No ("Yes, and don't ask
+again for: npm test \*", "Yes, and switch to auto mode", ...). The world
+offers the ones it can (NOTES.md → S02 → Prompt options).
 
 ```mermaid
 sequenceDiagram
@@ -510,35 +523,36 @@ sequenceDiagram
     participant Bridge
     participant Claude as Claude Code (terminal)
 
-    Note over Sidecar: Every orchestrator hook carries permission_mode:<br/>a change goes out as session.updated (mode).
-    Claude->>Sidecar: PreToolUse Bash (permission_mode: default or acceptEdits)
+    Claude->>Sidecar: PreToolUse (e.g. Bash; permission_mode)
     Sidecar-->>Claude: empty reply (no decision)
-    par Claude Code asks in both places, and we hold its hook
-        Claude->>User: permission dialog in the terminal<br/>(with "Yes, and switch to auto mode")
+    par Claude Code asks in both places
+        Claude->>User: permission dialog in the terminal (its own options)
     and
         Claude->>Bridge: permission request
         Bridge->>Sidecar: permission request
     and
-        Claude->>Sidecar: PermissionRequest Bash (held open, in case)
+        Claude->>Sidecar: PermissionRequest (permission_suggestions)
     end
-    Sidecar->>World: permission.requested (modes: [auto], since the session was seen in auto)
-    alt allowed with the switch in the world
-        User->>World: Allow and switch to auto mode
-        World->>Sidecar: permission.respond (allow, mode auto)
+    Note over Sidecar: prompt-options.ts keeps the suggestions that allow<br/>no more than the terminal ("suggested"), and adds<br/>"Yes, and switch to auto mode" ("auto") on Bash in<br/>Manual or Accept edits once auto was seen.
+    Note over Sidecar: Options left: the PermissionRequest hook is held open.<br/>None: it's answered at once, and this is flow 3.
+    Sidecar->>World: permission.requested (options: [{option, label}, ...])
+    alt an option picked in the world
+        User->>World: e.g. "Yes, and don't ask again for: npm --version"
+        World->>Sidecar: permission.respond (allow, option)
         Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: allow, the input echoed back,<br/>setMode (auto, this session only)
-        Note over Claude: The terminal's dialog and the relayed request close themselves.
+        Sidecar-->>Claude: reply to the held hook: allow, the input echoed back,<br/>updatedPermissions = the option's entries as Claude Code suggested them
+        Note over Claude: Claude Code writes the rule or switches the mode itself.<br/>The terminal's dialog and the relayed request close themselves.
         Sidecar->>World: permission.resolved (by app)
-        Claude->>Sidecar: PostToolUse Bash (permission_mode: auto)
+        Claude->>Sidecar: PostToolUse (permission_mode: maybe changed)
         Sidecar-->>Claude: nothing to add
-        Sidecar->>World: session.updated (mode auto), tool.finished
-    else any other answer, in the world or the terminal
-        Note over Sidecar: As in flow 3 (an allow or deny from the world goes<br/>through the bridge). When the call ends (tool.finished),<br/>the held hook is let go with nothing to add.
+        Sidecar->>World: session.updated (mode, if it changed), tool.finished
+    else Yes or No, in the world or the terminal
+        Note over Sidecar: As in flow 3 (Yes or No from the world goes<br/>through the bridge). When the call ends (tool.finished),<br/>the held hook is let go with nothing to add.
     end
 ```
 
 If the held hook is gone (Claude Code stopped waiting on it) or the
-session was never seen in auto, an allow with a switch gets `error`
-(`provider_error`, "This prompt can't switch modes right now…"); allow
-without switching, or answer in the terminal. Only Bash prompts are held
-this way, and only in Manual or Accept edits.
+option isn't one of the prompt's, an answer with an option gets `error`
+(`provider_error`, "This prompt can't be answered that way right
+now. Answer Yes or No, or answer in the terminal."). A prompt already
+shown without options (its hook came after the 1 s wait) keeps none.
