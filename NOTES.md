@@ -370,7 +370,7 @@ removing a provider means deleting its folders.
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
-| `tests/` | Headless test scripts, mirroring the folders above. Not shipped. |
+| `tests/` | Headless test scripts, mirroring the folders above, and `error_watch.gd`, which every suite uses (Running it). Not shipped. |
 
 **Sidecar files** (`sidecar/`):
 
@@ -2258,6 +2258,20 @@ godot --headless --path . --script res://tests/world/clusters_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
+**Any error fails a suite** (user's choice, 2026-10-03; dev log
+2026-10-03-script-errors-fail-tests). A GDScript runtime error
+(`SCRIPT ERROR`) only aborts the function it happens in. An awaiting
+caller carries on, so a suite could print PASS with checks skipped; if
+the suite's own entry function aborted, it never quit at all. Every suite
+installs `tests/error_watch.gd`, a `Logger` (`OS.add_logger`). On any
+logged error (a script error, `push_error` or an engine error, from any
+thread) it quits with 1 at once and prints a FAIL line, and the suite's
+PASS line checks `_errors.ok()` too. Warnings don't count: the sidecar
+client test's reconnect warning is expected. It works the same locally
+and on CI; the workflow doesn't read the output. A new suite does the
+same (the file's header shows how). No suite causes an error on purpose;
+one that needs to would first have to teach the watch to expect it.
+
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots and
 the layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
@@ -2320,7 +2334,8 @@ by seconds on a loaded runner). In the Godot suites, a check after an
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
-2026-10-03-world-test-flaky).
+2026-10-03-world-test-flaky). A logged error fails a step like a failed
+check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
@@ -2421,6 +2436,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Ready for review: any error fails a Godot suite** (branch
+`fix/script-errors-fail-tests`, dev log
+2026-10-03-script-errors-fail-tests): a script error no longer lets a
+suite print PASS with checks skipped.
 **Merged to `main` (2026-10-03), reviewed by the user: the world test's
 flaky checks** (dev log 2026-10-03-world-test-flaky): its checks wait on
 conditions, not frame counts.
