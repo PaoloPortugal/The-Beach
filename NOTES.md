@@ -466,9 +466,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
 | `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
-| `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`) |
+| `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`, optional `option`) |
 | `tool.started`, `tool.finished` | |
-| `permission.requested`, `permission.resolved` | `permission.respond`'s `mode`: `permission_modes` capability |
+| `permission.requested`, `permission.resolved` | |
 
 - `session.snapshot` places an island as is; `session.created` plays the rise
   animation.
@@ -494,6 +494,17 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   change (optional and additive), like `tools` in the history's result.
 - `permission.resolved` has `by`: `app` or `external` (answered in the
   terminal).
+- A permission may carry `options`: its other ways to allow, beyond a
+  plain allow, each `{option, label}` (an id, and what choosing it does
+  in the provider's own words, which Godot shows as they are), in the
+  order the provider's own interface lists them (e.g. Claude Code's
+  "Yes, and don't ask again for: npm test \*", "Yes, and switch to auto
+  mode"). `permission.respond` then takes an optional `option`: allow
+  only, one of those ids; the sidecar refuses anything else. Core (C05):
+  any tool's prompt can have them. Changed 2026-10-03: these replaced
+  C06's `modes` and `mode` (the switch to auto mode is one option among
+  them), without a version change, since Godot and the sidecar ship
+  together.
 - Permissions and questions carry `asked_at`: when the sidecar first saw
   them, set by the registry for every provider (a provider's own value
   is replaced). Kept in the snapshot, so a reconnect doesn't restart the
@@ -533,9 +544,8 @@ Each one is added to the schema and listed here:
   provider's own id (e.g. Claude Code's `default`, `acceptEdits`, `plan`,
   `auto`; Godot shows its own names for ids it knows). The session has
   `mode` (null until known); changes come as `session.updated` with
-  `mode`. A `permission.requested`'s permission may carry `modes`: what
-  an allow can also switch to; `permission.respond` then takes an
-  optional `mode` (allow only, one of those).
+  `mode`, including one a permission's option made (an option that
+  switches modes is core, above).
 - **`plans`** (C07): an agent presents a plan for approval. `plan.asked`
   (`plan`, `agent`, `text`, `modes`: what approving can switch to, in the
   provider's own order, `asked_at`), `plan.resolved` (`decision`:
@@ -1423,8 +1433,9 @@ next to the game come with the first export.
 `interrupt`, `permission_modes` and `plans` capabilities, no extension
 yet). Code:
 `sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
-`session.ts` runs one session, `hooks.ts` and `hook-server.ts`, `bridge.ts`
-and `bridge-server.ts`, `transcript.ts`) and the generic
+`session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
+`prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`)
+and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md`. Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
 -s02-relay-questions-stop, 2026-10-01-agent-view-clear. The only place
@@ -1670,11 +1681,20 @@ the Resume list matched Claude Code's own `/resume` list.
 
 **Permissions** (C05's sidecar side). The relayed prompt names no tool
 call or agent, so the sidecar ties it to the open call of that tool whose
-input the relay's preview shows (else the newest without a prompt),
-waiting up to 300 ms for its `PreToolUse` (it arrives on the other
-connection about 100 ms earlier). The world gets `permission.requested`
-(id = `request_id`) with the right agent, summary and input, and the agent
-is `waiting` (reason `permission`). `permission.respond` sends the verdict
+input the relay's preview shows (else the newest without a prompt). It
+waits for that call's `PreToolUse` (it arrives on another connection
+about 100 ms earlier) and its `PermissionRequest` hook, which brings the
+prompt's options (a few ms after the relay; Prompt options, below),
+whichever order they come in, and is shown as soon as both came. After
+1 s it's shown with what's known: without options, or without a call,
+as the orchestrator's. (It was 300 ms for `PreToolUse` alone; 1 s since
+C05's options, 2026-10-03: a hook later than that means a prompt shown
+without the options the terminal has, while a hook that never comes,
+e.g. blocked by `allowedHttpHookUrls`, only delays the card by this
+much.) A stop asked meanwhile shows and declines it with the rest. The
+world gets `permission.requested` (id = `request_id`) with the right
+agent, summary, input and options, and the agent is `waiting` (reason
+`permission`). `permission.respond` sends the verdict
 down the bridge. Resolved: in the world (`by: app`); "Yes" in the
 terminal through the call's `PostToolUse`; "No" through the transcript
 (`by: external`); and, as a fallback, when the agent's turn ends or the
@@ -1683,11 +1703,74 @@ message (user's decision; the world sends one only with a deny, C05;
 the protocol still accepts a note with `allow`, an unused feature the
 world removed, left as is by the user's choice in the M1 review): it arrives before Claude's next step, and
 Claude follows it (checkpoint 2). If that ever changes: hold
-`PermissionRequest` for plain prompts too and put the note in the deny's
-`message`.
+every prompt's `PermissionRequest` (now held only while it has options)
+and put the note in the deny's `message`.
+
+**Prompt options** (C05 reopened, 2026-10-03; dev log
+2026-10-03-c05-prompt-options-spike). The terminal's prompts offer more
+than Yes and No ("Yes, and don't ask again for: npm test \*", "Yes,
+allow reading from … during this session", ...). Claude Code's
+`PermissionRequest` hook carries the suggestions behind them,
+`permission_suggestions` (permission update entries: `addRules`,
+`setMode`, `addDirectories`, ..., each with a `destination`), but no
+labels, and the docs say they "aren't an exact list" of the options
+shown. `prompt-options.ts` turns them into a permission's `options`:
+- **One option for the suggestions** (`option: "suggested"`): all the
+  offerable entries together, as the terminal shows one "Yes, and …"
+  line for them (a Bash command in another folder: one entry, two rules,
+  one line). Then **"Yes, and switch to auto mode"** (`auto`, C06's
+  switch; `setMode auto` for the session), on Bash prompts asked in
+  Manual or Accept edits once auto was seen; no suggestion carries it.
+- **Never allowing more than the terminal** (user's rule). Offered
+  unchanged: `addRules` with `behavior: allow`, `addDirectories`, and
+  `setMode acceptEdits` for the session on a file edit (Edit, Write,
+  MultiEdit, NotebookEdit) outside a `.claude` folder; each with a known
+  destination. Dropped: rules that deny, ask, replace or remove; every
+  other mode (Bypass and Don't ask are never offered); a mode switch
+  anywhere else; anything we can't read. On a `.claude` write the only
+  suggestion is the switch to Accept edits, which would allow every
+  edit where the terminal allows only that folder, so it has no option;
+  on PowerShell, the folder for the session is kept and the mode switch
+  the terminal didn't make is dropped.
+- **Labels**, by what the entries do: the terminal's own words where the
+  live check (2.1.288) showed the same effect, e.g. "Yes, and don't ask
+  again for: npm test \*", "Yes, and switch to accept edits
+  (auto-approve file edits and common file commands) for this session",
+  "Yes, allow reading from /c/… during this session", "Yes, and allow
+  access to /c/… and "node -e …" commands", "Yes, and don't ask again
+  for example.com", "Yes, and don't ask again for Web Search commands in
+  ~/…". A Bash rule is the hook's own, shown exactly: it can be narrower
+  than the terminal's (`npm --version` where the terminal saves `npm *`).
+  Anything not seen live gets a plain description of what it does and
+  where it's saved, e.g. "Yes, and always allow mcp__x__y (saved in this
+  project's .claude/settings.local.json)" or "Yes, and allow access to
+  /a during this session" (PowerShell's folder; the terminal words it
+  "always allow access to … from this project", but nothing was saved).
+  **A stopgap** (user's): Known issues → Prompt options not seen live.
+- **Why we offer what we offer** (asked by the user to be recorded): the
+  aim is the terminal's choices, no more and no less, but the world only
+  knows what the hook says, and the terminal's dialog sometimes does
+  things the hook never reports, so an exact copy isn't possible. Where
+  the two agree (six of the nine prompts tried live), the world offers
+  the same choice with the same effect, worded like the terminal. Where
+  they differ, it offers **less, never more**: a narrower Bash rule (the
+  terminal's prefix logic is undocumented, and copying it would be
+  re-implementing Claude Code), nothing extra on `.claude` writes, and
+  PowerShell's folder without the mode switch. Allowing less only means
+  Claude asks again later; allowing more would act beyond what the user
+  chose (Principles). Every button says exactly what it does, even where
+  the terminal's words differ. The terminal keeps its full options for
+  anything the world can't offer.
+- **Answering.** Choosing an option answers the prompt's held hook:
+  `allow`, the input echoed as `updatedInput`, and the option's entries
+  as `updatedPermissions`, exactly as Claude Code suggested them, so
+  Claude Code itself writes any rule (to the file the entry names) or
+  switches the mode. The terminal's dialog and the relayed prompt then
+  close themselves (C06 spike). Yes and No still go through the relay.
 
 **Clarifying questions (`questions` capability).** `PermissionRequest` is
-registered for `AskUserQuestion` only and held open while **the terminal
+registered for every tool (Prompt options, above); for
+`AskUserQuestion` it is held open while **the terminal
 shows the question too**; whichever side answers first wins (spike run 3;
 holding `PreToolUse` instead hid it from the terminal, rejected). The
 question's id is its `tool_use_id`. Answered in the world: the held hook
@@ -1710,26 +1793,27 @@ capabilities; C06, C07).** From the spike with `claude` 2.1.288 (dev log
   and use auto mode", "Yes, manually approve edits"), else
   `['acceptEdits', 'default']` ("Yes, auto-accept edits"; Claude Code
   words it so when auto isn't available). A Bash prompt asked in
-  `default` or `acceptEdits` carries `modes: ['auto']` once auto was
-  seen ("Yes, and switch to auto mode"; `permission_suggestions` don't
-  include it, so we add it).
-- **Held hooks.** `PermissionRequest` is registered for
-  `AskUserQuestion|ExitPlanMode|Bash`. A plan's hook is held while the
-  terminal shows the plan too (plans have no channel relay). A Bash
-  prompt's hook is held only in case the world allows it with a switch;
-  any other answer goes through the relay as for every prompt, and the
-  held hook is let go when the call ends (`tool.finished`).
+  `default` or `acceptEdits` offers "Yes, and switch to auto mode" once
+  auto was seen, as one of its options (Prompt options, above;
+  `permission_suggestions` don't include it, so we add it).
+- **Held hooks.** `PermissionRequest` is registered for every tool
+  (matcher `*`). A question's and a plan's hook is held while the
+  terminal shows them too (plans have no channel relay). Any other
+  prompt's hook is held only while the prompt has options, in case the
+  world allows it one of those ways; one without options is answered at
+  once with no decision, so the terminal asks as usual. Yes or No goes
+  through the relay as for every prompt, and the held hook is let go
+  when the call ends (`tool.finished`).
 - **Answers from the world.** Approve: `allow` with the plan's input
   echoed back as `updatedInput` (without it Claude Code ignores the
   reply) and `updatedPermissions: [{type: setMode, mode, destination:
   session}]`. Send back: `deny` with the note, or "The user wants to keep
   planning. Ask them what to change." without one; Claude Code sends no
-  hook for the denied call, so the sidecar closes it as denied. A Bash
-  allow with a mode answers its held hook the same way (`allow`, echoed
-  input, `setMode`); Claude Code then closes the terminal's dialog and the
-  relayed prompt resolves itself. If that hook is gone (or auto wasn't
-  seen), the switch is refused ("This prompt can't switch modes right
-  now…").
+  hook for the denied call, so the sidecar closes it as denied. The
+  switch to auto on a Bash prompt is an option, answered through its
+  held hook (Prompt options, above). If that hook is gone, an option is
+  refused ("This prompt can't be answered that way right now. Answer Yes
+  or No, or answer in the terminal.").
 - **Answers in the terminal.** The held hook stays open (spike), so the
   plan resolves from the call's `PostToolUse` (approved, `by:
   external`), a refusal in the transcript or the turn ending (rejected),
