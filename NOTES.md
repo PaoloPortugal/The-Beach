@@ -2436,10 +2436,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
-**Ready for review: any error fails a Godot suite** (branch
-`fix/script-errors-fail-tests`, dev log
-2026-10-03-script-errors-fail-tests): a script error no longer lets a
-suite print PASS with checks skipped.
+**Merged to `main` (2026-10-03), reviewed by the user: any error fails
+a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
+error no longer lets a suite print PASS with checks skipped.
 **Merged to `main` (2026-10-03), reviewed by the user: the world test's
 flaky checks** (dev log 2026-10-03-world-test-flaky): its checks wait on
 conditions, not frame counts.
