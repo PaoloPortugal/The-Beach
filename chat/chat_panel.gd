@@ -4,7 +4,8 @@ extends PanelContainer
 ## the session's chat so far, streaming as it arrives, and a message box.
 ## Pending permission prompts and questions are answered on its card
 ## (C05, [PendingCard]). Messages are rendered as Markdown (C03,
-## [MarkdownView]). Message text is untrusted (NOTES.md → Security rules):
+## [MarkdownView]); after each one, the tool calls that followed it fold
+## into one line (C04, [ToolFold]). Message text is untrusted (NOTES.md → Security rules):
 ## the Markdown converter escapes all of it, and a link opens only after a
 ## confirmation showing its full address.
 
@@ -36,6 +37,12 @@ var sidecar: SidecarClient
 var session_id := ""
 
 var _rows := {} # message id → its MarkdownView
+## The tool-call log as laid out ([method SessionStore.tool_tree]), the
+## calls placed in it, and each message's fold (id → [ToolFold]; "" for the
+## calls before the first message, shown only when every message is).
+var _tree := {}
+var _placed := {}
+var _folds := {}
 var _rebuild_queued := false
 ## Older messages still to build, newest first.
 var _to_build: Array[String] = []
@@ -75,6 +82,11 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.messages_replaced.connect(func(id: String) -> void:
 		if id == session_id:
 			_rebuild())
+	store.tool_changed.connect(_on_tool_changed)
+	store.tools_loaded.connect(func(id: String) -> void:
+		if id == session_id and not _rebuild_queued:
+			_rebuild_queued = true
+			_rebuild.call_deferred())
 	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
@@ -113,8 +125,14 @@ func set_draft(text: String) -> void:
 func shown_messages() -> Array[String]:
 	var out: Array[String] = []
 	for row in _messages.get_children():
-		out.append((row.get_meta("view") as MarkdownView).shown_text())
+		if row.has_meta("view"):
+			out.append((row.get_meta("view") as MarkdownView).shown_text())
 	return out
+
+
+## The tool calls' fold after a message ("": before the first), or null.
+func tool_fold(message: String) -> ToolFold:
+	return _folds.get(message)
 
 
 ## Whether older messages are still being built.
@@ -197,9 +215,16 @@ func _on_message_changed(id: String, message: String) -> void:
 			if not _to_build.is_empty():
 				_to_build.pop_back()
 			else:
-				var first := _messages.get_child(0)
+				var first := _messages.get_child(1)
 				_rows.erase(first.get_meta("message"))
+				_folds.erase(first.get_meta("message"))
 				first.free()
+			# Not every message is shown now: nor are the calls before them.
+			var top: ToolFold = _folds.get("")
+			if top:
+				_folds.erase("")
+				top.ids = []
+				top.refresh()
 	else:
 		# An older message (history arriving): lay everything out again,
 		# once for the whole batch.
@@ -220,6 +245,14 @@ func _rebuild() -> void:
 	var all := store.messages(session_id)
 	for m in all.slice(maxi(0, all.size() - MAX_SHOWN)):
 		_to_build.push_front(m["message"])
+	_tree = store.tool_tree(session_id)
+	for id in s.get("tool_order", []):
+		_placed[id] = true
+	# The calls before the first message, when it's shown.
+	var top := _new_fold(_tree["after"].get_or_add("", []) if all.size() <= MAX_SHOWN else [])
+	_messages.add_child(top)
+	if all.size() <= MAX_SHOWN:
+		_folds[""] = top
 	_build_run += 1
 	_build_some()
 	_scroll_to_end()
@@ -234,7 +267,7 @@ func _build_some() -> void:
 	while not _to_build.is_empty():
 		var m: Dictionary = store.session(session_id)["messages"].get(_to_build.pop_front(), {})
 		if not m.is_empty():
-			_add_row(m, 0)
+			_add_row(m, 1) # under the calls before the first message
 		if Time.get_ticks_usec() - start > BUILD_BUDGET_USEC:
 			break
 
@@ -262,6 +295,9 @@ func _build_rest(run: int) -> void:
 
 func _clear() -> void:
 	_rows.clear()
+	_folds.clear()
+	_placed.clear()
+	_tree = {}
 	_to_build.clear()
 	_build_run += 1
 	for child in _messages.get_children():
@@ -287,20 +323,55 @@ func _add_row(m: Dictionary, at := -1) -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.size_flags_stretch_ratio = 1.0
-	var row := HBoxContainer.new()
-	row.set_meta("message", m["message"])
-	row.set_meta("view", view)
+	var line := HBoxContainer.new()
 	# Yours on the right, the agent's on the left.
 	if user:
-		row.add_child(spacer)
-		row.add_child(bubble)
+		line.add_child(spacer)
+		line.add_child(bubble)
 	else:
-		row.add_child(bubble)
-		row.add_child(spacer)
+		line.add_child(bubble)
+		line.add_child(spacer)
+	# The message, then the tool calls that followed it.
+	var row := VBoxContainer.new()
+	row.set_meta("message", m["message"])
+	row.set_meta("view", view)
+	row.add_child(line)
+	var fold := _new_fold(_tree["after"].get_or_add(m["message"], []))
+	row.add_child(fold)
+	_folds[m["message"]] = fold
 	_messages.add_child(row)
 	if at >= 0:
 		_messages.move_child(row, at)
 	_rows[m["message"]] = view
+
+
+func _new_fold(ids: Array) -> ToolFold:
+	var fold := ToolFold.new()
+	fold.setup(store, session_id, _tree, ids)
+	return fold
+
+
+# A call started or finished: it goes in (or updates) the fold of the
+# message its top-level call came after.
+func _on_tool_changed(id: String, tool_call: String) -> void:
+	if id != session_id or _rebuild_queued:
+		return
+	var tools: Dictionary = store.session(id).get("tools", {})
+	var call: Dictionary = tools.get(tool_call, {})
+	if call.is_empty():
+		return
+	if not _placed.has(tool_call):
+		_placed[tool_call] = true
+		SessionStore.place_tool(_tree, tools, call)
+	var top := store.top_tool(id, tool_call)
+	var after = top.get("after")
+	var fold: ToolFold = _folds.get(after if after is String else "")
+	if fold == null:
+		return
+	var at_end := _at_end()
+	fold.refresh()
+	if at_end:
+		_scroll_to_end()
 
 
 func _display(m: Dictionary) -> String:
