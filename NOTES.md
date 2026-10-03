@@ -1146,7 +1146,9 @@ How it works:
   history). One history answer carries at most 8 MiB of tool inputs:
   past that, the oldest calls come without theirs (`fitInputs` in
   `sidecar/src/history.ts`), so the answer stays under the 32 MiB Godot
-  accepts.
+  accepts. Both limits are UTF-8 bytes of JSON (`jsonBytes`), not
+  characters: CJK or emoji take 2 to 4 bytes each (tested). Messages
+  have no byte budget (Watch items → Large chat histories).
 
 Claude's side (S02): live, `within` comes from pairing a `SubagentStart`
 with its Agent call (the oldest open Agent call of that subagent type,
@@ -1557,7 +1559,7 @@ for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
   holds only the new text; the final batch completes the message).
 - `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → tool calls, with a
   one-line summary ("Run: npm install", paths relative to the project);
-  inputs over 64 KiB aren't forwarded. A call that is never run gets no
+  inputs over 64 KiB (UTF-8 bytes of JSON) aren't forwarded. A call that is never run gets no
   hook of its own (denied, stopped, or a question answered with free
   text), so the sidecar closes it as `denied`.
 - `SubagentStart` / `SubagentStop` → subagents. `SubagentStart` doesn't
@@ -2436,6 +2438,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Ready for review (branch `fix/history-utf8-bytes`): C04's input limits
+counted in bytes** (dev log 2026-10-03-c04-input-bytes): tool inputs
+measured in characters let a history with CJK or emoji inputs pass
+Godot's 32 MiB, and that chat's history never loaded.
 **Merged to `main` (2026-10-03), reviewed by the user: any error fails
 a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
 error no longer lets a suite print PASS with checks skipped.
@@ -2855,7 +2861,10 @@ exists.
 - **Large chat histories.** `session.get_history` answers in one message;
   Godot's client accepts up to 32 MiB (S01). A very long session could
   exceed that; paging the history is the fix if it happens. Tool inputs
-  are already capped at 8 MiB per answer (C04).
+  are already capped at 8 MiB per answer (C04), in bytes. Messages are
+  not: up to 5000 of them, and a resumed transcript can be up to 64 MiB,
+  so a session with very long replies (about 6 KiB each on average)
+  could still pass 32 MiB, and its chat history would not load.
 - **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
   on Steam while the source stays free on GitHub (depots per OS, updates
   through SteamPipe; the bundled sidecar ships as ordinary game files).
