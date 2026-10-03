@@ -12,49 +12,20 @@
 //   /reply [id] <text>                answer a question with free text
 //   /stop                             interrupt.request
 //   /history                          session.get_history
-// With --spike (C06/C07 spike, temporary) every hook's permission mode is
-// logged and every PermissionRequest but a question is held; answer one:
-//   /h <n> allow [mode]     allow, echoing its input, optionally setMode
-//   /h <n> allowraw [mode]  the same without updatedInput
-//   /h <n> deny <message>   deny with a message
-//   /h <n> pass             no decision
 // Ctrl+C quits; the claude session keeps running in its terminal.
 import { spawn } from 'node:child_process'
-import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
 import { WebSocket } from 'ws'
 
-const spike = process.argv.includes('--spike')
-const project = process.argv.slice(2).find((a) => a !== '--spike')
-const spikeDir = path.join(os.tmpdir(), `sidecar-spike-${process.pid}`)
-if (spike) fs.mkdirSync(spikeDir, { recursive: true })
+const project = process.argv[2]
 if (!project) {
   console.error('usage: node test/try-claude.ts <project folder>')
   process.exit(2)
 }
 
 const main = path.join(import.meta.dirname, '..', 'src', 'main.ts')
-const sidecar = spawn(process.execPath, [main], {
-  stdio: ['pipe', 'pipe', 'pipe'],
-  env: spike ? { ...process.env, SIDECAR_SPIKE_DIR: spikeDir } : process.env,
-})
-if (spike) {
-  console.log(`spike: held hooks in ${spikeDir}`)
-  fs.watch(spikeDir, (_event, name) => {
-    const m = /^held-(\d+)\.json$/.exec(String(name))
-    if (!m) return
-    setTimeout(() => {
-      const p = JSON.parse(fs.readFileSync(path.join(spikeDir, name!), 'utf8'))
-      const input = p.tool_input ?? {}
-      console.log(`${stamp()}  SPIKE held #${m[1]}: ${p.tool_name} mode=${p.permission_mode} input keys=${Object.keys(input).join(',')}`)
-      console.log(`         suggestions: ${JSON.stringify(p.permission_suggestions ?? null)}`)
-      if (typeof input.plan === 'string') console.log(`         plan: ${JSON.stringify(input.plan.slice(0, 400))}`)
-      if (input.planFilePath) console.log(`         planFilePath: ${input.planFilePath}`)
-    }, 100)
-  })
-}
+const sidecar = spawn(process.execPath, [main], { stdio: ['pipe', 'pipe', 'pipe'] })
 const t0 = Date.now()
 const stamp = () => `${((Date.now() - t0) / 1000).toFixed(1).padStart(6)}s`
 sidecar.stderr.setEncoding('utf8').on('data', (d: string) => {
@@ -129,8 +100,7 @@ function command(line: string) {
     }
     case 'stop': return send({ type: 'interrupt.request', session })
     case 'history': return send({ type: 'session.get_history', session })
-    case 'h': return spikeAnswer(words)
-    default: console.log('commands: /allow /deny /answer /reply /stop /history /h')
+    default: console.log('commands: /allow /deny /answer /reply /stop /history')
   }
 }
 
@@ -139,17 +109,3 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
   if (line.startsWith('/')) return command(line)
   send({ type: 'message.send', session, text: line })
 })
-
-function spikeAnswer([n, how, ...rest]: string[]) {
-  const held = path.join(spikeDir, `held-${n}.json`)
-  if (!spike || !fs.existsSync(held)) return console.log('no such held hook')
-  const p = JSON.parse(fs.readFileSync(held, 'utf8'))
-  const mode = rest[0]
-  const setMode = mode ? { updatedPermissions: [{ type: 'setMode', mode, destination: 'session' }] } : {}
-  const decision = how === 'allow' ? { behavior: 'allow', updatedInput: p.tool_input, ...setMode }
-    : how === 'allowraw' ? { behavior: 'allow', ...setMode }
-      : how === 'deny' ? { behavior: 'deny', message: rest.join(' ') }
-        : null
-  const reply = decision ? { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } } : {}
-  fs.writeFileSync(path.join(spikeDir, `answer-${n}.json`), JSON.stringify(reply))
-}
