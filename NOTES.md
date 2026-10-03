@@ -2468,9 +2468,12 @@ exists.
   Claude Code, but their wording would be ours, per entry type. Echoing
   an entry back as `updatedPermissions` applies it, which needs the
   prompt's hook held (as for Bash in C06; the relay's verdict is only
-  allow or deny). Open: which destinations to allow from the world (a
-  settings-file write is a standing change, so the button must say so),
-  and whether to hold every prompt's hook.
+  allow or deny). *Decided (user's, 2026-10-03):* every destination,
+  settings files included: Claude Code writes the rule, the world only
+  passes on a choice the user could make in the terminal, over our
+  secured route, so we don't withhold any option we can offer. (The
+  button still says what it does, in the terminal's words.) Follows:
+  hold the hook of every prompt with options beyond Yes/No.
 
 - **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
   every assistant entry in the transcript records the API's token usage and
