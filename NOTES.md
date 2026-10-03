@@ -2165,10 +2165,11 @@ C04, the tool-call log** (live check passed with the fake and a real
 `claude`): the tool calls after each message fold
 into one line in the chat, subagents' calls inside their Agent call,
 history included (C04). **Now: C06 + C07 on branch
-`c06-c07-modes-plans`**: decisions made with the user and a spike in
-progress (dev log 2026-10-02-c06-c07-spike: modes in hooks confirmed,
-plan approval with a mode switch from the world works; Bash prompts
-next). No launch picker (user's correction of an earlier note): sessions
+`c06-c07-modes-plans`**: spike done (dev log 2026-10-02-c06-c07-spike),
+protocol approved by the user (2026-10-03: capabilities
+`permission_modes` and `plans`, "allow and switch to auto" on Bash
+prompts once auto was seen; aim: behave nigh equal to the terminal);
+schema and sidecar built and tested; Godot, docs and live check next. No launch picker (user's correction of an earlier note): sessions
 start in Claude Code's own mode. The "many
 sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
 A05, the attention cue**, designed with the user and built (a beacon over
