@@ -5,7 +5,10 @@ extends PanelContainer
 ## Pending permission prompts and questions are answered on its card
 ## (C05, [PendingCard]). Messages are rendered as Markdown (C03,
 ## [MarkdownView]); after each one, the tool calls that followed it fold
-## into one line (C04, [ToolFold]). Message text is untrusted (NOTES.md → Security rules):
+## into one line (C04, [ToolFold]). The header shows the session's permission
+## mode (C06, when the session declares [code]permission_modes[/code]); a plan
+## waiting for approval (C07) is a full-width message, answered on the card.
+## Message text is untrusted (NOTES.md → Security rules):
 ## the Markdown converter escapes all of it, and a link opens only after a
 ## confirmation showing its full address.
 
@@ -13,6 +16,8 @@ extends PanelContainer
 const MAX_SHOWN := 200
 const USER_COLOUR := Color(0.16, 0.33, 0.5)
 const AGENT_COLOUR := Color(0.15, 0.17, 0.22)
+const PLAN_BORDER := Color(0.45, 0.55, 0.7)
+const DIM := Color(0.6, 0.64, 0.7)
 const FONT_SIZE := 18
 ## Time spent building older messages per frame when a chat is laid out.
 ## Rendering Markdown costs tens of milliseconds per message (C03), so the
@@ -53,6 +58,7 @@ var _link_url := ""
 var _send_error := ""
 
 @onready var _title: Label = $Layout/Header/Title
+@onready var _mode: Label = $Layout/Header/Mode
 @onready var _notices: Label = $Layout/Notices
 @onready var _scroll: ScrollContainer = $Layout/Scroll
 @onready var _messages: VBoxContainer = $Layout/Scroll/Messages
@@ -87,7 +93,10 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 		if id == session_id and not _rebuild_queued:
 			_rebuild_queued = true
 			_rebuild.call_deferred())
-	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.notices_changed]:
+	store.session_changed.connect(func(id: String, _fields: Array) -> void:
+		if id == session_id:
+			_refresh_header())
+	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.plans_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
 				_refresh_status())
@@ -168,6 +177,11 @@ func status_text() -> String:
 	return _status.text
 
 
+## The header's mode text ("Mode: Auto"), or "" when it isn't shown.
+func mode_text() -> String:
+	return _mode.text if _mode.visible else ""
+
+
 ## Sends the message box's text to the session.
 func send() -> void:
 	var text := _input.text.strip_edges()
@@ -241,7 +255,7 @@ func _rebuild() -> void:
 	if session_id.is_empty():
 		return
 	var s := store.session(session_id)
-	_title.text = _session_title(s)
+	_refresh_header()
 	var all := store.messages(session_id)
 	for m in all.slice(maxi(0, all.size() - MAX_SHOWN)):
 		_to_build.push_front(m["message"])
@@ -307,10 +321,14 @@ func _clear() -> void:
 ## Adds a message's row at the end, or at [param at] when given.
 func _add_row(m: Dictionary, at := -1) -> void:
 	var user: bool = m["role"] == "user"
+	var plan: bool = m.get("kind") == "plan"
 	var style := StyleBoxFlat.new()
 	style.bg_color = USER_COLOUR if user else AGENT_COLOUR
 	style.set_corner_radius_all(12)
 	style.set_content_margin_all(12)
+	if plan:
+		style.border_color = PLAN_BORDER
+		style.set_border_width_all(2)
 	var bubble := PanelContainer.new()
 	bubble.add_theme_stylebox_override("panel", style)
 	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -318,19 +336,28 @@ func _add_row(m: Dictionary, at := -1) -> void:
 	var view := MarkdownView.new()
 	view.font_size = FONT_SIZE
 	view.link_clicked.connect(ask_open_link)
-	bubble.add_child(view)
-	view.set_markdown(_display(m))
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spacer.size_flags_stretch_ratio = 1.0
-	var line := HBoxContainer.new()
-	# Yours on the right, the agent's on the left.
-	if user:
-		line.add_child(spacer)
-		line.add_child(bubble)
+	if plan:
+		var stack := VBoxContainer.new()
+		var caption := Label.new()
+		caption.text = "Plan"
+		caption.add_theme_font_size_override("font_size", 16)
+		caption.add_theme_color_override("font_color", DIM)
+		stack.add_child(caption)
+		stack.add_child(view)
+		bubble.add_child(stack)
 	else:
-		line.add_child(bubble)
+		bubble.add_child(view)
+	view.set_markdown(_display(m))
+	var line := HBoxContainer.new()
+	line.add_child(bubble)
+	# Yours on the right, the agent's on the left; a plan takes the width.
+	if not plan:
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spacer.size_flags_stretch_ratio = 1.0
 		line.add_child(spacer)
+		if user:
+			line.move_child(spacer, 0)
 	# The message, then the tool calls that followed it.
 	var row := VBoxContainer.new()
 	row.set_meta("message", m["message"])
@@ -418,12 +445,24 @@ func _refresh_status() -> void:
 					_status.text = "Waiting for a permission: answer it above or in the terminal."
 				"question":
 					_status.text = "Waiting for an answer: answer the question above or in the terminal."
+				"plan":
+					_status.text = "Waiting for you to approve the plan: answer it above or in the terminal."
 				_:
 					_status.text = "Waiting for you in the terminal."
 		"error":
 			_status.text = "Stopped."
 		_:
 			_status.text = ""
+
+
+# The title, and the mode when the session declares permission_modes and it
+# is known.
+func _refresh_header() -> void:
+	var s := store.session(session_id)
+	_title.text = _session_title(s)
+	var mode = s.get("mode")
+	_mode.visible = s.get("capabilities", {}).has("permission_modes") and mode is String
+	_mode.text = "Mode: %s" % PermissionModes.name_of(mode) if _mode.visible else ""
 
 
 static func _session_title(s: Dictionary) -> String:
