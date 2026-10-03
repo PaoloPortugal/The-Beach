@@ -226,7 +226,7 @@ test('commands reach the provider session', async () => {
     await ok({ type: 'question.answer', session: id, question: 'q1', answers: [['A']] })
     await ok({ type: 'interrupt.request', session: id })
     const history = await c.command({ type: 'session.get_history', session: id })
-    assert.deepEqual(history.result, { messages: [] })
+    assert.deepEqual(history.result, { messages: [], tools: [] })
     await ok({ type: 'session.end', session: id })
     assert.deepEqual(p.calls.map((x) => [x.method, x.args]), [
       ['sendMessage', ['hello']],

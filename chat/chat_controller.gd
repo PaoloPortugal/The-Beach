@@ -150,7 +150,7 @@ func _fetch_history(id: String) -> void:
 	var sent := sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
 		if reply.get("type") == "ok":
 			_history[id] = "loaded"
-			store.load_history(id, reply["result"]["messages"])
+			store.load_history(id, reply["result"]["messages"], reply["result"].get("tools", []))
 		else:
 			_history.erase(id))
 	if sent.is_empty():
@@ -161,7 +161,7 @@ func _reload_history(id: String) -> void:
 	sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
 		if reply.get("type") == "ok":
 			_history[id] = "loaded"
-			store.replace_history(id, reply["result"]["messages"]))
+			store.replace_history(id, reply["result"]["messages"], reply["result"].get("tools", [])))
 
 
 ## Whether a session's chat history has been loaded.

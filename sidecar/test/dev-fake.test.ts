@@ -10,7 +10,7 @@ import { connect, type Msg } from './helpers.ts'
 
 const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
-test('dev:fake: echo, permission, question, agents, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
+test('dev:fake: echo, permission, question, agents, tools, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
@@ -59,6 +59,20 @@ test('dev:fake: echo, permission, question, agents, notice, stop and resume all 
       waiting.delete(done.agent)
     }
     await c.next((m) => m.type === 'message.completed' && /reported back/.test(String(m.text)), 5000)
+
+    // C04: three calls after the turn's first message, the last one failing;
+    // the subagents' calls were within their Agent calls.
+    await say('use some tools')
+    await c.next((m) => m.type === 'message.completed' && /One test failed/.test(String(m.text)), 8000)
+    await c.next(idle, 5000)
+    const logged = ((await c.command({ type: 'session.get_history', session })).result as { tools: any[] }).tools
+    const turn = logged.slice(-3)
+    assert.deepEqual(turn.map((t) => t.status), ['ok', 'ok', 'error'])
+    assert.equal(turn[2].result, 'Exit code 1')
+    assert.ok(turn.every((t) => t.after === turn[0].after && t.after !== null))
+    const agents = logged.filter((t) => t.tool === 'Agent').map((t) => t.tool_call)
+    assert.equal(agents.length, 2)
+    assert.ok(agents.every((a) => logged.filter((t) => t.within === a).length === 3))
 
     await say('send a notice')
     assert.equal(((await c.next('session.notice', 5000)).notice as any).code, 'transcripts_off')

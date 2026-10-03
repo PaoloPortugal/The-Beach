@@ -1,25 +1,27 @@
-LIVE CHECK: attention cue (A05)
-Start the game from a separate terminal
-(not Claude's Run button).
+LIVE CHECK: tool-call log (C04)
+Part A: fake provider
+  godot --path . -- --sidecar-dev-fake --checklist
 
-1. Tab > New session... > notes-app,
-   confirm in the terminal.
-2. Chat: "Create hello.txt containing
-   hi." A permission waits: an orange
-   beam rises from the orchestrator,
-   "1 session waiting" top right.
-3. Walk into the sea (back to the
-   platform) and look for the beam.
-   Easy to spot? Too much, too little?
-4. Deny in the terminal: the beam fades
-   out and the count goes.
-5. Chat: "Create bye.txt containing
-   bye." and at once click another
-   window. When it asks: the taskbar
-   button flashes and the chime plays.
-   Once, not on repeat?
-6. Back in the game, answer. Tab: untick
-   "Sound when waiting", restart the
-   game, Tab: still unticked? Tick it.
+1. Tab > New session... > any folder.
+   Walk up, E. Send "tools".
+2. Under "Let me look around first.":
+   "▸ 3 tool calls (1 failed)". Glyph ok?
+3. Click it: running/ok/failed words,
+   "Exit code 1" under npm test.
+   Details shows the input; again hides.
+4. Send "agents 2". Open the fold: 2
+   Agent calls, each with its own
+   "▸ 3 tool calls" inside. Open one.
+5. Tab > resume a stored session:
+   "▸ 1 tool call" under "Where were we?"
+
+Part B: real claude (godot --path .)
+6. New session in an empty test folder.
+   Ask: "List the files here, then read
+   one." Calls fold under the reply.
+7. Ask for an Explore subagent: its calls
+   show inside the Agent call.
+8. /exit in the terminal, then Tab >
+   resume it: the calls come back.
 
 Tell Claude what you saw; paste red errors.

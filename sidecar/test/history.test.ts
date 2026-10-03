@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
+import { fitInputs } from '../src/history.ts'
 
 test('history: user and assistant messages, completed ones only, as the world saw them', async () => {
   let launch: { args: string[] } = { args: [] }
@@ -39,13 +40,26 @@ test('history: user and assistant messages, completed ones only, as the world sa
       req.end(JSON.stringify(body))
     })
 
-    assert.deepEqual((await c.command({ type: 'session.get_history', session: id })).result, { messages: [] })
+    assert.deepEqual((await c.command({ type: 'session.get_history', session: id })).result, { messages: [], tools: [] })
     await send({ hook_event_name: 'UserPromptSubmit', prompt_id: 'u1', prompt: '<channel source="world-bridge" sender="user">\nhello\n</channel>' })
     await send({ hook_event_name: 'MessageDisplay', message_id: 'm1', index: 0, final: false, delta: 'Hi ' })
     await send({ hook_event_name: 'MessageDisplay', message_id: 'm1', index: 1, final: true, delta: 'there.' })
+    // Tool calls (C04): the orchestrator's after the message before them, a
+    // subagent's inside the Agent call that started it.
+    await send({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_use_id: 't1', tool_input: { file_path: 'a.ts' } })
+    await send({ hook_event_name: 'PostToolUse', tool_name: 'Read', tool_use_id: 't1', tool_input: { file_path: 'a.ts' } })
+    await send({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_use_id: 't2', tool_input: { description: 'Look', subagent_type: 'Explore' } })
+    await send({ hook_event_name: 'SubagentStart', agent_id: 'sub1', agent_type: 'Explore' })
+    await send({ hook_event_name: 'PreToolUse', agent_id: 'sub1', agent_type: 'Explore', tool_name: 'Bash', tool_use_id: 't3', tool_input: { command: 'ls' } })
+    await send({ hook_event_name: 'PostToolUseFailure', agent_id: 'sub1', agent_type: 'Explore', tool_name: 'Bash', tool_use_id: 't3', tool_input: { command: 'ls' }, error: 'Exit code 2\nmore' })
     await send({ hook_event_name: 'MessageDisplay', message_id: 'm2', index: 0, final: false, delta: 'Still typing' })
 
-    const history = (await c.command({ type: 'session.get_history', session: id })).result as { messages: any[] }
+    const history = (await c.command({ type: 'session.get_history', session: id })).result as { messages: any[]; tools: any[] }
+    assert.deepEqual(history.tools.map((t) => [t.tool_call, t.agent, t.status, t.after, t.within ?? null, t.result ?? null]), [
+      ['t1', 'main', 'ok', 'm1', null, null],
+      ['t2', 'main', 'running', 'm1', null, null],
+      ['t3', 'sub1', 'error', 'm1', 't2', 'Exit code 2'],
+    ])
     assert.deepEqual(history.messages.map((m) => [m.message, m.agent, m.role, m.text]), [
       ['u1', 'main', 'user', 'hello'],
       ['m1', 'main', 'assistant', 'Hi there.'],
@@ -53,4 +67,16 @@ test('history: user and assistant messages, completed ones only, as the world sa
     for (const m of history.messages) assert.ok(!Number.isNaN(Date.parse(m.at)))
     assert.deepEqual(c.invalid, [])
   } finally { sock?.destroy(); await c.close(); await s.close(); await p.shutdown() }
+})
+
+test('history: past a budget, the oldest tool calls lose their input, nothing else', () => {
+  const call = (id: string, size: number) => ({
+    tool_call: id, agent: 'main', tool: 'Write', summary: `Write ${id}`, status: 'ok' as const, after: null,
+    input: { content: 'x'.repeat(size) },
+  })
+  const tools = [call('a', 100), call('b', 100), call('c', 100)]
+  const fitted = fitInputs({ messages: [], tools }, 250)
+  assert.deepEqual(fitted.tools.map((t) => [t.tool_call, t.summary, 'input' in t]), [['a', 'Write a', false], ['b', 'Write b', true], ['c', 'Write c', true]])
+  assert.ok('input' in tools[0]!, 'the kept history is untouched')
+  assert.equal(fitInputs({ messages: [], tools }).tools.filter((t) => t.input).length, 3)
 })
