@@ -153,6 +153,26 @@ test('history: tool calls, how each ended, where each came, and subagents\' insi
   assert.deepEqual(tools[1]!.input, { file_path: path.join(cwd, 'a.ts') })
 })
 
+test('history: a plan presented for approval is its own message, before its call (C07)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hist-'))
+  const file = path.join(dir, `${ID(12)}.jsonl`)
+  const plan = (msg: string, tool: string, text: string) => ({
+    type: 'assistant', message: { id: msg, content: [{ type: 'tool_use', id: tool, name: 'ExitPlanMode', input: { plan: text, planFilePath: '/x.md' } }] },
+  })
+  fs.writeFileSync(file, jsonl(
+    { type: 'user', uuid: 'u1', message: { content: 'plan it' } },
+    { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'text', text: 'Here it is.' }] } },
+    plan('msg_2', 'exit1', '# Plan\n\n1. Do it'),
+    { type: 'user', toolDenialKind: 'user-rejected', message: { content: [{ type: 'tool_result', tool_use_id: 'exit1', is_error: true, content: 'no' }] } },
+    plan('msg_3', 'exit2', '   '),
+  ))
+  const { messages, tools } = readHistory(file)
+  assert.deepEqual(messages.map((m) => [m.message, m.kind ?? null, m.text]), [
+    ['u1', null, 'plan it'], ['msg_1', null, 'Here it is.'], ['exit1:plan', 'plan', '# Plan\n\n1. Do it'],
+  ])
+  assert.deepEqual(tools.map((t) => [t.tool_call, t.after, t.status]), [['exit1', 'exit1:plan', 'denied'], ['exit2', 'exit1:plan', 'error']])
+})
+
 // The start of a transcript /clear began, as Claude Code 2.1.285 wrote it
 // (live re-check, 2026-10-01): the command itself is a user entry, not meta.
 const CLEARED = [
