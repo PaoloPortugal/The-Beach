@@ -1,15 +1,17 @@
 # Flows
 
 Step-by-step diagrams of how the pieces talk to each other, for the Claude
-provider on the CLI route. They show the behaviour verified by the M0
-integration spike (dev log 2026-09-29-claude-cli-spike). NOTES.md stays
-the source of truth: when S02 or the Protocol section changes, update the
-matching flow here in the same branch.
+provider on the CLI route, one file per flow in
+[`diagrams/sequence/`](diagrams/sequence/). They show the behaviour
+verified by the M0 integration spike (dev log 2026-09-29-claude-cli-spike).
+NOTES.md stays the source of truth: when S02 or the Protocol section
+changes, update the matching flow in the same branch. The component
+diagram, which shows the pieces themselves, is in NOTES.md → Architecture.
 
 GitHub draws the Mermaid blocks as diagrams. Arrows between World and
 Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
 Code are hooks (HTTP, with the session's token; `SessionStart` goes
-through Relay, our executable run as a command hook, flow 9); Bridge is
+through Relay, our executable run as a command hook, [flow 9](diagrams/sequence/09-clear-or-resume.md)); Bridge is
 our channel bridge (NOTES.md → S02).
 
 The terminal and the world are two windows onto the same session: you can
@@ -20,7 +22,17 @@ turned transcripts off in Claude Code, the Transcript steps don't happen
 and the world waits for the next hook instead (NOTES.md → S02 → When
 transcripts are off).
 
-**How to read these.** Time runs top to bottom; each arrow is one message.
+## How to read these
+
+Time runs top to bottom; each arrow is one message, numbered in order.
+- **Blue box, "Ours":** the parts we build (World, Sidecar, Bridge,
+  Relay). **Grey box, "Claude Code, the user's own":** the install and its
+  transcript, which we only launch, watch and read. **User** stands
+  outside both.
+- **Amber band:** the step the flow is about, with a note naming the code
+  that does it.
+- **Status line** at the top of each file: built or planned, the features
+  (IDs from NOTES.md → Feature index) and the NOTES section to read.
 - **Solid arrow:** a message. **Dashed arrow:** the reply to an earlier
   request.
 - **Requests always get a reply, and every reply is drawn**, even when it
@@ -31,528 +43,30 @@ transcripts are off).
   events to the world, chat or verdicts passed along through the bridge,
   and new lines in the transcript.
 - Boxes are notes, or group steps: `loop` repeats, `alt` / `else` are
-  alternatives, `par` / `and` happen at the same time.
+  alternatives, `opt` happens only sometimes, `par` / `and` happen at the
+  same time.
 
-- [0. Starting up](#0-starting-up)
-- [1. Create a session](#1-create-a-session)
-- [2. A chat turn](#2-a-chat-turn)
-- [3. A permission prompt](#3-a-permission-prompt)
-- [4. A clarifying question](#4-a-clarifying-question)
-- [5. A subagent](#5-a-subagent)
-- [6. Stopping](#6-stopping)
-- [7. When our side fails](#7-when-our-side-fails)
-- [8. Resuming a stored session (S04)](#8-resuming-a-stored-session-s04)
-- [9. /clear or /resume: another conversation in the session](#9-clear-or-resume-another-conversation-in-the-session)
-- [10. A plan to approve (C07)](#10-a-plan-to-approve-c07)
-- [11. A prompt's other options (C05, C06)](#11-a-prompts-other-options-c05-c06)
+## The flows
 
-## 0. Starting up
+| # | Flow | Features |
+|---|------|----------|
+| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01 |
+| 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03 |
+| 2 | [A chat turn](diagrams/sequence/02-chat-turn.md) | S02, C02 |
+| 3 | [A permission prompt](diagrams/sequence/03-permission-prompt.md) | S02, C05 |
+| 4 | [A clarifying question](diagrams/sequence/04-clarifying-question.md) | S02, C05 |
+| 5 | [A subagent](diagrams/sequence/05-subagent.md) | S02, A02, C04 |
+| 6 | [Stopping](diagrams/sequence/06-stopping.md) | S02 |
+| 7 | [When our side fails](diagrams/sequence/07-our-side-fails.md) | S02 |
+| 8 | [Resuming a stored session](diagrams/sequence/08-resume-stored-session.md) | S04 |
+| 9 | [/clear or /resume: another conversation in the session](diagrams/sequence/09-clear-or-resume.md) | S02 |
+| 10 | [A plan to approve](diagrams/sequence/10-plan-approval.md) | C07, S02 |
+| 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
 
-```mermaid
-sequenceDiagram
-    participant World as World (Godot)
-    participant Sidecar
-
-    World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr)
-    Sidecar->>Sidecar: new random token, listen on 127.0.0.1 (free port)
-    Sidecar->>World: stdout: one line {ready, protocol, port, token}
-    World->>Sidecar: WebSocket connect, Authorization: Bearer token
-    Sidecar-->>World: accepted (no Origin, right Host and token)
-    Sidecar->>World: hello (protocol version, providers)
-    loop each live session
-        Sidecar->>World: session.snapshot
-    end
-    Sidecar->>World: sync.completed
-    Note over World,Sidecar: From here on: commands up, events down.<br/>Every command's reply comes before the events it causes.
-    alt the connection drops, the sidecar still runs
-        World->>Sidecar: connect again with the same token
-        Sidecar->>World: hello, snapshots, sync.completed
-    else the game quits or crashes
-        Note over World,Sidecar: The pipe closes; the sidecar exits.<br/>Sessions it launched keep running in their terminals.
-    end
-```
-
-A connection without the token, with an `Origin` header (any web page), or
-with the wrong `Host` is refused before it starts. Events whose `seq` a
-snapshot already covered are ignored; a gap in `seq` makes the world ask
-for `session.get_snapshot`.
-
-## 1. Create a session
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-    participant Bridge
-
-    User->>World: create a session for a project
-    World->>Sidecar: session.create
-    Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
-    Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment)
-    Sidecar-->>World: ok { session }
-    Claude->>User: folder trust (first time in a folder) and<br/>development channel confirmation (every launch)
-    User->>Claude: accept
-    Claude->>Bridge: start it (stdio)
-    Bridge->>Sidecar: connect with the session's token
-    Sidecar-->>Bridge: accepted
-    Sidecar->>World: session.created (island rises)
-    Note over Claude,Sidecar: No start hook: SessionStart runs only for /clear and /resume (flow 9),<br/>so the bridge connecting is the "session is up" signal.
-```
-
-Ending: `/exit` in the terminal (or `session.end` from the world) →
-Claude Code exits and its bridge's connection closes → `session.ended`
-(island sinks). Not the `SessionEnd` hook: it also fires for `/clear`,
-when `claude` keeps running (flow 9).
-
-Our settings file also turns Claude Code's agent view off
-(`disableAgentView`), so Left at an empty prompt, `/bg` and `/fork` can't
-move the conversation into a background session the world can't reach
-(NOTES.md → S02 → Launch).
-
-Which terminal opens depends on the OS and the user's setting; the
-terminal is only given our launcher and a session file, and the launcher
-starts `claude` with an argument list (NOTES.md → Architecture →
-Platforms). Before any of this, Godot has started the sidecar (flow 0).
-`ok { session }` always comes before `session.created`; until the session
-is up, commands for it get `session_starting`.
-
-In the world for now (S03's quick version): the user picks the folder
-from the sessions menu (Tab), whose notice at the top of the screen shows
-the reply's `notice` until `session.created`; then the session's island
-appears and the player is taken there. A session that never comes up gets
-`session.ended` and the notice says so: at once if the launcher exits
-first (Claude Code quit at a startup dialog, or its terminal was closed;
-the launcher writes its process id next to the session file and the
-sidecar checks it every second), else after 15 minutes. The menu can also
-stop waiting without telling the sidecar (NOTES.md → S02 → Starting up,
-S03, W01 → Islands for sessions). The session's `project` in `session.created` (and in
-snapshots) carries `repo`, its git repository, worked out by the sidecar
-from the folder's `.git`; the world puts the island in that repository's
-cluster, or in the cluster chosen in the menu, which it noted against the
-session id from `ok { session }` (NOTES.md → W05).
-
-## 2. A chat turn
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Bridge
-    participant Claude as Claude Code (terminal)
-
-    User->>World: types a message at the orchestrator
-    World->>Sidecar: message.send
-    Sidecar-->>World: ok
-    Sidecar->>Bridge: chat text
-    Bridge->>Claude: channel event
-    Claude->>Sidecar: UserPromptSubmit (text wrapped in a channel tag)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: message.started / .completed (role user, unwrapped)
-    Sidecar->>World: agent.state_changed orchestrator → working
-    loop each batch of finished lines
-        Claude->>Sidecar: MessageDisplay (message_id, delta, final)
-        Sidecar-->>Claude: empty reply, instantly
-        Sidecar->>World: message.started (first batch), message.delta,<br/>message.completed (final batch: the full text)
-    end
-    Claude->>Sidecar: Stop
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: orchestrator → idle (and completes any reply<br/>whose final batch never came)
-```
-
-A message typed in the terminal arrives the same way, as plain text
-without the channel tag. A `<task-notification>` or subagent hand-back
-prompt is not a user message (see flow 5). Tool calls in between are
-`tool.started` / `tool.finished` (flow 5 shows them); the world files
-each under the latest message, folded into one line (C04).
-
-**Titles** (NOTES.md → S02 → Titles). While the session has no name, the
-first user message's line names it: a `session.updated` (title) along
-with its `message.completed`. Claude Code's own title (`ai-title`) and a
-`/rename` (`custom-title`) come as transcript lines the sidecar follows;
-each change of the title shown is another `session.updated` (title).
-
-## 3. A permission prompt
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Bridge
-    participant Claude as Claude Code (terminal)
-    participant Log as Transcript
-
-    Claude->>Sidecar: PreToolUse (e.g. Bash)
-    Sidecar-->>Claude: empty reply (no decision)
-    par Claude Code asks in both places
-        Claude->>User: permission dialog in the terminal
-    and
-        Claude->>Bridge: permission request (request ID, tool, input preview)
-        Bridge->>Sidecar: permission request
-    and
-        Claude->>Sidecar: PermissionRequest (permission_suggestions)
-    end
-    Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input); waits for that call's PreToolUse<br/>and PermissionRequest, in either order, up to 1 s.
-    opt the prompt has no options (flow 11)
-        Sidecar-->>Claude: reply to PermissionRequest: no decision (the terminal asks as usual)
-    end
-    Sidecar->>World: permission.requested (ID = request ID, asked_at = now,<br/>options if any), agent → waiting (permission)
-    alt answered in the world
-        User->>World: Yes or No
-        World->>Sidecar: permission.respond
-        Sidecar-->>World: ok
-        Sidecar->>Bridge: verdict (request ID)
-        Bridge->>Claude: verdict: terminal dialog closes
-        Sidecar->>World: permission.resolved (by app)<br/>(deny: also tool.finished denied, since no hook comes for it)
-        Note over Claude: A deny from the world lets Claude continue its turn.
-    else allowed in the terminal
-        User->>Claude: allow
-        Claude->>Sidecar: PostToolUse for that call
-        Sidecar-->>Claude: nothing to add
-        Sidecar->>World: permission.resolved (by external)
-    else "No" in the terminal
-        User->>Claude: No
-        Note over Claude: No hook fires: the turn is interrupted silently.
-        Claude->>Log: "User rejected tool use", then "interrupted"
-        Log->>Sidecar: new lines (the sidecar follows the file)
-        Sidecar->>World: permission.resolved (by external), agent → idle
-    end
-```
-
-In the world, "Yes or No" and "picks options or types an answer"
-(flow 4) happen on the card in the chat panel (NOTES.md → C05): one
-request at a time, oldest first; it moves on when `permission.resolved`
-or `question.resolved` arrives, whichever side answered.
-
-Picking one of the prompt's other options goes through its held hook
-instead (flow 11). If a prompt still has a held hook when its call ends
-(`tool.finished`), the hook is let go with nothing to add.
-
-The "No" line names the call's `tool_use_id`, so the sidecar resolves that
-exact prompt and closes the call as `denied`. When transcripts are off, a
-terminal "No" is only noticed when the orchestrator's turn ends or the user
-sends the next message: its prompts resolve as deny, by external. A
-subagent's prompt resolves when that subagent stops.
-
-## 4. A clarifying question
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-
-    Claude->>Sidecar: PreToolUse AskUserQuestion
-    Sidecar-->>Claude: nothing to add
-    par Claude Code asks, and we hold the question open
-        Claude->>User: question in the terminal
-    and
-        Claude->>Sidecar: PermissionRequest AskUserQuestion (held open)
-        Sidecar->>World: question.asked (asked_at = now), agent → waiting (question)
-    end
-    alt answered in the world
-        User->>World: picks options or types an answer
-        World->>Sidecar: question.answer
-        Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: allow + answers
-        Note over Claude: The terminal's question closes as answered.
-        Sidecar->>World: question.resolved (by app)
-    else answered in the terminal
-        User->>Claude: answer
-        Claude->>Sidecar: PostToolUse AskUserQuestion (with the answer)
-        Sidecar-->>Claude: nothing to add
-        Sidecar-->>Claude: reply to the held hook: nothing to add<br/>(Claude Code no longer waits on it, so the sidecar tidies up)
-        Sidecar->>World: question.resolved (by external)
-    end
-```
-
-A free-text `response` from the world is sent as a deny carrying the
-user's words. If Claude Code drops the held hook (it timed out, or
-`claude` exited), or the turn ends with the question open (Esc), the
-question resolves by external.
-
-## 5. A subagent
-
-```mermaid
-sequenceDiagram
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-
-    Claude->>Sidecar: PreToolUse Agent (from the orchestrator,<br/>or carries the calling subagent's agent_id)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: tool.started (the Agent call)
-    Claude->>Sidecar: SubagentStart (agent_id, agent_type)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: agent.spawned (parent inferred from the Agent call)
-    Claude->>Sidecar: PostToolUse Agent (runs in the background)
-    Sidecar-->>Claude: nothing to add
-    Claude->>Sidecar: Stop
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: orchestrator → idle while the subagent works
-    loop the subagent's steps
-        Claude->>Sidecar: PreToolUse / PostToolUse carrying its agent_id
-        Sidecar-->>Claude: nothing to add
-        Sidecar->>World: tool.started (within: its Agent call) / tool.finished
-    end
-    Claude->>Sidecar: SubagentStop (its report)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: subagent → done (runs its report to the parent, disappears)
-    Claude->>Sidecar: UserPromptSubmit with a task-notification<br/>or a subagent hand-back (its report)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: orchestrator → working (not shown as a user message)
-    Note over Sidecar: A subagent stopped from the terminal gets no SubagentStop:<br/>its task-notification (status) ends it instead.
-    Note over Sidecar: Stops or tool hooks for an agent never seen starting come from<br/>Claude Code's internal helpers and are ignored.
-```
-
-## 6. Stopping
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-    participant Log as Transcript
-
-    alt stop in the world
-        User->>World: stop
-        World->>Sidecar: interrupt.request
-        Sidecar-->>World: ok (world shows "stopping after this step")
-        Sidecar->>Claude: pending permission prompts: deny (through the bridge)
-        Note over Claude: The current step (reply text or a running command) finishes.
-        Claude->>Sidecar: next PreToolUse (of each busy agent)
-        Sidecar-->>Claude: deny this call and stop (continue false)
-        Note over Claude: That tool call doesn't run. Inside a subagent, only that<br/>subagent stops and the orchestrator is told.
-        Note over Claude,Sidecar: No Stop hook follows, so the sidecar sets the states itself.
-        Sidecar->>World: tool.finished (denied), agent.state_changed<br/>(orchestrator → idle, subagent → error "interrupted")
-        Note over Sidecar: The stop stays armed until no agent is working or waiting.
-    else Esc in the terminal
-        User->>Claude: Esc (stops at once, even mid-reply)
-        Note over Claude: No hook fires.
-        Claude->>Log: "[Request interrupted by user]"
-        Log->>Sidecar: new line (the sidecar follows the file)
-        Sidecar->>World: agent.state_changed (orchestrator → idle)
-    end
-```
-
-## 7. When our side fails
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-
-    Claude->>Sidecar: any hook
-    alt sidecar hangs
-        Note over Claude,Sidecar: No reply: Claude Code waits for the hook's timeout<br/>(keep reporting hooks short)
-    else sidecar errors
-        Sidecar-->>Claude: error
-        Note over Claude: Treated as "no decision", immediately
-    else sidecar offline
-        Note over Claude,Sidecar: Connection refused: treated as "no decision", immediately
-    end
-    Claude->>User: normal behaviour: the terminal asks
-    Note over User,Claude: Nothing is ever allowed because our side failed.<br/>Hooks resume when the sidecar comes back.
-```
-
-If the user's settings only allow other hook URLs (`allowedHttpHookUrls`),
-no hook ever arrives and nothing reports an error. The sidecar notices when
-a world message sent while the orchestrator is idle brings no hook within
-10 s, and sends `session.notice` (`hooks_unavailable`); chat still works
-through the bridge.
-
-## 8. Resuming a stored session (S04)
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Store as Transcripts
-    participant Claude as Claude Code (terminal)
-
-    User->>World: Tab: the sessions menu (its Resume list)
-    World->>Sidecar: session.list_stored (optionally one project)
-    Store->>Sidecar: each file's first and last 64 KiB (read-only):<br/>folder, where it started, name, first message
-    Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
-    User->>World: pick one
-    World->>Sidecar: session.resume (native_id)
-    Store->>Sidecar: its whole transcript: the chat and tool calls so far<br/>(subagents' calls from their own transcripts)
-    Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel
-    Sidecar-->>World: ok { session }
-    Note over Claude,Sidecar: From here it's flow 1: the confirmation, the bridge<br/>connects, session.created. The session keeps its id.
-    World->>Sidecar: session.get_history
-    Sidecar-->>World: ok { messages, tools } (the earlier chat and tool calls,<br/>then what's new)
-```
-
-## 9. /clear or /resume: another conversation in the session
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-    participant Relay as Relay (our executable)
-    participant Log as Transcript
-
-    User->>Claude: /clear (or /resume an earlier conversation)
-    Note over Claude: Same process, same folder, same bridge:<br/>another session id and its transcript.
-    Claude->>Relay: SessionStart (source clear or resume, the new session_id):<br/>a command hook, exec form, no shell; JSON on stdin
-    Relay->>Sidecar: POST /hook with the session's token (from the relay file)
-    Sidecar->>Log: poll the followed transcript: no continued-in
-    Note over Sidecar: Our token, a UUID, a transcript in the same folder:<br/>followed. native_id switches; the old id becomes stored (resumable).
-    alt source resume
-        Sidecar->>Log: read the resumed transcript's chat (slash commands left out)<br/>and tool calls
-        Note over Sidecar: that chat becomes the session's history
-        Sidecar->>World: session.updated (native_id, title if it changed), session.notice (conversation_resumed)
-    else source clear
-        Note over Sidecar: the history starts empty
-        Sidecar->>World: session.updated (native_id, title null if it had one), session.notice (conversation_cleared)
-    end
-    Sidecar-->>Relay: nothing to add
-    Relay-->>Claude: exit 0, nothing on stdout
-    Note over Claude: /resume waited for the hook (at most 5 s);<br/>/clear didn't.
-    World->>Sidecar: session.get_history
-    Sidecar-->>World: ok (the history): replaces the world's chat
-    User->>Claude: next message (typed in the terminal or sent from the world)
-    Sidecar->>World: the turn as usual (flow 2), from the new transcript too
-```
-
-The island stays. After `/clear` the world's chat window clears, and
-the notice says the earlier conversation can be brought back with
-`/resume`; after `/resume` the chat becomes the
-resumed conversation's (NOTES.md → S02 → Following the conversation).
-
-**If the relay fails** (it always exits 0, so Claude Code carries on),
-the world learns of the switch at the new conversation's first hook
-instead: a `UserPromptSubmit` with the new `session_id` goes through the
-same checks, and it counts as `/resume` if the new transcript holds a
-reply from Claude, else `/clear`.
-
-**A moved conversation.** If the followed transcript gets a
-`continued-in` entry instead (the conversation went on in another
-session, which agent view used to do), the sidecar sends
-`session.notice` (`conversation_moved`) and ignores the new session's
-hooks: the terminal handles everything. From then on `message.send`,
-`permission.respond` and `interrupt.request` get `error`
-(`provider_error`, "This conversation moved to another Claude Code
-session; continue it in the terminal."). Separately, whenever the bridge
-isn't connected, `message.send` and `permission.respond` get
-`provider_error` saying the world can't reach the conversation right
-now, rather than losing the message.
-
-## 10. A plan to approve (C07)
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Claude as Claude Code (terminal)
-    participant Log as Transcript
-
-    Note over Claude: In plan mode, Claude presents its plan.
-    Claude->>Sidecar: PreToolUse ExitPlanMode (the plan's Markdown in its input)
-    Sidecar-->>Claude: nothing to add
-    Sidecar->>World: message.started + message.completed (kind plan, id tool_use_id:plan),<br/>tool.started (Present the plan)
-    par Claude Code asks, and we hold the plan open
-        Claude->>User: the plan and its choices in the terminal
-    and
-        Claude->>Sidecar: PermissionRequest ExitPlanMode (held open)
-        Sidecar->>World: plan.asked (modes in the terminal's order, asked_at = now),<br/>agent → waiting (plan)
-    end
-    alt approved in the world
-        User->>World: Yes, and use auto mode (or another Yes)
-        World->>Sidecar: plan.answer (approve, mode)
-        Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: allow, the plan's input echoed back,<br/>setMode (that mode, this session only)
-        Note over Claude: The terminal's dialog closes; the mode switches.
-        Sidecar->>World: plan.resolved (approved, by app), agent → working
-        Claude->>Sidecar: PostToolUse ExitPlanMode (permission_mode: the new mode)
-        Sidecar-->>Claude: nothing to add
-        Sidecar->>World: session.updated (mode), tool.finished ok
-    else sent back from the world
-        User->>World: No, keep planning (and a note)
-        World->>Sidecar: plan.answer (approve: false, note)
-        Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: deny with the note<br/>(or "The user wants to keep planning…")
-        Sidecar->>World: plan.resolved (rejected, by app),<br/>tool.finished denied (no hook comes for it)
-        Note over Claude: Claude plans again, still in plan mode.
-    else approved in the terminal
-        User->>Claude: Yes (in a mode)
-        Claude->>Sidecar: PostToolUse ExitPlanMode
-        Sidecar-->>Claude: nothing to add
-        Sidecar->>World: session.updated (mode), plan.resolved (approved, by external),<br/>tool.finished ok
-        Sidecar-->>Claude: reply to the held hook: nothing to add<br/>(Claude Code no longer waits on it)
-    else "No, keep planning" in the terminal
-        User->>Claude: No, and what to change
-        Claude->>Log: the refusal
-        Log->>Sidecar: new lines (the sidecar follows the file)
-        Sidecar->>World: plan.resolved (rejected, by external)
-        Sidecar-->>Claude: reply to the held hook: nothing to add
-    end
-```
-
-Plans have no channel relay, so the held hook is the only way to answer
-one from the world (NOTES.md → S02 → Permission modes and plans). The
-plan's message stays in the chat whatever the answer; the card in the
-chat panel (NOTES.md → C07) goes when `plan.resolved` arrives, whichever
-side answered. A terminal "No" is also caught by the turn ending (for
-example with transcripts off). If Claude Code drops the held hook
-(`claude` exited), the plan resolves as rejected, by external. A stop
-from the world sends held plans back.
-
-## 11. A prompt's other options (C05, C06)
-
-The terminal's prompts offer more than Yes and No ("Yes, and don't ask
-again for: npm test \*", "Yes, and switch to auto mode", ...). The world
-offers the ones it can (NOTES.md → S02 → Prompt options).
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant World as World (Godot)
-    participant Sidecar
-    participant Bridge
-    participant Claude as Claude Code (terminal)
-
-    Claude->>Sidecar: PreToolUse (e.g. Bash; permission_mode)
-    Sidecar-->>Claude: empty reply (no decision)
-    par Claude Code asks in both places
-        Claude->>User: permission dialog in the terminal (its own options)
-    and
-        Claude->>Bridge: permission request
-        Bridge->>Sidecar: permission request
-    and
-        Claude->>Sidecar: PermissionRequest (permission_suggestions)
-    end
-    Note over Sidecar: prompt-options.ts keeps the suggestions that allow<br/>no more than the terminal ("suggested"), and adds<br/>"Yes, and switch to auto mode" ("auto") on Bash in<br/>Manual or Accept edits once auto was seen.
-    Note over Sidecar: Options left: the PermissionRequest hook is held open.<br/>None: it's answered at once, and this is flow 3.
-    Sidecar->>World: permission.requested (options: [{option, label}, ...])
-    alt an option picked in the world
-        User->>World: e.g. "Yes, and don't ask again for: npm --version"
-        World->>Sidecar: permission.respond (allow, option)
-        Sidecar-->>World: ok
-        Sidecar-->>Claude: reply to the held hook: allow, the input echoed back,<br/>updatedPermissions = the option's entries as Claude Code suggested them
-        Note over Claude: Claude Code writes the rule or switches the mode itself.<br/>The terminal's dialog and the relayed request close themselves.
-        Sidecar->>World: permission.resolved (by app)
-        Claude->>Sidecar: PostToolUse (permission_mode: maybe changed)
-        Sidecar-->>Claude: nothing to add
-        Sidecar->>World: session.updated (mode, if it changed), tool.finished
-    else Yes or No, in the world or the terminal
-        Note over Sidecar: As in flow 3 (Yes or No from the world goes<br/>through the bridge). When the call ends (tool.finished),<br/>the held hook is let go with nothing to add.
-    end
-```
-
-If the held hook is gone (Claude Code stopped waiting on it) or the
-option isn't one of the prompt's, an answer with an option gets `error`
-(`provider_error`, "This prompt can't be answered that way right
-now. Answer Yes or No, or answer in the terminal."). A prompt already
-shown without options (its hook came after the 1 s wait) keeps none.
+**Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
+with `# NN. Title`, the link back here and the status line, then the
+diagram. Copy an existing file's header: `autonumber`, a box for each side
+present (blue `rgba(47,111,191,0.12)` for ours, grey `rgba(128,128,128,0.14)`
+for Claude Code), and one amber band (`rect rgba(255,193,7,0.18)`) with
+its code note. The colours are see-through so they read in GitHub's light
+and dark themes. Then add a row above.

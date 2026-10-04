@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Read-only check that docs/GUIDE.md, docs/flows.md, the feature index, the dev log and the codename list all agree with NOTES.md and with the code on this branch. Use before a feature branch is called ready (the land skill runs it), or when asked whether the docs have drifted. Give it the feature IDs the branch is about, if known.
+description: Read-only check that docs/GUIDE.md, the flow diagrams (docs/flows.md and docs/diagrams/), the feature index, the dev log and the codename list all agree with NOTES.md and with the code on this branch. Use before a feature branch is called ready (the land skill runs it), or when asked whether the docs have drifted. Give it the feature IDs the branch is about, if known.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -30,8 +30,13 @@ the cheap whole-repo checks (index, dev-log table, codename) every time.
    anything planned written up as built, and missing entries in the guide's
    contents list. Where it's cheap, check a claim against the code too
    (a key binding, a default, a limit).
-4. **flows.md.** If the diff touched NOTES.md → S02 or Protocol, or
-   `protocol/`, flows.md must have changed to match.
+4. **Flow diagrams.** If the diff touched NOTES.md → S02 or Protocol, or
+   `protocol/`, the matching file in `docs/diagrams/sequence/` must have
+   changed to match. Every file there has a row in `docs/flows.md` and
+   the header that file describes (status line, `autonumber`, a box
+   for each side present, one amber band whose code note names files that exist). If
+   Architecture's components changed, the component diagram in NOTES.md
+   must match.
 5. **Dev log.** Every file in `docs/devlog/` except README.md has a row in
    its table, and every row's file exists. Each entry has `# Title` and a
    `Features:` line. A finished feature on this branch has an entry.
