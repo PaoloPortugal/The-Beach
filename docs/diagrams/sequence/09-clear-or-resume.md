@@ -23,7 +23,7 @@ sequenceDiagram
     User->>Claude: /clear (or /resume an earlier conversation)
     Note over Claude: Same process, same folder, same bridge:<br/>another session id and its transcript.
     rect rgba(255,193,7,0.18)
-        Note over Relay,Claude: launch/relay.ts: exec form, no shell, always exits 0
+        Note over Relay,Claude: launch/relay.ts (always exits 0)<br/>providers/claude/hooks.ts (exec form, no shell)
         Claude->>Relay: SessionStart (source clear or resume, the new session_id):<br/>a command hook, exec form, no shell#59; JSON on stdin
         Relay->>Sidecar: POST /hook with the session's token (from the relay file)
     end

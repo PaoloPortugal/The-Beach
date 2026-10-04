@@ -33,8 +33,8 @@ the cheap whole-repo checks (index, dev-log table, codename) every time.
 4. **Flow diagrams.** If the diff touched NOTES.md → S02 or Protocol, or
    `protocol/`, the matching file in `docs/diagrams/sequence/` must have
    changed to match. Every file there has a row in `docs/flows.md` and
-   the header that file describes (status line, `autonumber`, the two
-   boxes, one amber band whose code note names files that exist). If
+   the header that file describes (status line, `autonumber`, a box
+   for each side present, one amber band whose code note names files that exist). If
    Architecture's components changed, the component diagram in NOTES.md
    must match.
 5. **Dev log.** Every file in `docs/devlog/` except README.md has a row in

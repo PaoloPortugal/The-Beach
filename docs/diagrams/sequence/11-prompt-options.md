@@ -34,7 +34,7 @@ sequenceDiagram
         Claude->>Sidecar: PermissionRequest (permission_suggestions)
     end
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/prompt-options.ts
+        Note over Sidecar,Claude: providers/claude/prompt-options.ts (which options)<br/>session.ts (holds the hook)
         Note over Sidecar: prompt-options.ts keeps the suggestions that allow<br/>no more than the terminal ("suggested"), and adds<br/>"Yes, and switch to auto mode" ("auto") on Bash in<br/>Manual or Accept edits once auto was seen.
         Note over Sidecar: Options left: the PermissionRequest hook is held open.<br/>None: it's answered at once, and this is flow 3.
     end

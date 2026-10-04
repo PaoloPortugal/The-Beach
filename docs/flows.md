@@ -11,7 +11,7 @@ diagram, which shows the pieces themselves, is in NOTES.md → Architecture.
 GitHub draws the Mermaid blocks as diagrams. Arrows between World and
 Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
 Code are hooks (HTTP, with the session's token; `SessionStart` goes
-through Relay, our executable run as a command hook, flow 9); Bridge is
+through Relay, our executable run as a command hook, [flow 9](diagrams/sequence/09-clear-or-resume.md)); Bridge is
 our channel bridge (NOTES.md → S02).
 
 The terminal and the world are two windows onto the same session: you can
@@ -26,7 +26,7 @@ transcripts are off).
 
 Time runs top to bottom; each arrow is one message, numbered in order.
 - **Blue box, "Ours":** the parts we build (World, Sidecar, Bridge,
-  Relay). **Grey box, "Claude Code":** the user's own install and its
+  Relay). **Grey box, "Claude Code, the user's own":** the install and its
   transcript, which we only launch, watch and read. **User** stands
   outside both.
 - **Amber band:** the step the flow is about, with a note naming the code
@@ -65,8 +65,8 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the
-diagram. Copy an existing file's header: `autonumber`, the two boxes
-(blue `rgba(47,111,191,0.12)` for ours, grey `rgba(128,128,128,0.14)`
+diagram. Copy an existing file's header: `autonumber`, a box for each side
+present (blue `rgba(47,111,191,0.12)` for ours, grey `rgba(128,128,128,0.14)`
 for Claude Code), and one amber band (`rect rgba(255,193,7,0.18)`) with
 its code note. The colours are see-through so they read in GitHub's light
 and dark themes. Then add a row above.
