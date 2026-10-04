@@ -6,8 +6,10 @@ design; keep it current and short.
 - `NOTES.md` (this file): what the project is, where it's going, how it works.
 - `docs/GUIDE.md`: user's guide for built features. Must always match this file.
 - `docs/devlog/`: long history, decisions, rejected alternatives, bugs. Look up by feature ID.
-- `docs/flows.md`: step-by-step diagrams (create a session, chat, permission,
-  question, subagent, stop, failure). Derived from this file; update together.
+- `docs/flows.md`: index of the step-by-step sequence diagrams, one file
+  each in `docs/diagrams/sequence/` (create a session, chat, permission,
+  question, subagent, stop, failure, ...). Derived from this file; update
+  together. The component diagram is in Architecture.
 - `CLAUDE.md`: working rules. `README.md`: pitch and setup.
 - `assets/CREDITS.md`: source and license of every asset.
 
@@ -113,47 +115,92 @@ v1 slice.
       and add it to the guide's table of contents.
 - [ ] Reread the guide section against this file.
 - [ ] Update Architecture / Protocol / Conventions if it touched them, and
-      `docs/flows.md` if it changed how the pieces talk.
+      the matching file in `docs/diagrams/sequence/` (listed in
+      `docs/flows.md`) if it changed how the pieces talk.
 - [ ] Record any new assets in `assets/CREDITS.md`.
 - [ ] Write a dev-log entry and add it to `docs/devlog/README.md`.
 - [ ] Update "Current focus".
 
 ## Architecture
 
-Overview (GitHub draws this Mermaid block as a diagram). Everything runs on
-the user's machine; only Claude Code itself talks to Anthropic. Step-by-step
-flows are in `docs/flows.md`.
+Component diagram (GitHub draws this Mermaid block as a diagram).
+Everything runs on the user's machine; only Claude Code itself talks to
+Anthropic. Step-by-step flows are listed in `docs/flows.md`, one file
+each in `docs/diagrams/sequence/`.
 
 ```mermaid
 flowchart TB
-    godot["<b>Godot</b><br/>world, agents, chat UI"]
+    user(["<b>User</b>"]):::actor
 
-    subgraph sidecar["Sidecar (TypeScript on Node)"]
-        direction LR
-        core["<b>Generic core</b><br/>session registry,<br/>WebSocket server"]
-        provider["<b>Claude provider</b><br/>the only Claude-specific part"]
-        core <--> provider
+    subgraph game["Godot game (GDScript)"]
+        world["«component»<br/><b>World and agents</b><br/>islands · ocean · player · menu<br/>orchestrator · subagents · attention<br/><i>world/ · agents/</i>"]:::component
+        chat["«component»<br/><b>Chat</b><br/>panel · Markdown · tool log<br/>prompt and plan cards<br/><i>chat/</i>"]:::component
+        store["«component»<br/><b>Session store</b><br/>a live copy of every session<br/><i>core/sessions/</i>"]:::component
+        client["«component»<br/><b>Sidecar client</b><br/>autoload Sidecar<br/><i>core/sidecar/</i>"]:::component
     end
 
-    subgraph machine["On the user's machine, per session"]
-        direction LR
-        bridge["<b>Channel bridge</b><br/>ours: tiny MCP server"]
-        term["<b>Terminal running claude</b><br/>user's own install and login"]
-        store[("<b>Transcripts</b><br/>~/.claude/projects")]
-        term <-->|"starts it,<br/>stdio"| bridge
-        term -->|writes| store
+    subgraph sidecar["Sidecar (TypeScript on Node, one executable)"]
+        ws["«component»<br/><b>WebSocket server</b><br/>loopback · token · no Origin<br/><i>serve.ts · server.ts</i>"]:::component
+        registry["«component»<br/><b>Registry and commands</b><br/>state · seq · history<br/><i>registry.ts · commands.ts · history.ts</i>"]:::component
+        subgraph sc_claude["Claude provider (providers/claude/)"]
+            session["«component»<br/><b>Session</b><br/>held hooks · stop · prompt options<br/><i>session.ts · hooks.ts</i>"]:::component
+            endpoints["«component»<br/><b>Hook and bridge endpoints</b><br/><i>hook-server.ts · bridge-server.ts</i>"]:::component
+            reader["«component»<br/><b>Transcript reader</b><br/>follower · stored sessions<br/><i>transcript.ts · store.ts</i>"]:::component
+        end
+        other["«component»<br/><b>Other providers</b><br/>an adapter each"]:::planned
+        launch["«component»<br/><b>Launch</b><br/>terminal · launcher · relay<br/>clean environments<br/><i>launch/</i>"]:::component
     end
 
-    anthropic(["Anthropic servers"])
+    subgraph per_session["Per session, in a terminal window"]
+        claude["«external»<br/><b>Claude Code</b><br/>the user's own install and login"]:::external
+        bridge["«component»<br/><b>Channel bridge</b><br/>our tiny MCP server<br/><i>bridge.ts</i>"]:::component
+    end
 
-    godot <-->|"WebSocket, protocol v1:<br/>events down, commands up"| core
-    provider -->|"launches with our<br/>settings and flags"| term
-    term -->|"hooks over local HTTP:<br/>what is happening"| provider
-    provider -.->|"hook replies:<br/>question answers, stop"| term
-    bridge <-->|"chat in, permission<br/>prompts and answers"| provider
-    provider -->|"watches live, reads<br/>history and stored sessions"| store
-    term <--> anthropic
+    transcripts[("<b>Transcripts</b><br/>~/.claude/projects")]:::database
+    anthropic["«external»<br/><b>Anthropic servers</b>"]:::external
+
+    user --> world
+    user --> chat
+    world --> store
+    chat --> store
+    chat -->|commands| client
+    client -->|events| store
+
+    client ==>|"WebSocket · protocol v1<br/>loopback · Bearer token"| ws
+    ws --> registry
+    registry <-->|"provider interface"| session
+    registry -.-> other
+    session <--> endpoints
+    session --> reader
+    session --> launch
+
+    launch ==>|"opens a terminal<br/>argument list only"| claude
+    endpoints <==>|"hooks · HTTP · token<br/>(SessionStart via the relay)"| claude
+    endpoints <==>|"chat, prompts, verdicts<br/>TCP · loopback · token"| bridge
+    bridge <-->|"MCP · stdio"| claude
+    user -->|"types, answers"| claude
+
+    reader -->|"reads only"| transcripts
+    claude -->|writes| transcripts
+    claude ==> anthropic
+
+    classDef actor fill:#fff4e0,stroke:#d9822b,stroke-width:2px,color:#5a3200
+    classDef component fill:#e3f0ff,stroke:#2f6fbf,stroke-width:2px,color:#0b2a52
+    classDef planned fill:#ffffff,stroke:#2f6fbf,stroke-width:2px,stroke-dasharray:6 4,color:#0b2a52
+    classDef external fill:#f1f1f1,stroke:#7a7a7a,stroke-width:2px,stroke-dasharray:5 3,color:#333333
+    classDef database fill:#e6f6ea,stroke:#2e8b57,stroke-width:2px,color:#0f3d24
+
+    style game fill:#2f6fbf14,stroke:#2f6fbf,stroke-width:1px
+    style sidecar fill:#2f6fbf14,stroke:#2f6fbf,stroke-width:1px
+    style sc_claude fill:#2f6fbf0a,stroke:#2f6fbf,stroke-width:1px,stroke-dasharray:3 3
+    style per_session fill:#80808014,stroke:#7a7a7a,stroke-width:1px
 ```
+
+**Legend:** blue = built, ours · blue dashed = planned · grey dashed =
+external (the user's Claude Code, Anthropic) · green = data on disk
+(Claude Code's, read only). Thick arrows cross a process boundary; the three into the sidecar
+are loopback only and need a token (Security rules). Dashed arrows lead
+to planned parts.
 
 - **Godot** (GDScript): the world, player movement, island and bridge
   generation, agent models and state visuals, in-world chat UI.
@@ -355,7 +402,7 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher and a hook relay (S02). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
-| `docs/` | User's guide, flow diagrams (`flows.md`) and dev log. |
+| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. `claude-cli/` (Node, for S02) has a `.gdignore`; `markdown/` (Godot, for C03) is visible to Godot so its demo scene runs. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
@@ -1462,7 +1509,7 @@ yet). Code:
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
 `prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`)
 and the generic
-`sidecar/src/launch/`. Diagrams: `docs/flows.md`. Dev logs:
+`sidecar/src/launch/`. Diagrams: `docs/flows.md` (index). Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
 -s02-relay-questions-stop, 2026-10-01-agent-view-clear. The only place
 Claude-specific names may appear. It drives the user's own installed
@@ -2362,7 +2409,7 @@ this file stays the source of truth:
   CI) `security-reviewer`, commits the docs, pushes the
   branch and hands it to the user for review with the live-check steps.
   It never merges or pushes `main`.
-- `docs-sync` (`.claude/agents/`): checks the guide, flows, feature
+- `docs-sync` (`.claude/agents/`): checks the guide, flow diagrams, feature
   index, dev log, CREDITS, codename list, Current focus and this file's
   suite list against this file, `tests.yml` and the code.
 - `security-reviewer` (`.claude/agents/`): checks a branch's diff
@@ -2464,6 +2511,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **On a branch (`dev-workflow`), ready for review: the Claude Code
 workflow** (Running it → Claude Code workflow): `/verify`, `/land` and
 the `docs-sync` and `security-reviewer` subagents.
+**On a branch (`diagrams`, on top of `dev-workflow`), ready for review:
+the diagrams restyled** (dev log 2026-10-03-diagrams): one file per flow
+in `docs/diagrams/sequence/`, a component diagram in Architecture.
 **Merged to `main` (2026-10-03), reviewed by the user: any error fails
 a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
 error no longer lets a suite print PASS with checks skipped.

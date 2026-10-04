@@ -41,7 +41,11 @@ edit or say why it doesn't apply. Things that are easy to get wrong:
 - **GUIDE.md**: plain language for a player, built behaviour only, nothing
   planned. Add it to the contents list. Then re-read the guide section
   against the NOTES section, sentence by sentence.
-- **flows.md**: required if S02 or Protocol changed (CLAUDE.md).
+- **Flow diagrams**: required if S02 or Protocol changed (CLAUDE.md): the
+  matching file in `docs/diagrams/sequence/`, following the header
+  `docs/flows.md` describes. A new flow also gets a row there. If a
+  component was added or moved, update the component diagram in NOTES.md
+  → Architecture.
 - **CREDITS.md**: every new file under `assets/` (check the diff) has a row.
   Never AI-generated.
 - **Dev log**: `docs/devlog/YYYY-MM-DD-<slug>.md` in the format in
