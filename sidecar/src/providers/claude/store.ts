@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { History, HistoryMessage, HistoryTool, StoredSession } from '../../protocol.ts'
+import { jsonBytes } from '../../history.ts'
 import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, PLAN_TOOL, summarizeTool, unwrapChannel } from './hooks.ts'
 
 /**
@@ -288,7 +289,7 @@ class ToolReader {
         const input = c.input !== null && typeof c.input === 'object' && !Array.isArray(c.input) ? c.input as Record<string, unknown> : {}
         const t: HistoryTool = {
           tool_call: c.id, agent, tool: c.name, summary: summarizeTool(c.name, input, cwd),
-          ...(JSON.stringify(input).length <= INPUT_MAX ? { input } : {}),
+          ...(jsonBytes(input) <= INPUT_MAX ? { input } : {}),
           // Ended with the transcript (Claude Code closed mid-call), unless a result follows.
           status: 'error', result: 'No result was recorded.', after, ...(within ? { within } : {}),
         }

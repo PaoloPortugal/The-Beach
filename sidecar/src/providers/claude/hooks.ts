@@ -6,6 +6,7 @@
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Agent, Id, Permission, QuestionItem, SessionEvent, State } from '../../protocol.ts'
+import { jsonBytes } from '../../history.ts'
 import type { HookPayload } from './hook-server.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { promptOptions, type PermissionUpdate, type PromptOption } from './prompt-options.ts'
@@ -84,7 +85,7 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
 
 /** Longest tool summary, in characters. */
 const SUMMARY_MAX = 120
-/** Tool inputs larger than this (as JSON) aren't forwarded; the summary still is. */
+/** Tool inputs larger than this (UTF-8 bytes as JSON) aren't forwarded; the summary still is. */
 export const INPUT_MAX = 64 * 1024
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
@@ -387,7 +388,7 @@ export class HookTranslator {
       out.push({ type: 'message.completed', message, text: plan })
     }
     const summary = summarizeTool(tool, input, this.cwd)
-    const small = JSON.stringify(input).length <= INPUT_MAX
+    const small = jsonBytes(input) <= INPUT_MAX
     this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: null })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
@@ -450,7 +451,7 @@ export class HookTranslator {
       permission = {
         permission: r.request_id, agent: MAIN, tool: r.tool_name,
         summary: input ? summarizeTool(r.tool_name, input, this.cwd) : clip(r.description || r.tool_name),
-        ...(input && JSON.stringify(input).length <= INPUT_MAX ? { input } : {}),
+        ...(input && jsonBytes(input) <= INPUT_MAX ? { input } : {}),
       }
       this.permissions.set(r.request_id, { agent: MAIN, toolCall: null })
     }
