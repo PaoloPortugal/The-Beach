@@ -100,6 +100,7 @@ v1 slice.
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd`, `sidecar/src/providers/claude/prompt-options.ts` |
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
+| C08 | Token usage                               | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -247,7 +248,15 @@ feature that touches them follows these rules, and each is tested:
   ever given the fixed path of our launcher and the path of a session file,
   never a command line with session data in it (see Platforms). Likewise
   the command hook Claude Code runs (S02): exec form, our executable's
-  path and a relay file's, no shell.
+  path and a relay file's, no shell. **The one exception** (user's
+  decision, 2026-10-03): Claude Code runs a status line only through a
+  shell, so C08's status line relay is a command string. It holds only
+  our executable's path, the mode word and the relay file's path (never
+  session data), in a form that means the same in every shell Claude
+  Code uses, and is not set when a path can't be made safe (C08 → The
+  command string). Tested with hostile paths. Replaced by exec form as
+  soon as Claude Code offers one (Watch items → A status line without a
+  shell).
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
@@ -603,6 +612,15 @@ Each one is added to the schema and listed here:
   are in the snapshot's `plans`; the agent is `waiting` with reason
   `plan`. The plan's text also comes as a chat message of kind `plan`.
   Whichever side answers first wins, as for questions.
+- **`usage`** (C08): how many tokens the session uses. `usage.updated
+  { usage }` with the whole current figures: `tokens` (`input`,
+  `output`, `cache_read`, `cache_write`), `context` (`tokens`, and
+  `percent` and `window` or null; null until known), `turn` (`message`:
+  the user message that started it, or null; `output_tokens`) and
+  `limits` (`five_hour`, `seven_day`: `used_percent`, `resets_at`; each
+  may be absent). The snapshot's `usage` is null until the first count;
+  history user messages may have `turn_tokens`. *(Planned; being
+  built.)*
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -1430,6 +1448,93 @@ following Shift+Tab with the next message (no hook fires on Shift+Tab
 itself), and plans back in a resumed conversation. Not seen: a
 PowerShell prompt (the switch is offered on Bash only). Since then the
 switch button became one of C05's prompt options (2026-10-03).
+
+### C08 Token usage
+*Planned, being built on branch `c08-usage` (2026-10-03). Scope:
+capability `usage`* (token counts exist in other tools too). How much
+the session is using, without leaving the world. Research and spike:
+dev log 2026-10-03-c08-usage-spike.
+
+*Decided (user's, 2026-10-03):*
+- **Shown:** how full the context is, the session's token totals, and a
+  hint per turn of the tokens it took, counting up live while the
+  orchestrator works (like the terminal's "↓ 1.2k tokens" and the
+  desktop app's hints). No dollar cost (an estimate at list price that
+  doesn't apply to subscribers).
+- **Also the plan's limits** (5-hour and weekly, Pro and Max): one
+  readout for the whole account.
+- **Placement** (placeholder UI): context and totals in the chat panel's
+  header, beside the mode; each turn's hint at the end of the turn; the
+  plan's limits once, in a corner of the screen.
+- **A turn's tokens are output tokens**, thinking included (my
+  recommendation): input summed over a turn's API calls counts the
+  cached history again on every call.
+- **The orchestrator's tokens only** for now: subagents' transcripts
+  aren't followed live yet.
+- **Two sources.** The transcript for each API call's tokens; Claude
+  Code's **status line** input for context fill % and the plan's
+  limits, through our relay as the session's status line. Claude Code
+  only runs a status line through a shell, so this is the one exception
+  to "No shell strings" (Security rules), allowed by the user after the
+  spike on condition it's tested thoroughly and documented, and replaced
+  by exec form as soon as Claude Code offers it (Watch items → A status
+  line without a shell).
+- **The user's own status line wins.** If one of their settings files
+  sets a status line, the session keeps it and the world shows what the
+  transcript gives: context as a token count with no %, no plan limits.
+
+How it will work:
+- **Counting** (Claude provider). Every assistant entry in the
+  transcript carries its API call's `usage`; one call is written as
+  several entries with the same `message.id` and the same usage, so
+  each id counts once. Subagents' entries (`isSidechain`, or their own
+  files) aren't counted. *Totals* add up input, output, cache reads and
+  cache writes. *Context* is the latest call's input plus cache reads
+  and writes (Claude Code's own formula for its context %). *A turn*
+  runs from one user message to the next; Claude Code's injected
+  prompts (a subagent's report, a task notice) aren't user messages, so
+  their tokens count toward the turn they come in.
+- **Live:** the transcript follower (S02 → Filling the gaps) reads each
+  entry as it's written, so the counts move once per API call, not
+  word by word. **Resumed:** read from the conversation's transcript
+  with its history, so totals and hints cover the whole conversation.
+  `/clear` starts again from nothing. Transcripts off: only what the
+  status line gives.
+- **The status line relay.** The session's `--settings` sets
+  `statusLine` to our executable in `statusline` mode with the path of
+  a relay file (like the hook relay: loopback URL and the session's
+  token, readable only by this user). It reads the status line's JSON
+  from stdin, posts it to the hook endpoint, prints nothing, gives up
+  after 2 s and always exits 0. Claude Code runs it after each API call
+  (about every 1.5 s while working, debounced at 300 ms). The sidecar
+  takes only `context_window` (`used_percentage`,
+  `context_window_size`) and `rate_limits` (`five_hour`, `seven_day`:
+  `used_percentage`, `resets_at`), and only from the session's own
+  conversation (`session_id`). The terminal's status row stays empty,
+  and Claude Code then hides its footer hints ("esc to interrupt") in
+  world sessions.
+- **The command string** (the exception): only our executable's
+  absolute path, the word `statusline` and the relay file's absolute
+  path, never session data. On Windows, unquoted, forward slashes,
+  short (8.3) paths, and only `A–Z a–z 0–9 / . _ : ~ -` (never `~`
+  first), the same in Git Bash and PowerShell; elsewhere, POSIX single
+  quotes for `sh`. A path that can't be made safe means no status line
+  for that session (transcript only), logged.
+- **Spotting the user's own status line:** read (never written) the
+  user's settings (`~/.claude/settings.json`, under `CLAUDE_CONFIG_DIR`
+  when set) and the project's `.claude/settings.json` and
+  `.claude/settings.local.json`. One there means we don't set ours. A
+  managed one wins over ours anyway: we just get no status line calls.
+- **Protocol.** The session declares `usage: {}`. Event `usage.updated
+  { usage }`, the whole current figures each time: `tokens` (`input`,
+  `output`, `cache_read`, `cache_write`), `context` (`tokens`,
+  `percent` and `window`, those two null without the status line; null
+  until the first call), `turn` (`message`: the user message that
+  started it, or null; `output_tokens`) and `limits` (`five_hour`,
+  `seven_day`, each `{used_percent, resets_at}`, either absent when
+  unknown). The snapshot has `usage` (null until the first count). In
+  the history, a user message has `turn_tokens`: the output tokens of
+  the turn it started.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -2516,7 +2621,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next feature not chosen yet (Milestones → After v1).
+**Current focus:** C08 token usage (user's pick, 2026-10-03): design
+decided and spiked (dev log 2026-10-03-c08-usage-spike), being built on
+branch `c08-usage`.
 **Merged to `main` (2026-10-03), reviewed by the user: the tool log's
 markup checks cover results and Details** (dev log
 2026-10-03-c04-markup-checks).
@@ -2724,12 +2831,10 @@ exists.
   repository as its own package with a versioned protocol; a separate
   repository later if interest justifies it.
 
-- **Token usage and cost** (a `usage` capability). Recipe from Agent Office:
-  every assistant entry in the transcript records the API's token usage and
-  model, subagent transcripts sit next to it, and Claude Code appends its
-  own cost total when a session ends, which is the figure to trust. Read
-  only, like the rest of the transcript (S02). Not available when
-  transcripts are off.
+- **Token usage:** being built as C08 (2026-10-03). Left for later:
+  dollar cost (Claude Code writes a `cost-state` total near the end of a
+  transcript; dev log 2026-10-03-c08-usage-spike) and subagents' own
+  live counters.
 - **Agent scaling**, only if agent counts become a problem:
   - *Island growth:* the island footprint grows, or subdivides into a
     mini-cluster, past some agent count.
@@ -2771,6 +2876,15 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **A status line without a shell** (C08; user's condition, 2026-10-03).
+  Claude Code 2.1.289 runs a status line only through a shell (Git Bash
+  or PowerShell on Windows, `sh` elsewhere) and ignores `args`, unlike
+  command hooks (spike, dev log 2026-10-03-c08-usage-spike). Our relay
+  is therefore the one exception to "No shell strings" (Security
+  rules). Check each Claude Code update (the statusline and settings
+  docs, and a live run with `args`); once a status line can run in exec
+  form, switch to it and drop the exception.
 
 - **Prompt options not seen live** (C05; a stopgap, user's,
   2026-10-03). The live check (`claude` 2.1.288) paired nine prompts
