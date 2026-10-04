@@ -79,8 +79,16 @@ export class HistoryLog {
 export const HISTORY_INPUT_BYTES = 8 * 1024 * 1024
 
 /**
+ * Size of `value` as JSON in UTF-8 bytes, what Godot's WebSocket limit
+ * counts. Not `.length` (UTF-16 units): CJK or emoji take 2-4 bytes each.
+ */
+export function jsonBytes(value: unknown): number {
+  return Buffer.byteLength(JSON.stringify(value), 'utf8')
+}
+
+/**
  * Drops the inputs of the oldest tool calls until the rest fit in `budget`
- * bytes (as JSON), so a history full of large edits stays well under what
+ * bytes (as UTF-8 JSON), so a history full of large edits stays well under what
  * Godot accepts in one message (32 MiB). Summaries and statuses stay.
  */
 export function fitInputs(history: History, budget = HISTORY_INPUT_BYTES): History {
@@ -89,7 +97,7 @@ export function fitInputs(history: History, budget = HISTORY_INPUT_BYTES): Histo
   for (let i = tools.length - 1; i >= 0; i--) {
     const t = tools[i]!
     if (!t.input) continue
-    total += JSON.stringify(t.input).length
+    total += jsonBytes(t.input)
     if (total > budget) {
       const { input: _, ...rest } = t
       tools[i] = rest
