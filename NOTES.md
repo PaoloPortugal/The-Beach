@@ -2347,6 +2347,31 @@ second when the file changes. Write the current live check's steps
 there; replace them for the next one. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
+**Claude Code workflow (dev tool;** user's request, 2026-10-03; dev log
+2026-10-03-dev-workflow**).** Project skills and subagents in `.claude/`
+turn the working rules in CLAUDE.md and this file into steps Claude
+Code follows. They point at sections here rather than copying them, so
+this file stays the source of truth:
+- `/verify` (`.claude/skills/verify/`): runs the commands above (sidecar
+  typecheck and tests, the Godot import, each suite on its own), checks
+  this file's suite list against `tests.yml`, and reads the branch's CI
+  run with `gh`. It never runs the real `claude` and never starts a CI run.
+- `/land <ID>` (`.claude/skills/land/`): walks "When a feature lands",
+  then runs `/verify`, `docs-sync` and (when the diff touches the
+  sidecar, `core/`, `protocol/`, process launching, session content or
+  CI) `security-reviewer`, commits the docs, pushes the
+  branch and hands it to the user for review with the live-check steps.
+  It never merges or pushes `main`.
+- `docs-sync` (`.claude/agents/`): checks the guide, flows, feature
+  index, dev log, CREDITS, codename list, Current focus and this file's
+  suite list against this file, `tests.yml` and the code.
+- `security-reviewer` (`.claude/agents/`): checks a branch's diff
+  against Principles, Security rules, Multi-provider rules, Platforms
+  and Conventions, including that safety behaviour is tested.
+The two reviewers report and don't edit (told to use Bash read-only;
+it isn't locked). Claude Code loads new skills and agents when a session starts. Change
+them in a branch like any other code.
+
 **Godot AI (dev tool).** The `addons/godot_ai` editor plugin
 ([hi-godot/godot-ai](https://github.com/hi-godot/godot-ai), MIT) lets Claude
 Code drive the open editor. It needs [uv](https://docs.astral.sh/uv/) (the
@@ -2436,6 +2461,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**On a branch (`dev-workflow`), ready for review: the Claude Code
+workflow** (Running it → Claude Code workflow): `/verify`, `/land` and
+the `docs-sync` and `security-reviewer` subagents.
 **Merged to `main` (2026-10-03), reviewed by the user: any error fails
 a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
 error no longer lets a suite print PASS with checks skipped.
