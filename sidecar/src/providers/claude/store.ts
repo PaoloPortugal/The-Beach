@@ -10,6 +10,7 @@ import path from 'node:path'
 import type { History, HistoryMessage, HistoryTool, StoredSession } from '../../protocol.ts'
 import { jsonBytes } from '../../history.ts'
 import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, PLAN_TOOL, summarizeTool, unwrapChannel } from './hooks.ts'
+import { callUsageIn, UsageCounter } from './usage.ts'
 
 /**
  * Where a session was started, from the transcript's `entrypoint`. Only
@@ -233,13 +234,32 @@ export function hasReply(file: string): boolean {
  * Reads at most `budget` bytes in all (HISTORY_MAX_BYTES).
  */
 export function readHistory(file: string, budget = HISTORY_MAX_BYTES): History {
+  return readConversation(file, budget).history
+}
+
+/** A conversation read from its transcript: its history, and its token usage (C08). */
+export interface Conversation {
+  history: History
+  /** Its totals, latest context and last turn; each user message has its turn's `turn_tokens`. */
+  usage: UsageCounter
+}
+
+/**
+ * readHistory, plus the conversation's token usage (C08): each API call
+ * counted once, subagents' left out, and each user message's turn (up to
+ * the next one) in its `turn_tokens`.
+ */
+export function readConversation(file: string, budget = HISTORY_MAX_BYTES): Conversation {
+  const usage = new UsageCounter()
   let text: string
   try {
     const size = fs.statSync(file).size
-    if (size > budget) return { messages: [], tools: [] }
+    if (size > budget) return { history: { messages: [], tools: [] }, usage }
     budget -= size
     text = fs.readFileSync(file, 'utf8')
-  } catch { return { messages: [], tools: [] } }
+  } catch { return { history: { messages: [], tools: [] }, usage } }
+  /** The user message whose turn is being counted. */
+  let turn: HistoryMessage | null = null
   const out: HistoryMessage[] = []
   const byId = new Map<string, HistoryMessage>()
   const tools = new ToolReader()
@@ -248,10 +268,14 @@ export function readHistory(file: string, budget = HISTORY_MAX_BYTES): History {
     const at = typeof e.timestamp === 'string' ? e.timestamp : new Date(0).toISOString()
     const said = userText(e)
     if (said !== null) {
-      out.push({ message: typeof e.uuid === 'string' ? e.uuid : `u${out.length}`, agent: 'main', role: 'user', text: said, at })
+      turn = { message: typeof e.uuid === 'string' ? e.uuid : `u${out.length}`, agent: 'main', role: 'user', text: said, at }
+      out.push(turn)
+      usage.newTurn(turn.message)
       continue
     }
     if (e.isSidechain === true) continue
+    const call = callUsageIn(e)
+    if (call && usage.add(call) && turn) turn.turn_tokens = (turn.turn_tokens ?? 0) + call.output
     const msg = e.message as { id?: unknown; content?: unknown } | undefined
     if (e.type === 'assistant' && msg && typeof msg.id === 'string' && Array.isArray(msg.content)) {
       const texts = msg.content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string)
@@ -279,7 +303,7 @@ export function readHistory(file: string, budget = HISTORY_MAX_BYTES): History {
     tools.read(e, MAIN, out.at(-1)?.message ?? null)
   }
   readSubagents(file, tools, budget)
-  return { messages: out, tools: tools.list }
+  return { history: { messages: out, tools: tools.list }, usage }
 }
 
 /** Tool calls from transcript entries: a tool_use starts one, its tool_result ends it. */

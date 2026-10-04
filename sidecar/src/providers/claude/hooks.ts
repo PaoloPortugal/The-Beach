@@ -63,7 +63,8 @@ const SESSION_START_TIMEOUT_S = 5
  * for /clear and /resume: the world follows those (NOTES.md -> S02 ->
  * Following the conversation).
  */
-export function hookSettings(url: string, token: string, relay: string[]): { hooks: Record<string, unknown>; disableAgentView: true } {
+export function hookSettings(url: string, token: string, relay: string[], statusLine?: { type: 'command'; command: string }):
+  { hooks: Record<string, unknown>; disableAgentView: true; statusLine?: { type: 'command'; command: string } } {
   const hook = (timeout: number) => [{
     hooks: [{ type: 'http', url, timeout, headers: { Authorization: `Bearer ${token}` } }],
   }]
@@ -80,7 +81,8 @@ export function hookSettings(url: string, token: string, relay: string[]): { hoo
     matcher: '^(clear|resume)$',
     hooks: [{ type: 'command', command, args, timeout: SESSION_START_TIMEOUT_S }],
   }]
-  return { hooks, disableAgentView: true }
+  // C08: our status line relay, when the session has one (see statusline.ts).
+  return { hooks, disableAgentView: true, ...(statusLine ? { statusLine } : {}) }
 }
 
 /** Longest tool summary, in characters. */

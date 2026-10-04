@@ -296,6 +296,8 @@ test('a hook naming a transcript in another folder is ignored', async () => {
     await x.send('UserPromptSubmit', { prompt_id: 'p1', prompt: 'first' })
     await x.c.next('message.completed')
     await x.c.next('agent.state_changed')
+    // The user's message starts a turn (C08).
+    assert.equal((await x.c.next('usage.updated')).usage.turn.message, 'p1')
     const other = crypto.randomUUID()
     const elsewhere = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elsewhere-')), `${other}.jsonl`)
     const r = await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'stray', transcript_path: elsewhere }, other)
