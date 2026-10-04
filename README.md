@@ -60,7 +60,7 @@ More commands (packaging, the fake provider, tests) are in
 
 - [docs/GUIDE.md](docs/GUIDE.md): how to use it.
 - [NOTES.md](NOTES.md): design and developer reference.
-- [docs/flows.md](docs/flows.md): diagrams of how the pieces talk.
+- [docs/flows.md](docs/flows.md): diagrams of how the pieces talk (one file per flow in `docs/diagrams/sequence/`).
 - [docs/devlog/](docs/devlog/README.md): why things are the way they are.
 
 ## License
