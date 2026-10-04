@@ -21,7 +21,12 @@ export const LISTED_ENTRYPOINTS = new Set(['cli'])
 const PEEK = 64 * 1024
 /** The newest this many sessions are listed. */
 export const LIST_MAX = 200
-/** A transcript larger than this isn't read for history (too slow for the world to wait on). */
+/**
+ * Most bytes read for one history: the main transcript and its subagents'
+ * together (read synchronously, so this bounds the stall). A main
+ * transcript larger than this isn't read; a subagent's that doesn't fit
+ * what's left is skipped.
+ */
 const HISTORY_MAX_BYTES = 64 * 1024 * 1024
 
 /**
@@ -224,11 +229,14 @@ export function hasReply(file: string): boolean {
  * (C04): the main conversation's, then each subagent's from its own
  * transcript (`<id>/subagents/agent-*.jsonl`), tied to the Agent call that
  * started it by the `.meta.json` beside it. Empty if the file can't be read.
+ * Reads at most `budget` bytes in all (HISTORY_MAX_BYTES).
  */
-export function readHistory(file: string): History {
+export function readHistory(file: string, budget = HISTORY_MAX_BYTES): History {
   let text: string
   try {
-    if (fs.statSync(file).size > HISTORY_MAX_BYTES) return { messages: [], tools: [] }
+    const size = fs.statSync(file).size
+    if (size > budget) return { messages: [], tools: [] }
+    budget -= size
     text = fs.readFileSync(file, 'utf8')
   } catch { return { messages: [], tools: [] } }
   const out: HistoryMessage[] = []
@@ -269,7 +277,7 @@ export function readHistory(file: string): History {
     // After the text: a call comes after what was said before it.
     tools.read(e, MAIN, out.at(-1)?.message ?? null)
   }
-  readSubagents(file, tools)
+  readSubagents(file, tools, budget)
   return { messages: out, tools: tools.list }
 }
 
@@ -317,8 +325,12 @@ function resultText(content: unknown): string {
   return content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string).join('\n')
 }
 
-/** Each subagent's tool calls, inside the call that started it. */
-function readSubagents(file: string, tools: ToolReader) {
+/**
+ * Each subagent's tool calls, inside the call that started it. Files are
+ * read in name order while they fit in `budget` bytes; one that doesn't
+ * is skipped, with its calls.
+ */
+function readSubagents(file: string, tools: ToolReader, budget: number) {
   const dir = path.join(path.dirname(file), path.basename(file, '.jsonl'), 'subagents')
   let names: string[]
   try { names = fs.readdirSync(dir) } catch { return }
@@ -332,7 +344,9 @@ function readSubagents(file: string, tools: ToolReader) {
     } catch { /* no meta: listed without a parent call */ }
     let text: string
     try {
-      if (fs.statSync(path.join(dir, name)).size > HISTORY_MAX_BYTES) continue
+      const size = fs.statSync(path.join(dir, name)).size
+      if (size > budget) continue
+      budget -= size
       text = fs.readFileSync(path.join(dir, name), 'utf8')
     } catch { continue }
     for (const e of lines(text, false)) tools.read(e, m[1]!, null, within)
