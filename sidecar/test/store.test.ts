@@ -153,6 +153,44 @@ test('history: tool calls, how each ended, where each came, and subagents\' insi
   assert.deepEqual(tools[1]!.input, { file_path: path.join(cwd, 'a.ts') })
 })
 
+test('history: a subagent without its .meta.json lists its calls at the top, with no parent call', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hist-'))
+  const id = ID(12)
+  const file = path.join(dir, `${id}.jsonl`)
+  fs.writeFileSync(file, jsonl({ type: 'user', uuid: 'u1', message: { content: 'go' } }))
+  const subs = path.join(dir, id, 'subagents')
+  fs.mkdirSync(subs, { recursive: true })
+  fs.writeFileSync(path.join(subs, 'agent-lone.jsonl'), jsonl(
+    { type: 'assistant', isSidechain: true, message: { id: 's', content: [{ type: 'tool_use', id: 'g', name: 'Glob', input: { pattern: '*' } }] } },
+  ))
+  const { tools } = readHistory(file)
+  assert.deepEqual(tools.map((t) => [t.tool_call, t.agent, t.after, 'within' in t]), [['g', 'lone', null, false]])
+})
+
+test('history: the main transcript and its subagents\' share one read budget; what doesn\'t fit is skipped', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hist-'))
+  const id = ID(13)
+  const file = path.join(dir, `${id}.jsonl`)
+  const call = (tool: string, pad = '') => jsonl({
+    type: 'assistant', isSidechain: true, message: { id: `m_${tool}`, content: [{ type: 'tool_use', id: tool, name: 'Read', input: { file_path: `/x/${tool}${pad}` } }] },
+  })
+  fs.writeFileSync(file, jsonl({ type: 'user', uuid: 'u1', message: { content: 'go' } }))
+  const subs = path.join(dir, id, 'subagents')
+  fs.mkdirSync(subs, { recursive: true })
+  // Read in name order: a fits, b is too big for what's left (skipped), c still fits.
+  fs.writeFileSync(path.join(subs, 'agent-a.jsonl'), call('a'))
+  fs.writeFileSync(path.join(subs, 'agent-b.jsonl'), call('b', 'y'.repeat(2000)))
+  fs.writeFileSync(path.join(subs, 'agent-c.jsonl'), call('c'))
+  const sizes = ['', 'agent-a.jsonl', 'agent-c.jsonl'].map((n) => fs.statSync(n ? path.join(subs, n) : file).size)
+  const budget = sizes.reduce((a, b) => a + b, 0) + 100
+  assert.deepEqual(readHistory(file, budget).tools.map((t) => t.tool_call), ['a', 'c'])
+  // The main transcript counts: with less left, c no longer fits either.
+  assert.deepEqual(readHistory(file, sizes[0]! + sizes[1]! + 10).tools.map((t) => t.tool_call), ['a'])
+  // A main transcript over the budget isn't read at all.
+  assert.deepEqual(readHistory(file, sizes[0]! - 1), { messages: [], tools: [] })
+  assert.deepEqual(readHistory(file).tools.map((t) => t.tool_call), ['a', 'b', 'c'])
+})
+
 test('history: a plan presented for approval is its own message, before its call (C07)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hist-'))
   const file = path.join(dir, `${ID(12)}.jsonl`)
