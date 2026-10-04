@@ -1176,8 +1176,9 @@ How it works:
   from before the first message, shown only while every message is (the
   panel shows the latest 200, C02).
 - **Untrusted text** (Security rules): tool summaries, results and
-  inputs only go in plain `Label`s, never BBCode (tested with `[b]` in
-  a summary).
+  inputs only go in plain `Label`s, never BBCode (tested: markup in a
+  summary, a result and an input shows as written, and the fold holds
+  no `RichTextLabel`).
 - **Live.** The store records `after` (its latest message) and `within`
   on `tool.started`; the panel adds the call to its fold and updates it
   in place (`tool_changed`). The log's layout is one pass over the calls
@@ -2516,6 +2517,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Merged to `main` (2026-10-03), reviewed by the user: the tool log's
+markup checks cover results and Details** (dev log
+2026-10-03-c04-markup-checks).
 **Merged to `main` (2026-10-03), reviewed by the user: one read budget
 for a resumed history** (dev log 2026-10-03-c04-read-budget): subagent
 transcripts were read with no total limit, which could stall the sidecar
