@@ -62,3 +62,4 @@ reading; look things up by feature ID.
 | 2026-10-03 | [C05 reopened: the terminal's other prompt options, built](2026-10-03-c05-prompt-options-build.md) | C05, C06, S02 |
 | 2026-10-03 | [The world test's flaky checks](2026-10-03-world-test-flaky.md) | tooling |
 | 2026-10-03 | [Any error fails a Godot suite](2026-10-03-script-errors-fail-tests.md) | tooling |
+| 2026-10-03 | [The Claude Code workflow](2026-10-03-dev-workflow.md) | tooling |
