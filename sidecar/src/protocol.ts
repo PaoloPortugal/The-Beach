@@ -56,6 +56,19 @@ export interface Question { question: Id; agent: Id; asked_at?: string; items: Q
 
 export interface Notice { code: string; message: string }
 
+/** One of the account's usage limits (usage capability). */
+export interface UsageLimit { used_percent: number; resets_at: string }
+
+/** A session's token usage (usage capability), the whole current figures. See NOTES.md -> C08. */
+export interface Usage {
+  tokens: { input: number; output: number; cache_read: number; cache_write: number }
+  /** After the latest call; null until the first. `percent` and `window` are null when the provider doesn't say. */
+  context: { tokens: number; percent: number | null; window: number | null } | null
+  /** The turn going on or last finished: the user message that started it, and its output tokens. */
+  turn: { message: Id | null; output_tokens: number }
+  limits: { five_hour?: UsageLimit; seven_day?: UsageLimit }
+}
+
 export interface Session {
   session: Id
   seq: number
@@ -74,6 +87,8 @@ export interface Session {
   mode?: string | null
   /** plans capability: plans waiting for approval. */
   plans?: Plan[]
+  /** usage capability: null until the first count. */
+  usage?: Usage | null
   notices: Notice[]
 }
 
@@ -84,6 +99,8 @@ export interface HistoryMessage {
   kind?: MessageKind
   text: string
   at: string
+  /** A user message only (usage capability): the output tokens of the turn it started. */
+  turn_tokens?: number
 }
 
 /** A tool call in session.get_history (C04). */
@@ -128,6 +145,7 @@ export type SessionEvent =
   | { type: 'plan.asked'; plan: Plan }
   | { type: 'plan.resolved'; plan: Id; decision: 'approved' | 'rejected'; by: 'app' | 'external' }
   | { type: 'session.notice'; notice: Notice }
+  | { type: 'usage.updated'; usage: Usage }
   | { type: 'session.updated'; native_id?: string; title?: string | null; mode?: string }
   | { type: `ext.${string}`; [key: string]: unknown }
 
@@ -168,6 +186,7 @@ export const EVENT_CAPABILITY: Partial<Record<string, string>> = {
   'question.resolved': 'questions',
   'plan.asked': 'plans',
   'plan.resolved': 'plans',
+  'usage.updated': 'usage',
 }
 
 // Error codes sent in `error` messages.

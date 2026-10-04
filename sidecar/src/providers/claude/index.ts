@@ -20,8 +20,10 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
 import { HookServer } from './hook-server.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readHistory, readTitles, type Titles } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
+import { ourStatusLine } from './statusline.ts'
+import type { UsageCounter } from './usage.ts'
 import { ClaudeSession, HOOKS_CHECK_MS, type Launch } from './session.ts'
 
 export {
@@ -63,6 +65,8 @@ export interface ClaudeOptions {
   projectsDir?: string
   /** For tests: how long a world message waits for its first hook. */
   hooksCheckMs?: number
+  /** For tests: the environment the user's settings are found from (CLAUDE_CONFIG_DIR). */
+  env?: NodeJS.ProcessEnv
 }
 
 
@@ -92,7 +96,8 @@ export class ClaudeProvider implements Provider {
     // Named by Claude Code as it goes (no --name): NOTES.md -> S02 -> Titles.
     const name = options.project.name ?? path.basename(options.project.path)
     return this.start(host, {
-      project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false, history: { messages: [], tools: [] },
+      project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false,
+      history: { messages: [], tools: [] }, usage: null,
       ...(options.prompt ? { prompt: options.prompt } : {}),
     })
   }
@@ -109,9 +114,10 @@ export class ClaudeProvider implements Provider {
     if (!path.isAbsolute(stored.project.path) || !fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
       throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
     }
+    const read = readConversation(stored.file)
     return this.start(host, {
       project: stored.project, name: stored.title ?? path.basename(stored.project.path), titles: readTitles(stored.file),
-      nativeId, resume: true, history: readHistory(stored.file),
+      nativeId, resume: true, history: read.history, usage: read.usage,
     })
   }
 
@@ -126,7 +132,9 @@ export class ClaudeProvider implements Provider {
 
   private async start(host: SessionHost, o: {
     /** name: the terminal window's title. */
-    project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: History; prompt?: string
+    project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: History
+    /** A resumed conversation's usage so far (C08). */
+    usage: UsageCounter | null; prompt?: string
   }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
@@ -135,12 +143,13 @@ export class ClaudeProvider implements Provider {
     this.live.add(o.nativeId)
     const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.titles, this.log,
       () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
-      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS)
+      this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
+      o.usage ?? undefined)
     // After /clear the old conversation is stored, not running: it may be listed and resumed.
     session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
-    session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone) })
-    const settings = this.writeSettings(launch, hooks.url, session.hookLink.token)
+    session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone), onStatus: (p) => session.onStatus(p) })
+    const settings = this.writeSettings(launch, hooks, session.hookLink.token, o.project.path, host.id)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
       // A resumed session keeps its id and name; a new one is named by Claude Code.
@@ -193,13 +202,22 @@ export class ClaudeProvider implements Provider {
    * The session's hooks, posting to our hook server with the session's
    * token. SessionStart runs this executable in relay mode, which finds the
    * URL and token in a relay file, so they're never on a command line.
+   * The status line (C08) runs it in statusline mode with a relay file of
+   * its own, unless the user has a status line of their own, or the
+   * command string can't be made safe (then the session counts from its
+   * transcript only).
    */
-  private writeSettings(launch: Launch, url: string, token: string): string {
+  private writeSettings(launch: Launch, hooks: HookServer, token: string, project: string, id: string): string {
+    const self = this.opts.selfCommand ?? selfCommand
     const relayFile = path.join(launch.runDir, 'relay.json')
-    writeRelayFile(relayFile, { url, token })
-    const relay = (this.opts.selfCommand ?? selfCommand)('relay', relayFile)
+    writeRelayFile(relayFile, { url: hooks.url, token })
+    const statusFile = path.join(launch.runDir, 'status.json')
+    writeRelayFile(statusFile, { url: hooks.statusUrl, token })
+    const ours = ourStatusLine(project, self('statusline', statusFile), this.opts.env ? { env: this.opts.env } : {})
+    if ('none' in ours) this.log.info(`session ${id}: no status line of ours: ${ours.none}`)
     const file = path.join(launch.runDir, 'settings.json')
-    fs.writeFileSync(file, JSON.stringify(hookSettings(url, token, relay)), { mode: 0o600 })
+    fs.writeFileSync(file, JSON.stringify(hookSettings(hooks.url, token, self('relay', relayFile),
+      'statusLine' in ours ? ours.statusLine : undefined)), { mode: 0o600 })
     return file
   }
 

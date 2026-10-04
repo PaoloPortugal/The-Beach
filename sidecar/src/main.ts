@@ -8,8 +8,9 @@ import { runRelay } from './launch/relay.ts'
 
 // Modes of the one executable: the server (default); `launch`, which a
 // terminal runs to start a session's program; `bridge <provider>`, which
-// a provider's CLI starts as its channel bridge; and `relay <file>`, which
-// a provider's CLI runs as a command hook.
+// a provider's CLI starts as its channel bridge; `relay <file>`, which a
+// provider's CLI runs as a command hook; and `statusline <file>`, which it
+// runs as its status line (C08: the same relay, to its own endpoint).
 async function main(argv: string[]) {
   const [mode, ...rest] = argv
   if (mode === undefined || mode === 'serve') {
@@ -21,11 +22,12 @@ async function main(argv: string[]) {
     process.exitCode = await runLauncher(rest)
     return
   }
-  if (mode === 'relay') {
-    // A command hook: forwards the hook to the server. Always exit 0, at
-    // once (stdin may still be open after a timeout): a failure here must
-    // never block the provider's CLI.
-    await runRelay(rest, process.stdin, (m) => process.stderr.write(`[relay] ${m}\n`))
+  if (mode === 'relay' || mode === 'statusline') {
+    // A command hook or status line: forwards its input to the server.
+    // Always exit 0, at once (stdin may still be open after a timeout), and
+    // print nothing: a failure here must never block the provider's CLI,
+    // and a status line's stdout is shown in its terminal.
+    await runRelay(rest, process.stdin, (m) => process.stderr.write(`[${mode}] ${m}\n`))
     process.exit(0)
   }
   if (mode === 'bridge') {

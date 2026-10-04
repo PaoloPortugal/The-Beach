@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 import { titleIn, type Titles } from './store.ts'
+import { callUsageIn, type CallUsage } from './usage.ts'
 
 /** How often the file is checked for new lines. */
 export const POLL_MS = 250
@@ -27,12 +28,14 @@ export type TranscriptSignal =
   | { kind: 'continued'; sessionId: string }
   /** A name for the conversation: /rename (custom) or Claude Code's own (ai). */
   | { kind: 'title'; titles: Partial<Titles> }
+  /** An API call of the main conversation and its tokens (C08); repeated once per entry of the call. */
+  | { kind: 'usage'; call: CallUsage }
 
 /** Claude Code's session ids are UUIDs. */
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const INTERRUPTED = /^\[Request interrupted by user( for tool use)?\]$/
 
-/** The signals in one transcript line (2.1.284's format; continued-in from 2.1.285). Exported for tests. */
+/** The signals in one transcript line (2.1.284's format; continued-in from 2.1.285; usage, 2.1.289). Exported for tests. */
 export function signalsIn(line: string): TranscriptSignal[] {
   let e: Record<string, unknown>
   try { e = JSON.parse(line) } catch { return [] }
@@ -40,10 +43,13 @@ export function signalsIn(line: string): TranscriptSignal[] {
     const id = e.continuedInSessionId
     return typeof id === 'string' && SESSION_ID.test(id) ? [{ kind: 'continued', sessionId: id }] : []
   }
-  const titles = typeof e === 'object' && e !== null ? titleIn(e) : null
+  if (typeof e !== 'object' || e === null) return []
+  const titles = titleIn(e)
   if (titles) return [{ kind: 'title', titles }]
+  const call = callUsageIn(e)
+  if (call) return [{ kind: 'usage', call }]
   // Subagents' own entries (their transcripts are separate files anyway).
-  if (typeof e !== 'object' || e === null || e.type !== 'user' || e.isSidechain === true) return []
+  if (e.type !== 'user' || e.isSidechain === true) return []
   const content = (e.message as { content?: unknown } | undefined)?.content
   const out: TranscriptSignal[] = []
   if (typeof content === 'string') {
