@@ -2510,12 +2510,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
-**On a branch (`dev-workflow`), ready for review: the Claude Code
+**Merged to `main` (2026-10-03), reviewed by the user: the Claude Code
 workflow** (Running it → Claude Code workflow): `/verify`, `/land` and
-the `docs-sync` and `security-reviewer` subagents.
-**On a branch (`diagrams`, on top of `dev-workflow`), ready for review:
-the diagrams restyled** (dev log 2026-10-03-diagrams): one file per flow
-in `docs/diagrams/sequence/`, a component diagram in Architecture.
+the `docs-sync` and `security-reviewer` subagents; a trial run of both
+reviewers found real drift and a C04 bug (bytes counted as characters,
+being fixed on its own branch). **Merged to `main` (2026-10-03), reviewed by
+the user: the diagrams restyled** (dev log 2026-10-03-diagrams): one
+file per flow in `docs/diagrams/sequence/`, a component diagram in
+Architecture; five flows that didn't render on GitHub now do.
 **Merged to `main` (2026-10-03), reviewed by the user: any error fails
 a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
 error no longer lets a suite print PASS with checks skipped.
