@@ -164,9 +164,10 @@ flowchart TB
     world --> store
     chat --> store
     chat -->|commands| client
+    world --> client
     client -->|events| store
 
-    client ==>|"WebSocket · protocol v1<br/>loopback · Bearer token"| ws
+    client ==>|"starts it (a pipe), then<br/>WebSocket · protocol v1<br/>loopback · Bearer token"| ws
     ws --> registry
     registry <-->|"provider interface"| session
     registry -.-> other
@@ -177,7 +178,7 @@ flowchart TB
     launch ==>|"opens a terminal<br/>argument list only"| claude
     endpoints <==>|"hooks · HTTP · token<br/>(SessionStart via the relay)"| claude
     endpoints <==>|"chat, prompts, verdicts<br/>TCP · loopback · token"| bridge
-    bridge <-->|"MCP · stdio"| claude
+    bridge <==>|"MCP · stdio"| claude
     user -->|"types, answers"| claude
 
     reader -->|"reads only"| transcripts
@@ -196,7 +197,7 @@ flowchart TB
     style per_session fill:#80808014,stroke:#7a7a7a,stroke-width:1px
 ```
 
-**Legend:** blue = built, ours · blue dashed = planned · grey dashed =
+**Legend:** orange = the user · blue = built, ours · blue dashed = planned · grey dashed =
 external (the user's Claude Code, Anthropic) · green = data on disk
 (Claude Code's, read only). Thick arrows cross a process boundary; the three into the sidecar
 are loopback only and need a token (Security rules). Dashed arrows lead
@@ -2228,6 +2229,7 @@ still running should be attached to, not resumed.
 - `NOTES.md`: title
 - `CLAUDE.md`: codename rule
 - `docs/GUIDE.md`: title
+- `README.md`: the clone URL (the GitHub repository's name)
 - `docs/devlog/`: past entries (historical; leave them)
 
 It must not appear in code identifiers, class names, the protocol or package
