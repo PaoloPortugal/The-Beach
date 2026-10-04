@@ -65,3 +65,4 @@ reading; look things up by feature ID.
 | 2026-10-03 | [The Claude Code workflow](2026-10-03-dev-workflow.md) | tooling |
 | 2026-10-03 | [Diagrams restyled](2026-10-03-diagrams.md) | docs |
 | 2026-10-03 | [C04's input limits counted in bytes](2026-10-03-c04-input-bytes.md) | C04, S02 |
+| 2026-10-03 | [One read budget for a resumed history](2026-10-03-c04-read-budget.md) | C04, S04 |

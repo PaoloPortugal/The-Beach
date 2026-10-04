@@ -1208,7 +1208,11 @@ recorded.". A refused call (its result entry carries `toolDenialKind`,
 undocumented; seen `user-rejected`, `permission-rule`,
 `automode-blocked`, `automode-unavailable`) shows as denied. A subagent
 transcript without its `.meta.json` lists its calls at the top, with no
-message to follow.
+message to follow. The transcripts are read synchronously, so one
+history reads at most 64 MiB in all: a main transcript over that isn't
+read (no history), and a subagent's that doesn't fit what's left is
+skipped, its calls with it (the Agent call itself still shows). Tested
+with a small budget.
 
 Tested: the store by hand and with the fake (each live call placed as
 the sidecar's history has it, subagents' calls within their Agent
@@ -2512,6 +2516,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** next feature not chosen yet (Milestones → After v1).
+**Merged to `main` (2026-10-03), reviewed by the user: one read budget
+for a resumed history** (dev log 2026-10-03-c04-read-budget): subagent
+transcripts were read with no total limit, which could stall the sidecar
+on `/resume`.
 **Merged to `main` (2026-10-03), reviewed by the user: C04's input limits
 counted in bytes** (dev log 2026-10-03-c04-input-bytes): tool inputs
 measured in characters let a history with CJK or emoji inputs pass
