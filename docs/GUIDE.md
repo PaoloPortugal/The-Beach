@@ -74,7 +74,8 @@ names as Claude Code's own `/resume` list.
   its island, in front of its orchestrator (if the island is still
   rising, once it's up). The order stays put, so
   you always find a session in the same place: clusters in the order
-  they appeared, and each cluster's sessions in the order they started.
+  of their places around the platform, and each cluster's sessions in
+  the order of their islands.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
   their project and how long ago you last used them. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions

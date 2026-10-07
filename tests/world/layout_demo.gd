@@ -1,7 +1,7 @@
 extends Node3D
 ## Dev tool (W06, user's request): the world with 64 made-up sessions in
 ## 20 clusters, to see how the layout and bridges look. The sidecar is
-## stopped, so none of your real sessions show and nothing is started.
+## stopped as soon as the demo starts, so none of your real sessions show.
 ## Clusters past 16 and a 13-island cluster show the far spots.
 ##
 ##   godot --path . res://tests/world/layout_demo.tscn

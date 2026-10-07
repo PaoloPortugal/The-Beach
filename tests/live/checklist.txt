@@ -1,12 +1,15 @@
 LIVE CHECK: bridges (W06)
 Part A: layout demo, no sidecar
-  godot --path . res://tests/world/layout_demo.tscn
+  godot --path . res://tests/world/layout_demo.tscn -- --checklist
 
-1. Press B: the view from above. 20
+1. Press B: the view from above. 16
    clusters in slices around the
    platform, each joined by bridges,
    one bridge from the platform to
-   each. Wheel zooms. Layout ok?
+   each. Zoom out (wheel) for the far
+   islands, 2 km+ out, no bridges (4
+   clusters, 3 of the big one's).
+   Layout ok?
 2. Press B again. Walk off the
    platform onto a bridge and across
    to an island. Ramps ok? Rails look
@@ -32,10 +35,11 @@ Part B: fake provider
 Part C: real claude
   godot --path . -- --checklist
 7. Start two sessions in the same
-   folder. Stand in the middle of the
-   bridge between their islands and
-   /exit the second in its terminal:
-   its island stays while you're on
-   its bridge. Walk to the first
-   island: the second sinks, its bridge
-   goes, the first keeps its bridges.
+   folder. On the bridge between their
+   islands, walk to the end at the
+   FIRST island's beach and /exit the
+   second in its terminal: its island
+   stays while you're on its bridge.
+   Step onto the first island: the
+   second sinks, its bridge goes, the
+   first keeps its bridges.
