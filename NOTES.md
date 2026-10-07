@@ -772,6 +772,13 @@ session makes its island sink, and the island is then removed.
   On screen, no arrow: the beacon shows it. The margin shrinks to a
   quarter of a tiny window's smaller side.
 
+*Live check passed (2026-10-07)* with the user, the fake and the real
+`claude`: the rise before being taken there, a second island rising
+nearby, going to a running one at once, the beacon and the edge arrow
+(and both clearing on arrival), `/exit` taking the orchestrator while
+the empty island stays under you, sinking once you've left, and sinking
+at once with you away.
+
 ### W05 Clusters
 *Built (2026-10-02). Scope: core.* Islands of the same repository sit
 together in a **cluster** (called archipelagos until the user renamed
@@ -2595,9 +2602,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** W04 island rise / sink, then W06 bridges (user's
-order, 2026-10-07). **W04 is built on branch `w04-rise-sink`**, tested
-headless and with the fake provider; waiting for the live check and the
-user's review.
+order, 2026-10-07). **W04 is built on branch `w04-rise-sink`**, with
+the new-island beacon and edge arrow; **live check passed (2026-10-07)**
+with the fake and the real `claude`; waiting for the user's review.
 **Merged to `main` (2026-10-03), reviewed by the user: the tool log's
 markup checks cover results and Details** (dev log
 2026-10-03-c04-markup-checks).
