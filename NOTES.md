@@ -82,7 +82,7 @@ v1 slice.
 | W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd` |
 | W02 | Ocean (v1)                                | built   | W01, W02, W04 | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
-| W04 | Island rise / sink                        | built   | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd` |
+| W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
@@ -415,7 +415,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -727,6 +727,13 @@ session makes its island sink, and the island is then removed.
   island stays while you're on it, then sinks. Its bridges (W06) are to
   count as "on it", to polish then.
 - **Motion only** for now: no splash, foam or sound.
+- **Finding a new island** (after trying it: the rise was easy to miss,
+  and there is to be an option to turn off being taken there): a
+  **beacon** over a new session's island, rising with it, until you've
+  been on it, and an **arrow at the screen's edge** pointing to it while
+  it's off-screen (rejected: a beacon only, which is missed when behind
+  you or far out; a line of text with the direction; waiting for W06's
+  minimap). Built with W04. Both are **placeholders**, like all UI.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
 - *Rise.* An island for `session.created` starts at y = -8 m (`SUNK_Y`,
@@ -750,6 +757,19 @@ session makes its island sink, and the island is then removed.
   (`ids`) but keeps its place, and its repository's next session still
   joins it, beside the empty island.
 - The tweens belong to the island, so they stop if it is freed.
+- *New-island beacon* (my picks): A05's `AttentionBeacon` in green
+  (`NEW_COLOUR`; orange means waiting), from the island's middle, so it
+  rises with it and shows from the first frame. Only for
+  `session.created`. `unvisited` lists those sessions; each frame, one
+  whose island the player is over is cleared (its beacon fades out), and
+  so is one that ends. Being taken there by the teleport counts.
+- *Edge arrow* (`NewIslandPointers`, `world/new_island_pointers.gd`, a
+  `CanvasLayer` made by `world.gd`): for each unvisited session, when a
+  point 20 m above its island's middle is behind the camera or outside the
+  screen less a 56 px margin, a green arrow on that inset edge points
+  toward it, with "<project> · <distance> m" on the screen's side of it.
+  On screen, no arrow: the beacon shows it. The margin shrinks to a
+  quarter of a tiny window's smaller side.
 
 ### W05 Clusters
 *Built (2026-10-02). Scope: core.* Islands of the same repository sit
@@ -1020,7 +1040,8 @@ game isn't in front:
   (`disable_fog`) and draws before other see-through things
   (`render_priority` −1), so the message bubble stays on top. It is
   0.5 m wide close up and 1 cm wider per metre away from the camera, a
-  few pixels at 300 m. Subagents get it too.
+  few pixels at 300 m. Subagents get it too. W04 reuses it, in green,
+  over new sessions' islands.
 - **The rest:** `Attention` (`world/attention.gd`, a `CanvasLayer` made
   by `world.gd`) follows every agent in `SessionStore` (agent events, a
   new session's snapshot, a resync, a session ending). The corner, top
@@ -2390,7 +2411,8 @@ cancelling, Esc while it is lost and its late answer ignored, a refused
 folder), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, a new one rising and the teleport
 waiting for it, an ended one staying while you're on it and sinking once
-you leave, one ending mid-rise (W04), the bubble streaming and rendering Markdown, the teleport, the chat
+you leave, one ending mid-rise, the new-island beacon and edge arrow
+(W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
@@ -2764,6 +2786,11 @@ exists.
 ### Deferred ideas (not features yet)
 
 - **The terminal's other prompt options:** built (C05, 2026-10-03).
+
+- **Turning off being taken to a new session's island** (user's,
+  2026-10-07): an option, later, so starting a session leaves you where
+  you are. W04's beacon and edge arrow then show where it went. Belongs
+  with a settings screen.
 
 - **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
   The sidecar and its protocol don't depend on the game: others could

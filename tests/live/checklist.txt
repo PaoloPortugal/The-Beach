@@ -16,17 +16,25 @@ Part A: fake provider
    Running: it takes you there at once.
 4. The feel: is a 3 s rise too slow
    or too fast?
+5. New island pointer: Tab > New
+   session... > same folder, then
+   quickly turn your back to where it
+   rises. A green arrow at the screen
+   edge points to it ("<folder> · N m")?
+   Turn to it: arrow goes, a green beam
+   over it. Once you're taken there,
+   both go. Colour and look ok?
 
 Part B: real claude (godot --path .)
-5. New session in any folder. Once
+6. New session in any folder. Once
    you're on its island, type /exit in
    its terminal. The orchestrator goes
    at once, the chat closes, and you
    stay on the empty island.
-6. Walk into the sea until you're put
+7. Walk into the sea until you're put
    back on the platform. Turn to the
    island: it sinks (4 s) and is gone.
-7. Start another session, walk into
+8. Start another session, walk into
    the sea to get back to the platform,
    then /exit it in the terminal: with
    you away, its island sinks at once.
