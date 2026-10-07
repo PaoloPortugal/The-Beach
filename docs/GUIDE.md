@@ -118,8 +118,12 @@ middle where its orchestrator sits, dunes around it, and a sandy beach.
 Islands are made by the game, so no two look the same.
 
 When a session starts, its island rises out of the sea, which takes a few
-seconds. Sessions that were already running when the game connected are
-simply there. When a session ends, its orchestrator and subagents
+seconds. A green light beam stands over a new session's island until
+you've been on it, and while the island is off-screen a green arrow at
+the edge of the screen points to it, with its project's name and how far
+it is. (The beam and arrow are a first version, like the rest of the
+game's screens for now.) Sessions that were already running when the
+game connected are simply there. When a session ends, its orchestrator and subagents
 disappear at once. If you're standing on its island, the empty island
 stays until you leave it (fall in the sea or go to another session);
 then it sinks back into the sea and is gone. Islands of the same
