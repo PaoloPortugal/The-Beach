@@ -122,8 +122,21 @@ func _demo() -> void:
 	for id in world.store.sessions:
 		far += 0 if clusters.is_bridged(id) else 1
 	_check(far == 3 + 5, "demo: the 13-island cluster's last 3 and the 4 clusters past 16 (5 islands) are in far spots")
-	# Islands in the middle of trees sink: what's left is patched.
+	# The minimap: a cluster's bridged islands, not its far ones.
 	var player: Player = world.get_node("Player")
+	var minimap: Minimap = world.minimap
+	player.global_position = islands.island("d02").global_position + Vector3(0, 3, 0)
+	await _frames(5)
+	await _settle()
+	var size := minimap.map_rect().size
+	var on_map := func(id: String) -> bool: return Rect2(Vector2.ZERO, size).has_point(minimap.to_map(islands.island(id).global_position))
+	_check(minimap.shown_cluster() == clusters.cluster_of("d02") and on_map.call("d01") and on_map.call("d10"), "minimap: the cluster's islands in its wedge")
+	_check(not on_map.call("d11") and not clusters.is_bridged("d11"), "but not its far ones")
+	player.global_position = islands.island("d11").global_position + Vector3(0, 3, 0)
+	await _frames(5)
+	await _settle()
+	_check(on_map.call("d11") and not on_map.call("d01"), "near a far island, just that one")
+	# Islands in the middle of trees sink: what's left is patched.
 	player.global_position = Vector3(0, 1.1, 0)
 	var before := islands.bridges.links().size()
 	var keep: Array = islands.bridges.links()
@@ -205,6 +218,13 @@ func _press(action: String) -> void:
 func _frames(n: int) -> void:
 	for i in n:
 		await physics_frame
+
+
+# A whole main-loop iteration or two: physics frames alone may not run
+# _process (a slow iteration runs several physics steps in a row).
+func _settle() -> void:
+	for i in 2:
+		await process_frame
 
 
 func _until(cond: Callable, timeout_s: float) -> void:

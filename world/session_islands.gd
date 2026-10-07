@@ -42,6 +42,7 @@ var _left := {} # Island of an ended session → its cluster hold
 var _sinking := {} # Island → true, of those in _left
 var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
+var _far := {} # Island → true, for one in a far spot (no bridges)
 
 
 func _ready() -> void:
@@ -102,6 +103,12 @@ func nearest_cluster(point: Vector3) -> String:
 			found = _cluster[i]
 			best = _distance(i, point)
 	return found
+
+
+## Whether an island is in a far spot, with no bridges (W06: past 16
+## clusters, or an inner cluster's 11th island).
+func is_far(i: Island) -> bool:
+	return _far.has(i)
 
 
 ## The key of an island's region in [member bridges].
@@ -167,6 +174,8 @@ func _on_added(id: String, created: bool) -> void:
 	agents.setup(store, id, i, o)
 	_islands[id] = i
 	_cluster[i] = clusters.cluster_of(id)
+	if not clusters.is_bridged(id):
+		_far[i] = true
 	island_added.emit(id, i, o)
 	if not created:
 		_bridge(id)
@@ -216,6 +225,7 @@ func _sink(i: Island) -> void:
 		_left.erase(i)
 		_sinking.erase(i)
 		_cluster.erase(i)
+		_far.erase(i)
 		i.queue_free())
 
 
