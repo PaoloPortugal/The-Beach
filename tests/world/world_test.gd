@@ -275,6 +275,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var r2 := SessionIslands.region(islands.island("h2"))
 	_check(bridges.bridge("platform", r1) != null and bridges.bridge(r1, r2) != null and bridges.links().size() == 2, "W06: bridges from the platform to the first island, and on to the next")
 	var minimap: Minimap = world.minimap
+	await _settle() # the minimap updates in _process
 	_check(minimap.shown_cluster() == c1 and minimap.map_rect().position == Vector2(Minimap.GAP, Minimap.GAP), "the minimap shows the nearest cluster, top left")
 	var drawn := minimap.to_map(island.global_position)
 	_check(Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(drawn) and Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(minimap.to_map(player.global_position)), "with its islands and you on it")
@@ -441,7 +442,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var pointers: NewIslandPointers = world.pointers
 	var to_h3 := h3.global_position - player.global_position
 	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
-	await _frames(3)
+	# The arrows update in _process: wait for process frames, not physics.
+	await _settle()
 	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
 	player.rotation.y += PI
 	await _frames(3)
@@ -458,7 +460,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	_check(h3.position.y == 0.0 and player.global_position.distance_to(islands.orchestrator("h3").global_position) < 7.0 and player.is_on_floor(), "then takes you there")
 	_check(is_instance_valid(island) and island.position.y < 0.0, "you've left the empty island: it sinks")
-	await _frames(3)
+	await _settle()
 	_check(islands.unvisited().is_empty() and not beacon.is_on() and pointers.shown().is_empty(), "being there clears the beacon and the arrow")
 	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
 	_check(island_ref.get_ref() == null, "and goes")
