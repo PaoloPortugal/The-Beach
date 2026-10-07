@@ -8,7 +8,7 @@ here; each section is labelled with its feature ID.
 - [Running it](#running-it)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
-- [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
+- [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Clusters (W05)](#clusters-w05)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
@@ -70,7 +70,8 @@ names as Claude Code's own `/resume` list.
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
   while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
-  its island, in front of its orchestrator. The order stays put, so
+  its island, in front of its orchestrator (if the island is still
+  rising, once it's up). The order stays put, so
   you always find a session in the same place: clusters in the order
   they appeared, and each cluster's sessions in the order they started.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
@@ -84,8 +85,8 @@ Starting or resuming opens Claude Code in a terminal, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
 "Still starting; check the terminal, or stop waiting in the menu (Tab)."
-Once you've confirmed, the session's island appears and you're taken to
-it, right in front of its orchestrator.
+Once you've confirmed, the session's island rises out of the sea, and
+once it's up you're taken to it, right in front of its orchestrator.
 
 If the session can't start, the note says why. If Claude Code closes
 before it's ready (for example you chose not to trust the folder, or
@@ -94,7 +95,7 @@ away.
 
 One session starts at a time. While one is starting, the menu has
 **✕ Stop waiting for the session starting**: it lets you start another.
-If the first one does come up later, its island appears and it's listed
+If the first one does come up later, its island rises and it's listed
 under Running, but you aren't taken there.
 
 ## Quitting the game (S05)
@@ -110,13 +111,22 @@ the game just closes.
 The game can't end sessions for you: Claude Code has no clean way to do
 that from outside.
 
-## The islands and the ocean (W01, W02)
+## The islands and the ocean (W01, W02, W04)
 
 Each session has its own small low-poly beach island: a flat spot in the
 middle where its orchestrator sits, dunes around it, and a sandy beach.
-Islands are made by the game, so no two look the same. An island appears
-once its session is running and disappears when the session ends; if you
-are standing on it then, you're put back on the platform. Islands of the same
+Islands are made by the game, so no two look the same.
+
+When a session starts, its island rises out of the sea, which takes a few
+seconds. A green light beam stands over a new session's island until
+you've been on it, and while the island is off-screen a green arrow at
+the edge of the screen points to it, with its project's name and how far
+it is. (The beam and arrow are a first version, like the rest of the
+game's screens for now.) Sessions that were already running when the
+game connected are simply there. When a session ends, its orchestrator and subagents
+disappear at once. If you're standing on its island, the empty island
+stays until you leave it (fall in the sea or go to another session);
+then it sinks back into the sea and is gone. Islands of the same
 project sit together in a cluster (below), and clusters sit around the
 platform, far apart; for now you travel between them with
 the sessions menu (Tab), or back to the platform by falling in the sea. The ocean has gentle waves and
@@ -139,8 +149,8 @@ or resuming it (a new cluster you ask for is named after the session's
 folder).
 
 Clusters last only while they have sessions: when a cluster's last
-session ends, it's gone, and its place around the platform is free
-again. The game doesn't remember them after it closes.
+session ends, it's gone from the menu at once, and its place around the
+platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
 For now a cluster shows only in the sessions menu, as a heading in the
 Running list; nothing on the islands says which cluster they're in yet,
@@ -435,7 +445,7 @@ to confirm that it may connect to the game (every time, while this
 connection is an early-access feature of Claude Code), and the first time
 in a folder, whether you trust that folder. Until you answer, the world
 tells you to confirm in the terminal. Once you have, the session's island
-appears.
+rises out of the sea.
 
 **Two windows onto one session.** The terminal and the world show the same
 session, and you can use either at any time:
