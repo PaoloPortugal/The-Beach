@@ -2476,8 +2476,8 @@ input, a deferred call, a reply or a layout waits on its condition
 several physics steps before the next input is handled (dev log
 2026-10-03-world-test-flaky). Likewise, state kept up to date in
 `_process` is read after process frames (`_settle`), not physics ones
-(dev log 2026-10-07-w04-arrow-check-flaky). A logged error fails a step like a failed
-check (above).
+(dev log 2026-10-07-w04-arrow-check-flaky). A logged error fails a
+step like a failed check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
@@ -2607,8 +2607,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** W06 bridges (user's order, 2026-10-07: W04, then
 W06).
-**Ready for review (2026-10-07): W04's flaky edge-arrow check** (dev
-log 2026-10-07-w04-arrow-check-flaky): the world test read the arrows
+**Ready for review (branch `claude/w04-edge-arrow-flaky`): W04's flaky
+edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the world test read the arrows
 before `_process` had run; it now waits on process frames.
 **Merged to `main` (2026-10-07), reviewed by the user: W04, islands
 rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
