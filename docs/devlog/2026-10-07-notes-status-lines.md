@@ -18,8 +18,8 @@ Then, at the user's request, the planned text that read oddly after a
   building S04" now says only CLI sessions are listed for now (the
   user's decision of 2026-09-29, already in the section).
 - **S05:** no longer "until S05 decides how" (it decided: not from the
-  game for now), and an ended session's island is removed from the world
-  rather than sinking, which waits for W04.
+  game for now). Its island sinking (W04) stays: W04 was merged the same
+  day, before this branch.
 - **C02:** "v1 renders plain text" is now past tense, with messages
   rendered as Markdown since C03; the index row is "Chat panel and
   streaming (v1)".

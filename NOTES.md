@@ -2231,12 +2231,11 @@ they aren't listed.
 
 ### S05 End session
 *Quit warning built (2026-10-01, the user's decision). Scope: core.* Ending a
-session removes it from the registry and its island from the world (W04
-will make it sink). Claude Code offers no documented way to close a session
-from outside, so `session.end` gets `not_supported` for Claude sessions
-(user's decision, S02, kept by S05's decision below); `/exit` in the
-terminal still ends a session and removes its island (its channel bridge
-closes).
+session removes it from the registry and sinks its island (W04). Claude
+Code offers no documented way to close a session from outside, so
+`session.end` gets `not_supported` for Claude sessions (user's decision,
+S02, kept by S05's decision below); `/exit` in the terminal still ends a
+session and sinks its island (its channel bridge closes).
 
 *Decided (user's, 2026-10-01): sessions aren't ended from the game for
 now.* Claude Code has no documented way to end an interactive session
