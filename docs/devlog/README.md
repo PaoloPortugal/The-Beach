@@ -69,3 +69,4 @@ reading; look things up by feature ID.
 | 2026-10-03 | [The tool log's markup checks cover results and Details](2026-10-03-c04-markup-checks.md) | tooling |
 | 2026-10-07 | [W04: islands rise and sink](2026-10-07-w04-rise-sink.md) | W04, W01, W05, A05 |
 | 2026-10-07 | [Built features' status lines match the index](2026-10-07-notes-status-lines.md) | docs |
+| 2026-10-07 | [W04's edge-arrow check was flaky](2026-10-07-w04-arrow-check-flaky.md) | tooling |
