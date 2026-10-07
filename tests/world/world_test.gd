@@ -3,7 +3,8 @@ extends SceneTree
 ## assist (W03), then the world scene with
 ## real physics: the player lands on the spawn platform, walks, jumps and is
 ## put back when it falls in the sea; the sessions menu; islands for
-## sessions (applied to the store by hand), each orchestrator's bubble, and
+## sessions (applied to the store by hand) rising and sinking (W04), each
+## orchestrator's bubble, and
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
@@ -267,6 +268,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.session_id == "h1", "its orchestrator belongs to the session")
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
+	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is just there, not rising")
+	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	await _quit(world, player)
 
 	var bubble := chat.bubble("h1")
@@ -388,15 +391,62 @@ func _sessions(world: Node3D, player: Player) -> void:
 	shown = panel.get_node("Layout/Notices").text
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
 	await _attention(world)
+	var on_island := player.global_position
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
-	await _until(func() -> bool: return islands.island("h1") == null and not chat.is_open(), 2.0)
-	_check(islands.island("h1") == null and not chat.is_open() and player.controls_enabled, "an ended session's island goes, and its chat closes")
-	_check(player.global_position.distance_to(player.spawn_point) < 0.5, "whoever stood on it is back on the platform")
-	_check(chat.bubble("h1") == null and not chat.prompt_visible(), "nothing of it is left")
-	store.apply({"type": "session.snapshot", "session": _snapshot("h3")})
-	_check(islands.island("h3").global_position.is_equal_approx(SessionClusters.cluster_position(0) + SessionClusters.island_offset(0)), "a new island takes the free spot")
-	store.apply({"type": "session.ended", "session": "h2", "seq": 2, "reason": "exited"})
-	store.apply({"type": "session.ended", "session": "h3", "seq": 2, "reason": "exited"})
+	# Waits hold weak references: a lambda can't capture a freed object.
+	var orchestrator_ref: WeakRef = weakref(orchestrator)
+	var island_ref: WeakRef = weakref(island)
+	await _until(func() -> bool: return orchestrator_ref.get_ref() == null and not chat.is_open(), 2.0)
+	_check(islands.island("h1") == null and not is_instance_valid(orchestrator) and not chat.is_open() and player.controls_enabled, "an ended session's orchestrator goes, and its chat closes")
+	_check(chat.bubble("h1") == null and not chat.prompt_visible(), "nothing of it is left to talk to")
+	await _frames(10)
+	_check(island in islands.left_islands() and island.position.y == 0.0 and player.global_position.distance_to(on_island) < 0.5, "W04: its island stays while you're on it")
+	# A session started meanwhile: its island rises, and you're taken there
+	# once it's up.
+	store.apply({"type": "session.created", "session": _snapshot("h3")})
+	var h3 := islands.island("h3")
+	_check(islands.is_rising("h3") and h3.position.y < -1.0, "a new session's island rises out of the sea")
+	_check(not h3.global_position.is_equal_approx(SessionClusters.cluster_position(0)), "not in the spot of the island you're on")
+	var beacon: AttentionBeacon = h3.get_node("NewBeacon")
+	_check(Array(islands.unvisited()) == ["h3"] and beacon.is_on(), "a beacon stands over it until you've been there")
+	var pointers: NewIslandPointers = world.pointers
+	var to_h3 := h3.global_position - player.global_position
+	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
+	await _frames(3)
+	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
+	player.rotation.y += PI
+	await _frames(3)
+	var arrow := pointers.arrow("h3")
+	var label: Label = arrow.get_node("Label") if arrow else null
+	_check(Array(pointers.shown()) == ["h3"] and label.text.begins_with("demo · ") and label.text.ends_with(" m"), "behind you: an arrow at the edge, with its project and distance")
+	var screen := root.get_visible_rect()
+	_check(screen.has_point(arrow.position) and not screen.grow(-pointers.margin() - 1.0).has_point(arrow.position), "on the screen's edge")
+	world.teleport("h3")
+	await _frames(5)
+	_check(player.global_position.distance_to(on_island) < 0.5, "going there waits for it to rise")
+	await _until(func() -> bool: return not islands.is_rising("h3"), 6.0)
+	await _frames(20)
+	_check(h3.position.y == 0.0 and player.global_position.distance_to(islands.orchestrator("h3").global_position) < 7.0 and player.is_on_floor(), "then takes you there")
+	_check(is_instance_valid(island) and island.position.y < 0.0, "you've left the empty island: it sinks")
+	await _frames(3)
+	_check(islands.unvisited().is_empty() and not beacon.is_on() and pointers.shown().is_empty(), "being there clears the beacon and the arrow")
+	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
+	_check(island_ref.get_ref() == null, "and goes")
+	store.apply({"type": "session.snapshot", "session": _snapshot("h5")})
+	_check(islands.island("h5").global_position.is_equal_approx(SessionClusters.cluster_position(0)), "its spot is free again")
+	# A session that ends as its island rises: back down at once (you're not
+	# on it).
+	store.apply({"type": "session.created", "session": _snapshot("h6")})
+	await _frames(5)
+	var h6 := islands.island("h6")
+	store.apply({"type": "session.ended", "session": "h6", "seq": 2, "reason": "exited"})
+	_check(not islands.is_rising("h6") and h6 in islands.left_islands() and islands.unvisited().is_empty(), "a session ending while its island rises")
+	var h6_ref: WeakRef = weakref(h6)
+	await _until(func() -> bool: return h6_ref.get_ref() == null, 6.0)
+	_check(not is_instance_valid(h6), "sinks it from there")
+	player.respawn()
+	for id in ["h2", "h3", "h5"]:
+		store.apply({"type": "session.ended", "session": id, "seq": 2, "reason": "exited"})
 	await _frames(2)
 
 
@@ -826,7 +876,9 @@ func _live(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	var orchestrator := islands.orchestrator(id)
 	_check(orchestrator != null and menu.notice_text() == "", "live: the session is up, with its island")
-	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and it takes you there")
+	_check(islands.is_rising(id), "live: rising")
+	await _until(func() -> bool: return player.global_position.distance_to(orchestrator.global_position) < 7.0, 6.0)
+	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and once it's up, it takes you there")
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
 	_check(menu.entries()[3].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
@@ -939,10 +991,15 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
+	var ended := islands.island(id)
 	sidecar.send_command("session.end", {"session": id})
 	await _until(func() -> bool: return islands.island(id) == null, 5.0)
 	await _frames(2)
-	_check(islands.island(id) == null and player.global_position.distance_to(player.spawn_point) < 0.5, "live: ending it sinks the island and brings you back")
+	_check(islands.island(id) == null and not is_instance_valid(orchestrator) and is_instance_valid(ended) and ended.position.y == 0.0, "live: ending it takes its orchestrator; the island stays while you're on it")
+	player.respawn()
+	var ended_ref: WeakRef = weakref(ended)
+	await _until(func() -> bool: return ended_ref.get_ref() == null, 6.0)
+	_check(not is_instance_valid(ended), "live: and sinks once you've left")
 
 	# S04: resume a stored session from the menu.
 	_press("sessions_menu")
@@ -956,7 +1013,7 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
 	var resumed: String = world.store.sessions.keys()[0]
 	await _until(func() -> bool: return chat.history_loaded(resumed), 5.0)
-	await _frames(5)
+	await _until(func() -> bool: return islands.orchestrator(resumed) != null and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, 6.0)
 	_check(islands.orchestrator(resumed) != null and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: its island comes back and you're taken there")
 	_check(chat.bubble(resumed).shown_text() == "Resumed Add a save system.", "live: with its chat so far")
 	_press("sessions_menu")
