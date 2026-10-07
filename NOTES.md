@@ -984,13 +984,15 @@ and the real layout (user's, 2026-10-02; W07).
   you as an arrow). It opens centred on you, at the scale that fits the
   cluster the minimap shows (with 30 m of sea around), or 1 px a metre
   with no islands. Zoom: the wheel, 1.25 times a notch, keeping the point
-  under the pointer still, from 4 px a metre out to whichever is further
-  of a fit of every island and 0.05 px a metre. Moving: dragging with the
+  under the pointer still, from 4 px a metre out until every island
+  fits, and at least to 0.5 px a metre. Moving: dragging with the
   left button, or WASD and the arrow keys at half the map's width a
   second. Each cluster's name sits over the middle of its islands; from
   1 px a metre, each live session's island has "title · state" under it
   (the sessions menu's words, with a dot coloured by
-  `SessionStore.activity`). Hovering a live session's island outlines it;
+  `SessionStore.activity`). A label that would overlap one already
+  drawn is left out (names first), so zoomed out some names hide.
+  Hovering a live session's island outlines it;
   a click on it (the button let go within 6 px of where it went down, so
   not a drag) closes the map and teleports you there (`world.gd` →
   `teleport`). An ended session's island isn't clickable.
