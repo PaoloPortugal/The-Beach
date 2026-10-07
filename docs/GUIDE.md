@@ -10,7 +10,7 @@ here; each section is labelled with its feature ID.
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Clusters (W05)](#clusters-w05)
-- [Bridges and the minimap (W06)](#bridges-and-the-minimap-w06)
+- [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
@@ -158,10 +158,10 @@ session ends, it's gone from the menu at once, and its place around the
 platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
 A cluster shows in the sessions menu, as a heading in the Running list,
-and on the minimap (W06); nothing on the islands says which cluster
+and on the maps (W06); nothing on the islands says which cluster
 they're in yet.
 
-## Bridges and the minimap (W06)
+## Bridges and the maps (W06)
 
 Wooden bridges join the islands of a cluster, and a long bridge runs
 from the platform out to each cluster, so you can walk everywhere. A
@@ -179,9 +179,17 @@ far out at sea with no bridge; go there with the sessions menu (Tab).
 The **minimap** in the top left shows the cluster you're in or nearest
 to: its islands (an empty one is grey), its bridges, the platform when
 it's close, and you as a white arrow pointing the way you face, with
-north at the top. Press **M** to hide or show it. It hides while the
-chat or the sessions menu is open. (The bridges and the map are a first
-version, like the rest of the game's look for now.)
+north at the top. It hides while the chat, the sessions menu or the big
+map is open.
+
+Press **M** for the **big map** of the whole world. It opens on you,
+showing your cluster; drag it with the mouse, or use W A S D or the
+arrow keys, to look around, and the mouse wheel zooms in and out. Each
+cluster's name is over its islands, and zoomed in, each island shows its
+session's title and what it's doing (working, waiting for you, idle or
+stopped). Click an island to go there. The world carries on while the
+map is open; you just don't move. M or Esc closes it. (The bridges and
+the maps are a first version, like the rest of the game's look for now.)
 
 ## Moving around (W03)
 
@@ -195,7 +203,7 @@ You see the world through your character's eyes.
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
 | Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
-| Show or hide the minimap | M |
+| Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts
