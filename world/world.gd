@@ -11,6 +11,8 @@ var store := SessionStore.new()
 var quit_guard := QuitGuard.new()
 ## Says when sessions wait on you (A05; the beacons are on the agents).
 var attention := Attention.new()
+## Points to new sessions' islands while they're off-screen (W04).
+var pointers := NewIslandPointers.new()
 
 # The session whose island is rising, to take the player to once it's up.
 var _teleport_when_risen := ""
@@ -42,6 +44,8 @@ func _ready() -> void:
 	quit_guard.setup(store, _player)
 	add_child(attention)
 	attention.setup(store)
+	add_child(pointers)
+	pointers.setup(_islands, store)
 	_menu.attention = attention
 	_islands.player = _player
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
