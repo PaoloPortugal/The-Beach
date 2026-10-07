@@ -7,7 +7,9 @@ extends Node3D
 ## there. Until the player has been on a new session's island, a beacon
 ## stands over it (and [NewIslandPointers] points to it). When a session
 ## ends its orchestrator and agents go at once; the empty island stays
-## while the player is on it, then sinks and is freed.
+## while the player is on it (or on one of its bridges), then sinks and is
+## freed. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
+## spawn platform once an island is up, and go when it starts sinking.
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
 ## A new session's island is up (at once for one already running).
@@ -19,10 +21,15 @@ const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
 const SUNK_Y := -8.0
 ## The new-island beacon's colour: not A05's orange, which means waiting.
 const NEW_COLOUR := Color(0.35, 1.0, 0.55)
+## How high the beach is where a bridge meets it, metres above the water.
+const BRIDGE_END_HEIGHT := 0.5
 
 var store: SessionStore
 ## Which cluster each session is in, and where its island goes.
 var clusters := SessionClusters.new()
+## The bridges between islands, and to the platform (a hub added by the
+## world).
+var bridges := BridgeNetwork.new()
 ## Whoever has to leave an ended session's island before it sinks.
 var player: Node3D
 ## Seconds to rise and to sink.
@@ -34,6 +41,12 @@ var _rising := {} # session id → its Tween
 var _left := {} # Island of an ended session → its cluster hold
 var _sinking := {} # Island → true, of those in _left
 var _unvisited := {} # session id → its new-island AttentionBeacon
+var _cluster := {} # Island → its cluster id, while it's in the world
+
+
+func _ready() -> void:
+	bridges.name = "Bridges"
+	add_child(bridges)
 
 
 ## Call once, before anything else that listens for new sessions (see
@@ -71,6 +84,31 @@ func unvisited() -> Array[String]:
 	return out
 
 
+## The islands of a cluster in the world: live, empty or sinking.
+func cluster_islands(cluster_id: String) -> Array[Island]:
+	var out: Array[Island] = []
+	for i: Island in _cluster:
+		if _cluster[i] == cluster_id and is_instance_valid(i):
+			out.append(i)
+	return out
+
+
+## The cluster of the island nearest [param point], or "".
+func nearest_cluster(point: Vector3) -> String:
+	var found := ""
+	var best := INF
+	for i: Island in _cluster:
+		if is_instance_valid(i) and _distance(i, point) < best:
+			found = _cluster[i]
+			best = _distance(i, point)
+	return found
+
+
+## The key of an island's region in [member bridges].
+static func region(i: Island) -> String:
+	return "island:%d" % i.get_instance_id()
+
+
 ## Ended sessions' islands still in the world: waiting for the player to
 ## leave, or sinking.
 func left_islands() -> Array[Island]:
@@ -106,7 +144,7 @@ func _process(_delta: float) -> void:
 			_unvisited[id].set_on(false)
 			_unvisited.erase(id)
 	for i: Island in _left:
-		if not _sinking.has(i) and not (player and _is_over(i, player.global_position)):
+		if not _sinking.has(i) and not (player and (_is_over(i, player.global_position) or bridges.on_bridge_of(region(i), player.global_position))):
 			_sink(i)
 
 
@@ -128,8 +166,10 @@ func _on_added(id: String, created: bool) -> void:
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
 	_islands[id] = i
+	_cluster[i] = clusters.cluster_of(id)
 	island_added.emit(id, i, o)
 	if not created:
+		_bridge(id)
 		island_risen.emit(id)
 		return
 	# Rises with the island, from its middle.
@@ -145,6 +185,7 @@ func _on_added(id: String, created: bool) -> void:
 	tween.tween_property(i, "position:y", 0.0, rise_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.finished.connect(func() -> void:
 		_rising.erase(id)
+		_bridge(id)
 		island_risen.emit(id))
 	_rising[id] = tween
 
@@ -167,13 +208,36 @@ func _on_removed(id: String, _reason: String) -> void:
 
 func _sink(i: Island) -> void:
 	_sinking[i] = true
+	bridges.remove(region(i))
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", SUNK_Y, sink_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween.finished.connect(func() -> void:
 		clusters.remove(_left[i])
 		_left.erase(i)
 		_sinking.erase(i)
+		_cluster.erase(i)
 		i.queue_free())
+
+
+# A risen island joins its cluster's bridges, unless it's in a far spot.
+func _bridge(id: String) -> void:
+	if not clusters.is_bridged(id):
+		return
+	var i: Island = _islands[id]
+	var reach := i.generator.radius * 1.45
+	bridges.add(region(i), clusters.cluster_of(id), i.global_position, reach, func(toward: Vector3) -> Vector3:
+		return _shore_point(i, toward))
+
+
+# Where a bridge heading for [param toward] meets the island's beach: the
+# outermost point that high, on the line from its middle.
+static func _shore_point(i: Island, toward: Vector3) -> Vector3:
+	var c := i.global_position
+	var dir := Vector2(toward.x - c.x, toward.z - c.z).normalized()
+	var r := i.generator.shore_radius(dir.x, dir.y) * 1.2
+	while r > 0.0 and i.height_at(dir.x * r, dir.y * r) < BRIDGE_END_HEIGHT:
+		r -= 0.25
+	return c + Vector3(dir.x * r, i.height_at(dir.x * r, dir.y * r), dir.y * r)
 
 
 # Whether [param point] is on or around the island: its land and shallows.

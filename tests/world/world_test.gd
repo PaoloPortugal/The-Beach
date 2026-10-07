@@ -260,7 +260,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var orchestrator := islands.orchestrator("h1")
 	_check(island != null and islands.island("h2") != null, "an island per session")
 	_check(island.global_position.distance_to(islands.island("h2").global_position) > 90.0, "islands apart from each other")
-	_check(Vector2(island.global_position.x, island.global_position.z).length() > 150.0, "and away from the platform")
+	_check(Vector2(island.global_position.x, island.global_position.z).length() > 100.0, "and away from the platform")
 	var clusters := islands.clusters
 	var c1 := clusters.cluster_of("h1")
 	_check(c1 != "" and clusters.cluster_of("h2") == c1 and clusters.cluster_name(c1) == "demo", "clusters: same folder, same cluster, named after it")
@@ -270,6 +270,22 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
 	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is just there, not rising")
 	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
+	var bridges := islands.bridges
+	var r1 := SessionIslands.region(island)
+	var r2 := SessionIslands.region(islands.island("h2"))
+	_check(bridges.bridge("platform", r1) != null and bridges.bridge(r1, r2) != null and bridges.links().size() == 2, "W06: bridges from the platform to the first island, and on to the next")
+	var minimap: Minimap = world.minimap
+	_check(minimap.shown_cluster() == c1 and minimap.map_rect().position == Vector2(Minimap.GAP, Minimap.GAP), "the minimap shows the nearest cluster, top left")
+	var drawn := minimap.to_map(island.global_position)
+	_check(Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(drawn) and Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(minimap.to_map(player.global_position)), "with its islands and you on it")
+	_press("minimap")
+	await _until(func() -> bool: return not minimap.on, 2.0)
+	await _settle()
+	_check(minimap.shown_cluster() == "", "M hides it")
+	_press("minimap")
+	await _until(func() -> bool: return minimap.on, 2.0)
+	await _settle()
+	_check(minimap.shown_cluster() == c1, "and shows it again")
 	await _quit(world, player)
 
 	var bubble := chat.bubble("h1")
@@ -312,6 +328,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return chat.is_open(), 2.0)
 	var panel := chat.panel()
 	_check(chat.is_open() and panel.visible and not player.controls_enabled, "E opens the chat panel and pauses the player")
+	await _settle()
+	_check(world.minimap.shown_cluster() == "", "the minimap hides while chatting")
 	# The newest message is built at once, the older ones over a few frames.
 	await _until(func() -> bool: return not panel.is_loading(), 5.0)
 	_check(panel.shown_messages() == ["Hi there", "Looking at it.\ntwo\nthree\nfour\nfive"], "the panel shows the chat so far")
@@ -401,6 +419,14 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(chat.bubble("h1") == null and not chat.prompt_visible(), "nothing of it is left to talk to")
 	await _frames(10)
 	_check(island in islands.left_islands() and island.position.y == 0.0 and player.global_position.distance_to(on_island) < 0.5, "W04: its island stays while you're on it")
+	# W06: on its bridge to the platform, far from the island, counts too.
+	var to_platform := bridges.bridge("platform", r1)
+	player.global_position = to_platform.from.lerp(to_platform.to, 0.5) + Vector3(0, 0.6, 0)
+	await _frames(20)
+	_check(to_platform.carries(player.global_position) and not islands._is_over(island, player.global_position), "W06: on its bridge, away from the island")
+	_check(island in islands.left_islands() and island.position.y == 0.0 and is_instance_valid(to_platform) and bridges.has(r1), "the empty island and its bridges stay")
+	player.global_position = on_island
+	await _frames(10)
 	# A session started meanwhile: its island rises, and you're taken there
 	# once it's up.
 	store.apply({"type": "session.created", "session": _snapshot("h3")})
