@@ -84,7 +84,7 @@ v1 slice.
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
-| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd` |
+| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
@@ -415,7 +415,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -855,7 +855,7 @@ cluster name; the selector back to Automatic on opening; a cluster gone
 with its last session, and a new one taking a free spot.
 
 ### W06 Bridges
-*Built (2026-10-07); the bridges' look and the minimap are placeholders.
+*Built (2026-10-07); the bridges' look and the maps are placeholders.
 Scope: core (world only).* Walkable bridges connect islands within a
 cluster, and each cluster to the spawn platform, for physical movement
 and the feel of the world. Built as a general "connect regions" system,
@@ -884,8 +884,24 @@ and the real layout (user's, 2026-10-02; W07).
 - **Minimap now:** a small map of the cluster (islands, bridges, you).
   Placeholder UI, like all UI. A square in the top left (the top right
   has A05's count), north-up, fitted to the cluster you're in or nearest
-  to, with you as an arrow; M toggles it, on by default (rejected: the
+  to, with you as an arrow; always on (rejected: the
   whole world, where islands become dots; a radar turning with you).
+  *Changed after trying it (user's, 2026-10-07):* M no longer toggles
+  it; it stays on, and M opens the big map instead.
+- **Big map** (user's feedback, 2026-10-07: "a big map view where you can
+  see the world, not necessarily all of it at once", with a way to scroll
+  through it). M opens it, M or Esc closes it. It fills the window and
+  opens centred on you, fitted to your cluster; drag with the mouse or
+  use WASD or the arrow keys to move it, the mouse wheel zooms (toward
+  the pointer). It shows the whole world: islands (far ones too),
+  bridges, the platform, you, each cluster's name, and, zoomed in
+  enough, each island's session title and state. Clicking a session's
+  island takes you there, like the sessions menu's Running list (W07).
+  While it's open you don't move and the mouse is free, but the world
+  doesn't pause, so the map stays live (rejected: the small map with its
+  own toggle key, or no small map; keyboard-only moving; opening zoomed
+  out to the whole world; outlines of the wedges; a view-only map;
+  pausing the world). Placeholder UI, like all UI.
 - **A bridge from the spawn platform** out to each cluster. The platform
   is part of each cluster's tree, so its bridge goes to the cluster's
   first island (the nearest when it comes) and re-links like any other.
@@ -956,9 +972,28 @@ and the real layout (user's, 2026-10-02; W07).
   (`SessionIslands.nearest_cluster`): its islands in their wedges (empty
   ones greyed), its bridges, the platform when in view and you as a white
   arrow, fitted to them and you with 30 m of sea around. Near an island
-  in a far spot it shows just that one. M (action `minimap`, a physical
-  key) toggles it; it hides while the chat or the sessions menu is open,
-  or with no islands.
+  in a far spot it shows just that one. It hides while the chat, the
+  sessions menu or the big map is open, or with no islands.
+- *Big map* (`WorldMap`, `world/world_map.gd`, a `CanvasLayer` made by
+  `world.gd`, over the rest of the UI; sizes my picks). M (action
+  `minimap`, a physical key) opens it while the controls are yours (not
+  chatting, in the sessions menu or asked about quitting), turning the
+  player's controls off and freeing the mouse; M or Esc closes it and
+  gives them back. It fills the window, 24 px in from its edges, drawn
+  like the minimap (sea, islands, empty ones grey, bridges, the platform,
+  you as an arrow). It opens centred on you, at the scale that fits the
+  cluster the minimap shows (with 30 m of sea around), or 1 px a metre
+  with no islands. Zoom: the wheel, 1.25 times a notch, keeping the point
+  under the pointer still, from 4 px a metre out to whichever is further
+  of a fit of every island and 0.05 px a metre. Moving: dragging with the
+  left button, or WASD and the arrow keys at half the map's width a
+  second. Each cluster's name sits over the middle of its islands; from
+  1 px a metre, each live session's island has "title · state" under it
+  (the sessions menu's words, with a dot coloured by
+  `SessionStore.activity`). Hovering a live session's island outlines it;
+  a click on it (the button let go within 6 px of where it went down, so
+  not a drag) closes the map and teleports you there (`world.gd` →
+  `teleport`). An ended session's island isn't clickable.
 - *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
   made-up sessions in 20 clusters (one of 13 islands, four past 16), the
   sidecar stopped so nothing real shows. B switches to a view from above
@@ -2666,7 +2701,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    basic version). Running sessions are grouped by cluster (W05).
    *Answered (user's, 2026-10-02):* a fixed order with no pinning, and
    the minimap waits for W06 (W07). *Built with W06 (2026-10-07):* a
-   minimap of the cluster you're in.
+   minimap of the cluster you're in, and a big map of the whole world (M)
+   whose islands you can click to go to.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only

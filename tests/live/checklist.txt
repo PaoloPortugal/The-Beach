@@ -17,24 +17,30 @@ Part A: layout demo, no sidecar
    side: you can't.
 3. Minimap, top left: the cluster you
    walk into, your arrow turning with
-   you, north up. M hides/shows it;
-   Tab hides it while the menu is open.
-4. Tab > Running: go to an island of
+   you, north up. Tab hides it while
+   the menu is open.
+4. M: the big map, on you. Drag,
+   WASD/arrows, wheel zoom; zoom out
+   to all 20 clusters' names. Zoom in:
+   titles and states under islands.
+   Click a far island: you're there.
+   M, then Esc: closes, mouse captured.
+5. Tab > Running: go to an island of
    a cluster far out (repo-17..20):
    no bridges there (teleport only).
 
 Part B: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
-5. Tab > New session... > any folder,
+6. Tab > New session... > any folder,
    then again in the same folder. Once
    each island is up, a bridge appears:
    platform > first island > second.
-6. Chat (E) by an orchestrator: the
+7. Chat (E) by an orchestrator: the
    minimap hides, and comes back.
 
 Part C: real claude
   godot --path . -- --checklist
-7. Start two sessions in the same
+8. Start two sessions in the same
    folder. On the bridge between their
    islands, walk to the end at the
    FIRST island's beach and /exit the
