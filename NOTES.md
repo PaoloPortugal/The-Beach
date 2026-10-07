@@ -862,7 +862,29 @@ with its last session, and a new one taking a free spot.
 physical movement and the feel of the world. Build it as a general
 "connect regions" system, not beach-specific, so that future biomes (W10:
 forests, mountains, at different heights) plug into it. A minimap for travel on foot is decided here,
-with the real layout (user's, 2026-10-02; W07).
+with the real layout (user's, 2026-10-02; W07). Scope: core (world
+only).
+
+*Decided (user's, 2026-10-07):*
+- **Which islands:** one path, a tree: just enough bridges to connect a
+  cluster, each new island to its nearest one (rejected: every pair of
+  neighbouring spots plus links to keep it whole; a star to the middle
+  island). A sinking island can cut a tree in two, so how it's re-linked
+  is to be worked out in the build.
+- **Look:** made in code, like the islands: low-poly wooden planks on
+  posts, generated to any length and slope (so W10's different heights
+  work later). A placeholder that art can replace.
+- **Coming and going:** for now bridges just appear once an island is up
+  and vanish when one starts sinking; how they show up and leave is
+  designed later (rejected for now: rising after the island and sinking
+  first; tilting with the island).
+- **Rails** you can't walk through, so you don't fall in the sea.
+- **Minimap now:** a small map of the cluster (islands, bridges, you).
+  Placeholder UI, like all UI.
+- **A bridge from the spawn platform** out to each cluster (clusters are
+  about 360 m out today).
+- An empty island (W04) counts as "on it" while you're on one of its
+  bridges.
 
 ### W07 Teleport menu
 *Built (2026-10-02), inside the sessions menu (S03); the UI is a
@@ -2836,7 +2858,7 @@ exists.
     clicked. This is the route to "unlimited" agents.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
-- **Other biomes:** hills, mountains, joined by the same bridge system (W06).
+- **Other biomes:** now a planned feature, W10.
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
 - **Commands from the world** (probably a capability). Skills and custom
