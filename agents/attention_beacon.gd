@@ -1,7 +1,7 @@
 class_name AttentionBeacon
 extends Node3D
-## The attention cue's beacon (A05): a tall orange light pillar rising from
-## an agent that waits on you, pulsing slowly, seen from other islands. It
+## The attention cue's beacon (A05): a tall light pillar, orange by
+## default, rising from an agent that waits on you, pulsing slowly, seen from other islands. It
 ## ignores the fog and gets wider with distance, so it stays a few pixels
 ## wide across the ocean. It fades in and out. A placeholder: an unshaded,
 ## see-through cylinder, no art. W04 uses it too, in another colour, over
