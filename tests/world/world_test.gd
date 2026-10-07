@@ -278,14 +278,9 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(minimap.shown_cluster() == c1 and minimap.map_rect().position == Vector2(Minimap.GAP, Minimap.GAP), "the minimap shows the nearest cluster, top left")
 	var drawn := minimap.to_map(island.global_position)
 	_check(Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(drawn) and Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(minimap.to_map(player.global_position)), "with its islands and you on it")
-	_press("minimap")
-	await _until(func() -> bool: return not minimap.on, 2.0)
+	await _big_map(world, player, islands)
 	await _settle()
-	_check(minimap.shown_cluster() == "", "M hides it")
-	_press("minimap")
-	await _until(func() -> bool: return minimap.on, 2.0)
-	await _settle()
-	_check(minimap.shown_cluster() == c1, "and shows it again")
+	_check(minimap.shown_cluster() == c1, "the minimap is back once the big map closes")
 	await _quit(world, player)
 
 	var bubble := chat.bubble("h1")
@@ -324,12 +319,20 @@ func _sessions(world: Node3D, player: Player) -> void:
 	# Checked at once: the retry fails again within a frame or two.
 	_check(chat._history.get("h1") == "asking", "opening the chat asks for the history again")
 	chat.close()
+	world.world_map.open()
+	_press("interact")
+	await _settle()
+	_check(not chat.is_open(), "E doesn't open the chat while the big map is open")
+	world.world_map.close()
 	_press("interact")
 	await _until(func() -> bool: return chat.is_open(), 2.0)
 	var panel := chat.panel()
 	_check(chat.is_open() and panel.visible and not player.controls_enabled, "E opens the chat panel and pauses the player")
 	await _settle()
 	_check(world.minimap.shown_cluster() == "", "the minimap hides while chatting")
+	_press("minimap")
+	await _settle()
+	_check(not world.world_map.is_open() and chat.is_open(), "M doesn't open the big map while chatting")
 	# The newest message is built at once, the older ones over a few frames.
 	await _until(func() -> bool: return not panel.is_loading(), 5.0)
 	_check(panel.shown_messages() == ["Hi there", "Looking at it.\ntwo\nthree\nfour\nfive"], "the panel shows the chat so far")
@@ -442,6 +445,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
 	player.rotation.y += PI
 	await _frames(3)
+	await _settle() # the arrows are placed in _process
 	var arrow := pointers.arrow("h3")
 	var label: Label = arrow.get_node("Label") if arrow else null
 	_check(Array(pointers.shown()) == ["h3"] and label.text.begins_with("demo · ") and label.text.ends_with(" m"), "behind you: an arrow at the edge, with its project and distance")
@@ -582,6 +586,75 @@ func _attention(world: Node3D) -> void:
 
 
 # S05: closing the window with sessions h1 and h2 running asks first.
+# W06's big map, with two sessions' islands (h1, h2) in the world: M opens
+# it, it zooms and moves, a drag isn't a click, clicking h2's island takes
+# you there, M and Esc close it.
+func _big_map(world: Node3D, player: Player, islands: SessionIslands) -> void:
+	var big: WorldMap = world.world_map
+	_press("minimap")
+	await _until(func() -> bool: return big.is_open(), 2.0)
+	await _settle()
+	_check(big.is_open() and not player.controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "M opens the big map, stops you and frees the mouse")
+	_check(world.minimap.shown_cluster() == "", "the minimap hides while it's open")
+	_check(big.to_map(player.global_position).is_equal_approx(big.map_rect().size / 2.0) and big.map_rect().size.x > 0.0, "it opens centred on you")
+	var fit: Rect2 = world.minimap.fit_area()
+	_check(is_equal_approx(big.zoom, clampf(minf(big.map_rect().size.x / fit.size.x, big.map_rect().size.y / fit.size.y), big.min_zoom(), WorldMap.MAX_ZOOM)), "at the minimap's scale")
+	var at := Vector2(3, 4)
+	var held := big.to_world(at)
+	var zoom := big.zoom
+	big.zoom_by(1.0, at)
+	_check(is_equal_approx(big.zoom, zoom * WorldMap.ZOOM_STEP) and big.to_world(at).is_equal_approx(held), "the wheel zooms, keeping the point under the pointer still")
+	big.zoom_by(100.0, at)
+	_check(big.zoom == WorldMap.MAX_ZOOM, "up to its closest zoom")
+	# Zooming out about the islands' middle.
+	var middle := (islands.island("h1").global_position + islands.island("h2").global_position) / 2.0
+	big.centre = Vector2(middle.x, middle.z)
+	big.zoom_by(-100.0, big.map_rect().size / 2.0)
+	var view := Rect2(Vector2.ZERO, big.map_rect().size)
+	_check(big.zoom <= WorldMap.MIN_ZOOM and view.has_point(big.to_map(islands.island("h1").global_position)) and view.has_point(big.to_map(islands.island("h2").global_position)), "and out until every island fits")
+	var centre := big.centre
+	Input.action_press("move_right")
+	await _settle()
+	await _settle()
+	Input.action_release("move_right")
+	_check(big.centre.x > centre.x and is_equal_approx(big.centre.y, centre.y), "D moves the view east")
+	# A drag: press, move past the click slop, let go.
+	centre = big.centre
+	big._on_map_input(_mouse_button(MOUSE_BUTTON_LEFT, true, Vector2(5, 5)))
+	var motion := InputEventMouseMotion.new()
+	motion.position = Vector2(15, 5)
+	motion.relative = Vector2(10, 0)
+	big._on_map_input(motion)
+	big._on_map_input(_mouse_button(MOUSE_BUTTON_LEFT, false, Vector2(15, 5)))
+	_check(big.is_open() and is_equal_approx(big.centre.x, centre.x - 10.0 / big.zoom), "dragging moves the map, and isn't a click")
+	var target := islands.island("h2")
+	big.centre = Vector2(target.global_position.x, target.global_position.z)
+	var spot := big.to_map(target.global_position)
+	_check(big.session_at(spot) == "h2" and big.session_at(spot + Vector2(1000, 1000)) == "", "it knows which session's island is under the pointer")
+	big._on_map_input(_mouse_button(MOUSE_BUTTON_LEFT, true, spot))
+	big._on_map_input(_mouse_button(MOUSE_BUTTON_LEFT, false, spot + Vector2(2, 0)))
+	await _frames(20)
+	# (Headless, the mouse can't be captured: Input.mouse_mode stays visible.)
+	_check(not big.is_open() and player.controls_enabled, "clicking an island closes the map, giving the controls back")
+	_check(player.global_position.distance_to(islands.orchestrator("h2").global_position) < 7.0, "and takes you there")
+	big.open()
+	_press("ui_cancel")
+	await _settle()
+	_check(not big.is_open() and player.controls_enabled, "Esc closes it")
+	big.open()
+	_press("minimap")
+	await _settle()
+	_check(not big.is_open() and player.controls_enabled, "and so does M")
+
+
+func _mouse_button(button: MouseButton, pressed: bool, at: Vector2) -> InputEventMouseButton:
+	var event := InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = pressed
+	event.position = at
+	return event
+
+
 func _quit(world: Node3D, player: Player) -> void:
 	var guard: QuitGuard = world.quit_guard
 	var quits := [0]
