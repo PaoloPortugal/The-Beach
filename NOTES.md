@@ -2154,7 +2154,7 @@ all four messages back. `claude -p` sessions are stored as `sdk-cli`, so
 they aren't listed.
 
 ### S05 End session
-*Quit warning built (user's decision, 2026-10-01). Scope: core.* Ending a
+*Quit warning built (2026-10-01, the user's decision). Scope: core.* Ending a
 session removes it from the registry and its island from the world (W04
 will make it sink). Claude Code offers no documented way to close a session
 from outside, so `session.end` gets `not_supported` for Claude sessions
