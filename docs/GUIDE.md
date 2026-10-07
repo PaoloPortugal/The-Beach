@@ -70,7 +70,8 @@ names as Claude Code's own `/resume` list.
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
   while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
-  its island, in front of its orchestrator. The order stays put, so
+  its island, in front of its orchestrator (if the island is still
+  rising, once it's up). The order stays put, so
   you always find a session in the same place: clusters in the order
   they appeared, and each cluster's sessions in the order they started.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
@@ -144,8 +145,8 @@ or resuming it (a new cluster you ask for is named after the session's
 folder).
 
 Clusters last only while they have sessions: when a cluster's last
-session ends, it's gone (once its last island has sunk), and its place
-around the platform is free again. The game doesn't remember them after it closes.
+session ends, it's gone from the menu at once, and its place around the
+platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
 For now a cluster shows only in the sessions menu, as a heading in the
 Running list; nothing on the islands says which cluster they're in yet,
