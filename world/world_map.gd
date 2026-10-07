@@ -17,7 +17,7 @@ const MARGIN := 24.0
 ## further if that's what fits every island), one notch of the wheel, and
 ## where the session titles show.
 const MAX_ZOOM := 4.0
-const MIN_ZOOM := 0.05
+const MIN_ZOOM := 0.5
 const ZOOM_STEP := 1.25
 const LABEL_ZOOM := 1.0
 ## Its zoom with no islands to fit.
@@ -58,6 +58,8 @@ var _press_at := Vector2.ZERO
 var _dragged := false
 # The live session whose island the pointer is over, or "".
 var _hover := ""
+# The labels drawn this frame, so a later one doesn't overlap them.
+var _labels: Array[Rect2] = []
 
 
 func _init() -> void:
@@ -123,8 +125,8 @@ func map_rect() -> Rect2:
 	return _map.get_rect()
 
 
-## The furthest it zooms out: [constant MIN_ZOOM], or further if every
-## island needs it to fit.
+## The furthest it zooms out: until every island fits, and at least to
+## [constant MIN_ZOOM].
 func min_zoom() -> float:
 	var all := Rect2(Vector2(player.global_position.x, player.global_position.z), Vector2.ZERO)
 	for i in islands.all_islands():
@@ -250,15 +252,16 @@ func _draw_map() -> void:
 		var line := Minimap.shoreline(islands.island(_hover), to_map)
 		line.append(line[0])
 		_map.draw_polyline(line, HOVER, 2.0)
+	_labels.clear()
+	_draw_cluster_names()
 	if zoom >= LABEL_ZOOM:
 		_draw_titles(shown)
-	_draw_cluster_names()
 	Minimap.draw_you(_map, player, to_map)
 	_map.draw_rect(view, Color(1, 1, 1, 0.5), false, 1.0)
 
 
 # Under each live session's island: a dot in its state's colour, then
-# "title · state".
+# "title · state". Cluster names come first, then titles, where they fit.
 func _draw_titles(shown: Array[Island]) -> void:
 	var font := ThemeDB.fallback_font
 	for id in islands.session_ids():
@@ -270,6 +273,8 @@ func _draw_titles(shown: Array[Island]) -> void:
 		var text := "%s · %s" % [SessionsMenu.display_title(s.get("title")), SessionsMenu.state_text(activity)]
 		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var at := to_map(i.global_position) + Vector2(-width / 2.0 + 6.0, i.generator.radius * zoom + 16.0)
+		if not _room(Rect2(at + Vector2(-16.0, -14.0), Vector2(width + 16.0, 18.0))):
+			continue
 		_map.draw_circle(at + Vector2(-10.0, -5.0), 5.0, STATE_COLOURS.get(activity, STATE_COLOURS["idle"]))
 		_map.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, OUTLINE)
 		_map.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TITLE_COLOUR)
@@ -299,5 +304,17 @@ func _draw_cluster_names() -> void:
 		var text := islands.clusters.cluster_name(cluster)
 		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 		var at := Vector2(middle.x - width / 2.0, top - 8.0)
+		if not _room(Rect2(at + Vector2(0.0, -18.0), Vector2(width, 22.0))):
+			continue
 		_map.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, OUTLINE)
 		_map.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, NAME_COLOUR)
+
+
+# Whether a label fits without overlapping one drawn before it this
+# frame; if so, it's taken. Labels that don't fit are skipped.
+func _room(rect: Rect2) -> bool:
+	for taken in _labels:
+		if taken.intersects(rect):
+			return false
+	_labels.append(rect)
+	return true

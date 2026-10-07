@@ -7,7 +7,7 @@ extends Node3D
 ##   godot --path . res://tests/world/layout_demo.tscn
 ##
 ## B switches to a view from above (fog off; mouse wheel zooms); Tab's
-## Running list goes to any island; M shows or hides the minimap.
+## Running list goes to any island; M opens the big map.
 
 ## Islands per cluster: 64 in 20 clusters.
 const SIZES := [13, 7, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2]
