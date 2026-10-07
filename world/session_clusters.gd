@@ -6,8 +6,9 @@ extends RefCounted
 ## first one of a repository makes a new cluster, named after it, and
 ## later ones join that cluster (not one a session of it was moved to). When
 ## starting or resuming, the sessions menu can pick another running
-## cluster or a new one instead. A cluster lasts while it has sessions:
-## with the last one gone, it and its spot are freed.
+## cluster or a new one instead. A cluster lasts while it has sessions, or
+## islands of ended ones still above water (W04, [method hold]): with the
+## last one gone, it and its spot are freed.
 ##
 ## Layout, until bridges (W06): each cluster takes a spot on rings around
 ## the spawn platform; its islands sit close together around that spot,
@@ -29,15 +30,18 @@ const PER_RING := 6
 ## land reaches about 40 m from its centre (its sea floor, about 67 m).
 const ISLAND_SPACING := 100.0
 
-## Cluster id → {"name": String, "slot": int, "sessions": {session id →
-## island index}, "key": the repository (or folder outside git) it was
-## made for automatically, "" for one made by hand}.
+## Cluster id → {"name": String, "slot": int, "sessions": {session id or
+## hold → island index}, "key": the repository (or folder outside git) it
+## was made for automatically, "" for one made by hand}.
 var _clusters := {}
-## Session id → cluster id.
+## Session id or hold → cluster id.
 var _of := {}
 ## Session id → the choice made when it was started, until it comes up.
 var _choices := {}
+## Holds: island spots of ended sessions, see [method hold].
+var _holds := {}
 var _next_id := 1
+var _next_hold := 1
 
 
 ## Records where a session being started should go (a [constant AUTOMATIC],
@@ -74,23 +78,49 @@ func add(session_id: String, session: Dictionary) -> String:
 	return id
 
 
-## Takes a session out; its cluster goes with its last session.
+## Takes a session (or a [method hold]) out; its cluster goes with its last
+## one.
 func remove(session_id: String) -> void:
 	_choices.erase(session_id)
 	if not _of.has(session_id):
 		return
 	var id: String = _of[session_id]
 	_of.erase(session_id)
+	_holds.erase(session_id)
 	_clusters[id]["sessions"].erase(session_id)
 	if _clusters[id]["sessions"].is_empty():
 		_clusters.erase(id)
 	changed.emit()
 
 
-## The cluster ids, in the order of their spots.
+## Takes an ended session out but keeps its island's spot, while its island
+## is still above water (W04). Returns the hold, to [method remove] once
+## the island is gone. A cluster left with only holds isn't in
+## [method ids], but keeps its spot, and its repository's next session
+## still joins it.
+func hold(session_id: String) -> String:
+	_choices.erase(session_id)
+	if not _of.has(session_id):
+		return ""
+	var id: String = _of[session_id]
+	var members: Dictionary = _clusters[id]["sessions"]
+	var key := "hold:%d" % _next_hold
+	_next_hold += 1
+	members[key] = members[session_id]
+	members.erase(session_id)
+	_of.erase(session_id)
+	_of[key] = id
+	_holds[key] = true
+	changed.emit()
+	return key
+
+
+## The ids of the clusters with sessions, in the order of their spots.
 func ids() -> Array[String]:
 	var out: Array[String] = []
-	out.assign(_clusters.keys())
+	for id in _clusters:
+		if not sessions(id).is_empty():
+			out.append(id)
 	out.sort_custom(func(a: String, b: String) -> bool: return _clusters[a]["slot"] < _clusters[b]["slot"])
 	return out
 
@@ -107,7 +137,7 @@ func cluster_name(cluster_id: String) -> String:
 func sessions(cluster_id: String) -> Array[String]:
 	var members: Dictionary = _clusters.get(cluster_id, {}).get("sessions", {})
 	var out: Array[String] = []
-	out.assign(members.keys())
+	out.assign(members.keys().filter(func(k: String) -> bool: return not _holds.has(k)))
 	out.sort_custom(func(a: String, b: String) -> bool: return members[a] < members[b])
 	return out
 

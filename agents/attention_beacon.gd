@@ -1,10 +1,11 @@
 class_name AttentionBeacon
 extends Node3D
-## The attention cue's beacon (A05): a tall orange light pillar rising from
-## an agent that waits on you, pulsing slowly, seen from other islands. It
+## The attention cue's beacon (A05): a tall light pillar, orange by
+## default, rising from an agent that waits on you, pulsing slowly, seen from other islands. It
 ## ignores the fog and gets wider with distance, so it stays a few pixels
 ## wide across the ocean. It fades in and out. A placeholder: an unshaded,
-## see-through cylinder, no art.
+## see-through cylinder, no art. W04 uses it too, in another colour, over
+## a new session's island.
 
 const COLOUR := Color(1.0, 0.5, 0.1)
 ## Metres, from just above the agent's marker.
@@ -15,6 +16,9 @@ const WIDTH := 0.5
 const WIDTH_PER_METRE := 0.01
 ## Seconds to fade fully in or out.
 const FADE := 0.6
+
+## Set before it enters the tree.
+var colour := COLOUR
 
 var _on := false
 var _level := 0.0 # 0 hidden … 1 fully shown
@@ -30,7 +34,7 @@ func _ready() -> void:
 	# Drawn before other see-through things, so the message bubble stays on
 	# top of it.
 	_material.render_priority = -1
-	_material.albedo_color = Color(COLOUR, 0.0)
+	_material.albedo_color = Color(colour, 0.0)
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = WIDTH / 2.0
 	mesh.bottom_radius = WIDTH / 2.0
