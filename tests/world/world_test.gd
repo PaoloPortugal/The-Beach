@@ -412,10 +412,13 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var pointers: NewIslandPointers = world.pointers
 	var to_h3 := h3.global_position - player.global_position
 	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
-	await _frames(3)
+	# The arrows follow the camera in _process: wait for process frames, not
+	# physics ones. Right after an island is built, a main-loop iteration
+	# catches up several physics steps before any _process runs.
+	await _settle()
 	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
 	player.rotation.y += PI
-	await _frames(3)
+	await _settle()
 	var arrow := pointers.arrow("h3")
 	var label: Label = arrow.get_node("Label") if arrow else null
 	_check(Array(pointers.shown()) == ["h3"] and label.text.begins_with("demo · ") and label.text.ends_with(" m"), "behind you: an arrow at the edge, with its project and distance")
@@ -428,7 +431,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	_check(h3.position.y == 0.0 and player.global_position.distance_to(islands.orchestrator("h3").global_position) < 7.0 and player.is_on_floor(), "then takes you there")
 	_check(is_instance_valid(island) and island.position.y < 0.0, "you've left the empty island: it sinks")
-	await _frames(3)
+	await _settle()
 	_check(islands.unvisited().is_empty() and not beacon.is_on() and pointers.shown().is_empty(), "being there clears the beacon and the arrow")
 	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
 	_check(island_ref.get_ref() == null, "and goes")
