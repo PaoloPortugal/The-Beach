@@ -94,7 +94,7 @@ v1 slice.
 | A04 | Procedural agent placement (v1)           | built   | A02           | `agents/agent_placement.gd` |
 | A05 | Permission attention cue                  | built   | A05           | `agents/attention_beacon.gd`, `world/attention.gd` |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
-| C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
+| C02 | Chat panel and streaming (v1)             | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
 | C04 | Tool-call log                             | built (UI placeholder) | C04 | `chat/tool_fold.gd`, `sidecar/src/history.ts` |
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd`, `sidecar/src/providers/claude/prompt-options.ts` |
@@ -849,23 +849,23 @@ question 7). It's the main way you interact with a session (see C01).
 *Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
 question 7 is settled.
 
-*Placeholder built. Scope: core.* `agents/orchestrator/`: a capsule body
-and a sphere head behind a desk, all Godot primitives (no art assets),
-facing +z. It has a solid collision box and a `ChatZone` (`Area3D`,
-radius 2.5 m) that signals when the player walks in or out (C01), and a
-`MessageAnchor` above its head where its message bubble floats (C02). It
-joins the `orchestrators` group. One is made per session, in the middle of
-its island, by `SessionIslands` (W01), with `session_id` set to the
-session it belongs to.
+**How it works.** `agents/orchestrator/`: a capsule body and a sphere head
+behind a desk, all Godot primitives (no art assets), facing +z. It has a
+solid collision box and a `ChatZone` (`Area3D`, radius 2.5 m) that signals
+when the player walks in or out (C01), and a `MessageAnchor` above its head
+where its message bubble floats (C02). It joins the `orchestrators` group.
+One is made per session, in the middle of its island, by `SessionIslands`
+(W01), with `session_id` set to the session it belongs to.
 
 ### A02 Subagents
-*Placeholder built (v1, 2026-09-30). Scope: core.* Small models at little
-PCs on the island's sand. They appear when the orchestrator spawns them.
-When one finishes (`done`), it runs to the agent that called it (its
-`parent`) with a paper on its head, throws the report to it, and
-disappears. A resumed subagent (back to `working`) reappears. Chat is
-orchestrator-only for now; whether to talk to subagents directly is open
-question 4.
+*Placeholder built (v1, 2026-09-30). Scope: core* (only the generic agent
+tree: `agent.spawned`, `agent.state_changed`, `parent`). Small models at
+little PCs on the island's sand. They appear when the orchestrator spawns
+them. When one finishes (`done`), it runs to the agent that called it (its
+`parent`) with a paper on its head, throws the report to it, and disappears
+(the placeholder walks there and shrinks away, with no throw yet; below). A
+resumed subagent (back to `working`) reappears. Chat is orchestrator-only
+for now; whether to talk to subagents directly is open question 4.
 
 *Decided (user's, 2026-09-30), for M1:* the placeholder is a smaller
 orchestrator (the same primitives at about 60 % size) at a little box PC.
@@ -874,13 +874,11 @@ straight line to its parent (the orchestrator, or a parent subagent still
 there) with a white paper over its head, and shrinks away on arrival; no
 throw and no path-finding yet. A resumed subagent pops back in at its PC.
 
-*Placeholder built. Scope: core* (only the generic agent tree:
-`agent.spawned`, `agent.state_changed`, `parent`). `Subagent`
-(`agents/subagent/`): a capsule body and sphere head at a little desk
-with a monitor, all primitives, facing +z. Only the PC is solid; the
-body can be walked through. `IslandAgents` (`agents/island_agents.gd`),
-made by `SessionIslands` for each island at its middle, follows the
-session's agents in `SessionStore`:
+**How it works.** `Subagent` (`agents/subagent/`): a capsule body and
+sphere head at a little desk with a monitor, all primitives, facing +z.
+Only the PC is solid; the body can be walked through. `IslandAgents`
+(`agents/island_agents.gd`), made by `SessionIslands` for each island at
+its middle, follows the session's agents in `SessionStore`:
 - `working` or `waiting`: the subagent pops in at a free slot (A04), or
   back at its PC if it was leaving.
 - `done`: its PC shrinks away, and it walks at 3 m/s in a straight line
@@ -906,13 +904,12 @@ slowly spinning yellow diamond; waiting on you, a bouncing orange "!";
 idle and done, nothing; error, a red "×". An errored or interrupted
 subagent stays at its PC in red for about 10 s, then shrinks away.
 
-*Minimal version built. Scope: core.* `AgentStateMarker`
-(`agents/state_marker.gd`): unshaded boxes, turned to face the camera
-around the vertical axis. The orchestrator's sits between its head and
-its message bubble (the bubble's anchor moved up to 2.45 m for it);
-`IslandAgents` sets it from the orchestrator's state. The marker doesn't
-say why an agent waits (`reason`); the chat's status line does, for the
-orchestrator.
+**How it works.** `AgentStateMarker` (`agents/state_marker.gd`): unshaded
+boxes, turned to face the camera around the vertical axis. The
+orchestrator's sits between its head and its message bubble (the bubble's
+anchor moved up to 2.45 m for it); `IslandAgents` sets it from the
+orchestrator's state. The marker doesn't say why an agent waits (`reason`);
+the chat's status line does, for the orchestrator.
 
 ### A04 Procedural agent placement
 *Built (v1, 2026-09-30). Scope: core.* Agents are positioned by a simple
@@ -926,16 +923,15 @@ orchestrator from about 10 m out (outside the chat zone), slots about
 orchestrator and standing on the sand. More rings as needed, no maximum.
 An agent keeps its slot while it's there; a freed slot is reused.
 
-*Built. Scope: core.* `AgentPlacement` (`agents/agent_placement.gd`):
-ring *k* has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...),
-every other ring turned half a step. Each slot is moved up to 0.4 m in
-each direction by a random number seeded from the slot, so a slot is
-always in the same place. `IslandAgents` gives a new subagent the first
-free slot on land (ground above 0.3 m); slots in the sea are skipped
-until the rings are past any shore (1.5 × the island's radius), so
-there is still no maximum. A subagent stands at the lower of the ground
-heights under it and under its PC, so on a dune it sinks in a little
-rather than float.
+**How it works.** `AgentPlacement` (`agents/agent_placement.gd`): ring *k*
+has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...), every other
+ring turned half a step. Each slot is moved up to 0.4 m in each direction
+by a random number seeded from the slot, so a slot is always in the same
+place. `IslandAgents` gives a new subagent the first free slot on land
+(ground above 0.3 m); slots in the sea are skipped until the rings are past
+any shore (1.5 × the island's radius), so there is still no maximum. A
+subagent stands at the lower of the ground heights under it and under its
+PC, so on a dune it sinks in a little rather than float.
 
 ### A05 Permission attention cue
 *Built (2026-10-02). Scope: core.* A pending permission prompt or question
@@ -967,7 +963,7 @@ game isn't in front:
   between runs. Placeholder UI, like the rest; a settings screen comes
   later.
 
-*Built (2026-10-02).*
+**How it works.**
 - **Beacon:** `AttentionBeacon` (`agents/attention_beacon.gd`), a child
   of every `AgentStateMarker` (A03), on while the marker shows
   `waiting`. An open cylinder 150 m tall from 0.6 m above the marker,
@@ -1010,24 +1006,24 @@ the chat panel for its session.
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
 opens the panel and frees the mouse, Esc closes it.
 
-*Built. Scope: core.* `ChatController` (`chat/`) listens to the chat zone
-of every orchestrator the world gives it (`watch`, called for each new
-island). While the player is in one, "Press E to chat"
-shows at the bottom of the screen. E (`interact`, physical key) opens that
-orchestrator's chat panel (C02), frees the mouse and turns the player's controls
-off (`Player.controls_enabled`: no walking, jumping, looking, or
+**How it works.** `ChatController` (`chat/`) listens to the chat zone of
+every orchestrator the world gives it (`watch`, called for each new
+island). While the player is in one, "Press E to chat" shows at the bottom
+of the screen. E (`interact`, physical key) opens that orchestrator's chat
+panel (C02), frees the mouse and turns the player's controls off
+(`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
 back; the controller reads Esc in `_input` and marks it handled, so the
 player's own Esc (free the mouse) doesn't also fire. An orchestrator that
 leaves the world (its session ended) is forgotten, and its chat closes if
-it was open. Checked headless
-(zone, prompt, open, no walking while open, close) and in the running game
-(the mouse; headless Godot has none).
+it was open. Checked headless (zone, prompt, open, no walking while open,
+close) and in the running game (the mouse; headless Godot has none).
 
 ### C02 Chat panel
-*Built (v1, 2026-09-30). Scope: core.* A core feature, not an afterthought,
-because this is a working environment. It needs streaming responses. v1
-renders plain text wired to the sidecar.
+*Built (v1, 2026-09-30). Scope: core* (it reads only the generic
+`SessionStore`). A core feature, not an afterthought, because this is a
+working environment. It needs streaming responses. v1 rendered plain text
+wired to the sidecar; since C03, messages render as Markdown.
 
 *Direction (user's, 2026-09-30, revised the same day):* two parts.
 - *Latest message, always visible:* a small window flying above each
@@ -1043,10 +1039,10 @@ shows the newest 4 lines; it is part of the world (smaller with distance,
 hidden by terrain); the full panel is a dark translucent panel with chat
 bubbles and a message box.
 
-*Built (v1). Scope: core* (it reads only the generic `SessionStore`).
-Message text is untrusted (Security rules): both the bubble and the panel
-render it as Markdown (C03), whose converter escapes all of it, so markup
-in a message shows as written (tested with an injected `[url]`).
+**How it works.** Message text is untrusted (Security rules): both the
+bubble and the panel render it as Markdown (C03), whose converter escapes
+all of it, so markup in a message shows as written (tested with an injected
+`[url]`).
 - **Bubble** (`MessageBubble`, `chat/message_bubble.tscn`): a billboard
   `Sprite3D` above the orchestrator's `MessageAnchor`, drawing a
   `SubViewport` with a dark rounded panel and a `RichTextLabel` (font
@@ -2018,15 +2014,14 @@ same process with no new bridge connection, the world got
 the new conversation and was answered.
 
 ### S03 Create session
-*Quick version built (2026-09-30). Scope: core.* A "create new session"
-command from Godot; the sidecar launches a `claude` terminal (see S02).
-Attaching to sessions the user started themselves comes later (open
+*Quick version built (user's direction, 2026-09-30: "a quick create session
+feature that we can design better later"). Scope: core.* A "create new
+session" command from Godot; the sidecar launches a `claude` terminal (see
+S02). Attaching to sessions the user started themselves comes later (open
 question 5, decided); it uses the same hooks and channel, which such a
 session would need to be started with.
 
-*Quick version built (user's direction, 2026-09-30: "a quick create
-session feature that we can design better later"). Scope: core.* First a
-"New session" post on the spawn platform (M1); since 2026-10-01 the
+First a "New session" post on the spawn platform (M1); since 2026-10-01 the
 **sessions menu** (user's decisions, dev log 2026-10-01-sessions-menu):
 one menu, opened from anywhere, to start a session (S03), resume a stored
 one (S04) and go to a running one (W07). Rejected: keeping the post and
@@ -2107,26 +2102,27 @@ provider and starting several at once. Where a session's cluster is
 chosen was decided with W05 (the cluster selector).
 
 ### S04 List and resume sessions
-*Built (2026-10-01). Scope: core.* Claude Code stores transcripts as JSONL
-under `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable
-with `claude --resume <id>`. Sessions launched from this app are ordinary
-CLI sessions in the same store, so they are resumable from a terminal, and
-old CLI sessions can be listed and resumed here (launched with `--resume`).
-The Claude desktop app's own sessions also write transcripts there; whether
-they should be listed and resumed here is to check when building S04 (see
-Deliberate limitations). Sessions run with transcripts off leave nothing to
-list or resume (S02 → When transcripts are off), and Claude Code deletes
-transcripts after `cleanupPeriodDays` (30 by default), so the list only
-reaches that far back.
-*Built. Scope: core* (`session.list_stored`, `session.resume`). The
-world side is the sessions menu's "Resume" list (S03; user's decisions,
+*Built (2026-10-01). Scope: core* (`session.list_stored`,
+`session.resume`). Claude Code stores transcripts as JSONL under
+`~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
+`claude --resume <id>`. Sessions launched from this app are ordinary CLI
+sessions in the same store, so they are resumable from a terminal, and old
+CLI sessions can be listed and resumed here (launched with `--resume`). The
+Claude desktop app's own sessions also write transcripts there; only CLI
+sessions are listed for now (below; see Deliberate limitations). Sessions
+run with transcripts off leave nothing to list or resume (S02 → When
+transcripts are off), and Claude Code deletes transcripts after
+`cleanupPeriodDays` (30 by default), so the list only reaches that far
+back.
+
+The world side is the sessions menu's "Resume" list (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
-newest first, as "title · project · how long ago" (titles in Claude
-Code's own order, S02 → Titles; "Untitled session" without one, which
-only another provider could list), asked for each time the menu opens, filtered by the
-search box. A click resumes it through the same launcher and notices as
-a new session; once up, you're taken to its island and its chat holds
-the conversation so far. A **placeholder**, like the rest of the menu.
+newest first, as "title · project · how long ago" (titles in Claude Code's
+own order, S02 → Titles; "Untitled session" without one, which only another
+provider could list), asked for each time the menu opens, filtered by the
+search box. A click resumes it through the same launcher and notices as a
+new session; once up, you're taken to its island and its chat holds the
+conversation so far. A **placeholder**, like the rest of the menu.
 *Live check passed (2026-10-01)* with the user and the real `claude`:
 the ended session listed under Resume and found by search, resumed with
 `claude --resume`, its earlier messages in the chat, and Claude
@@ -2158,12 +2154,13 @@ all four messages back. `claude -p` sessions are stored as `sdk-cli`, so
 they aren't listed.
 
 ### S05 End session
-*Quit warning built (2026-10-01). Scope: core.* Ending a session removes it
-from the registry and sinks its island (W04). Claude Code offers no
-documented way to close a session from outside, so until S05 decides how,
-`session.end` gets `not_supported` for Claude sessions (user's decision,
-S02); `/exit` in the terminal still ends a session and sinks its island
-(its channel bridge closes).
+*Quit warning built (user's decision, 2026-10-01). Scope: core.* Ending a
+session removes it from the registry and its island from the world (W04
+will make it sink). Claude Code offers no documented way to close a session
+from outside, so `session.end` gets `not_supported` for Claude sessions
+(user's decision, S02, kept by S05's decision below); `/exit` in the
+terminal still ends a session and removes its island (its channel bridge
+closes).
 
 *Decided (user's, 2026-10-01): sessions aren't ended from the game for
 now.* Claude Code has no documented way to end an interactive session
@@ -2181,27 +2178,25 @@ user's rule if it comes back: always the least abrupt way that doesn't
 make the player close the terminal, and nothing that injects keystrokes.
 Kept as a watch item (Watch items → Ending a session from the game).
 
-*Built: the quit warning (user's decision, 2026-10-01). Scope: core.*
-Quitting doesn't end sessions either: they keep running in their
-terminals, out of the world's reach. So `QuitGuard`
+**The quit warning.** Quitting doesn't end sessions either: they keep
+running in their terminals, out of the world's reach. So `QuitGuard`
 (`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
-window is closed (its close button, Alt+F4, Cmd+Q) while sessions run,
-asks first: "N sessions are still running:", each as "title · project ·
-what it's doing" (kept up to date while the dialog is open), then
-"Quitting won't end them: they keep running in their terminals, and the
-game can't reach them any more. To end one, type /exit in its
-terminal." Buttons: Quit, and Back to the game (or Esc), which gives the
-mouse and controls back as they were. With no session running it quits
-at once. A **placeholder**, like all UI. "What it's doing" is the
-session's `SessionStore.activity`, subagents included: waiting for you
-if any agent waits, else working if any works (so an idle orchestrator
-waiting on its subagents' reports counts as working), else stopped or
-idle (the user had seen such sessions shown as idle). The Running list
-(W07) uses it too. *Live check passed (2026-10-02)* with the user and
-the real `claude`: "working" while a subagent works, the dialog with the
-session and the `/exit` hint, following its state, Back to the game and
-Esc, Quit leaving the terminal running, and closing at once with no
-session.
+window is closed (its close button, Alt+F4, Cmd+Q) while sessions run, asks
+first: "N sessions are still running:", each as "title · project · what
+it's doing" (kept up to date while the dialog is open), then "Quitting
+won't end them: they keep running in their terminals, and the game can't
+reach them any more. To end one, type /exit in its terminal." Buttons:
+Quit, and Back to the game (or Esc), which gives the mouse and controls
+back as they were. With no session running it quits at once. A
+**placeholder**, like all UI. "What it's doing" is the session's
+`SessionStore.activity`, subagents included: waiting for you if any agent
+waits, else working if any works (so an idle orchestrator waiting on its
+subagents' reports counts as working), else stopped or idle (the user had
+seen such sessions shown as idle). The Running list (W07) uses it too.
+*Live check passed (2026-10-02)* with the user and the real `claude`:
+"working" while a subagent works, the dialog with the session and the
+`/exit` hint, following its state, Back to the game and Esc, Quit leaving
+the terminal running, and closing at once with no session.
 
 **Known issue: a session from before a restart can be resumed twice**
 (seen live, 2026-10-02). After the game restarts, sessions still running
