@@ -2460,7 +2460,10 @@ minute), 30 of them macOS, so about 45 pushes a month on the free
 2,000; without macOS a branch push costs about 14. Nothing here is
 built for macOS on its own and no one develops on a Mac, so checking it
 when a branch merges (or by hand before, with Run workflow) catches the
-same breakage for a third of the cost. The system list is one
+same breakage for a third of the cost. *Once the repo is public*
+(user's, 2026-10-07): Actions minutes are free for public repositories,
+so macOS then runs on every push with Windows and Linux; until then,
+keep it as is. The system list is one
 expression in both jobs' matrices; the Godot job picks its release
 archive and binary from the runner's OS, so bumping Godot means
 changing `GODOT_VERSION` only. The actions are pinned to major versions
@@ -2601,10 +2604,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W04 island rise / sink, then W06 bridges (user's
-order, 2026-10-07). **W04 is built on branch `w04-rise-sink`**, with
-the new-island beacon and edge arrow; **live check passed (2026-10-07)**
-with the fake and the real `claude`; waiting for the user's review.
+**Current focus:** W06 bridges (user's order, 2026-10-07: W04, then
+W06).
+**Merged to `main` (2026-10-07), reviewed by the user: W04, islands
+rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
+edge arrow showing where a new session's island is (placeholders); live
+check passed with the fake and the real `claude`.
 **Merged to `main` (2026-10-03), reviewed by the user: the tool log's
 markup checks cover results and Details** (dev log
 2026-10-03-c04-markup-checks).
