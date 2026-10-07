@@ -79,10 +79,10 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | built   | W01, W02      | `world/island/`, `world/session_islands.gd` |
-| W02 | Ocean (v1)                                | built   | W01, W02      | `world/ocean/` |
+| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd` |
+| W02 | Ocean (v1)                                | built   | W01, W02, W04 | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
-| W04 | Island rise / sink                        | planned | n/a           | n/a       |
+| W04 | Island rise / sink                        | built   | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | planned | n/a           | n/a       |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
@@ -614,8 +614,8 @@ prefix to that provider's UI module. Their payload schemas go in
 
 ### W01 Beach island
 *Built (v1). Scope: core.* A beach island, one per session. Islands come
-and go with their sessions (see Islands for sessions below); W04 adds the
-rise and sink.
+and go with their sessions (see Islands for sessions below), rising out of
+the sea and sinking back (W04).
 
 *Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
 an element of randomness so islands differ. Props (Kenney kits) are
@@ -640,20 +640,20 @@ The water level is y = 0.
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
 
-**Islands for sessions** (user's direction, 2026-09-30; temporary, a
-stand-in for W04 until bridges and travel are designed).
+**Islands for sessions** (user's direction, 2026-09-30; the placement
+and teleport are temporary, until bridges and travel are designed).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
 each live session gets a new random island with an orchestrator (A01)
-bound to it, and loses it when the session ends. An island only appears
-once its session is up (`session.snapshot` or `session.created`), never
-while it is still starting. Islands are placed by cluster (W05): each
+bound to it; when the session ends, the orchestrator and agents go and
+the island sinks (W04). An island only comes once its session is up
+(`session.snapshot` or `session.created`), never while it is still
+starting. Islands are placed by cluster (W05): each
 cluster has a spot on rings around the spawn platform and its islands sit
 close together around it. A session you started or resumed
-from the sessions menu (S03, S04) takes you to its island, 6 m in front
-of the orchestrator (`world.gd` → `teleport`), and so does choosing a
-running one there (W07); sessions already running when the world
-connects don't move you. When a session ends, whoever stands on its
-island is put back on the platform.
+from the sessions menu (S03, S04) takes you to its island once it has
+risen, 6 m in front of the orchestrator (`world.gd` → `teleport`), and
+so does choosing a running one there (W07); sessions already running
+when the world connects don't move you.
 
 ### W02 Ocean
 *Built (v1). Scope: core.* The ocean surrounding the islands. Unrelated
@@ -711,10 +711,44 @@ hear of a new session first, so its island exists when the menu's
 launcher reports it started.
 
 ### W04 Island rise / sink
-*Planned.* A new session makes an island rise out of the ocean; this doubles
-as the "new session" feedback. An ended session makes its island sink, and
-the island is then removed. *Until then* islands simply appear and vanish
-(W01 → Islands for sessions).
+*Built (2026-10-07). Scope: core.* A new session makes an island rise out
+of the ocean; this doubles as the "new session" feedback. An ended
+session makes its island sink, and the island is then removed.
+
+*Decided (user's, 2026-10-07):*
+- **Arriving:** the island rises first, then you're taken there (rejected:
+  watching it rise from a viewpoint offshore; riding it up from under the
+  water).
+- **Sessions already running when the world connects** (snapshots) are
+  just there, no rise. Whether they rise too is decided with attaching to
+  running sessions (Open questions → 5), not before.
+- **Ending:** the orchestrator and its agents go at once; the empty
+  island stays while you're on it, then sinks. Its bridges (W06) are to
+  count as "on it", to polish then.
+- **Motion only** for now: no splash, foam or sound.
+
+**How it works** (`SessionIslands`; timings and depth my picks).
+- *Rise.* An island for `session.created` starts at y = -8 m (`SUNK_Y`,
+  low enough that the opaque sea hides its dunes) and rises to 0 in 3 s
+  (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
+  says so, and `island_risen` fires when it's up (at once for a
+  snapshot). `world.gd` → `teleport` waits for it: it notes the session
+  and goes on `island_risen`; a later teleport replaces the wait.
+- *Sink.* On `session.ended` the orchestrator and `IslandAgents` are
+  freed (the chat forgets the orchestrator as it leaves the tree) and the
+  island moves to the left islands (`left_islands`). Each frame, one the
+  player isn't over (within twice its shoreline radius, as in
+  `session_at`) sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
+  is freed. You leave by falling in the sea (back to the platform) or by
+  going to another session. A session ending mid-rise sinks from where
+  it got to (nobody can be on it yet). A sinking island can't be stood on
+  again: there's no way back to it.
+- *Its spot.* `SessionClusters.hold` takes the ended session out of its
+  cluster but keeps its island's spot until the island is freed
+  (`remove` with the hold). A cluster with only held islands isn't listed
+  (`ids`) but keeps its place, and its repository's next session still
+  joins it, beside the empty island.
+- The tweens belong to the island, so they stop if it is freed.
 
 ### W05 Clusters
 *Built (2026-10-02). Scope: core.* Islands of the same repository sit
@@ -736,7 +770,7 @@ and sessions in the same repository are grouped automatically.
   after choosing the folder).
 - Clusters exist **only while they have sessions**, nothing is
   remembered: when a cluster's last session ends, the cluster and its
-  spot are freed.
+  spot are freed (once its last island has sunk, W04).
 - **Layout until bridges (W06):** each cluster takes a spot on rings
   around the spawn platform; its islands sit close together around it.
 - The **sidecar** works out the repository and sends it in the protocol
@@ -765,7 +799,8 @@ and sessions in the same repository are grouped automatically.
   another cluster by hand doesn't take its repository's later sessions
   along (user's, 2026-10-02). Names repeat with a
   number ("game 2"). `remove` frees the island's spot and, with the last
-  session, the cluster's. The choice reaches it through
+  session, the cluster's; `hold` keeps an ended session's spot until its
+  island has sunk (W04). The choice reaches it through
   `SessionLauncher.create` / `resume`, which call `clusters.choose` with
   the session id when the reply comes (before `session.created`).
 - *Layout* (my picks): cluster spots on rings around the platform, 360 m
@@ -2480,6 +2515,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    we pass at launch (S02), and the channel from our launch flags. A
    session started elsewhere has none of these, so attaching must give
    it the same hooks, the relay included, and test both switches there.
+   *Also (user's, 2026-10-07):* whether the islands of sessions already
+   running when the world connects rise too is decided with attaching
+   (W04).
    *Also (user's, 2026-10-02):* sessions the game started before a
    restart are still running but listed under Resume, and resuming one
    runs the conversation twice (S05 → Known issue). Attaching should
@@ -2516,7 +2554,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next feature not chosen yet (Milestones → After v1).
+**Current focus:** W04 island rise / sink, then W06 bridges (user's
+order, 2026-10-07). **W04 is built on branch `w04-rise-sink`**, tested
+headless and with the fake provider; waiting for the live check and the
+user's review.
 **Merged to `main` (2026-10-03), reviewed by the user: the tool log's
 markup checks cover results and Details** (dev log
 2026-10-03-c04-markup-checks).
