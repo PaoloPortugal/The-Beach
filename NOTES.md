@@ -712,7 +712,8 @@ hear of a new session first, so its island exists when the menu's
 launcher reports it started.
 
 ### W04 Island rise / sink
-*Built (2026-10-07). Scope: core.* A new session makes an island rise out
+*Built (2026-10-07); the beacon and edge arrow are placeholders. Scope:
+core.* A new session makes an island rise out
 of the ocean; this doubles as the "new session" feedback. An ended
 session makes its island sink, and the island is then removed.
 
@@ -759,7 +760,7 @@ session makes its island sink, and the island is then removed.
 - The tweens belong to the island, so they stop if it is freed.
 - *New-island beacon* (my picks): A05's `AttentionBeacon` in green
   (`NEW_COLOUR`; orange means waiting), from the island's middle, so it
-  rises with it and shows from the first frame. Only for
+  rises with it (on from the first frame, fading in over 0.6 s). Only for
   `session.created`. `unvisited` lists those sessions; each frame, one
   whose island the player is over is cleared (its beacon fades out), and
   so is one that ends. Being taken there by the teleport counts.
