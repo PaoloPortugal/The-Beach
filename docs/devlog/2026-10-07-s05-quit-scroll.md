@@ -15,7 +15,7 @@ The dialog's text was the `ConfirmationDialog`'s own `dialog_text`, which
 only grows. `QuitGuard` now builds it from three labels: the header ("N
 sessions are still running:"), the list in a `ScrollContainer`, and the
 hint about `/exit`. `_fit()` sizes it: the dialog is 560 px wide (or the
-window's width less a 16 px margin), the labels are measured at that
+window's width less a 16 px margin each side), the labels are measured at that
 width less the panel's margins, and the list gets the height the rest
 leaves, scrolling for more. It refits whenever its text changes and when
 the window is resized. In a window too short for even the header and
