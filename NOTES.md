@@ -842,9 +842,9 @@ waves). Not a provider feature: world only. Undesigned: the day's length
 and what night looks like (readable islands and bubbles, lights).
 
 ### A01 Orchestrator
-*Planned (v1).* A bigger model at the centre of its island, at a beach
-desk or under an umbrella (look: open question 7). It's the main way you
-interact with a session (see C01).
+*Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
+centre of its island, at a beach desk or under an umbrella (look: open
+question 7). It's the main way you interact with a session (see C01).
 
 *Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
 question 7 is settled.
@@ -859,12 +859,13 @@ its island, by `SessionIslands` (W01), with `session_id` set to the
 session it belongs to.
 
 ### A02 Subagents
-*Planned (v1).* Small models at little PCs on the island's sand. They
-appear when the orchestrator spawns them. When one finishes (`done`), it
-runs to the agent that called it (its `parent`) with a paper on its head,
-throws the report to it, and disappears. A resumed subagent (back to
-`working`) reappears. Chat is orchestrator-only for now; whether to talk to
-subagents directly is open question 4.
+*Placeholder built (v1, 2026-09-30). Scope: core.* Small models at little
+PCs on the island's sand. They appear when the orchestrator spawns them.
+When one finishes (`done`), it runs to the agent that called it (its
+`parent`) with a paper on its head, throws the report to it, and
+disappears. A resumed subagent (back to `working`) reappears. Chat is
+orchestrator-only for now; whether to talk to subagents directly is open
+question 4.
 
 *Decided (user's, 2026-09-30), for M1:* the placeholder is a smaller
 orchestrator (the same primitives at about 60 % size) at a little box PC.
@@ -894,9 +895,10 @@ session's agents in `SessionStore`:
   running before the world connected) aren't shown.
 
 ### A03 Agent state indicators
-*Planned.* A visible state on each agent, from the protocol's state enum
-(see Protocol): working, waiting on the user (e.g. a permission prompt),
-idle (orchestrator), done (subagent) or error.
+*Minimal version built (2026-09-30). Scope: core.* A visible state on each
+agent, from the protocol's state enum (see Protocol): working, waiting on
+the user (e.g. a permission prompt), idle (orchestrator), done (subagent)
+or error.
 
 *Decided (user's, 2026-09-30):* a minimal version comes into M1 with A02.
 A small marker floats over every agent, orchestrator included: working, a
@@ -913,10 +915,10 @@ say why an agent waits (`reason`); the chat's status line does, for the
 orchestrator.
 
 ### A04 Procedural agent placement
-*Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
-or grid with jitter) rather than hardcoded spots, and it handles about 20–30 per
-island. Nothing may assume a fixed maximum agent count. Options for larger
-counts are in Deferred ideas.
+*Built (v1, 2026-09-30). Scope: core.* Agents are positioned by a simple
+algorithm (ring, spiral or grid with jitter) rather than hardcoded spots,
+and it handles about 20–30 per island. Nothing may assume a fixed maximum
+agent count. Options for larger counts are in Deferred ideas.
 
 *Decided (user's, 2026-09-30):* rings with fixed slots. Rings around the
 orchestrator from about 10 m out (outside the chat zone), slots about
@@ -936,8 +938,9 @@ heights under it and under its PC, so on a dune it sinks in a little
 rather than float.
 
 ### A05 Permission attention cue
-*Planned.* A pending permission prompt or question is shown on the
-relevant island and agent, so a waiting agent visibly draws your attention.
+*Built (2026-10-02). Scope: core.* A pending permission prompt or question
+is shown on the relevant island and agent, so a waiting agent visibly draws
+your attention.
 
 *Decided (user's, 2026-10-02). Scope: core* (it reads only the generic
 `waiting` state, whatever its `reason`). A03's orange "!" is 30 cm tall
@@ -1001,8 +1004,8 @@ game isn't in front:
   Linux unchecked: only Windows here.
 
 ### C01 Walk up to chat
-*Planned (v1).* Walking up to an orchestrator opens the chat panel for its
-session.
+*Built (v1, 2026-09-30). Scope: core.* Walking up to an orchestrator opens
+the chat panel for its session.
 
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
 opens the panel and frees the mouse, Esc closes it.
@@ -1022,9 +1025,9 @@ it was open. Checked headless
 (the mouse; headless Godot has none).
 
 ### C02 Chat panel
-*Planned (v1: plain text).* A core feature, not an afterthought, because this
-is a working environment. It needs streaming responses. v1 renders plain text
-wired to the sidecar.
+*Built (v1, 2026-09-30). Scope: core.* A core feature, not an afterthought,
+because this is a working environment. It needs streaming responses. v1
+renders plain text wired to the sidecar.
 
 *Direction (user's, 2026-09-30, revised the same day):* two parts.
 - *Latest message, always visible:* a small window flying above each
@@ -2015,10 +2018,11 @@ same process with no new bridge connection, the world got
 the new conversation and was answered.
 
 ### S03 Create session
-*Planned.* A "create new session" command from Godot; the sidecar launches
-a `claude` terminal (see S02). Attaching to sessions the user started
-themselves comes later (open question 5, decided); it uses the same hooks
-and channel, which such a session would need to be started with.
+*Quick version built (2026-09-30). Scope: core.* A "create new session"
+command from Godot; the sidecar launches a `claude` terminal (see S02).
+Attaching to sessions the user started themselves comes later (open
+question 5, decided); it uses the same hooks and channel, which such a
+session would need to be started with.
 
 *Quick version built (user's direction, 2026-09-30: "a quick create
 session feature that we can design better later"). Scope: core.* First a
@@ -2103,11 +2107,11 @@ provider and starting several at once. Where a session's cluster is
 chosen was decided with W05 (the cluster selector).
 
 ### S04 List and resume sessions
-*Planned (after v1).* Claude Code stores transcripts as JSONL under
-`~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
-`claude --resume <id>`. Sessions launched from this app are ordinary CLI
-sessions in the same store, so they are resumable from a terminal, and old
-CLI sessions can be listed and resumed here (launched with `--resume`).
+*Built (2026-10-01). Scope: core.* Claude Code stores transcripts as JSONL
+under `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable
+with `claude --resume <id>`. Sessions launched from this app are ordinary
+CLI sessions in the same store, so they are resumable from a terminal, and
+old CLI sessions can be listed and resumed here (launched with `--resume`).
 The Claude desktop app's own sessions also write transcripts there; whether
 they should be listed and resumed here is to check when building S04 (see
 Deliberate limitations). Sessions run with transcripts off leave nothing to
@@ -2154,11 +2158,12 @@ all four messages back. `claude -p` sessions are stored as `sdk-cli`, so
 they aren't listed.
 
 ### S05 End session
-*Planned.* Ending a session removes it from the registry and sinks its
-island (W04). Claude Code offers no documented way to close a session from
-outside, so until S05 decides how, `session.end` gets `not_supported` for
-Claude sessions (user's decision, S02); `/exit` in the terminal still ends
-a session and sinks its island (its channel bridge closes).
+*Quit warning built (2026-10-01). Scope: core.* Ending a session removes it
+from the registry and sinks its island (W04). Claude Code offers no
+documented way to close a session from outside, so until S05 decides how,
+`session.end` gets `not_supported` for Claude sessions (user's decision,
+S02); `/exit` in the terminal still ends a session and sinks its island
+(its channel bridge closes).
 
 *Decided (user's, 2026-10-01): sessions aren't ended from the game for
 now.* Claude Code has no documented way to end an interactive session
