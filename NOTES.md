@@ -869,8 +869,12 @@ only).
 - **Which islands:** one path, a tree: just enough bridges to connect a
   cluster, each new island to its nearest one (rejected: every pair of
   neighbouring spots plus links to keep it whole; a star to the middle
-  island). A sinking island can cut a tree in two, so how it's re-linked
-  is to be worked out in the build.
+  island).
+- **Re-linking** when a sinking island cuts the tree: patch the gap.
+  Every bridge still standing stays; only the shortest new bridges that
+  join the cut pieces appear, so nothing moves under you (rejected:
+  rebuilding the whole tree each time; an empty hub left where the island
+  was).
 - **Look:** made in code, like the islands: low-poly wooden planks on
   posts, generated to any length and slope (so W10's different heights
   work later). A placeholder that art can replace.
@@ -880,9 +884,26 @@ only).
   first; tilting with the island).
 - **Rails** you can't walk through, so you don't fall in the sea.
 - **Minimap now:** a small map of the cluster (islands, bridges, you).
-  Placeholder UI, like all UI.
-- **A bridge from the spawn platform** out to each cluster (clusters are
-  about 360 m out today).
+  Placeholder UI, like all UI. A square in the top left (the top right
+  has A05's count), north-up, fitted to the cluster you're in or nearest
+  to, with you as an arrow; M toggles it, on by default (rejected: the
+  whole world, where islands become dots; a radar turning with you).
+- **A bridge from the spawn platform** out to each cluster. The platform
+  is part of each cluster's tree, so its bridge goes to the cluster's
+  first island (the nearest when it comes) and re-links like any other.
+- **Layout: clusters in wedges** (the user's idea, replacing W05's rings
+  360 m out): each cluster owns a 45° wedge from the platform; its first
+  island is the wedge's spot nearest the platform, later ones fill spots
+  inside the wedge, nearest first, so a cluster grows outward and never
+  into a neighbour. 8 inner wedges, each up to 10 islands (out to about
+  520 m), then 8 outer ones centred on the corridors between them,
+  starting further out and growing without limit: 16 clusters, every
+  bridge straight. Past that (a 17th cluster at once, or an inner
+  cluster's 11th island) the island goes to a far spot with no bridge,
+  reached by teleport only: a known limit (rejected: 24 with bridges
+  that bend at junction decks; 8 inner wedges only).
+- **A demo** (user's request): a dev scene filling the world with 64
+  fake sessions in many clusters, to see how it all looks.
 - An empty island (W04) counts as "on it" while you're on one of its
   bridges.
 
