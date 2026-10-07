@@ -29,6 +29,8 @@ var _map := Control.new()
 # The cluster shown and the world rectangle (x, z) it fits, for tests.
 var _shown := ""
 var _area := Rect2()
+# The islands drawn: the cluster's bridged ones, or the far one you're at.
+var _drawn: Array[Island] = []
 
 
 func _init() -> void:
@@ -76,14 +78,33 @@ func _process(_delta: float) -> void:
 	_map.position = Vector2(GAP, top)
 	_map.size = Vector2(side, side)
 	# Fit the cluster's islands and you, square.
+	_drawn = _islands_shown()
 	var area := Rect2(Vector2(player.global_position.x, player.global_position.z), Vector2.ZERO)
-	for i in islands.cluster_islands(_shown):
+	for i in _drawn:
 		var reach := i.generator.radius * 1.45
 		area = area.merge(Rect2(Vector2(i.global_position.x, i.global_position.z) - Vector2(reach, reach), Vector2(reach, reach) * 2.0))
 	area = area.grow(PADDING)
 	var longest := maxf(area.size.x, area.size.y)
 	_area = Rect2(area.get_center() - Vector2(longest, longest) / 2.0, Vector2(longest, longest))
 	_map.queue_redraw()
+
+
+# The cluster's islands joined by bridges, or, near one in a far spot
+# (no bridges, W06), just that one.
+func _islands_shown() -> Array[Island]:
+	var all := islands.cluster_islands(_shown)
+	var nearest: Island = null
+	for i in all:
+		if nearest == null or i.global_position.distance_to(player.global_position) < nearest.global_position.distance_to(player.global_position):
+			nearest = i
+	if nearest == null or islands.is_far(nearest):
+		var just: Array[Island] = []
+		if nearest:
+			just.append(nearest)
+		return just
+	var out: Array[Island] = []
+	out.assign(all.filter(func(i: Island) -> bool: return not islands.is_far(i)))
+	return out
 
 
 func _draw_map() -> void:
@@ -93,7 +114,7 @@ func _draw_map() -> void:
 	for corner in [Vector3(-6, 0, -6), Vector3(6, 0, -6), Vector3(6, 0, 6), Vector3(-6, 0, 6)]:
 		platform.append(to_map(corner))
 	_map.draw_colored_polygon(platform, BRIDGE)
-	for i in islands.cluster_islands(_shown):
+	for i in _drawn:
 		var outline := PackedVector2Array()
 		for k in 24:
 			var a := k * TAU / 24.0
