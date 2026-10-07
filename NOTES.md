@@ -2608,8 +2608,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** W06 bridges (user's order, 2026-10-07: W04, then
 W06).
 **Ready for review (branch `claude/w04-edge-arrow-flaky`): W04's flaky
-edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the world test read the arrows
-before `_process` had run; it now waits on process frames.
+edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the
+world test read the arrows before `_process` had run; it now waits on
+process frames.
 **Merged to `main` (2026-10-07), reviewed by the user: W04, islands
 rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
 edge arrow showing where a new session's island is (placeholders); live
