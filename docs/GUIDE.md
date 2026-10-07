@@ -10,6 +10,7 @@ here; each section is labelled with its feature ID.
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Clusters (W05)](#clusters-w05)
+- [Bridges and the minimap (W06)](#bridges-and-the-minimap-w06)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
@@ -124,19 +125,22 @@ the edge of the screen points to it, with its project's name and how far
 it is. (The beam and arrow are a first version, like the rest of the
 game's screens for now.) Sessions that were already running when the
 game connected are simply there. When a session ends, its orchestrator and subagents
-disappear at once. If you're standing on its island, the empty island
-stays until you leave it (fall in the sea or go to another session);
-then it sinks back into the sea and is gone. Islands of the same
-project sit together in a cluster (below), and clusters sit around the
-platform, far apart; for now you travel between them with
-the sessions menu (Tab), or back to the platform by falling in the sea. The ocean has gentle waves and
-fades into haze at the horizon.
+disappear at once. If you're standing on its island, or on
+one of its bridges, the empty island stays until you leave it (walk
+away over a bridge, fall in the sea or go to another session); then it
+sinks back into the sea and is gone. Islands of the same project sit
+together in a cluster (below), and bridges join them to each other and
+to the platform (W06); the sessions menu (Tab) takes you straight to
+any of them. The ocean has gentle waves and fades into haze at the
+horizon.
 
 ## Clusters (W05)
 
 Sessions working on the same project share a **cluster**: their islands
-sit close together, about 100 m apart, and other projects' clusters are
-farther out around the platform.
+sit close together, about 100 m apart. Each cluster has its own slice of
+sea fanning out from the platform, like a slice of cake: its first
+island is the closest to the platform, and later ones fill the slice
+outward, so a cluster never grows into another.
 
 A session joins its project's cluster on its own. "Same project" means
 the same git repository, including its worktrees (for example a
@@ -152,10 +156,31 @@ Clusters last only while they have sessions: when a cluster's last
 session ends, it's gone from the menu at once, and its place around the
 platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
-For now a cluster shows only in the sessions menu, as a heading in the
-Running list; nothing on the islands says which cluster they're in yet,
-and there are no bridges between them. A very big cluster (more than
-seven sessions) can reach close to its neighbours.
+A cluster shows in the sessions menu, as a heading in the Running list,
+and on the minimap (W06); nothing on the islands says which cluster
+they're in yet.
+
+## Bridges and the minimap (W06)
+
+Wooden bridges join the islands of a cluster, and a long bridge runs
+from the platform out to each cluster, so you can walk everywhere. A
+cluster's bridges make a single path between its islands: each new
+island gets a bridge to the nearest one. A bridge appears once its
+island has risen and goes as soon as the island starts sinking. If that
+leaves part of a cluster cut off, a new bridge joins it back on; the
+other bridges stay where they are. The bridges have rails, and you can't
+run or jump off them.
+
+There's room for 16 clusters with bridges, and for 10 islands in each
+of the 8 clusters nearest the platform. Beyond that, an island is put
+far out at sea with no bridge; go there with the sessions menu (Tab).
+
+The **minimap** in the top left shows the cluster you're in or nearest
+to: its islands (an empty one is grey), its bridges, the platform when
+it's close, and you as a white arrow pointing the way you face, with
+north at the top. Press **M** to hide or show it. It hides while the
+chat or the sessions menu is open. (The bridges and the map are a first
+version, like the rest of the game's look for now.)
 
 ## Moving around (W03)
 
@@ -169,6 +194,7 @@ You see the world through your character's eyes.
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
 | Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
+| Show or hide the minimap | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts

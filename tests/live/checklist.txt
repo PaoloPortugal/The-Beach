@@ -1,42 +1,41 @@
-LIVE CHECK: island rise / sink (W04)
-Part A: fake provider
+LIVE CHECK: bridges (W06)
+Part A: layout demo, no sidecar
+  godot --path . res://tests/world/layout_demo.tscn
+
+1. Press B: the view from above. 20
+   clusters in slices around the
+   platform, each joined by bridges,
+   one bridge from the platform to
+   each. Wheel zooms. Layout ok?
+2. Press B again. Walk off the
+   platform onto a bridge and across
+   to an island. Ramps ok? Rails look
+   ok? Try to run or jump off the
+   side: you can't.
+3. Minimap, top left: the cluster you
+   walk into, your arrow turning with
+   you, north up. M hides/shows it;
+   Tab hides it while the menu is open.
+4. Tab > Running: go to an island of
+   a cluster far out (repo-17..20):
+   no bridges there (teleport only).
+
+Part B: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
+5. Tab > New session... > any folder,
+   then again in the same folder. Once
+   each island is up, a bridge appears:
+   platform > first island > second.
+6. Chat (E) by an orchestrator: the
+   minimap hides, and comes back.
 
-1. Tab > New session... > any folder.
-   Stay on the platform: you're taken
-   to the island only once it's up
-   (about 3 s after it starts).
-2. Tab > New session... > same folder.
-   Turn around before it's up: the new
-   island rises out of the sea about
-   100 m away, then you land on it.
-   Smooth? No black stripes or gaps at
-   the waterline while it moves?
-3. Tab, click the first session under
-   Running: it takes you there at once.
-4. The feel: is a 3 s rise too slow
-   or too fast?
-5. New island pointer: Tab > New
-   session... > same folder, then
-   quickly turn your back to where it
-   rises. A green arrow at the screen
-   edge points to it ("<folder> · N m")?
-   Turn to it: arrow goes, a green beam
-   over it. Once you're taken there,
-   both go. Colour and look ok?
-
-Part B: real claude (godot --path .)
-6. New session in any folder. Once
-   you're on its island, type /exit in
-   its terminal. The orchestrator goes
-   at once, the chat closes, and you
-   stay on the empty island.
-7. Walk into the sea until you're put
-   back on the platform. Turn to the
-   island: it sinks (4 s) and is gone.
-8. Start another session, walk into
-   the sea to get back to the platform,
-   then /exit it in the terminal: with
-   you away, its island sinks at once.
-
-Tell Claude what you saw; paste red errors.
+Part C: real claude
+  godot --path . -- --checklist
+7. Start two sessions in the same
+   folder. Stand in the middle of the
+   bridge between their islands and
+   /exit the second in its terminal:
+   its island stays while you're on
+   its bridge. Walk to the first
+   island: the second sinks, its bridge
+   goes, the first keeps its bridges.
