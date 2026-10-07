@@ -4,8 +4,10 @@ extends Node3D
 ## session and its subagents (IslandAgents). Islands are placed by
 ## cluster (W05, [SessionClusters]). A new session's island rises out of
 ## the sea (W04); one already running when the world connects is simply
-## there. When a session ends its orchestrator and agents go at once; the
-## empty island stays while the player is on it, then sinks and is freed.
+## there. Until the player has been on a new session's island, a beacon
+## stands over it (and [NewIslandPointers] points to it). When a session
+## ends its orchestrator and agents go at once; the empty island stays
+## while the player is on it, then sinks and is freed.
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
 ## A new session's island is up (at once for one already running).
@@ -15,6 +17,8 @@ const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
 ## Where an island starts rising from and sinks to: low enough that the
 ## opaque sea hides all of it (its dunes reach about 3.2 m).
 const SUNK_Y := -8.0
+## The new-island beacon's colour: not A05's orange, which means waiting.
+const NEW_COLOUR := Color(0.35, 1.0, 0.55)
 
 var store: SessionStore
 ## Which cluster each session is in, and where its island goes.
@@ -29,6 +33,7 @@ var _islands := {} # session id → Island
 var _rising := {} # session id → its Tween
 var _left := {} # Island of an ended session → its cluster hold
 var _sinking := {} # Island → true, of those in _left
+var _unvisited := {} # session id → its new-island AttentionBeacon
 
 
 ## Call once, before anything else that listens for new sessions (see
@@ -57,6 +62,13 @@ func agents(session_id: String) -> IslandAgents:
 ## Whether a session's island is still rising.
 func is_rising(session_id: String) -> bool:
 	return _rising.has(session_id)
+
+
+## New sessions whose islands the player hasn't been on yet.
+func unvisited() -> Array[String]:
+	var out: Array[String] = []
+	out.assign(_unvisited.keys())
+	return out
 
 
 ## Ended sessions' islands still in the world: waiting for the player to
@@ -89,6 +101,10 @@ func session_at(point: Vector3) -> String:
 
 
 func _process(_delta: float) -> void:
+	for id: String in _unvisited.keys():
+		if player and _is_over(_islands[id], player.global_position):
+			_unvisited[id].set_on(false)
+			_unvisited.erase(id)
 	for i: Island in _left:
 		if not _sinking.has(i) and not (player and _is_over(i, player.global_position)):
 			_sink(i)
@@ -116,6 +132,14 @@ func _on_added(id: String, created: bool) -> void:
 	if not created:
 		island_risen.emit(id)
 		return
+	# Rises with the island, from its middle.
+	var beacon := AttentionBeacon.new()
+	beacon.name = "NewBeacon"
+	beacon.colour = NEW_COLOUR
+	beacon.position = o.position
+	i.add_child(beacon)
+	beacon.set_on(true)
+	_unvisited[id] = beacon
 	# Bound to the island, so it stops if the island goes.
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", 0.0, rise_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -133,6 +157,9 @@ func _on_removed(id: String, _reason: String) -> void:
 	if _rising.has(id):
 		_rising[id].kill()
 		_rising.erase(id)
+	if _unvisited.has(id):
+		_unvisited[id].set_on(false)
+		_unvisited.erase(id)
 	i.get_node("Orchestrator").queue_free()
 	i.get_node("Agents").queue_free()
 	_left[i] = clusters.hold(id)

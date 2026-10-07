@@ -269,6 +269,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
 	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is just there, not rising")
+	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	await _quit(world, player)
 
 	var bubble := chat.bubble("h1")
@@ -406,6 +407,20 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var h3 := islands.island("h3")
 	_check(islands.is_rising("h3") and h3.position.y < -1.0, "a new session's island rises out of the sea")
 	_check(not h3.global_position.is_equal_approx(SessionClusters.cluster_position(0)), "not in the spot of the island you're on")
+	var beacon: AttentionBeacon = h3.get_node("NewBeacon")
+	_check(Array(islands.unvisited()) == ["h3"] and beacon.is_on(), "a beacon stands over it until you've been there")
+	var pointers: NewIslandPointers = world.pointers
+	var to_h3 := h3.global_position - player.global_position
+	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
+	await _frames(3)
+	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
+	player.rotation.y += PI
+	await _frames(3)
+	var arrow := pointers.arrow("h3")
+	var label: Label = arrow.get_node("Label") if arrow else null
+	_check(Array(pointers.shown()) == ["h3"] and label.text.begins_with("demo · ") and label.text.ends_with(" m"), "behind you: an arrow at the edge, with its project and distance")
+	var screen := root.get_visible_rect()
+	_check(screen.has_point(arrow.position) and not screen.grow(-pointers.margin() - 1.0).has_point(arrow.position), "on the screen's edge")
 	world.teleport("h3")
 	await _frames(5)
 	_check(player.global_position.distance_to(on_island) < 0.5, "going there waits for it to rise")
@@ -413,6 +428,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	_check(h3.position.y == 0.0 and player.global_position.distance_to(islands.orchestrator("h3").global_position) < 7.0 and player.is_on_floor(), "then takes you there")
 	_check(is_instance_valid(island) and island.position.y < 0.0, "you've left the empty island: it sinks")
+	await _frames(3)
+	_check(islands.unvisited().is_empty() and not beacon.is_on() and pointers.shown().is_empty(), "being there clears the beacon and the arrow")
 	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
 	_check(island_ref.get_ref() == null, "and goes")
 	store.apply({"type": "session.snapshot", "session": _snapshot("h5")})
@@ -423,7 +440,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(5)
 	var h6 := islands.island("h6")
 	store.apply({"type": "session.ended", "session": "h6", "seq": 2, "reason": "exited"})
-	_check(not islands.is_rising("h6") and h6 in islands.left_islands(), "a session ending while its island rises")
+	_check(not islands.is_rising("h6") and h6 in islands.left_islands() and islands.unvisited().is_empty(), "a session ending while its island rises")
 	var h6_ref: WeakRef = weakref(h6)
 	await _until(func() -> bool: return h6_ref.get_ref() == null, 6.0)
 	_check(not is_instance_valid(h6), "sinks it from there")
