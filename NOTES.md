@@ -88,6 +88,7 @@ v1 slice.
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
+| W10 | Island biomes                             | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -770,7 +771,8 @@ and sessions in the same repository are grouped automatically.
   after choosing the folder).
 - Clusters exist **only while they have sessions**, nothing is
   remembered: when a cluster's last session ends, the cluster and its
-  spot are freed (once its last island has sunk, W04).
+  spot are freed. (W04: it leaves the menu at once, but its spot is kept
+  until its last island has sunk.)
 - **Layout until bridges (W06):** each cluster takes a spot on rings
   around the spawn platform; its islands sit close together around it.
 - The **sidecar** works out the repository and sends it in the protocol
@@ -830,8 +832,8 @@ with its last session, and a new one taking a free spot.
 ### W06 Bridges
 *Planned.* Walkable bridges connect islands within a cluster, for
 physical movement and the feel of the world. Build it as a general
-"connect regions" system, not beach-specific, so that future biomes (hills,
-mountains) plug into it. A minimap for travel on foot is decided here,
+"connect regions" system, not beach-specific, so that future biomes (W10:
+forests, mountains, at different heights) plug into it. A minimap for travel on foot is decided here,
 with the real layout (user's, 2026-10-02; W07).
 
 ### W07 Teleport menu
@@ -842,7 +844,8 @@ never have to walk across the world to reach an orchestrator. The menu's
 (W05), as "title · project · state" (working, waiting for you, stopped
 or idle, from the whole session, subagents included: S05 →
 `SessionStore.activity`); a click closes the menu and puts you in
-front of that session's orchestrator (`world.gd` → `teleport`). The
+front of that session's orchestrator (`world.gd` → `teleport`; once its
+island is up, W04). The
 search box filters it with the rest, by cluster name too. *Live check
 passed (2026-10-01)* with the user and the real `claude`: two sessions
 under Running, jumping between them, and Tab doing nothing while
@@ -865,7 +868,7 @@ chatting.
 
 ### W08 Swimming and seabed
 *Planned (user's request, 2026-09-30).* Swim instead of being put back on
-the island when you wade too deep (W03's placeholder), and a seabed worth
+the platform when you wade too deep (W03's placeholder), and a seabed worth
 seeing: varied depths (shallows, drop-offs, deeper water) rather than one
 flat sea floor, which also means the water can't stay opaque everywhere.
 
@@ -875,6 +878,15 @@ night cycle, and the weather changes (e.g. clouds, rain, wind on the
 waves). Not a provider feature: world only. Undesigned: the day's length
 (real time or faster), whether weather is random or reacts to anything,
 and what night looks like (readable islands and bubbles, lights).
+
+### W10 Island biomes
+*Planned (user's request, 2026-10-07).* Islands of other kinds besides
+today's beach (W01): forests, mountains and more. Some stand at
+different heights, so connecting islands of different heights has to be
+worked out with bridges (W06, built as a general "connect regions"
+system for this). Not a provider feature: world only. Undesigned: which
+biomes, what picks an island's biome (random, the project, the
+cluster), and whether a cluster mixes them.
 
 ### A01 Orchestrator
 *Planned (v1).* A bigger model at the centre of its island, at a beach
@@ -2107,14 +2119,14 @@ proper design later, like all UI.
   a refused command, "The session didn't start." if it ends before
   coming up (at once if Claude Code closes before it's up: S02 →
   Starting up), "A session is already starting.", or the sidecar's
-  failure. Once the session is up, its island appears (W01 → Islands for
-  sessions) and the player is taken there.
+  failure. Once the session is up, its island rises (W01 → Islands for
+  sessions, W04) and the player is taken there once it's up.
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
   starting, the menu shows "✕ Stop waiting for the session starting"
   under "+ New session…". It frees the launcher for another start ("Stopped
   waiting. If that session starts later, it's listed under Running.");
   the sidecar isn't told, so a session that does come up later is an
-  ordinary running session: its island appears, nobody is taken there.
+  ordinary running session: its island rises, nobody is taken there.
   *Live check passed (2026-10-02)* with the user and the real `claude`:
   declining at the startup prompt and closing the terminal while it asks
   both end the start within about a second ("The session didn't
@@ -2364,8 +2376,9 @@ same (the file's header shows how). No suite causes an error on purpose;
 one that needs to would first have to teach the watch to expect it.
 
 The clusters test (W05) checks grouping by repository and worktree,
-folders outside git, a chosen or new cluster, names, freeing spots and
-the layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
+folders outside git, a chosen or new cluster, names, freeing spots,
+holding an ended session's spot until its island has sunk (W04) and the
+layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
 emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
@@ -2375,14 +2388,18 @@ hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
 folder), islands for sessions applied to the store by hand (one
-per session, in the folder's cluster, the bubble streaming and rendering Markdown, the teleport, the chat
+per session, in the folder's cluster, a new one rising and the teleport
+waiting for it, an ended one staying while you're on it and sinking once
+you leave, one ending mid-rise (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the mode in the header, a plan message and the plan card's
 choices and commands through a recording stand-in for the sidecar (C06,
-C07), the session ending under you), and walking up to chat (A01,
+C07), the session ending under you: its orchestrator goes and the
+chat closes), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
+(its island rising before you're taken there, W04)
 through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
 checks the log's Agent calls and a tools turn (C04),
@@ -2975,7 +2992,7 @@ exists.
   pixels. Not lighting (it stayed with the sun and shadows off), and
   gone with the pre-pass off, so `project.godot` sets
   `rendering/driver/depth_prepass/enable=false` for every GPU (other
-  vendors couldn't be tested; islands will move with W04 anyway). The cost
+  vendors couldn't be tested; islands also move up and down since W04). The cost
   is some overdraw, small for this low-poly world. Recheck on Godot
   updates; if it's a Godot bug, report it and turn the pre-pass back on
   once fixed (dev log 2026-09-30-chat-panel-session-islands).
