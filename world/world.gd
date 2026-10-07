@@ -1,8 +1,8 @@
 extends Node3D
 ## The world scene: the player starts on a platform in the open sea. Tab
 ## opens the sessions menu, to start, resume or go to a session. Each live
-## session gets an island with its orchestrator; one you started takes you
-## there. Plus the ocean and the chat. Closing the window while sessions
+## session gets an island with its orchestrator, rising out of the sea for
+## a new one; one you started takes you there once it's up. Plus the ocean and the chat. Closing the window while sessions
 ## run asks first (S05). Sessions waiting on you draw attention (A05).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
@@ -11,6 +11,9 @@ var store := SessionStore.new()
 var quit_guard := QuitGuard.new()
 ## Says when sessions wait on you (A05; the beacons are on the agents).
 var attention := Attention.new()
+
+# The session whose island is rising, to take the player to once it's up.
+var _teleport_when_risen := ""
 
 @onready var _player: Player = $Player
 @onready var _islands: SessionIslands = $SessionIslands
@@ -40,12 +43,12 @@ func _ready() -> void:
 	add_child(attention)
 	attention.setup(store)
 	_menu.attention = attention
+	_islands.player = _player
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
 		_chat.watch(orchestrator))
-	_islands.island_removed.connect(func(id: String, _island: Island) -> void:
-		# Its island is going: whoever stands on it goes back to the platform.
-		if _islands.session_at(_player.global_position) == id:
-			_player.respawn())
+	_islands.island_risen.connect(func(id: String) -> void:
+		if id == _teleport_when_risen:
+			teleport(id))
 	_menu.launcher.session_started.connect(teleport)
 	_menu.go_to.connect(teleport)
 	store.attach(Sidecar)
@@ -54,10 +57,15 @@ func _ready() -> void:
 		add_child(load("res://tests/live/checklist.tscn").instantiate())
 
 
-## Puts the player on a session's island, facing its orchestrator.
-## From the sessions menu; travel proper is W06 (bridges) and W07.
+## Puts the player on a session's island, facing its orchestrator, once
+## the island has risen (W04). From the sessions menu; travel proper is
+## W06 (bridges) and W07.
 func teleport(session_id: String) -> void:
+	_teleport_when_risen = ""
 	if _islands.island(session_id) == null:
+		return
+	if _islands.is_rising(session_id):
+		_teleport_when_risen = session_id
 		return
 	_player.global_position = _islands.arrival_point(session_id)
 	_player.velocity = Vector3.ZERO
