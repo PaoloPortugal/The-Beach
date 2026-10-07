@@ -4,8 +4,8 @@ extends Node3D
 ## session gets an island with its orchestrator, rising out of the sea for
 ## a new one; one you started takes you there once it's up. Plus the ocean and the chat. Closing the window while sessions
 ## run asks first (S05). Sessions waiting on you draw attention (A05).
-## Bridges join each cluster's islands and the platform, and a minimap
-## shows the cluster you're in (W06).
+## Bridges join each cluster's islands and the platform, a minimap
+## shows the cluster you're in, and M opens a map of the world (W06).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -17,6 +17,8 @@ var attention := Attention.new()
 var pointers := NewIslandPointers.new()
 ## The map of the cluster you're in or nearest to (W06).
 var minimap := Minimap.new()
+## The big map of the whole world, M (W06).
+var world_map := WorldMap.new()
 
 ## The spawn platform's deck: half its width and its top (world.tscn).
 const PLATFORM_HALF := 6.0
@@ -58,7 +60,10 @@ func _ready() -> void:
 	pointers.setup(_islands, store)
 	add_child(minimap)
 	minimap.setup(_islands, _player)
-	minimap.hidden_when = func() -> bool: return _chat.is_open() or _menu.is_open()
+	minimap.hidden_when = func() -> bool: return _chat.is_open() or _menu.is_open() or world_map.is_open()
+	add_child(world_map)
+	world_map.setup(_islands, _player, store, minimap)
+	world_map.go_to.connect(teleport)
 	_menu.attention = attention
 	_islands.player = _player
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
@@ -76,8 +81,8 @@ func _ready() -> void:
 
 
 ## Puts the player on a session's island, facing its orchestrator, once
-## the island has risen (W04). From the sessions menu; travel proper is
-## W06 (bridges) and W07.
+## the island has risen (W04). From the sessions menu (W07) and the big
+## map (W06).
 func teleport(session_id: String) -> void:
 	_teleport_when_risen = ""
 	if _islands.island(session_id) == null:

@@ -94,6 +94,27 @@ func cluster_islands(cluster_id: String) -> Array[Island]:
 	return out
 
 
+## Every island in the world: live, empty or sinking (W06's big map).
+func all_islands() -> Array[Island]:
+	var out: Array[Island] = []
+	for i: Island in _cluster:
+		if is_instance_valid(i):
+			out.append(i)
+	return out
+
+
+## The cluster an island in the world belongs to, or "".
+func cluster_of(i: Island) -> String:
+	return _cluster.get(i, "")
+
+
+## The live sessions with an island.
+func session_ids() -> Array[String]:
+	var out: Array[String] = []
+	out.assign(_islands.keys())
+	return out
+
+
 ## The cluster of the island nearest [param point], or "".
 func nearest_cluster(point: Vector3) -> String:
 	var found := ""

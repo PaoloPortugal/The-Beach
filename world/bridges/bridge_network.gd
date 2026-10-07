@@ -80,6 +80,14 @@ func bridges_in(group: String) -> Array[Bridge]:
 	return out
 
 
+## Every bridge, as [Bridge]s.
+func all_bridges() -> Array[Bridge]:
+	var out: Array[Bridge] = []
+	for l in _links:
+		out.append(l["bridge"])
+	return out
+
+
 ## The bridge between two regions, or null.
 func bridge(a: String, b: String) -> Bridge:
 	for l in _links:

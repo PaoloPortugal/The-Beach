@@ -136,6 +136,20 @@ func _demo() -> void:
 	await _frames(5)
 	await _settle()
 	_check(on_map.call("d11") and not on_map.call("d01"), "near a far island, just that one")
+	# The big map (W06): zoomed right out, the whole world fits.
+	var big: WorldMap = world.world_map
+	big.open()
+	await _settle()
+	var all := Rect2(Vector2.ZERO, Vector2.ZERO)
+	for i in islands.all_islands():
+		all = all.merge(Minimap.reach_rect(i))
+	big.centre = all.get_center()
+	big.zoom_by(-100.0, big.map_rect().size / 2.0)
+	var view := Rect2(Vector2.ZERO, big.map_rect().size)
+	_check(islands.all_islands().size() == 64 and islands.all_islands().all(func(i: Island) -> bool: return view.has_point(big.to_map(i.global_position))), "big map: zoomed out, all 64 islands fit, far ones too")
+	big.centre = Vector2(islands.island("d11").global_position.x, islands.island("d11").global_position.z)
+	_check(big.session_at(view.size / 2.0) == "d11", "big map: a far island can be picked")
+	big.close()
 	# Islands in the middle of trees sink: what's left is patched.
 	player.global_position = Vector3(0, 1.1, 0)
 	var before := islands.bridges.links().size()
