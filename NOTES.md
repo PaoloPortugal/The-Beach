@@ -84,7 +84,7 @@ v1 slice.
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
-| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/minimap.gd` |
+| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
@@ -697,7 +697,7 @@ the camera at 1.6 m (FOV 80). No body is drawn.
 - *Falling in the sea.* The player can wade into the shallows; with the
   feet 1.2 m under the water it's put back at the spawn point, on the
   spawn platform. A placeholder until swimming (W08); for now it is also
-  the way back from an island to the platform.
+  a way back from an island to the platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
 platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
@@ -923,8 +923,8 @@ and the real layout (user's, 2026-10-02; W07).
   theirs).
 - *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
   from one point to another, each the deck's top at that end. The deck is
-  2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand or
-  onto the platform); away from its ends it stays 1.2 m above the water
+  2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand, or
+  up to the platform's edge); away from its ends it stays 1.2 m above the water
   (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
   higher than that are joined straight (`deck_height`). Planks 0.45 m
   across with gaps, a little jitter in height, width and shade; posts at
