@@ -101,7 +101,7 @@ v1 slice.
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd`, `sidecar/src/providers/claude/prompt-options.ts` |
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
-| C08 | Token usage                               | planned | n/a           | n/a       |
+| C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -255,7 +255,10 @@ feature that touches them follows these rules, and each is tested:
   our executable's path, the mode word and the relay file's path (never
   session data), in a form that means the same in every shell Claude
   Code uses, and is not set when a path can't be made safe (C08 → The
-  command string). Tested with hostile paths. Replaced by exec form as
+  command string). On Windows a short name Windows hashes is asked of
+  Windows itself (a fixed PowerShell script, the path in an environment
+  variable, the answer checked to be the same file; C08 → Short names
+  on Windows). Tested with hostile paths. Replaced by exec form as
   soon as Claude Code offers one (Watch items → A status line without a
   shell).
 - **Clean child environments.** Launched processes get the user's normal
@@ -683,8 +686,7 @@ Each one is added to the schema and listed here:
   the user message that started it, or null; `output_tokens`) and
   `limits` (`five_hour`, `seven_day`: `used_percent`, `resets_at`; each
   may be absent). The snapshot's `usage` is null until the first count;
-  history user messages may have `turn_tokens`. *(Planned; being
-  built.)*
+  history user messages may have `turn_tokens`.
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -1766,10 +1768,10 @@ PowerShell prompt (the switch is offered on Bash only). Since then the
 switch button became one of C05's prompt options (2026-10-03).
 
 ### C08 Token usage
-*Planned, being built on branch `c08-usage` (2026-10-03). Scope:
-capability `usage`* (token counts exist in other tools too). How much
-the session is using, without leaving the world. Research and spike:
-dev log 2026-10-03-c08-usage-spike.
+*Built (UI placeholder, 2026-10-08). Scope: capability `usage`* (token
+counts exist in other tools too). How much the session is using,
+without leaving the world. Research and spike: dev log
+2026-10-03-c08-usage-spike; build: dev log 2026-10-08-c08-usage.
 
 *Decided (user's, 2026-10-03):*
 - **Shown:** how full the context is, the session's token totals, and a
@@ -1799,7 +1801,29 @@ dev log 2026-10-03-c08-usage-spike.
   sets a status line, the session keeps it and the world shows what the
   transcript gives: context as a token count with no %, no plan limits.
 
-How it will work:
+*Decided (user's, 2026-10-08), the placeholder's look:*
+- **Header:** "Context 34% · ↑ 2.1M in · ↓ 48k out", beside the mode.
+  Context is a % with the status line, else a token count ("Context
+  62k"), and left out until the first call. *In* is input, cache reads
+  and cache writes (cache reads repeat the history on every call, so
+  one sum of everything would mostly count them); *out* is output; both
+  left out while nothing is counted (before the first call, or with
+  transcripts off). Hovering shows the four exact figures and the
+  context window.
+- **Turn hint:** "↓ 1.2k tokens", small and dim, under the turn's last
+  message and its tool calls (before the next user message). The turn
+  going on has it at the end of the chat, going up with each API call;
+  none until it has tokens.
+- **Limits:** "5-hour 74% · resets 3:40 PM   Weekly 94% · resets Fri
+  9:00 AM" in the bottom-right corner (the minimap is top left, the
+  waiting count top right), shown always, over the chat and the maps
+  too. The reset in local time: a time today, a weekday and time within
+  a week, else a date.
+- **Numbers** (my pick, conventional): compact like the terminal's:
+  950, 1.2k (one decimal under 10k), 34k, 1.1M (one decimal under 10M),
+  12M; a trailing ".0" dropped. Exact figures (12,345) on hover.
+
+How it works:
 - **Counting** (Claude provider). Every assistant entry in the
   transcript carries its API call's `usage`; one call is written as
   several entries with the same `message.id` and the same usage, so
@@ -1836,6 +1860,24 @@ How it will work:
   first), the same in Git Bash and PowerShell; elsewhere, POSIX single
   quotes for `sh`. A path that can't be made safe means no status line
   for that session (transcript only), logged.
+- **Short names on Windows.** A component that isn't safe as it is
+  takes its 8.3 short name. First guessed (`PROGRA~1`, `PROGRA~2`, ...)
+  without starting a process; a guess is accepted only if it is the
+  very same file (volume and file index), so a wrong guess can't point
+  elsewhere. Windows hashes some short names (`AB2761~1` for `a b`,
+  mixed-case temp folders), which can't be guessed: then Windows is
+  asked for that one folder's short name, through `powershell.exe` with
+  a fixed script (`Scripting.FileSystemObject` → `ShortPath`) in an
+  argument array, the path passed in the environment variable
+  `SIDECAR_SHORT_PATH`, never on a command line. Asked once per folder
+  per run; the answer is accepted only if it is the same file, on the
+  same drive, and every component is safe. A volume without short names,
+  or a short name that is still unsafe (`$(NEW-~1`), means no status
+  line. Tested by running the real command string in Git Bash, Windows
+  PowerShell and PowerShell 7 (`sh` elsewhere) from folders named with
+  spaces, `;`, `&`, `$( )`, backticks, quotes and accents: the relay
+  gets exactly its 3 arguments and nothing else runs
+  (`sidecar/test/usage.test.ts`).
 - **Spotting the user's own status line:** read (never written) the
   user's settings (`~/.claude/settings.json`, under `CLAUDE_CONFIG_DIR`
   when set) and the project's `.claude/settings.json` and
@@ -1851,6 +1893,23 @@ How it will work:
   unknown). The snapshot has `usage` (null until the first count). In
   the history, a user message has `turn_tokens`: the output tokens of
   the turn it started.
+- **Godot.** The session store keeps `usage` (from the snapshot and
+  `usage.updated`) and each turn's tokens on its user message
+  (`turn_tokens`, from the history and from the `usage.updated` turn),
+  and says `usage_changed`. The plan's limits are the account's, but
+  each session's figures stay as they were until it hears again; the
+  corner shows, per limit, the one with the latest `resets_at` (a later
+  window) and in the same window the highest use (use only grows within
+  a window), across sessions. A limit whose `resets_at` has passed is
+  hidden (Claude Code drops it too, and the sidecar keeps the last
+  figures while the status line has none); the corner looks again every
+  15 s. Formatting is `UsageText` (`chat/usage_text.gd`), shared by the
+  chat panel and the corner (`world/usage_limits.gd`).
+- **The dev fake** counts each reply and tool call as an API call (a
+  200k window, limits shared by its sessions). The word `usage` plays a
+  heavy turn (context ≥ 80%, 5-hour ≥ 85%); a resumed stored session
+  comes back with its usage so far (1,840 output tokens on its first
+  message); `clear` starts the counts over, keeping the limits.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -1952,7 +2011,8 @@ or bundles Claude Code.
   Code names the session, see Titles), or `--resume <id>` for a stored
   session (S04; the id and name stay the same);
 - `--settings <file>`: our hooks for this session only, so the user's own
-  settings files are never edited, and `disableAgentView: true`. Agent
+  settings files are never edited, our status line relay unless the
+  user has their own (C08), and `disableAgentView: true`. Agent
   view (Left at an empty prompt, `/bg`, `/fork`) moves the conversation
   into a background session: new `claude` processes with a new session
   id, our settings and MCP config but no channel flag, so the world
@@ -2693,7 +2753,9 @@ In `sidecar/`:
   question: one choice, then several; n background subagents, each
   started by an Agent call with its own calls inside; three tool calls,
   the last failing; a notice, a new conversation like `/clear`), and `rename <name>` renames the session
-  like `/rename`; anything else is echoed back. Sessions start in auto
+  like `/rename`; anything else is echoed back. Every reply and tool
+  call counts tokens like an API call (C08); `usage` plays a heavy turn
+  (the context and the 5-hour limit nearly full). Sessions start in auto
   mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
   Accept edits, Plan); `permission`'s prompt offers "Yes, and don't ask
   again for: npm install" (the fake asks again anyway) and, in Manual or
@@ -2977,9 +3039,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C08 token usage (user's pick, 2026-10-03, resumed
-2026-10-08): design decided and spiked (dev log
-2026-10-03-c08-usage-spike), being built on branch `c08-usage`.
+**Current focus:** C08 token usage (user's pick, 2026-10-03), built on
+branch `c08-usage` (2026-10-08; dev logs 2026-10-03-c08-usage-spike,
+2026-10-08-c08-usage) and waiting for the user's live check
+(`tests/live/checklist.txt`): context and totals in the chat header,
+each turn's tokens, the plan's limits in the bottom-right corner, and
+the status line relay with the real `claude`.
 **Merged to `main` (2026-10-08), reviewed by the user: the performance
 pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
 bridges' far versions, a coarse seabed, nothing drawn past the fog,
@@ -3212,7 +3277,7 @@ exists.
   repository as its own package with a versioned protocol; a separate
   repository later if interest justifies it.
 
-- **Token usage:** being built as C08 (2026-10-03). Left for later:
+- **Token usage:** built as C08 (2026-10-08). Left for later:
   dollar cost (Claude Code writes a `cost-state` total near the end of a
   transcript; dev log 2026-10-03-c08-usage-spike) and subagents' own
   live counters.
@@ -3261,7 +3326,8 @@ exists.
 - **A status line without a shell** (C08; user's condition, 2026-10-03).
   Claude Code 2.1.289 runs a status line only through a shell (Git Bash
   or PowerShell on Windows, `sh` elsewhere) and ignores `args`, unlike
-  command hooks (spike, dev log 2026-10-03-c08-usage-spike). Our relay
+  command hooks (spike, dev log 2026-10-03-c08-usage-spike); still so
+  in 2.1.294 (raw statusline and settings docs, 2026-10-08). Our relay
   is therefore the one exception to "No shell strings" (Security
   rules). Check each Claude Code update (the statusline and settings
   docs, and a live run with `args`); once a status line can run in exec

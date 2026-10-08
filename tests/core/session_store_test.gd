@@ -277,6 +277,11 @@ func _usage_text() -> void:
 	_check(UsageText.header(u) == "Context 62k · ↑ 61k in · ↓ 1.2k out", "usage text: without the status line, context in tokens")
 	u["context"] = null
 	_check(UsageText.header(u) == "↑ 61k in · ↓ 1.2k out" and UsageText.header(null) == "", "usage text: no context yet; no usage")
+	var nothing := _usage(null, 0)
+	nothing["tokens"] = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+	_check(UsageText.header(nothing) == "", "usage text: nothing counted yet")
+	nothing["context"] = {"tokens": 64000, "percent": 32, "window": 200000}
+	_check(UsageText.header(nothing) == "Context 32%", "usage text: the status line's context only (transcripts off)")
 	_check(UsageText.header_details(u) == "Input: 40
 Cache reads: 52,000
 Cache writes: 9,000

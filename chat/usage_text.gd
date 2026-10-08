@@ -33,7 +33,8 @@ static func exact(n: int) -> String:
 ## The chat header's line: "Context 34% · ↑ 2.1M in · ↓ 48k out". Context
 ## is a % when the provider says (the status line), else a token count,
 ## and left out until known. In counts input, cache reads and cache
-## writes; out, output. "" without usage.
+## writes; out, output; both left out while nothing is counted. ""
+## without usage, or with nothing to show yet.
 static func header(usage) -> String:
 	if not usage is Dictionary:
 		return ""
@@ -45,8 +46,11 @@ static func header(usage) -> String:
 		else:
 			parts.append("Context %s" % tokens(int(context["tokens"])))
 	var t: Dictionary = usage["tokens"]
-	parts.append("↑ %s in" % tokens(int(t["input"]) + int(t["cache_read"]) + int(t["cache_write"])))
-	parts.append("↓ %s out" % tokens(int(t["output"])))
+	var sent := int(t["input"]) + int(t["cache_read"]) + int(t["cache_write"])
+	# Nothing counted yet (before the first call, or transcripts off).
+	if sent > 0 or int(t["output"]) > 0:
+		parts.append("↑ %s in" % tokens(sent))
+		parts.append("↓ %s out" % tokens(int(t["output"])))
 	return " · ".join(parts)
 
 
