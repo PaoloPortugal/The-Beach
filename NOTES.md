@@ -86,9 +86,10 @@ v1 slice.
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
-| W08 | Swimming and seabed                       | planned | n/a           | n/a       |
+| W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
+| W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -120,7 +121,8 @@ v1 slice.
 - [ ] Update Architecture / Protocol / Conventions if it touched them, and
       the matching file in `docs/diagrams/sequence/` (listed in
       `docs/flows.md`) if it changed how the pieces talk.
-- [ ] Record any new assets in `assets/CREDITS.md`.
+- [ ] Record any new assets in `assets/CREDITS.md`, and any shader or
+      code-generated visual Claude wrote.
 - [ ] Write a dev-log entry and add it to `docs/devlog/README.md`.
 - [ ] Update "Current focus".
 
@@ -430,7 +432,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -505,8 +507,9 @@ frame is about 1 ms, physics 0.3-0.5 ms.
     `visibility_range_begin` with the same margin), so a long one's near
     part isn't judged by its middle. Bridges (W06): 24 m segments, far
     past 70 m. This stays when art replaces the generated look.
-  - *Detail nobody sees is coarse:* the seabed under the opaque water is
-    on an 8 m grid instead of 2 m (W01).
+  - *Detail that matters less is coarse:* an island's drop-off, below
+    its shelf, is on an 8 m grid instead of 2 m (W01), and the open sea
+    floor is on a 4 m grid in chunks kept only out to the fog (W08).
   - *In-world UI drawn through a SubViewport only redraws when it
     changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
     and hides once too far to read: the message bubble (C02).
@@ -725,8 +728,10 @@ turns a seed into a height field; `Island` (`island.gd`, a
 `StaticBody3D`) builds its mesh and a matching `ConcavePolygonShape3D`.
 The water level is y = 0.
 - *Shape.* A flat middle (radius 7 m, 2 m above the water) for the
-  orchestrator, sloping down to a shoreline about 30 m out, then to the
-  sea floor (-4 m). Perlin noise (`FastNoiseLite`), sampled around a
+  orchestrator, sloping down to a shoreline about 30 m out, then to a
+  shallow shelf (-4 m, `sea_floor`) from 1.25 to 1.4 shoreline radii, and
+  a drop-off to -36 m (`skirt_floor`, below the deepest sea floor, W08)
+  by 1.75. Perlin noise (`FastNoiseLite`), sampled around a
   circle so the outline closes, moves the shoreline by up to about ±30 %.
   A second Perlin noise adds dunes between the middle and the beach; they
   fade out before the beach so the shoreline stays clean (no holes or
@@ -735,16 +740,16 @@ The water level is y = 0.
   diagonals, one normal per triangle (flat shading), and one colour per
   triangle by height: seabed, wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
-- *Coarse seabed* (user's decision, 2026-10-07; Architecture →
-  Performance). The opaque water hides the sea floor, so it is drawn
-  coarser: the grid (68 m out from the middle) is cut into blocks of
-  4 x 4 cells, and a block whose vertices are all below -1 m
-  (`coarse_below`; the waves reach ±0.35 m) is two triangles, 8 m
-  across. Where a 2 m cell meets such a block, its vertices on the shared
-  edge move onto that edge, so there are no cracks. About 3,000-3,400
-  triangles an island instead of 9,248, and half the time to build. The
-  collision uses the same faces; `height_at` (placing agents, the
-  orchestrator, bridges' ends) is unchanged.
+- *Coarse drop-off* (user's decision, 2026-10-07, for the seabed under
+  the then opaque water; Architecture → Performance). The grid (about
+  80 m out from the middle, to cover the drop-off) is cut into blocks of
+  4 x 4 cells, and a block whose vertices are all below -5 m
+  (`coarse_below`, under the shelf, so the shelf seen through the clear
+  water keeps its 2 m detail; W08) is two triangles, 8 m across. Where a
+  2 m cell meets such a block, its vertices on the shared edge move onto
+  that edge, so there are no cracks. Under half the triangles of the 2 m
+  grid everywhere. The collision uses the same faces; `height_at`
+  (placing agents, the orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
@@ -776,8 +781,8 @@ screen-space derivatives; wave crests are lighter. The plane follows the
 camera in whole cells (`ocean.gd`), so the waves don't jump when it
 moves. Its edge is hidden by depth fog (`world/world.tscn`) that is
 complete at 390 m, in the same colour as the sky's horizon and ground,
-so the horizon is seamless. The water is opaque; you don't see the sea
-floor. Plain enough for the Compatibility renderer.
+so the horizon is seamless. Since W08 the water is see-through, tinted
+by depth (see W08). Plain enough for the Compatibility renderer.
 
 ### W03 Player movement
 *Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
@@ -802,10 +807,9 @@ the camera at 1.6 m (FOV 80). No body is drawn.
 - *Coyote time and jump buffering* (`JumpAssist`, `jump_assist.gd`):
   a jump still counts if pressed up to 0.12 s before landing or after
   walking off an edge. Each press and each ledge gives one jump only.
-- *Falling in the sea.* The player can wade into the shallows; with the
-  feet 1.2 m under the water it's put back at the spawn point, on the
-  spawn platform. A placeholder until swimming (W08); for now it is also
-  a way back from an island to the platform.
+- *The sea.* The player wades into the shallows and swims where it's
+  deeper (W08); the sessions menu's "Platform" and the big map take it
+  back to the spawn platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
 platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
@@ -843,8 +847,9 @@ session makes its island sink, and the island is then removed.
   minimap). Built with W04. Both are **placeholders**, like all UI.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
-- *Rise.* An island for `session.created` starts at y = -8 m (`SUNK_Y`,
-  low enough that the opaque sea hides its dunes) and rises to 0 in 3 s
+- *Rise.* An island for `session.created` starts at y = -34 m (`SUNK_Y`,
+  4 m under the deepest sea floor, so all of it is under the seabed, W08)
+  and rises to 0 in 3 s
   (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
   says so, and `island_risen` fires when it's up (at once for a
   snapshot). `world.gd` → `teleport` waits for it: it notes the session
@@ -854,8 +859,8 @@ session makes its island sink, and the island is then removed.
   island moves to the left islands (`left_islands`). Each frame, one the
   player isn't over (within twice its shoreline radius, as in
   `session_at`), nor on one of its bridges (W06), sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
-  is freed. You leave by falling in the sea (back to the platform), by
-  going to another session, or over a bridge (W06). A session ending mid-rise sinks from where
+  is freed. You leave by swimming away (W08), by going to another
+  session or to the platform, or over a bridge (W06). A session ending mid-rise sinks from where
   it got to (nobody can be on it yet). A sinking island can't be stood on
   again: there's no way back to it.
 - *Its spot.* `SessionClusters.hold` takes the ended session out of its
@@ -988,7 +993,8 @@ and the real layout (user's, 2026-10-02; W07).
   and vanish when one starts sinking; how they show up and leave is
   designed later (rejected for now: rising after the island and sinking
   first; tilting with the island).
-- **Rails** you can't walk through, so you don't fall in the sea.
+- **Rails** you can't walk through, so you don't fall in the sea (since
+  W08 you'd have to swim to a beach: no climbing back on).
 - **Minimap now:** a small map of the cluster (islands, bridges, you).
   Placeholder UI, like all UI. A square in the top left (the top right
   has A05's count), north-up, fitted to the cluster you're in or nearest
@@ -1004,7 +1010,8 @@ and the real layout (user's, 2026-10-02; W07).
   the pointer). It shows the whole world: islands (far ones too),
   bridges, the platform, you, each cluster's name, and, zoomed in
   enough, each island's session title and state. Clicking a session's
-  island takes you there, like the sessions menu's Running list (W07).
+  island takes you there, like the sessions menu's Running list (W07),
+  and clicking the platform takes you to it (W08).
   While it's open you don't move and the mouse is free, but the world
   doesn't pause, so the map stays live (rejected: the small map with its
   own toggle key, or no small map; keyboard-only moving; opening zoomed
@@ -1052,7 +1059,8 @@ and the real layout (user's, 2026-10-02; W07).
   (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
   higher than that are joined straight (`deck_height`). Planks 0.45 m
   across with gaps, a little jitter in height, width and shade; posts at
-  most 4 m apart on both sides, from the sea floor to rails 1 m up, with
+  most 4 m apart on both sides, from 0.5 m into the sea floor (W08's
+  `Seabed.height_at` under each post, `POST_SINK`) to rails 1 m up, with
   a mid rail. The rails start 1 m from each end. Collision: the deck as
   one strip, and on both sides a wall 2.2 m high (higher than a jump) so
   you can't run or jump off. Flat-shaded, vertex colours like the islands.
@@ -1116,7 +1124,9 @@ and the real layout (user's, 2026-10-02; W07).
   Hovering a live session's island outlines it;
   a click on it (the button let go within 6 px of where it went down, so
   not a drag) closes the map and teleports you there (`world.gd` →
-  `teleport`). An ended session's island isn't clickable.
+  `teleport`). An ended session's island isn't clickable. A click on the
+  platform (its square, at least 16 px across) closes the map
+  and puts you on it (`go_to_platform`; W08).
 - *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
   made-up sessions in 20 clusters (one of 13 islands, four past 16), the
   sidecar stopped so nothing real shows. B switches to a view from above
@@ -1164,10 +1174,84 @@ chatting.
 - **A real design** for the menu comes with the UI pass, like all UI.
 
 ### W08 Swimming and seabed
-*Planned (user's request, 2026-09-30).* Swim instead of being put back on
-the platform when you wade too deep (W03's placeholder), and a seabed worth
-seeing: varied depths (shallows, drop-offs, deeper water) rather than one
-flat sea floor, which also means the water can't stay opaque everywhere.
+*Built (2026-10-08). Scope: core (world only).* Swim instead of being put
+back on the platform when you wade too deep (W03's placeholder), and a
+seabed worth seeing: varied depths (shallows, drop-offs, deeper water)
+rather than one flat sea floor, which also means the water can't stay
+opaque everywhere (user's request, 2026-09-30).
+
+*Decided (user's, 2026-10-08):*
+- *Diving:* swim on the surface and dive freely, with no breath limit.
+- *Water:* see-through in the shallows, tinting through turquoise to
+  deep blue with depth; still flat-shaded with W02's waves.
+- *Sea floor:* one continuous seabed everywhere, not only around islands:
+  islands on shallow shelves, drop-offs, deeper water and trenches
+  between them.
+- *Islands and the seabed:* each island carries its own shelf and
+  drop-off down to the sea floor, and rises out of the seabed and sinks
+  fully back into it (W04), visibly through the water.
+- *Controls:* swim where you look (W moves toward the camera's
+  direction, so looking down dives); Space rises, Ctrl sinks.
+- *Getting out:* only by swimming to a beach and walking out; no
+  climbing onto the platform's or bridges' decks.
+- *Way back:* the sea respawn goes; the sessions menu (Tab) gets a fixed
+  "Platform" entry that takes you to the spawn platform from anywhere,
+  and clicking the platform on the big map (M) takes you there too, like
+  clicking a session's island.
+
+**How it works** (depths, speeds and colours my picks).
+- *Seabed* (`Seabed`, `world/seabed/seabed.gd`, in `world.tscn`). A
+  height field the same every run (`height_at`): Perlin noise between
+  -14 m (`SHALLOWEST`) and -30 m (`DEEPEST`), with trenches along a second
+  noise's zero lines, rising to a flat -6 m within 40 m of the platform
+  and blending back by 90 m. Built in 64 m chunks on a 4 m grid (vertices
+  jittered by their grid index, so neighbours share their edge), each
+  with matching collision, from the camera out to 420 m (past the fog)
+  and dropped past 548 m; at most 6 chunks a frame, nearest first. Flat
+  shaded, three colours by depth, no shadows cast.
+- *Islands* (W01): a shelf at -4 m, then a drop-off below the deepest
+  floor, so an island stands on its own shelf wherever it is. W04 sinks
+  them to 4 m under the deepest floor, so they rise out of the seabed and
+  sink back into it, visibly through the water. Bridge posts reach 0.5 m
+  into the floor under them (W06); the platform is a block down to its
+  -6 m floor (a placeholder, like the rest of it).
+- *Water* (`ocean.gdshader`, W02): transparent, both faces drawn. From
+  above, each pixel reads the depth buffer (`hint_depth_texture`, which
+  the Compatibility renderer has too; its depth is mapped from [-1, 1]):
+  the vertical depth to what's behind tints it from clear turquoise
+  through W02's blue (a quarter of the way) to deep blue at 20 m, and the
+  distance seen through the water sets how opaque it is (at least 25 %).
+  From below it is a pale, mostly opaque ceiling.
+- *Under the water* (`Underwater`, `world/ocean/underwater.gd`, made by
+  `world.gd`): while the camera is below the surface, the fog turns blue
+  and ends at 70 m, covering the sky too; above it, the world's fog comes
+  back as it was.
+- *Swimming* (`Player`, W03): with the feet more than 1.3 m under the
+  water (`swim_depth`) the player swims: no gravity, and W A S D move
+  toward where the camera looks (so looking down and pressing W dives),
+  Space rises and Ctrl sinks (input action `swim_down`, the physical Ctrl
+  key), at 3.5 m/s or 6 m/s sprinting, eased at 8 m/s². Below the surface
+  it neither sinks nor rises on its own; at the surface it floats with
+  the feet 1.15 m under (`float_depth`, the eyes just above the waves) and
+  can't go higher, so there's no climbing out. Swimming into ground that
+  slopes up (facing up more than 0.35) rides up it, and touching such
+  ground with the feet less than 1.2 m under ends swimming: that's how you
+  walk out up a beach. The platform's and bridges' sides are walls.
+- *The way back* (`world.gd` → `go_to_platform`, which also drops a
+  teleport waiting for an island to rise): "⌂ Platform" under
+  "+ New session…" in the sessions menu, and a click on the platform on
+  the big map (W06).
+- *Live check passed (2026-10-08)* with the user and the fake provider.
+
+*Next (user's, after the live check, 2026-10-08):*
+- **Dolphin jump:** rising out of the water shouldn't kill your momentum
+  at once; keep some of the speed when leaving the water so you can jump
+  out of it.
+- **Shelf colours:** the island's shelf meets the sea floor well in shape
+  but not in colour: it goes straight from the island's sand colour to
+  the floor's. Blend them.
+- **More depth variation** in the sea floor (which noise is undecided;
+  recommend one).
 
 ### W09 Day/night cycle and weather
 *Planned (user's request, 2026-10-01).* The sun moves through a day and
@@ -1184,6 +1268,13 @@ worked out with bridges (W06, built as a general "connect regions"
 system for this). Not a provider feature: world only. Undesigned: which
 biomes, what picks an island's biome (random, the project, the
 cluster), and whether a cluster mixes them.
+
+### W11 Crouch and slide
+*Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
+slide when crouching at a run, extending W03's movement towards parkour.
+Not a provider feature: world only. Likely on Ctrl, which sinks you in
+the water (W08). Undesigned: crouch speed and height, the slide's speed,
+length and slopes, and whether you can jump out of a slide.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -2590,7 +2681,8 @@ proper design later, like all UI.
   no session runs and nothing is starting, "Press Tab for sessions"
   shows at the bottom of the screen.
 - **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), the cluster selector (W05), then "+ New session…", "Running" (W07) and "Resume" (S04).
+  opening), the cluster selector (W05), then "+ New session…", "⌂ Platform"
+  (back to the spawn platform; W08), "Running" (W07) and "Resume" (S04).
   The search filters Running and Resume by title and project, like
   Claude Code's own `/resume` list (user's choice).
 - **New session…** opens the **system's folder picker** on every
@@ -2863,6 +2955,11 @@ rules), so the world only points there.
   the provider's UI module if it's an extension).
 - **A new asset** needs a row in `assets/CREDITS.md` (source, author,
   license). CC0 or made by the user only; never AI-generated.
+- **A shader or code-generated visual Claude writes or rewrites**
+  (placeholder models, generated terrain, drawn maps) gets a row in
+  `assets/CREDITS.md` → Shaders and code-generated visuals saying so
+  (user's, 2026-10-08: some people may count them as AI art, though the
+  user doesn't).
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
@@ -2973,7 +3070,7 @@ The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
 
 The performance test (Architecture → Performance) checks that the coarse
-seabed has no gaps, overlaps or cracks and far fewer triangles while the
+drop-off has no gaps, overlaps or cracks and far fewer triangles while the
 land keeps its 2 m detail; that a bridge's segments are at most 24 m,
 each swapping to a much simpler far version at 70 m in the same place;
 that a bubble's viewport draws once per new text and not while hidden,
@@ -3011,7 +3108,10 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping, the sea respawn), the sessions menu (the
+platform, walking, jumping), swimming (W08: floating at the surface, Space
+and Ctrl, diving where you look, the seabed underneath, the underwater
+fog, out of the water up a beach, back by the menu's "Platform" and the
+big map), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
@@ -3222,7 +3322,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none picked; the user chooses next.
+**Current focus:** W08's follow-ups (W08 → Next: dolphin jump, shelf
+colours, sea floor depth variation), then W09, W10 and W11, in that order
+(user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W08 swimming and
+seabed** (dev log 2026-10-08-w08-swimming): one sea floor everywhere,
+clear water tinted by depth, swimming and diving, islands rising out of
+the seabed, "Platform" in the sessions menu and on the big map; live
+check passed with the fake.
 **Merged to `main` (2026-10-08), reviewed by the user: S06 sign-in
 needed** (dev log 2026-10-08-s06-sign-in): an account error raises a
 notice and the orchestrator waits on `sign_in`; a message the session
@@ -3696,9 +3803,9 @@ exists.
   gone with the pre-pass off, so `project.godot` sets
   `rendering/driver/depth_prepass/enable=false` for every GPU (other
   vendors couldn't be tested; islands also move up and down since W04). The cost
-  is some overdraw, small for this low-poly world, but it now includes
-  every seabed and post under the opaque water, which is still drawn
-  (Architecture → Performance; the seabed is coarse for that): worth
+  is some overdraw, small for this low-poly world, but it includes the
+  sea floor, the islands' drop-offs and the posts, all under the water
+  (see-through since W08; Architecture → Performance): worth
   rechecking whether the pre-pass can come back. Recheck on Godot
   updates; if it's a Godot bug, report it and turn the pre-pass back on
   once fixed (dev log 2026-09-30-chat-panel-session-islands).

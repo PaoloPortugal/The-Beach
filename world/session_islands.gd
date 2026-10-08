@@ -18,9 +18,10 @@ signal island_added(session_id: String, island: Island, orchestrator: Orchestrat
 signal island_risen(session_id: String)
 
 const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
-## Where an island starts rising from and sinks to: low enough that the
-## opaque sea hides all of it (its dunes reach about 3.2 m).
-const SUNK_Y := -8.0
+## Where an island starts rising from and sinks to: low enough that all of
+## it (its dunes reach about 3.2 m) is under the deepest sea floor (W08), so
+## it rises out of the seabed and sinks back into it.
+const SUNK_Y := Seabed.DEEPEST - 4.0
 ## The new-island beacon's colour: not A05's orange, which means waiting.
 const NEW_COLOUR := Color(0.35, 1.0, 0.55)
 ## How high the beach is where a bridge meets it, metres above the water.

@@ -1,8 +1,9 @@
 extends SceneTree
 ## Headless test for the M1 world: the island generator (W01) and jump
 ## assist (W03), then the world scene with
-## real physics: the player lands on the spawn platform, walks, jumps and is
-## put back when it falls in the sea; the sessions menu; islands for
+## real physics: the player lands on the spawn platform, walks, jumps, and
+## swims in the sea over the seabed (W08), back by the sessions menu's
+## "Platform" or the big map; the sessions menu; islands for
 ## sessions (applied to the store by hand) rising and sinking (W04), each
 ## orchestrator's bubble, and
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
@@ -55,13 +56,18 @@ func _island() -> void:
 				var ang := k * TAU / 8.0
 				flat = flat and is_equal_approx(g.height_at(cos(ang) * r, sin(ang) * r), g.plateau_height)
 		_check(flat, "seed %d: the middle is flat and above water" % seed)
-		# Every direction reaches the sea, and far out is the sea floor.
+		# Every direction reaches the sea: a shallow shelf, then a drop-off
+		# below the deepest sea floor (W08).
 		var shore := true
 		for k in 16:
 			var ang := k * TAU / 16.0
-			var far := g.shore_radius(cos(ang), sin(ang)) * 1.7
-			shore = shore and is_equal_approx(g.height_at(cos(ang) * far, sin(ang) * far), g.sea_floor)
+			var r := g.shore_radius(cos(ang), sin(ang))
+			var on_shelf := r * (g.shelf_start + g.shelf_end) / 2.0
+			var past := r * (g.skirt_end + 0.05)
+			shore = shore and is_equal_approx(g.height_at(cos(ang) * on_shelf, sin(ang) * on_shelf), g.sea_floor)
+			shore = shore and is_equal_approx(g.height_at(cos(ang) * past, sin(ang) * past), g.skirt_floor)
 		_check(shore, "seed %d: surrounded by sea" % seed)
+		_check(g.skirt_floor < Seabed.DEEPEST, "seed %d: the drop-off reaches below the sea floor" % seed)
 
 	var built := a.build()
 	var faces: PackedVector3Array = built["faces"]
@@ -146,10 +152,7 @@ func _scene() -> void:
 	await _frames(15)
 	_check(player.global_position.y > start_y + 0.8, "jumps")
 
-	player.global_position = Vector3(20, -3, 0)
-	await _frames(2)
-	_check(player.global_position.distance_to(spawn) < 0.2, "falling in the sea puts it back on the platform")
-
+	await _swimming(world, player)
 	await _menu(world, player)
 	await _sessions(world, player)
 	await _agents(world)
@@ -158,6 +161,89 @@ func _scene() -> void:
 
 	world.queue_free()
 	await _frames(1)
+
+
+# W08: swimming, the seabed, the view under the water, and the ways back to
+# the platform.
+func _swimming(world: Node3D, player: Player) -> void:
+	var head: Node3D = player.get_node("Head")
+	var env: Environment = (world.get_node("WorldEnvironment") as WorldEnvironment).environment
+	var seabed: Seabed = world.get_node("Seabed")
+	_check(seabed.chunk_count() > 0, "the seabed is built around you")
+	_check(Seabed.height_at(0, 0) == Seabed.PLATFORM_FLOOR and Seabed.height_at(5000, 300) <= Seabed.SHALLOWEST and Seabed.height_at(5000, 300) >= Seabed.DEEPEST, "shallow by the platform, deeper out at sea")
+
+	player.global_position = Vector3(20, -3, 0)
+	player.velocity = Vector3.ZERO
+	await _frames(30)
+	_check(player.swimming and player.global_position.y > -3.3, "in deep water it swims, not sinks (y %.2f)" % player.global_position.y)
+	_check(world.underwater.active and env.fog_depth_end == Underwater.FOG_END, "under the water the fog is blue and close")
+
+	Input.action_press("jump")
+	await _frames(120)
+	var top := player.global_position.y
+	await _frames(30)
+	Input.action_release("jump")
+	_check(absf(top + player.float_depth) < 0.15 and player.global_position.y < -player.float_depth + 0.05, "Space rises to the surface and floats there, no higher (y %.2f)" % player.global_position.y)
+	await _frames(5)
+	_check(not world.underwater.active and env.fog_depth_end == 390.0, "with the head above the water, the world's own fog")
+
+	var before := player.global_position.y
+	Input.action_press("swim_down")
+	await _frames(30)
+	Input.action_release("swim_down")
+	_check(player.global_position.y < before - 0.8, "Ctrl sinks")
+
+	head.rotation.x = -0.9
+	before = player.global_position.y
+	var from := Vector2(player.global_position.x, player.global_position.z)
+	Input.action_press("move_forward")
+	await _frames(40)
+	Input.action_release("move_forward")
+	_check(player.global_position.y < before - 0.8 and from.distance_to(Vector2(player.global_position.x, player.global_position.z)) > 0.5, "W swims where you look: down and along")
+	head.rotation.x = 0.0
+
+	Input.action_press("swim_down")
+	await _frames(150)
+	Input.action_release("swim_down")
+	var p := player.global_position
+	var floor_y := Seabed.height_at(p.x, p.z)
+	_check(p.y > floor_y - 0.3 and p.y < floor_y + 0.6, "the seabed stops you (y %.2f, floor %.2f)" % [p.y, floor_y])
+
+	# Out of the water only up a beach.
+	var island := Island.new()
+	island.island_seed = 42
+	island.position = Vector3(0, 0, -300)
+	world.add_child(island)
+	var shore := island.generator.shore_radius(0.0, 1.0)
+	player.rotation.y = 0.0 # facing -z, the island
+	player.global_position = island.position + Vector3(0, -1.5, shore * 1.3)
+	player.velocity = Vector3.ZERO
+	await _frames(10)
+	_check(player.swimming, "swimming over an island's shelf")
+	Input.action_press("move_forward")
+	await _until(func() -> bool: return not player.swimming and player.global_position.y > 0.3, 10.0)
+	Input.action_release("move_forward")
+	_check(not player.swimming and player.global_position.y > 0.3, "swims to the beach and walks out")
+	island.queue_free()
+
+	# Back to the platform from the water: the sessions menu, then the map.
+	player.global_position = Vector3(30, -2, 0)
+	await _frames(5)
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
+	menu.open()
+	await _frames(2)
+	_check(menu.entries()[1] == "⌂ Platform", "the sessions menu offers the platform")
+	menu.choose("⌂ Platform")
+	await _frames(2)
+	_check(not menu.is_open() and not player.swimming and player.global_position.distance_to(player.spawn_point) < 0.2, "which takes you there")
+	player.global_position = Vector3(30, -2, 0)
+	await _frames(5)
+	world.world_map.open()
+	await _frames(2)
+	world.world_map.click(world.world_map.to_map(Vector3(3, 0, -4)))
+	await _frames(2)
+	_check(not world.world_map.is_open() and player.global_position.distance_to(player.spawn_point) < 0.2, "and so does clicking the platform on the big map")
+	await _frames(30)
 
 
 func _menu(world: Node3D, player: Player) -> void:
@@ -1214,7 +1300,7 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and once it's up, it takes you there")
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[3].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
+	_check(menu.entries()[4].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
@@ -1359,10 +1445,10 @@ func _live(world: Node3D, player: Player) -> void:
 	# The open menu follows a rename.
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[3].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
+	_check(menu.entries()[4].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
 	sidecar.send_command("message.send", {"session": id, "text": "rename Notes"})
-	await _until(func() -> bool: return menu.entries()[3].begins_with("Notes   ·"), 5.0)
-	_check(menu.entries()[3].begins_with("Notes   ·"), "live: and follows a rename while open")
+	await _until(func() -> bool: return menu.entries()[4].begins_with("Notes   ·"), 5.0)
+	_check(menu.entries()[4].begins_with("Notes   ·"), "live: and follows a rename while open")
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
@@ -1380,9 +1466,9 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open() and menu.entries().any(func(e: String) -> bool: return e.begins_with("Add a save system")), 5.0)
 	var listed := menu.entries()
-	_check(listed.size() == 5 and listed[2].begins_with("Fix the player") and listed[3].begins_with("Add a save system") and listed[3].contains("my-game") and listed[3].ends_with("1 d ago"), "live: stored sessions listed newest first, with project and age")
+	_check(listed.size() == 6 and listed[3].begins_with("Fix the player") and listed[4].begins_with("Add a save system") and listed[4].contains("my-game") and listed[4].ends_with("1 d ago"), "live: stored sessions listed newest first, with project and age")
 	menu.search("SAVE")
-	_check(menu.entries() == ["+ New session…", "Resume", listed[3]], "live: the search filters them")
+	_check(menu.entries() == ["+ New session…", "⌂ Platform", "Resume", listed[4]], "live: the search filters them")
 	menu.choose("Add a save system")
 	_check(not menu.is_open() and menu.notice_text() == "Starting…", "live: choosing one resumes it")
 	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
@@ -1397,9 +1483,9 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
 	_press("sessions_menu")
-	await _until(func() -> bool: return menu.entries().size() == 7, 5.0)
+	await _until(func() -> bool: return menu.entries().size() == 8, 5.0)
 	var now := menu.entries()
-	_check(now[1] == "Running" and now[2].begins_with("▸ ") and now[3].begins_with("Add a save system") and not now.slice(4).any(func(e: String) -> bool: return e.begins_with("Add a save")), "live: now under Running, in its cluster, not Resume")
+	_check(now[2] == "Running" and now[3].begins_with("▸ ") and now[4].begins_with("Add a save system") and not now.slice(5).any(func(e: String) -> bool: return e.begins_with("Add a save")), "live: now under Running, in its cluster, not Resume")
 	player.respawn()
 	menu.choose("Add a save system")
 	await _frames(5)
