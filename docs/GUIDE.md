@@ -439,9 +439,13 @@ Code's own record of the conversation (its transcript). The context
 percentage and your plan's limits come from Claude Code's **status
 line**: the game sets one for its sessions that only passes the figures
 on and shows nothing, so in those sessions the terminal's status line
-stays empty. If you have your own status line in your Claude Code
-settings, the game keeps yours: the header then shows the context in
-tokens, without a percentage, and the corner shows no limits. If your
+stays empty, and Claude Code also hides the hints under it ("esc to
+interrupt"). If you have your own status line in your Claude Code
+settings, the game keeps yours: that session's header then shows the
+context in tokens, without a percentage, and it adds nothing to the
+corner (which still shows what your other sessions report). The game
+looks for your status line when a session starts or resumes, so one you
+add or remove meanwhile counts from the session's next start. If your
 transcripts are off, only the status line's figures show.
 
 ## Subagents (A02, A03, A04)
@@ -517,8 +521,9 @@ reinstalling the game restores it if it goes missing.
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
 (C02), the tool-call log (C04), answering prompts and questions (C05),
-the permission mode and plans (C06, C07) and token usage (C08) work, but stopping from
-the world doesn't have a button yet, so use the terminal for that.
+the permission mode and plans (C06, C07) and token usage (C08) work,
+but stopping from the world doesn't have a button yet, so use the
+terminal for that.
 
 **What you need.** Claude Code installed on your computer (version
 2.1.284 or newer), signed in with your own account. The game never sees

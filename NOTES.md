@@ -256,8 +256,9 @@ feature that touches them follows these rules, and each is tested:
   session data), in a form that means the same in every shell Claude
   Code uses, and is not set when a path can't be made safe (C08 → The
   command string). On Windows a short name Windows hashes is asked of
-  Windows itself (a fixed PowerShell script, the path in an environment
-  variable, the answer checked to be the same file; C08 → Short names
+  Windows itself (a fixed script for Windows PowerShell by its System32
+  path, the path in an environment variable, the answer checked to be
+  the same file; C08 → Short names
   on Windows). Tested with hostile paths. Replaced by exec form as
   soon as Claude Code offers one (Watch items → A status line without a
   shell).
@@ -277,6 +278,8 @@ feature that touches them follows these rules, and each is tested:
   injects into the game (e.g. Steam's `LD_PRELOAD` overlay hooks and its
   `Steam*` variables). The lists are in `sidecar/src/providers/claude/env.ts`
   and `sidecar/src/launch/env.ts`, with a test that user settings survive.
+  Our own fixed helpers that need nothing of the user's get less still:
+  C08's short-name lookup runs with only `SystemRoot` and its path.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -445,7 +448,7 @@ removing a provider means deleting its folders.
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
 | `src/launch/` | Generic: terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions (S04). |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions (S04), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
@@ -685,8 +688,10 @@ Each one is added to the schema and listed here:
   `percent` and `window` or null; null until known), `turn` (`message`:
   the user message that started it, or null; `output_tokens`) and
   `limits` (`five_hour`, `seven_day`: `used_percent`, `resets_at`; each
-  may be absent). The snapshot's `usage` is null until the first count;
-  history user messages may have `turn_tokens`.
+  may be absent). The snapshot's `usage` is null until there is
+  something to count: an API call, a user message (its new turn, at 0)
+  or the status line's figures; history user messages may have
+  `turn_tokens`.
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -1394,8 +1399,8 @@ all of it, so markup in a message shows as written (tested with an injected
   too small to read anyway.
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
-  project's name, the permission mode when known (C06), and "Esc to
-  close"), the session's notices (Godot's own
+  project's name, the permission mode when known (C06), the token usage
+  (C08), and "Esc to close"), the session's notices (Godot's own
   text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`,
   `conversation_resumed` and `conversation_moved`; of the two switch
   notices, only the latest shows), the chat as bubbles
@@ -1838,8 +1843,9 @@ How it works:
   entry as it's written, so the counts move once per API call, not
   word by word. **Resumed:** read from the conversation's transcript
   with its history, so totals and hints cover the whole conversation.
-  `/clear` starts again from nothing. Transcripts off: only what the
-  status line gives.
+  `/clear` starts the counts again from nothing, keeping the plan's
+  limits (the account's). Transcripts off: only what the status line
+  gives.
 - **The status line relay.** The session's `--settings` sets
   `statusLine` to our executable in `statusline` mode with the path of
   a relay file (like the hook relay: loopback URL and the session's
@@ -1866,23 +1872,33 @@ How it works:
   very same file (volume and file index), so a wrong guess can't point
   elsewhere. Windows hashes some short names (`AB2761~1` for `a b`,
   mixed-case temp folders), which can't be guessed: then Windows is
-  asked for that one folder's short name, through `powershell.exe` with
-  a fixed script (`Scripting.FileSystemObject` → `ShortPath`) in an
-  argument array, the path passed in the environment variable
-  `SIDECAR_SHORT_PATH`, never on a command line. Asked once per folder
-  per run; the answer is accepted only if it is the same file, on the
-  same drive, and every component is safe. A volume without short names,
-  or a short name that is still unsafe (`$(NEW-~1`), means no status
-  line. Tested by running the real command string in Git Bash, Windows
-  PowerShell and PowerShell 7 (`sh` elsewhere) from folders named with
-  spaces, `;`, `&`, `$( )`, backticks, quotes and accents: the relay
-  gets exactly its 3 arguments and nothing else runs
-  (`sidecar/test/usage.test.ts`).
+  asked for that one folder's short name, through Windows PowerShell
+  by its full path (`%SystemRoot%\System32\WindowsPowerShell\v1.0\
+  powershell.exe`, never a bare name Windows might look for in the
+  working folder; none there means no answer) with a fixed script
+  (`Scripting.FileSystemObject` → `ShortPath`) in an argument array,
+  run from the temp folder with an environment of only `SystemRoot`
+  and the path, in `SIDECAR_SHORT_PATH`, never on a command line.
+  Asked once per folder per run; it blocks the sidecar while it runs
+  (under a second, at most 10 s), and if that delays a session's hooks
+  they time out to the terminal's own prompts (fail safe). The answer
+  is accepted only if it is the same file, on the same drive, and every
+  component is safe. A volume without short names, or a short name that
+  is still unsafe (`$(NEW-~1`), means no status line. Tested by running
+  the real command string from folders named with spaces, `;`, `&`,
+  `$( )`, backticks, quotes and accents in Windows PowerShell always,
+  and in Git Bash and PowerShell 7 when installed (`sh` elsewhere): the
+  relay gets exactly its 3 arguments and nothing else runs; and by
+  asking Windows about folders named `$(New-Item PWNED)`, `` `ni
+  PWNED` `` and `a';ni PWNED;'b`: nothing runs, and each answer is that
+  very folder (`sidecar/test/usage.test.ts`).
 - **Spotting the user's own status line:** read (never written) the
   user's settings (`~/.claude/settings.json`, under `CLAUDE_CONFIG_DIR`
   when set) and the project's `.claude/settings.json` and
   `.claude/settings.local.json`. One there means we don't set ours. A
   managed one wins over ours anyway: we just get no status line calls.
+  Checked when the session starts (or resumes) only: a status line the
+  user adds or removes mid-session counts from its next start.
 - **Protocol.** The session declares `usage: {}`. Event `usage.updated
   { usage }`, the whole current figures each time: `tokens` (`input`,
   `output`, `cache_read`, `cache_write`), `context` (`tokens`,
@@ -1890,7 +1906,8 @@ How it works:
   until the first call), `turn` (`message`: the user message that
   started it, or null; `output_tokens`) and `limits` (`five_hour`,
   `seven_day`, each `{used_percent, resets_at}`, either absent when
-  unknown). The snapshot has `usage` (null until the first count). In
+  unknown). The snapshot has `usage` (null until the first API call,
+  user message or status line figures). In
   the history, a user message has `turn_tokens`: the output tokens of
   the turn it started.
 - **Godot.** The session store keeps `usage` (from the snapshot and
@@ -1991,11 +2008,12 @@ next to the game come with the first export.
 
 ### S02 Claude provider
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
-`interrupt`, `permission_modes` and `plans` capabilities, no extension
-yet). Code:
+`interrupt`, `permission_modes`, `plans` and `usage` capabilities, no
+extension yet). Code:
 `sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
-`prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`)
+`prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`,
+`usage.ts` and `statusline.ts` for C08)
 and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md` (index). Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
@@ -2133,9 +2151,10 @@ prompt as denied (by external), and `[Request interrupted by user]` (Esc,
 or after a "No") leaves the orchestrator idle, its running calls closed as
 interrupted. A `continued-in` entry (Claude Code 2.1.285) means the
 conversation went on in another session (see Following the
-conversation). The line format isn't a documented interface (Watch
-items), so it's used for status only; without it, the fallback is the
-next hook or message.
+conversation). Each assistant entry's `usage` is C08's token count
+(C08 → How it works). The line format isn't a documented interface
+(Watch items), so it's used for status and counts only; without it, the
+fallback is the next hook or message.
 
 **Following the conversation** (user's decisions, 2026-10-01). Hooks
 carry the conversation's `session_id`. A hook with a different one
@@ -2430,6 +2449,8 @@ notice. For development, what's limited:
   started here), and it's lost if the sidecar restarts.
 - **Resuming** isn't possible, and the session isn't listed (S04).
 - **Attaching** (later) shows nothing from before we joined.
+- **Token usage** (C08) is only the status line's figures: context %
+  and the plan's limits, no token totals or turn hints.
 
 **History.** `session.get_history` returns the completed messages and
 the tool calls (C04) the sidecar saw through the hooks since launch (for
