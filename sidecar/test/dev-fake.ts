@@ -22,7 +22,7 @@
 //                clears it
 //   lost         the message never reaches the session, like Claude Code
 //                signed out dropping a channel message unseen (S06): no
-//                event at all
+//                event at all, whatever other words it has
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
 // A new session has no title until its first message names it, like
