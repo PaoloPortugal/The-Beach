@@ -136,6 +136,7 @@ export class Registry {
       ...('questions' in intro.capabilities ? { questions: [] } : {}),
       ...('permission_modes' in intro.capabilities ? { mode: intro.mode ?? null } : {}),
       ...('plans' in intro.capabilities ? { plans: [] } : {}),
+      ...('usage' in intro.capabilities ? { usage: null } : {}),
       notices: [],
     }
     const msg = { type: 'session.created', session: state }
@@ -293,6 +294,12 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       plans.splice(i, 1)
       return null
     }
+    case 'usage.updated':
+      // The whole figures each time; the same again isn't news.
+      if (JSON.stringify(e.usage) === JSON.stringify(s.usage)) return 'nothing changed'
+      if (new Set(e.usage.limits.map((l) => l.id)).size !== e.usage.limits.length) return 'a usage limit id given twice'
+      s.usage = structuredClone(e.usage)
+      return null
 
     case 'question.resolved': {
       const qs = s.questions ?? []

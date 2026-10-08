@@ -67,6 +67,7 @@ reading; look things up by feature ID.
 | 2026-10-03 | [C04's input limits counted in bytes](2026-10-03-c04-input-bytes.md) | C04, S02 |
 | 2026-10-03 | [One read budget for a resumed history](2026-10-03-c04-read-budget.md) | C04, S04 |
 | 2026-10-03 | [The tool log's markup checks cover results and Details](2026-10-03-c04-markup-checks.md) | tooling |
+| 2026-10-03 | [C08 token usage: research and spike](2026-10-03-c08-usage-spike.md) | C08, S02 |
 | 2026-10-07 | [W04: islands rise and sink](2026-10-07-w04-rise-sink.md) | W04, W01, W05, A05 |
 | 2026-10-07 | [Built features' status lines match the index](2026-10-07-notes-status-lines.md) | docs |
 | 2026-10-07 | [The quit warning's list scrolls](2026-10-07-s05-quit-scroll.md) | S05 |
@@ -74,3 +75,4 @@ reading; look things up by feature ID.
 | 2026-10-07 | [W06: bridges, wedges and the maps](2026-10-07-w06-bridges.md) | W06, W05, W04, W07 |
 | 2026-10-08 | [The performance pass: far bridges, a coarse seabed, nothing past the fog](2026-10-08-perf-pass.md) | W01, W06, C02 |
 | 2026-10-08 | [S06: sign-in needed](2026-10-08-s06-sign-in.md) | S06, S02, C02, A05 |
+| 2026-10-08 | [C08 token usage, built](2026-10-08-c08-usage.md) | C08, S02 |
