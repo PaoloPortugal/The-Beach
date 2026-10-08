@@ -9,7 +9,7 @@ extends SceneTree
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
-## attention cue (A05).
+## attention cue (A05); the day and night and the weather (W09).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -167,6 +167,7 @@ func _scene() -> void:
 	await _frames(15)
 	_check(player.global_position.y > start_y + 0.8, "jumps")
 
+	await _sky(world, player)
 	await _swimming(world, player)
 	await _menu(world, player)
 	await _sessions(world, player)
@@ -176,6 +177,141 @@ func _scene() -> void:
 
 	world.queue_free()
 	await _frames(1)
+
+
+# W09: the day and night cycle, the weather and what they bring.
+func _sky(world: Node3D, player: Player) -> void:
+	var day: DayNight = world.day_night
+	var weather: Weather = world.weather
+	var sun: DirectionalLight3D = world.get_node("Sun")
+	var env: Environment = (world.get_node("WorldEnvironment") as WorldEnvironment).environment
+	_check(DayNight.CYCLE == 28.0 * 60.0 and day.cycle == DayNight.CYCLE, "W09: a 28-minute day")
+	_check(day.hour() > 8.5 and day.hour() < 10.5 and day.sun_height() > 0.3 and day.darkness == 0.0, "it starts mid-morning, the sun well up (%.1f h)" % day.hour())
+	_check(sun.visible and sun.light_energy > 0.5 and (-sun.global_basis.z).y < -0.3, "the sun shines down from the sky")
+	var night_samples := 0
+	for i in 1000:
+		if DayNight.sun_direction((i + 0.5) / 1000.0).y < 0.0:
+			night_samples += 1
+	_check(night_samples == 500, "half of it is night (%d of 1000)" % night_samples)
+	_check(DayNight.sun_direction(0.0).x > 0.99 and DayNight.sun_direction(0.25).z > 0.4 and DayNight.sun_direction(0.5).x < -0.99, "the sun rises in the east, crosses the south and sets in the west")
+	var round_trip := true
+	for h in [0.0, 5.5, 6.0, 12.0, 17.25, 23.9]:
+		day.set_hour(h)
+		round_trip = round_trip and absf(day.hour() - h) < 0.001
+	_check(round_trip, "set_hour and hour agree")
+	day.set_hour(10.0)
+	var t := day.time
+	day._process(day.cycle / 4.0)
+	_check(absf(day.hour() - 16.0) < 0.01, "a quarter of the cycle is six hours (%.2f)" % day.hour())
+	day.cycle = 60.0 # --day-minutes 1
+	day._process(15.0)
+	_check(absf(day.time - fposmod(t + 0.5, 1.0)) < 0.001, "--day-minutes shortens the day")
+	day.cycle = DayNight.CYCLE
+
+	day.set_hour(0.0)
+	var moon := -DayNight.sun_direction(day.time)
+	_check(day.darkness == 1.0 and day.sun_height() < -0.5 and DayNight.current_darkness == 1.0, "at midnight it's night, the sun far below")
+	_check(sun.visible and (-sun.global_basis.z).dot(-moon) > 0.99 and sun.light_energy > 0.05 and sun.light_energy < DayNight.SUN_ENERGY / 2.0, "the moon, opposite the sun, lights the night, dimmer")
+	_check(env.ambient_light_energy >= 0.3, "and the night stays readable (ambient %.2f)" % env.ambient_light_energy)
+
+	# Night lights: an island's torches and the desk lamp.
+	var island := Island.new()
+	island.island_seed = 7
+	island.position = Vector3(0, -500, 0) # out of the way
+	world.add_child(island)
+	var orchestrator: Orchestrator = load("res://agents/orchestrator/orchestrator.tscn").instantiate()
+	island.add_child(orchestrator)
+	var lamp: NightLight = orchestrator.get_node("Lamp")
+	var torches := island.torches()
+	var on_beach := torches.all(func(n: NightLight) -> bool: return absf(n.position.y - 0.5) < 0.5 and Vector2(n.position.x, n.position.z).length() > 5.0)
+	_check(torches.size() == Island.TORCHES and on_beach, "an island has %d torches along its beach" % Island.TORCHES)
+	_check(torches.all(func(n: NightLight) -> bool: return n.is_lit()) and lamp.is_lit(), "made at night, the torches and the desk lamp are lit")
+	day.set_hour(12.0)
+	await _settle()
+	_check(torches.all(func(n: NightLight) -> bool: return not n.is_lit()) and not lamp.is_lit(), "and out by day")
+	day.set_hour(22.0)
+	await _settle()
+	_check(torches.all(func(n: NightLight) -> bool: return n.is_lit()) and lamp.is_lit(), "lit again at night")
+	island.queue_free()
+
+	# The weather, stepped by hand.
+	_check(Weather.kind_named("storm") == Weather.Kind.STORM and Weather.kind_named("fog") == -1, "weather kinds by name (--weather)")
+	var picks := {}
+	for i in 10000:
+		var k := Weather.pick_next((i + 0.5) / 10000.0)
+		picks[k] = picks.get(k, 0) + 1
+	var weighted := true
+	for k in Weather.WEIGHTS:
+		weighted = weighted and absf(picks.get(k, 0) / 10000.0 - Weather.WEIGHTS[k]) < 0.002
+	_check(weighted and Weather.WEIGHTS[Weather.Kind.CLEAR] > 0.4, "the next kind follows the weights, clear the most often")
+	var w := Weather.new()
+	w.rng.seed = 3
+	w.set_kind(Weather.Kind.CLEAR, true)
+	w.changes = false
+	w.set_kind(Weather.Kind.STORM, false)
+	w.step(30.0)
+	_check(w.cover > 0.1 and w.cover < 0.65 and w.rain > 0.0 and w.rain <= 0.51, "a change eases in over about a minute (cover %.2f after 30 s)" % w.cover)
+	var bounded := true
+	var strikes: Array[float] = []
+	var clock := [0.0]
+	w.lightning.connect(func(_direction: Vector2) -> void: strikes.append(clock[0]))
+	var peak := 0.0
+	while clock[0] < 600.0:
+		w.step(0.05)
+		clock[0] += 0.05
+		peak = maxf(peak, w.flash)
+		for v in [w.cover, w.rain, w.wind, w.storm]:
+			bounded = bounded and v >= 0.0 and v <= 1.0
+	_check(bounded and w.cover == 1.0 and w.storm == 1.0, "levels stay between 0 and 1 and reach the storm's")
+	var gaps_ok := strikes.size() > 20
+	for i in range(1, strikes.size()):
+		var gap := strikes[i] - strikes[i - 1]
+		gaps_ok = gaps_ok and gap >= Weather.MIN_GAP - 0.06 and gap <= Weather.MAX_GAP + 0.06
+	_check(gaps_ok, "a storm brings lightning, 10-20 s apart (%d strikes in 10 min)" % strikes.size())
+	_check(peak > 0.3 and peak <= Weather.FLASH_PEAK, "a soft flash, never a white-out (peak %.2f)" % peak)
+	_check(w.kind == Weather.Kind.STORM, "with changes off (--weather) the kind stays")
+	w.lightning_enabled = false
+	var before := strikes.size()
+	for i in 1200:
+		w.step(0.05)
+	_check(strikes.size() == before and w.flash == 0.0, "lightning off: none")
+	w.lightning_enabled = true
+	w.set_kind(Weather.Kind.CLEAR, true)
+	for i in 1200:
+		w.step(0.05)
+	_check(strikes.size() == before, "and none without a storm")
+	w.free()
+
+	# In the world: clouds, rain and the bolt.
+	var clouds: Clouds = world.clouds
+	var rain: Rain = world.rain
+	var camera: Camera3D = player.get_node("Head/Camera3D")
+	weather.changes = false
+	weather.set_kind(Weather.Kind.CLEAR, true)
+	await _settle()
+	var clear_clouds := clouds.shown_count()
+	weather.set_kind(Weather.Kind.STORM, true)
+	await _settle()
+	_check(clear_clouds <= ceili(Weather.TARGETS[Weather.Kind.CLEAR][0] * Clouds.COUNT) and clouds.shown_count() == Clouds.COUNT, "clouds follow the cover (%d clear, %d in a storm)" % [clear_clouds, clouds.shown_count()])
+	_check(rain.emitting and rain.amount_ratio == 1.0, "a storm rains")
+	weather.lightning_enabled = false # the bolt by hand
+	var bolt: LightningBolt = world.lightning_bolt
+	bolt.strike(Vector2(1, 0))
+	var at := bolt.get_aabb().get_center()
+	var away := Vector2(at.x, at.z).distance_to(Vector2(camera.global_position.x, camera.global_position.z))
+	_check(bolt.visible and away > LightningBolt.MIN_DISTANCE - 10.0, "a bolt strikes far away (%.0f m)" % away)
+	await _until(func() -> bool: return not bolt.visible, 2.0)
+	_check(not bolt.visible, "and is gone in a moment")
+	player.global_position = Vector3(20, -6, 0)
+	player.velocity = Vector3.ZERO
+	await _until(func() -> bool: return world.underwater.active and not rain.emitting, 2.0)
+	_check(world.underwater.active and not rain.emitting, "no rain under the water")
+	weather.lightning_enabled = true
+	weather.set_kind(Weather.Kind.CLEAR, true)
+	day.set_hour(10.0)
+	player.global_position = player.spawn_point
+	player.velocity = Vector3.ZERO
+	await _frames(30)
 
 
 # W08: swimming, the seabed, the view under the water, and the ways back to

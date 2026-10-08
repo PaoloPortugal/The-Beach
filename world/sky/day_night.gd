@@ -40,6 +40,8 @@ const NIGHT_AMBIENT := Color(0.32, 0.40, 0.62)
 const DAY_AMBIENT_ENERGY := 0.6
 const NIGHT_AMBIENT_ENERGY := 0.35
 
+## The smallest change a sky uniform is set for (_set_sky).
+const SKY_STEP := 1.0 / 255.0
 ## The darkness now, for night lights made after it was last sent.
 static var current_darkness := 0.0
 
@@ -58,6 +60,8 @@ var _environment: Environment
 var _light: DirectionalLight3D
 var _sky: ShaderMaterial
 var _sent_darkness := -1.0
+# The sky's uniforms as last set (_set_sky).
+var _sky_values := {}
 
 
 func setup(environment: Environment, light: DirectionalLight3D, p_weather: Weather, p_underwater: Underwater) -> void:
@@ -161,12 +165,12 @@ func apply() -> void:
 	# Lightning lifts the sky for a moment, never to white.
 	top = top.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
 	horizon = horizon.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
-	_sky.set_shader_parameter("top_colour", top)
-	_sky.set_shader_parameter("horizon_colour", horizon)
-	_sky.set_shader_parameter("sun_direction", sun)
-	_sky.set_shader_parameter("sun_colour", colour if day else SUNSET_COLOUR)
-	_sky.set_shader_parameter("stars", darkness * (1.0 - cover))
-	_sky.set_shader_parameter("discs", 1.0 - cover * 0.9)
+	_set_sky("top_colour", top)
+	_set_sky("horizon_colour", horizon)
+	_set_sky("sun_direction", sun)
+	_set_sky("sun_colour", colour if day else SUNSET_COLOUR)
+	_set_sky("stars", darkness * (1.0 - cover))
+	_set_sky("discs", 1.0 - cover * 0.9)
 
 	# Ambient light: dimmer and bluer by night, never dark.
 	var ambient := DAY_AMBIENT.lerp(NIGHT_AMBIENT, darkness)
@@ -186,3 +190,24 @@ func apply() -> void:
 	if absf(darkness - _sent_darkness) > 0.005:
 		_sent_darkness = darkness
 		get_tree().call_group(NightLight.GROUP, "set_darkness", darkness)
+
+
+# Sets a sky uniform only when it has changed enough to show: each change
+# makes Godot redraw the sky's reflection map, so not every frame. A
+# colour step of 1/255, or the sun moving 1/255 of a radian (about once a
+# second of the 28-minute day; a lightning flash still updates every
+# frame).
+func _set_sky(key: String, value: Variant) -> void:
+	var last: Variant = _sky_values.get(key)
+	if last != null:
+		var change := 0.0
+		if value is Color:
+			change = maxf(maxf(absf(value.r - last.r), absf(value.g - last.g)), absf(value.b - last.b))
+		elif value is Vector3:
+			change = (value as Vector3).distance_to(last)
+		else:
+			change = absf(value - last)
+		if change < SKY_STEP:
+			return
+	_sky_values[key] = value
+	_sky.set_shader_parameter(key, value)
