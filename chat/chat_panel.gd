@@ -132,6 +132,10 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.agent_changed.connect(func(id: String, _agent: String) -> void:
 		if store.orchestrator(id).get("state") == "working":
 			_picked_up(id))
+	store.session_removed.connect(func(id: String, _reason: String) -> void:
+		_watching.erase(id)
+		_not_picked_up.erase(id)
+		_given_back.erase(id))
 	store.usage_changed.connect(func(id: String) -> void:
 		if id == session_id and not _rebuild_queued:
 			_refresh_usage()
@@ -306,9 +310,13 @@ func _picked_up(session: String) -> void:
 	_watching.erase(session)
 	var text: String = _not_picked_up.get(session, "")
 	var given := _given_back.erase(session)
-	if _not_picked_up.erase(session) and session == session_id:
-		if given and _input.text == text:
-			_input.text = ""
+	if not _not_picked_up.erase(session):
+		return
+	# The box is shared by every chat and kept when closed: clear it
+	# whichever is showing.
+	if given and _input.text == text:
+		_input.text = ""
+	if session == session_id:
 		_refresh_status()
 
 
