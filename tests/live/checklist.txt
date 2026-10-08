@@ -1,4 +1,20 @@
-LIVE CHECK: bridges (W06)
+LIVE CHECK: performance pass, then bridges (W06)
+Part P: layout demo, no sidecar
+  godot --path . res://tests/world/layout_demo.tscn -- --checklist
+
+P1. From the platform, look along the
+   bridges: up close every plank; past
+   about 70 m a smooth deck, one rail
+   a side. Walk out and back: does
+   the swap catch your eye? Flicker?
+P2. Look across the sea: islands fade
+   into the haze, no island or bridge
+   popping in or out at the horizon.
+P3. Press B (from above, fog off): far
+   islands and bridges all drawn. B
+   again: back to normal.
+P4. Feels smoother than before?
+
 Part A: layout demo, no sidecar
   godot --path . res://tests/world/layout_demo.tscn -- --checklist
 
