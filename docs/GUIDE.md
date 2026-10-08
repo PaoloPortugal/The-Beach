@@ -246,6 +246,9 @@ what was said in the terminal. Replies appear as they're written. You can
 select text to copy it. Type in the box at the bottom: **Enter** sends,
 **Shift+Enter** starts a new line. Your message shows up once the session
 has it; if it can't be sent, the chat says so and gives your text back.
+What you type stays in the box if you close the chat and come back to
+the same session; opening another session's chat starts with an empty
+box.
 
 At the top right, next to "Esc to close", the chat shows the session's
 permission mode, such as **Mode: Auto** (see Permission modes and plans
@@ -524,13 +527,15 @@ game may never reach it. If a message hasn't shown up in the chat after
 about 15 seconds, the line above the box says "Your message hasn't
 reached the session. Check its terminal, then send it again." and your
 text goes back in the box (only if the box is empty: otherwise when you
-next open the chat with it empty; and only once, so if you clear it, it
-stays clear). The warning goes when you send again or Claude Code picks
-a message up. If your message turns up after all, the text put back in
-the box goes too, unless you changed it, so it isn't sent twice. A
-message you type in the terminal counts too: after it, the text put back
-goes, so copy it first if you still want to send it. (Messages you send while Claude is busy wait
-for its turn to end, so they don't get this warning.)
+next open the chat with it empty). If you clear it, it stays clear; if
+you go to another session's chat and come back without sending it, it
+comes back. The warning goes when you send again or Claude Code picks a
+message up. If your message turns up after all, the text put back in the
+box goes too, unless you changed it, so it isn't sent twice. A message
+you type in the terminal counts too: after it, the text put back goes,
+so copy it first if you still want to send it. (Messages you send while
+Claude is busy wait for its turn to end, so they don't get this
+warning.)
 
 ## The sidecar (S01)
 

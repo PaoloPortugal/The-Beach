@@ -17,13 +17,20 @@ Part A: fake provider
 4. Send "hello": the reply comes, the
    notice goes, no "!", no beacon, no
    count. Readable as written?
-5. NEW: send "lost" (the fake drops
-   it). After 15 s: "Your message
-   hasn't reached the session. Check
-   its terminal, then send it
-   again." and "lost" back in the
-   box. Readable?
-6. Send "hello": it arrives, the
+5. Send "lost" (the fake drops it).
+   After 15 s: "Your message hasn't
+   reached the session. Check its
+   terminal, then send it again."
+   and "lost" back in the box.
+   Readable?
+6. NEW: Esc, Tab > New session... >
+   another folder. Open its chat:
+   the box is empty, no warning.
+   Type "draft", Esc.
+7. NEW: Tab > the first session.
+   Open its chat: "lost" back in the
+   box, the warning still there.
+8. Send "hello": it arrives, the
    warning goes.
 
 Part B: real claude, bad API key
@@ -33,13 +40,13 @@ Part B: real claude, bad API key
   (Close the game after; a new
   PowerShell window drops the key.)
 
-7. Start a session (say Yes if the
+9. Start a session (say Yes if the
    terminal asks about the key).
-8. Send "hi" from the world: after
+10. Send "hi" from the world: after
    15 s, the "hasn't reached the
    session" line, text back in the
    box?
-9. Type "hi" in the terminal: the
+11. Type "hi" in the terminal: the
    notice, the status, the "!" and
    beacon, as before? /exit.
 
