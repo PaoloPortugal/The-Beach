@@ -1,28 +1,56 @@
-LIVE CHECK: quit warning scrolls (S05)
+LIVE CHECK: bridges (W06)
+Part A: layout demo, no sidecar
+  godot --path . res://tests/world/layout_demo.tscn -- --checklist
+
+1. Press B: the view from above. 16
+   clusters in slices around the
+   platform, each joined by bridges,
+   one bridge from the platform to
+   each. Zoom out (wheel) for the far
+   islands, 2 km+ out, no bridges (4
+   clusters, 3 of the big one's).
+   Layout ok?
+2. Press B again. Walk off the
+   platform onto a bridge and across
+   to an island. Ramps ok? Rails look
+   ok? Try to run or jump off the
+   side: you can't.
+3. Minimap, top left: the cluster you
+   walk into, your arrow turning with
+   you, north up. Tab hides it while
+   the menu is open.
+4. M: the big map, on you. Drag,
+   WASD/arrows, wheel zoom; zoom out
+   to all 20 clusters' names. Zoom in:
+   titles and states under islands.
+   Click a far island: you're there.
+   M, then Esc: closes, mouse captured.
+5. Tab > Running: go to an island of
+   a cluster far out (repo-17..20):
+   no bridges there (teleport only).
+5b. S05 with many sessions: close the
+   window (64 sessions running): the
+   quit warning's list scrolls, Quit
+   and Back to the game on screen?
+   Back to the game.
+
+Part B: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
+6. Tab > New session... > any folder,
+   then again in the same folder. Once
+   each island is up, a bridge appears:
+   platform > first island > second.
+7. Chat (E) by an orchestrator: the
+   minimap hides, and comes back.
 
-1. Tab > New session... > any folder.
-   Do it 4 or 5 times (same folder is
-   fine).
-2. Make the game window short (drag its
-   bottom edge up to about 300 px).
-3. Close the window (X or Alt+F4).
-   The warning shows the count, the
-   list, the /exit hint, and Quit and
-   Back to the game, all on screen?
-   The list scrolls (wheel or bar)?
-4. With the warning open, resize the
-   window taller and shorter: it
-   refits, buttons always visible?
-5. Back to the game (and Esc): mouse
-   and controls back as before?
-6. Make the window big again, close
-   it: with few sessions, no scroll
-   bar, looks as before?
-7. Quit: the game closes.
-
-Optional, on branch w06-bridges with
-this merged in: the layout demo's 64
-sessions,
-  godot --path . res://tests/world/layout_demo.tscn
-then close the window: Quit reachable?
+Part C: real claude
+  godot --path . -- --checklist
+8. Start two sessions in the same
+   folder. On the bridge between their
+   islands, walk to the end at the
+   FIRST island's beach and /exit the
+   second in its terminal: its island
+   stays while you're on its bridge.
+   Step onto the first island: the
+   second sinks, its bridge goes, the
+   first keeps its bridges.

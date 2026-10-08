@@ -84,7 +84,7 @@ v1 slice.
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
-| W06 | Bridges (region connection)               | planned | n/a           | n/a       |
+| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
@@ -415,7 +415,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -641,16 +641,14 @@ The water level is y = 0.
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
 
-**Islands for sessions** (user's direction, 2026-09-30; the placement
-and teleport are temporary, until bridges and travel are designed).
+**Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
 each live session gets a new random island with an orchestrator (A01)
 bound to it; when the session ends, the orchestrator and agents go and
 the island sinks (W04). An island only comes once its session is up
 (`session.snapshot` or `session.created`), never while it is still
-starting. Islands are placed by cluster (W05): each
-cluster has a spot on rings around the spawn platform and its islands sit
-close together around it. A session you started or resumed
+starting. Islands are placed by cluster (W05), each cluster in its own
+wedge from the spawn platform, joined by bridges (W06). A session you started or resumed
 from the sessions menu (S03, S04) takes you to its island once it has
 risen, 6 m in front of the orchestrator (`world.gd` → `teleport`), and
 so does choosing a running one there (W07); sessions already running
@@ -699,7 +697,7 @@ the camera at 1.6 m (FOV 80). No body is drawn.
 - *Falling in the sea.* The player can wade into the shallows; with the
   feet 1.2 m under the water it's put back at the spawn point, on the
   spawn platform. A placeholder until swimming (W08); for now it is also
-  the way back from an island to the platform.
+  a way back from an island to the platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
 platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
@@ -725,8 +723,8 @@ session makes its island sink, and the island is then removed.
   just there, no rise. Whether they rise too is decided with attaching to
   running sessions (Open questions → 5), not before.
 - **Ending:** the orchestrator and its agents go at once; the empty
-  island stays while you're on it, then sinks. Its bridges (W06) are to
-  count as "on it", to polish then.
+  island stays while you're on it, then sinks. Its bridges count as "on
+  it" (built with W06).
 - **Motion only** for now: no splash, foam or sound.
 - **Finding a new island** (after trying it: the rise was easy to miss,
   and there is to be an option to turn off being taken there): a
@@ -747,9 +745,9 @@ session makes its island sink, and the island is then removed.
   freed (the chat forgets the orchestrator as it leaves the tree) and the
   island moves to the left islands (`left_islands`). Each frame, one the
   player isn't over (within twice its shoreline radius, as in
-  `session_at`) sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
-  is freed. You leave by falling in the sea (back to the platform) or by
-  going to another session. A session ending mid-rise sinks from where
+  `session_at`), nor on one of its bridges (W06), sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
+  is freed. You leave by falling in the sea (back to the platform), by
+  going to another session, or over a bridge (W06). A session ending mid-rise sinks from where
   it got to (nobody can be on it yet). A sinking island can't be stood on
   again: there's no way back to it.
 - *Its spot.* `SessionClusters.hold` takes the ended session out of its
@@ -803,6 +801,7 @@ and sessions in the same repository are grouped automatically.
   until its last island has sunk.)
 - **Layout until bridges (W06):** each cluster takes a spot on rings
   around the spawn platform; its islands sit close together around it.
+  *Replaced by W06's wedges (2026-10-07).*
 - The **sidecar** works out the repository and sends it in the protocol
   (`project.repo`); the game doesn't read `.git`.
 - **Shown** by name: a cluster is named after its repository's folder (a
@@ -833,10 +832,8 @@ and sessions in the same repository are grouped automatically.
   island has sunk (W04). The choice reaches it through
   `SessionLauncher.create` / `resume`, which call `clusters.choose` with
   the session id when the reply comes (before `session.created`).
-- *Layout* (my picks): cluster spots on rings around the platform, 360 m
-  apart, six per ring, each ring turned half a step; islands of a cluster
-  100 m apart, the first in its middle, then rings of 6, 12, 18 at 100,
-  200, 300 m. An island's land reaches about 40 m from its centre, its sea
+- *Layout:* since W06, clusters in wedges from the platform (see W06).
+  An island's land reaches at most about 44 m from its centre, its sea
   floor about 67 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
 - *Sessions menu* (S03): a "Cluster:" row under the search box with
@@ -846,9 +843,9 @@ and sessions in the same repository are grouped automatically.
   The Running list (W07) shows "▸ <cluster>" headings with their
   sessions under them, and the search also matches cluster names.
 
-*Known limits.* A cluster of more than 7 islands reaches out 200 m and
-more, so it can come close to a neighbouring cluster's (spots 360 m
-apart); bridges and the real layout come with W06. Nothing in the world shows a cluster's name yet.
+*Known limits.* Nothing in the world shows a cluster's name yet. (The
+rings' limit, a big cluster reaching its neighbours, went with W06's
+wedges.)
 
 *Live check passed (2026-10-02)* with the user and the real `claude`: a
 repository and its worktree in one cluster, close together; a folder
@@ -858,11 +855,160 @@ cluster name; the selector back to Automatic on opening; a cluster gone
 with its last session, and a new one taking a free spot.
 
 ### W06 Bridges
-*Planned.* Walkable bridges connect islands within a cluster, for
-physical movement and the feel of the world. Build it as a general
-"connect regions" system, not beach-specific, so that future biomes (W10:
-forests, mountains, at different heights) plug into it. A minimap for travel on foot is decided here,
-with the real layout (user's, 2026-10-02; W07).
+*Built (2026-10-07); the bridges' look and the maps are placeholders.
+Scope: core (world only).* Walkable bridges connect islands within a
+cluster, and each cluster to the spawn platform, for physical movement
+and the feel of the world. Built as a general "connect regions" system,
+not beach-specific, so that future biomes (W10: forests, mountains, at
+different heights) plug into it. With it, a minimap for travel on foot
+and the real layout (user's, 2026-10-02; W07).
+
+*Decided (user's, 2026-10-07):*
+- **Which islands:** one path, a tree: just enough bridges to connect a
+  cluster, each new island to its nearest one (rejected: every pair of
+  neighbouring spots plus links to keep it whole; a star to the middle
+  island).
+- **Re-linking** when a sinking island cuts the tree: patch the gap.
+  Every bridge still standing stays; only the shortest new bridges that
+  join the cut pieces appear, so nothing moves under you (rejected:
+  rebuilding the whole tree each time; an empty hub left where the island
+  was).
+- **Look:** made in code, like the islands: low-poly wooden planks on
+  posts, generated to any length and slope (so W10's different heights
+  work later). A placeholder that art can replace.
+- **Coming and going:** for now bridges just appear once an island is up
+  and vanish when one starts sinking; how they show up and leave is
+  designed later (rejected for now: rising after the island and sinking
+  first; tilting with the island).
+- **Rails** you can't walk through, so you don't fall in the sea.
+- **Minimap now:** a small map of the cluster (islands, bridges, you).
+  Placeholder UI, like all UI. A square in the top left (the top right
+  has A05's count), north-up, fitted to the cluster you're in or nearest
+  to, with you as an arrow; always on (rejected: the
+  whole world, where islands become dots; a radar turning with you).
+  *Changed after trying it (user's, 2026-10-07):* M no longer toggles
+  it; it stays on, and M opens the big map instead.
+- **Big map** (user's feedback, 2026-10-07: "a big map view where you can
+  see the world, not necessarily all of it at once", with a way to scroll
+  through it). M opens it, M or Esc closes it. It fills the window and
+  opens centred on you, fitted to your cluster; drag with the mouse or
+  use WASD or the arrow keys to move it, the mouse wheel zooms (toward
+  the pointer). It shows the whole world: islands (far ones too),
+  bridges, the platform, you, each cluster's name, and, zoomed in
+  enough, each island's session title and state. Clicking a session's
+  island takes you there, like the sessions menu's Running list (W07).
+  While it's open you don't move and the mouse is free, but the world
+  doesn't pause, so the map stays live (rejected: the small map with its
+  own toggle key, or no small map; keyboard-only moving; opening zoomed
+  out to the whole world; outlines of the wedges; a view-only map;
+  pausing the world). Placeholder UI, like all UI.
+- **A bridge from the spawn platform** out to each cluster. The platform
+  is part of each cluster's tree, so its bridge goes to the cluster's
+  first island (the nearest when it comes) and re-links like any other.
+- **Layout: clusters in wedges** (the user's idea, replacing W05's rings
+  360 m out): each cluster owns a 45° wedge from the platform; its first
+  island is the wedge's spot nearest the platform, later ones fill spots
+  inside the wedge, nearest first, so a cluster grows outward and never
+  into a neighbour. 8 inner wedges, each up to 10 islands (out to about
+  520 m), then 8 outer ones centred on the corridors between them,
+  starting further out and growing without limit: 16 clusters, every
+  bridge straight. Past that (a 17th cluster at once, or an inner
+  cluster's 11th island) the island goes to a far spot with no bridge,
+  reached by teleport only: a known limit (rejected: 24 with bridges
+  that bend at junction decks; 8 inner wedges only).
+- **A demo** (user's request): a dev scene filling the world with 64
+  fake sessions in many clusters, to see how it all looks.
+- An empty island (W04) counts as "on it" while you're on one of its
+  bridges.
+
+**How it works** (sizes and timings my picks).
+- *Layout* (`SessionClusters`, `world/session_clusters.gd`). A cluster's
+  spot (`slot`) is its wedge: slots 0-7 the inner wedges (slot 0 along
+  +x), 8-15 the outer ones, turned half a wedge. Island spots in a wedge
+  are worked out once (`_wedge_spots`, the same for every wedge, turned):
+  scanning outward in rows 2 m apart, then from the middle sideways, each
+  spot is the first point at least 100 m (`ISLAND_SPACING`) from the
+  earlier ones and 50 m (`EDGE_MARGIN`) inside the wedge's edges, which
+  keeps the land (at most about 44 m) and a bridge along a corridor clear.
+  An inner wedge's first island is 133 m out and its tenth (the last,
+  `INNER_ISLANDS`) about 520 m; an outer wedge starts at 650 m
+  (`OUTER_START`). `spot(slot, index)` gives a spot; an island takes its
+  cluster's lowest free index, as before. Islands the wedges have no room
+  for get far spots (`far_spot`: rings from 2000 m, 200 m apart, the
+  lowest free number), with no bridges (`is_bridged`; held islands keep
+  theirs).
+- *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
+  from one point to another, each the deck's top at that end. The deck is
+  2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand, or
+  up to the platform's edge); away from its ends it stays 1.2 m above the water
+  (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
+  higher than that are joined straight (`deck_height`). Planks 0.45 m
+  across with gaps, a little jitter in height, width and shade; posts at
+  most 4 m apart on both sides, from the sea floor to rails 1 m up, with
+  a mid rail. The rails start 1 m from each end. Collision: the deck as
+  one strip, and on both sides a wall 2.2 m high (higher than a jump) so
+  you can't run or jump off. Flat-shaded, vertex colours like the islands.
+- *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
+  under `SessionIslands`): regions are keys with a centre, a reach and an
+  edge (a Callable giving where a bridge heading for a point meets the
+  region), in groups (clusters). Hubs (the platform, `add_hub`) are in
+  every group's tree. `add` bridges a new region to its group's nearest
+  one, preferring a line that keeps clear of every other region's reach
+  (`is_clear`); `remove` frees its bridges and, while the group is in
+  pieces, adds the shortest clear bridge between two pieces.
+- *Islands* (`SessionIslands`): an island joins its cluster's tree once
+  it has risen (at once for a snapshot), unless it's in a far spot
+  (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
+  times the generator's radius; a bridge meets it at the outermost point
+  0.5 m above the water (`BRIDGE_END_HEIGHT`) on the line from its middle
+  toward the other end. An empty island doesn't sink while you're on one
+  of its bridges (`on_bridge_of`, from `Bridge.carries`).
+- *The platform* (`world.gd`): the hub `platform`, reach 8.5 m; a bridge
+  leaves from the deck's edge toward its island (`platform_edge`).
+- *Minimap* (`Minimap`, `world/minimap.gd`, a `CanvasLayer` made by
+  `world.gd`): a 200 px square (at most a third of the window's smaller
+  side), 16 px from the top left (lower under the live checklist), north-up.
+  It shows the cluster of the island nearest you
+  (`SessionIslands.nearest_cluster`): its islands in their wedges (empty
+  ones greyed), its bridges, the platform when in view and you as a white
+  arrow, fitted to them and you with 30 m of sea around. Near an island
+  in a far spot it shows just that one. It hides while the chat, the
+  sessions menu or the big map is open, or with no islands.
+- *Big map* (`WorldMap`, `world/world_map.gd`, a `CanvasLayer` made by
+  `world.gd`, over the rest of the UI; sizes my picks). M (action
+  `minimap`, a physical key) opens it while the controls are yours (not
+  chatting, in the sessions menu or asked about quitting), turning the
+  player's controls off and freeing the mouse; M or Esc closes it and
+  gives them back. It fills the window, 24 px in from its edges, drawn
+  like the minimap (sea, islands, empty ones grey, bridges, the platform,
+  you as an arrow). It opens centred on you, at the scale that fits the
+  cluster the minimap shows (with 30 m of sea around), or 1 px a metre
+  with no islands. Zoom: the wheel, 1.25 times a notch, keeping the point
+  under the pointer still, from 4 px a metre out until every island
+  fits, and at least to 0.5 px a metre. Moving: dragging with the
+  left button, or WASD and the arrow keys at half the map's width a
+  second. Each cluster's name sits over the middle of its islands; from
+  1 px a metre, each live session's island has "title · state" under it
+  (the sessions menu's words, with a dot coloured by
+  `SessionStore.activity`). A label that would overlap one already
+  drawn is left out (names first), so zoomed out some names hide.
+  Hovering a live session's island outlines it;
+  a click on it (the button let go within 6 px of where it went down, so
+  not a drag) closes the map and teleports you there (`world.gd` →
+  `teleport`). An ended session's island isn't clickable.
+- *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
+  made-up sessions in 20 clusters (one of 13 islands, four past 16), the
+  sidecar stopped so nothing real shows. B switches to a view from above
+  with the fog off (mouse wheel zooms). `godot --path .
+  res://tests/world/layout_demo.tscn`. `tests/world/bridges_test.gd`
+  checks the same scene: every island in a wedge joined to the platform,
+  no bridge over another island's land or across another bridge, before
+  and after islands in the middle of trees sink.
+
+*Known limits.* At most 16 clusters, and 10 islands in an inner cluster,
+have bridges; the rest are in far spots, reached by teleport only. The
+ocean plane is 800 m wide around the camera, so the demo's view from
+above shows its edge.
 
 ### W07 Teleport menu
 *Built (2026-10-02), inside the sessions menu (S03); the UI is a
@@ -892,6 +1038,7 @@ chatting.
   hands it on with the request. It also orders a snapshot's requests,
   which before couldn't tell a permission's age from a question's (C05).
 - **Minimap:** not now; revisit with bridges and the real layout (W06).
+  *Built with W06 (2026-10-07).*
 - **A real design** for the menu comes with the UI pass, like all UI.
 
 ### W08 Swimming and seabed
@@ -2393,8 +2540,12 @@ godot --headless --path . --script res://tests/core/session_store_test.gd -- --s
 godot --headless --path . --script res://tests/world/world_test.gd
 godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/clusters_test.gd
+godot --headless --path . --script res://tests/world/bridges_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
+
+The layout demo (W06), 64 made-up sessions with no sidecar:
+`godot --path . res://tests/world/layout_demo.tscn`.
 
 **Any error fails a suite** (user's choice, 2026-10-03; dev log
 2026-10-03-script-errors-fail-tests). A GDScript runtime error
@@ -2559,7 +2710,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    sessions menu (Tab), which lists running sessions to jump to (W07's
    basic version). Running sessions are grouped by cluster (W05).
    *Answered (user's, 2026-10-02):* a fixed order with no pinning, and
-   the minimap waits for W06 (W07).
+   the minimap waits for W06 (W07). *Built with W06 (2026-10-07):* a
+   minimap of the cluster you're in, and a big map of the whole world (M)
+   whose islands you can click to go to.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -2612,8 +2765,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W06 bridges (user's order, 2026-10-07: W04, then
-W06).
+**Current focus:** the performance pass on `perf-pass`, waiting for the
+user's live check and review (dev log 2026-10-08-perf-pass).
+**Merged to `main` (2026-10-08), reviewed by the user: W06 bridges**
+(dev log 2026-10-07-w06-bridges): clusters in wedges from the platform,
+bridges joining each cluster and the platform as a tree, a minimap and
+a big map (M); live check passed with the layout demo, the fake and the
+real `claude`.
 **Merged to `main` (2026-10-08), reviewed by the user: the quit
 warning's list scrolls** (S05, dev log 2026-10-07-s05-quit-scroll): with
 many sessions the Quit button went off screen.
@@ -2851,7 +3009,7 @@ exists.
     clicked. This is the route to "unlimited" agents.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
-- **Other biomes:** hills, mountains, joined by the same bridge system (W06).
+- **Other biomes:** now a planned feature, W10.
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
 - **Commands from the world** (probably a capability). Skills and custom
