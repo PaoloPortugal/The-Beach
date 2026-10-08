@@ -17,6 +17,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_by_hand()
+	_usage_by_hand()
+	_usage_text()
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live()
 	if not _failed and _errors.ok():
@@ -198,6 +200,98 @@ func _by_hand() -> void:
 	_check(store.sessions.is_empty(), "events for unknown sessions are ignored")
 
 
+func _usage(turn_message, turn_tokens: int, limits := {}, context = null) -> Dictionary:
+	return {
+		"tokens": {"input": 40, "output": 1200, "cache_read": 52000, "cache_write": 9000},
+		"context": context, "turn": {"message": turn_message, "output_tokens": turn_tokens}, "limits": limits,
+	}
+
+
+# Token usage (C08): the session's figures, each turn's tokens on its user
+# message, and the plan's limits across sessions.
+func _usage_by_hand() -> void:
+	var store := SessionStore.new()
+	var changed := []
+	store.usage_changed.connect(func(id: String) -> void: changed.append(id))
+	var snap := _snapshot("u")
+	snap["capabilities"] = {"usage": {}}
+	snap["usage"] = null
+	store.apply({"type": "session.snapshot", "session": snap})
+	_check(store.session("u")["usage"] == null and changed.is_empty(), "usage: null until the first count")
+	store.load_history("u", [
+		{"message": "h1", "agent": "main", "role": "user", "text": "hi", "at": "2026-10-08T09:00:00Z", "turn_tokens": 1840},
+		{"message": "h2", "agent": "main", "role": "assistant", "text": "Hello", "at": "2026-10-08T09:00:01Z"},
+	])
+	_check(store.messages("u")[0]["turn_tokens"] == 1840 and not store.messages("u")[1].has("turn_tokens"), "usage: the history's turn tokens")
+	store.apply({"type": "message.started", "session": "u", "seq": 2, "message": "m1", "agent": "main", "role": "user"})
+	store.apply({"type": "message.completed", "session": "u", "seq": 3, "message": "m1", "text": "go"})
+	store.apply({"type": "usage.updated", "session": "u", "seq": 4, "usage": _usage("m1", 0)})
+	store.apply({"type": "usage.updated", "session": "u", "seq": 5, "usage": _usage("m1", 350)})
+	_check(changed == ["u", "u"] and store.session("u")["usage"]["turn"]["output_tokens"] == 350, "usage: usage.updated replaces the figures")
+	_check(store.messages("u")[2]["turn_tokens"] == 350 and store.messages("u")[0]["turn_tokens"] == 1840, "usage: the turn going on counts on its user message")
+	store.apply({"type": "message.started", "session": "u", "seq": 6, "message": "a1", "agent": "main", "role": "assistant"})
+	store.apply({"type": "usage.updated", "session": "u", "seq": 7, "usage": _usage("a1", 99)})
+	_check(not store.messages("u")[3].has("turn_tokens"), "usage: turn tokens only ever go on a user message")
+	var gap := snap.duplicate(true)
+	gap["seq"] = 9
+	gap["usage"] = _usage("m1", 900)
+	store.apply({"type": "session.snapshot", "session": gap})
+	_check(changed.size() == 4 and store.messages("u")[2]["turn_tokens"] == 900, "usage: a resync with new figures says so")
+	store.apply({"type": "session.snapshot", "session": gap})
+	_check(changed.size() == 4, "usage: the same figures again aren't news")
+
+	# The plan's limits: per limit, the latest window, and in one window
+	# the highest use; a window that's over is left out.
+	var now := SessionStore.unix_time("2026-10-08T12:00:00Z")
+	_check(now == 1791460800.0 and SessionStore.unix_time("2026-10-08T12:00:00.000Z") == now and SessionStore.unix_time(null) == 0.0, "usage: timestamps read as UTC")
+	var lim := func(used: float, at: String) -> Dictionary: return {"used_percent": used, "resets_at": at}
+	store.apply({"type": "usage.updated", "session": "u", "seq": 10, "usage": _usage("m1", 900,
+		{"five_hour": lim.call(70, "2026-10-08T14:00:00.000Z"), "seven_day": lim.call(94, "2026-10-10T09:00:00.000Z")})})
+	var other := _snapshot("v")
+	other["capabilities"] = {"usage": {}}
+	other["usage"] = _usage(null, 0, {"five_hour": lim.call(75, "2026-10-08T14:00:00.000Z"), "seven_day": lim.call(90, "2026-10-10T09:00:00.000Z")})
+	store.apply({"type": "session.snapshot", "session": other})
+	var limits := store.usage_limits(now)
+	_check(limits["five_hour"]["used_percent"] == 75 and limits["seven_day"]["used_percent"] == 94, "usage: the same window: the highest use, across sessions")
+	store.apply({"type": "usage.updated", "session": "u", "seq": 11, "usage": _usage("m1", 900,
+		{"five_hour": lim.call(3, "2026-10-08T19:00:00.000Z")})})
+	limits = store.usage_limits(now)
+	_check(limits["five_hour"]["used_percent"] == 3 and limits["seven_day"]["used_percent"] == 90, "usage: a later window wins; an absent limit leaves the other session's")
+	limits = store.usage_limits(SessionStore.unix_time("2026-10-08T20:00:00Z"))
+	_check(limits.size() == 1 and limits["seven_day"]["used_percent"] == 90, "usage: a limit past its reset is left out")
+	_check(store.usage_limits(SessionStore.unix_time("2026-10-11T00:00:00Z")).is_empty(), "usage: none once every window is over")
+
+
+func _usage_text() -> void:
+	var cases := {0: "0", 950: "950", 999: "999", 1000: "1k", 1234: "1.2k", 9949: "9.9k", 9950: "10k",
+		34400: "34k", 999499: "999k", 999500: "1M", 1100000: "1.1M", 9949999: "9.9M", 9950000: "10M", 12400000: "12M"}
+	var wrong := []
+	for n in cases:
+		if UsageText.tokens(n) != cases[n]:
+			wrong.append("%d → %s" % [n, UsageText.tokens(n)])
+	_check(wrong.is_empty(), "usage text: compact counts %s" % [wrong])
+	_check(UsageText.exact(1234567) == "1,234,567" and UsageText.exact(12) == "12", "usage text: exact counts")
+	var u := _usage("m1", 1234, {}, {"tokens": 62200, "percent": 31.4, "window": 200000})
+	_check(UsageText.header(u) == "Context 31% · ↑ 61k in · ↓ 1.2k out", "usage text: the header with a context %%: %s" % UsageText.header(u))
+	u["context"] = {"tokens": 62200, "percent": null, "window": null}
+	_check(UsageText.header(u) == "Context 62k · ↑ 61k in · ↓ 1.2k out", "usage text: without the status line, context in tokens")
+	u["context"] = null
+	_check(UsageText.header(u) == "↑ 61k in · ↓ 1.2k out" and UsageText.header(null) == "", "usage text: no context yet; no usage")
+	_check(UsageText.header_details(u) == "Input: 40
+Cache reads: 52,000
+Cache writes: 9,000
+Output: 1,200", "usage text: the exact figures")
+	_check(UsageText.turn(1234) == "↓ 1.2k tokens", "usage text: a turn's hint")
+	# Times read in local time: build them from local noon today.
+	var bias := float(Time.get_time_zone_from_system()["bias"]) * 60.0
+	var t := Time.get_datetime_dict_from_unix_time(int(Time.get_unix_time_from_system() + bias))
+	var noon := Time.get_unix_time_from_datetime_dict({"year": t["year"], "month": t["month"], "day": t["day"], "hour": 12, "minute": 0, "second": 0}) - bias
+	_check(UsageText.when(noon + 3.0 * 3600 + 40 * 60, noon) == "3:40 PM" and UsageText.when(noon - 12 * 3600 + 5 * 60, noon - 12 * 3600) == "12:05 AM", "usage text: a time today")
+	var day: String = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(int(t["weekday"]) + 2) % 7]
+	_check(UsageText.when(noon + 2 * 86400 - 3 * 3600, noon) == "%s 9:00 AM" % day, "usage text: a day this week")
+	_check(UsageText.limit("5-hour", 74.4, noon + 3600, noon) == "5-hour 74% · resets 1:00 PM", "usage text: a limit")
+
+
 func _live() -> void:
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	var store := SessionStore.new()
@@ -246,6 +340,28 @@ func _live() -> void:
 	_check(agent_calls.size() == 2 and agent_calls.all(func(c: Dictionary) -> bool: return tree["within"].get(c["tool_call"], []).size() == 3), "live: each subagent's calls within its Agent call")
 	var last_turn: Array = tree["after"].get(store.messages(id)[-2]["message"], [])
 	_check(last_turn.size() == 3 and store.session(id)["tools"][last_turn[2]]["status"] == "error", "live: the tools turn's calls after its message, one failed")
+
+	# Token usage (C08): the fake counts every reply and tool call as an
+	# API call; "usage" plays a heavy turn.
+	_check(store.session(id)["capabilities"].has("usage") and store.session(id)["usage"] is Dictionary, "live: usage counted")
+	await _command(sidecar, "message.send", {"session": id, "text": "usage"})
+	await _until(func() -> bool: return store.messages(id).back()["text"].begins_with("Done. The context") and store.agent(id, "main")["state"] == "idle", 10.0)
+	var usage: Dictionary = store.session(id)["usage"]
+	var asked: Dictionary = store.messages(id).filter(func(m: Dictionary) -> bool: return m["role"] == "user").back()
+	_check(usage["context"]["percent"] >= 80 and usage["context"]["window"] == 200000, "live: the heavy turn fills the context")
+	_check(store.usage_limits(Time.get_unix_time_from_system())["five_hour"]["used_percent"] >= 85, "live: and the 5-hour limit")
+	_check(usage["turn"]["message"] == asked["message"] and asked["turn_tokens"] == usage["turn"]["output_tokens"] and asked["turn_tokens"] >= 4 * 2500, "live: the turn's tokens are on its message")
+	history = await _command(sidecar, "session.get_history", {"session": id})
+	# A turn with no tokens may have 0 here and none there: neither shows.
+	var turns := func(list: Array) -> Array:
+		return list.filter(func(m: Dictionary) -> bool: return m.get("turn_tokens", 0) > 0) \
+			.map(func(m: Dictionary) -> Array: return [m["message"], int(m["turn_tokens"])])
+	_check(turns.call(history["result"]["messages"]) == turns.call(store.messages(id)), "live: the history agrees")
+	await _command(sidecar, "message.send", {"session": id, "text": "clear"})
+	await _until(func() -> bool: return store.session(id)["usage"]["turn"]["message"] == null, 5.0)
+	usage = store.session(id)["usage"]
+	_check(usage["tokens"]["output"] == 0 and usage["context"] == null and usage["limits"].has("five_hour"), "live: /clear starts the counts over, keeping the limits")
+
 	await _command(sidecar, "session.end", {"session": id})
 	await _until(func() -> bool: return not store.sessions.has(id), 5.0)
 	_check(not store.sessions.has(id), "live: ended")

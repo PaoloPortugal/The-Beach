@@ -12,6 +12,9 @@ const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
 test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
+  // The sidecar drops (and logs) an event that fails the schema.
+  let errors = ''
+  child.stderr.setEncoding('utf8').on('data', (d: string) => { errors += d })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
       let buf = ''
@@ -155,6 +158,7 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     assert.equal(((await c.next('session.snapshot', 3000)).session as any).usage.tokens.output, 1840, 'its usage so far')
     assert.deepEqual((await list()).map((s) => s.native_id), ['stored-1', 'stored-3'])
     assert.deepEqual(c.invalid, [])
+    assert.doesNotMatch(errors, /dropped/)
     await c.close()
   } finally { child.kill() }
 })

@@ -6,6 +6,7 @@ extends Node3D
 ## run asks first (S05). Sessions waiting on you draw attention (A05).
 ## Bridges join each cluster's islands and the platform, a minimap
 ## shows the cluster you're in, and M opens a map of the world (W06).
+## The plan's usage limits are in the bottom-right corner (C08).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -19,6 +20,8 @@ var pointers := NewIslandPointers.new()
 var minimap := Minimap.new()
 ## The big map of the whole world, M (W06).
 var world_map := WorldMap.new()
+## The plan's usage limits, bottom right (C08).
+var usage_limits := UsageLimits.new()
 
 ## The spawn platform's deck: half its width and its top (world.tscn).
 const PLATFORM_HALF := 6.0
@@ -57,6 +60,8 @@ func _ready() -> void:
 	quit_guard.setup(store, _player)
 	add_child(attention)
 	attention.setup(store)
+	add_child(usage_limits)
+	usage_limits.setup(store)
 	add_child(pointers)
 	pointers.setup(_islands, store)
 	add_child(minimap)
