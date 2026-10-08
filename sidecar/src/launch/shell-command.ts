@@ -6,6 +6,7 @@
 // shell the CLI may use; when a path can't be made safe, there is no
 // command (null) and the caller goes without. Replaced by an argument list
 // as soon as the CLI offers one (NOTES.md -> Watch items).
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -55,15 +56,46 @@ export function shortNameGuesses(name: string): string[] {
   return [...out]
 }
 
+/** Asks Windows for a path's short form; null if it can't say. */
+export type AskShort = (p: string) => string | null
+
+/** Windows' answers, per path: asked at most once per run. */
+const asked = new Map<string, string | null>()
+
+/**
+ * Windows' own short form of an existing path (GetShortPathName, through
+ * the Scripting.FileSystemObject in PowerShell), for the names it hashes
+ * (`AB2761~1`), which can't be guessed. A fixed script in an argument
+ * array; the path goes in an environment variable, never on a command
+ * line. Only the answer's file identity is trusted (shortPath checks it).
+ */
+const askWindows: AskShort = (p) => {
+  if (asked.has(p)) return asked.get(p)!
+  const script = '$f = New-Object -ComObject Scripting.FileSystemObject; $p = $env:SIDECAR_SHORT_PATH; ' +
+    'if ($f.FileExists($p)) { [Console]::Out.Write($f.GetFile($p).ShortPath) } ' +
+    'elseif ($f.FolderExists($p)) { [Console]::Out.Write($f.GetFolder($p).ShortPath) }'
+  let answer: string | null = null
+  try {
+    const r = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
+      env: { ...process.env, SIDECAR_SHORT_PATH: p }, encoding: 'utf8', shell: false, timeout: 10_000, windowsHide: true,
+    })
+    if (r.status === 0 && r.stdout) answer = r.stdout.trim()
+  } catch { /* no PowerShell: no answer */ }
+  asked.set(p, answer)
+  return answer
+}
+
 /**
  * A Windows path whose every component is safe for WINDOWS_WORD, using
- * the 8.3 short name of any component that isn't, or null. No process is
- * started: each guess (shortNameGuesses) is accepted only if it names the
- * very same file (volume and file index), so a wrong guess can't point
- * elsewhere. Null when the volume makes no short names, or the name is
- * one Windows hashes (a fifth `PROGRA~` and on).
+ * the 8.3 short name of any component that isn't, or null. First without
+ * starting a process: each guess (shortNameGuesses) is accepted only if it
+ * names the very same file (volume and file index), so a wrong guess
+ * can't point elsewhere. Failing that (a name Windows hashes), Windows
+ * itself is asked (askWindows), and its answer is checked the same way.
+ * Null when the volume makes no short names, or a short name still isn't
+ * safe (`$(NEW-~1`).
  */
-export function shortPath(p: string, id: Identify = identify): string | null {
+export function shortPath(p: string, id: Identify = identify, ask: AskShort = askWindows): string | null {
   const full = path.win32.resolve(p)
   const root = path.win32.parse(full).root
   if (!/^[A-Za-z]:\\$/.test(root)) return null // UNC and device paths: no
@@ -80,11 +112,28 @@ export function shortPath(p: string, id: Identify = identify): string | null {
     const want = id(nextLong)
     if (want === null) return null
     const found = shortNameGuesses(part).find((g) => SAFE_COMPONENT.test(g) && id(path.win32.join(short, g)) === want)
-    if (!found) return null
+    if (found) {
+      short = path.win32.join(short, found)
+    } else {
+      // Asked for this folder (or file), not the whole path: a session's
+      // own folder is new each time, the folders above it aren't.
+      const theirs = windowsShort(ask, nextLong, root)
+      if (theirs === null || id(theirs) !== want) return null
+      short = theirs
+    }
     long = nextLong
-    short = path.win32.join(short, found)
   }
   return short
+}
+
+/** Windows' short form of `p`, if it's on the same drive and every component is safe. */
+function windowsShort(ask: AskShort, p: string, root: string): string | null {
+  const answer = ask(p)
+  if (answer === null || !path.win32.isAbsolute(answer)) return null
+  const theirs = path.win32.resolve(answer)
+  const rest = theirs.slice(root.length).split('\\').filter(Boolean)
+  if (path.win32.parse(theirs).root.toUpperCase() !== root.toUpperCase() || !rest.every((c) => SAFE_COMPONENT.test(c))) return null
+  return root + rest.join('\\')
 }
 
 /** POSIX single quotes. Refused: a quote or backslash (fish reads those inside quotes) and control characters. */
