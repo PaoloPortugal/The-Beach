@@ -412,6 +412,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(1)
 	shown = panel.get_node("Layout/Notices").text
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
+	await _sign_in(world, panel)
 	await _attention(world)
 	var on_island := player.global_position
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
@@ -521,6 +522,45 @@ func _tool_log(store: SessionStore, panel: ChatPanel) -> void:
 
 
 # A05: h1's orchestrator waits on a permission; h2's comes and goes.
+# S06, with h1's chat open: the account can't be used. The provider's notice
+# shows as sent, the status points to the terminal, the orchestrator shows
+# the "!" and A05's cue; a sign-in or a call going through clears it. Other
+# failures say what stopped the turn. Leaves h1 as it found it.
+func _sign_in(world: Node3D, panel: ChatPanel) -> void:
+	var store: SessionStore = world.store
+	var attention: Attention = world.attention
+	var marker: AgentStateMarker = world.get_node("SessionIslands").orchestrator("h1").get_node("StateMarker")
+	var was: Dictionary = store.agent("h1", "main").duplicate()
+	var state := func(seq: int, to: String, reason: Variant = null) -> void:
+		store.apply({"type": "agent.state_changed", "session": "h1", "seq": seq, "agent": "main", "state": to, "reason": reason})
+	var notices := func() -> String: return panel.get_node("Layout/Notices").text
+	state.call(40, "idle")
+	await _frames(2)
+	var others := attention.waiting_sessions()
+	var message := "Claude Code needs you to sign in again: run /login in its terminal."
+	store.apply({"type": "session.notice", "session": "h1", "seq": 41, "notice": {"code": "sign_in_needed", "message": message}})
+	state.call(42, "waiting", "sign_in")
+	await _frames(2)
+	_check(notices.call().contains(message), "sign-in: the provider's notice shows as it sent it")
+	_check(panel.status_text() == "Waiting for you to sign in, in the terminal.", "sign-in: the status points to the terminal")
+	_check(marker.shown() == "waiting" and marker.beacon_on() and attention.waiting_sessions() == others + 1, "sign-in: the orchestrator shows the \"!\" and the attention cue")
+	store.apply({"type": "session.notice_cleared", "session": "h1", "seq": 43, "code": "sign_in_needed"})
+	state.call(44, "idle")
+	await _frames(2)
+	_check(not notices.call().contains(message) and notices.call().contains("(/clear)"), "sign-in: cleared, only that notice goes")
+	_check(panel.status_text() == "" and not marker.beacon_on() and attention.waiting_sessions() == others, "sign-in: no wait, no cue")
+	store.apply({"type": "session.notice_cleared", "session": "h1", "seq": 45, "code": "sign_in_needed"})
+	_check(notices.call().contains("(/clear)"), "sign-in: clearing a notice that isn't there changes nothing")
+	state.call(46, "error", "rate_limit")
+	_check(panel.status_text().begins_with("Stopped: a usage or rate limit"), "a failed turn says what stopped it")
+	state.call(47, "error", "overloaded")
+	_check(panel.status_text().contains("overloaded"), "and another reason its own")
+	state.call(48, "error", "unknown")
+	_check(panel.status_text() == "Stopped.", "an unknown reason says only Stopped.")
+	state.call(49, was["state"], was.get("reason"))
+	await _frames(2)
+
+
 func _attention(world: Node3D) -> void:
 	var store: SessionStore = world.store
 	var islands: SessionIslands = world.get_node("SessionIslands")
