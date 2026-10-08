@@ -10,8 +10,12 @@ import { connect, type Msg } from './helpers.ts'
 
 const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
-test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
+test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice, sign-in, stop and resume all play out validly, nothing dropped', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
+  // The sidecar warns of every event it drops (registry.ts): the fake must
+  // not send any.
+  let stderr = ''
+  child.stderr.setEncoding('utf8').on('data', (d: string) => { stderr += d })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
       let buf = ''
@@ -113,6 +117,23 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     assert.equal(((await c.next('session.notice', 5000)).notice as any).code, 'transcripts_off')
     await c.next(idle, 5000)
 
+    // S06: the turn fails on the account; the notice stays up through a
+    // second failure and goes when the next message goes through.
+    await say('signin')
+    assert.deepEqual((await c.next('session.notice', 5000)).notice, {
+      code: 'sign_in_needed', message: 'Claude Code needs you to sign in again: run /login in its terminal.',
+    })
+    const signIn = await c.next((m) => m.type === 'agent.state_changed' && m.agent === 'main', 5000)
+    assert.deepEqual([signIn.state, signIn.reason], ['waiting', 'sign_in'])
+    await say('signin again')
+    const again2 = await c.next((m) => m.type === 'session.notice' || (m.type === 'agent.state_changed' && m.agent === 'main' && m.state === 'waiting'), 5000)
+    assert.deepEqual([again2.type, again2.reason], ['agent.state_changed', 'sign_in'], 'the notice that is up stays')
+    await say('hello again')
+    assert.equal((await c.next('session.notice_cleared', 5000)).code, 'sign_in_needed')
+    await c.next(idle, 5000)
+    await c.command({ type: 'session.get_snapshot', session })
+    assert.deepEqual(((await c.next('session.snapshot', 5000)).session as any).notices.map((n: any) => n.code), ['transcripts_off'])
+
     await say('agents 3')
     await c.next('agent.spawned', 5000)
     assert.equal((await c.command({ type: 'interrupt.request', session })).type, 'ok')
@@ -135,5 +156,6 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     assert.deepEqual((await list()).map((s) => s.native_id), ['stored-1', 'stored-3'])
     assert.deepEqual(c.invalid, [])
     await c.close()
+    assert.doesNotMatch(stderr, /dropped/)
   } finally { child.kill() }
 })
