@@ -1,4 +1,20 @@
-LIVE CHECK: bridges (W06)
+LIVE CHECK: perf pass, W06 bridges, S05
+Part P: layout demo, no sidecar
+  godot --path . res://tests/world/layout_demo.tscn -- --checklist
+
+P1. From the platform, look along the
+   bridges: up close every plank; past
+   about 70 m a smooth deck, one rail
+   a side. Walk out and back: does
+   the swap catch your eye? Flicker?
+P2. Look across the sea: islands fade
+   into the haze, no island or bridge
+   popping in or out at the horizon.
+P3. Press B (from above, fog off): far
+   islands and bridges all drawn. B
+   again: back to normal.
+P4. Feels smoother than before?
+
 Part A: layout demo, no sidecar
   godot --path . res://tests/world/layout_demo.tscn -- --checklist
 
@@ -42,6 +58,21 @@ Part B: fake provider
    platform > first island > second.
 7. Chat (E) by an orchestrator: the
    minimap hides, and comes back.
+S05, quit warning scrolls (same run):
+S1. Start 2 or 3 more sessions (5 in
+   all). Make the window short (drag
+   its bottom edge to about 300 px).
+S2. Close it (X or Alt+F4): count,
+   list, /exit hint, Quit and Back to
+   the game all on screen? The list
+   scrolls (wheel or bar)?
+S3. With it open, resize taller and
+   shorter: it refits, buttons always
+   visible?
+S4. Back to the game (and Esc): mouse
+   and controls as before?
+S5. Window big again, close it: no
+   scroll bar, looks as before? Quit.
 
 Part C: real claude
   godot --path . -- --checklist
@@ -54,3 +85,5 @@ Part C: real claude
    Step onto the first island: the
    second sinks, its bridge goes, the
    first keeps its bridges.
+
+Tell Claude what you saw; paste red errors.

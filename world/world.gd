@@ -48,6 +48,7 @@ func _ready() -> void:
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
+	fit_draw_distance()
 	# The platform is in every cluster's bridge tree (W06).
 	_islands.bridges.add_hub("platform", Vector3.ZERO, PLATFORM_HALF * sqrt(2.0), platform_edge)
 	_chat.setup(store, Sidecar)
@@ -93,6 +94,14 @@ func teleport(session_id: String) -> void:
 	_player.global_position = _islands.arrival_point(session_id)
 	_player.velocity = Vector3.ZERO
 	_player.rotation.y = 0.0 # the orchestrator is straight ahead (-z)
+
+
+## Islands, agents and bridges the fog hides fully aren't drawn
+## (SessionIslands.draw_distance): the fog's end is the one source. Call
+## again after turning the fog on or off.
+func fit_draw_distance() -> void:
+	var env: Environment = $WorldEnvironment.environment
+	_islands.draw_distance = env.fog_depth_end if env.fog_enabled else 0.0
 
 
 ## Where a bridge heading for [param toward] leaves the platform: its
