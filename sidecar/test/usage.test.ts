@@ -289,8 +289,12 @@ test('the command string, run by the real shells, reaches us as exactly our thre
   t.diagnostic(`shells: ${shells().map((s) => s.name).join(', ')}`)
   if (process.platform !== 'win32') {
     // POSIX: single quotes keep every one of these whole.
-    const command = runInShells(t, ['a b', 'x;touch PWNED;y', '$(touch PWNED)', '`touch PWNED`', '100% & more', '!hist', 'ça va', '{e}@f#g+h', '~home', '-dash', '*', 'a\tb', '$HOME', '"dq"'])
+    const command = runInShells(t, ['a b', 'x;touch PWNED;y', '$(touch PWNED)', '`touch PWNED`', '100% & more', '!hist', 'ça va', '{e}@f#g+h', '~home', '-dash', '*', '$HOME', '"dq"'])
     assert.ok(command)
+    // A quote, a backslash (fish reads it inside quotes) or a control character: no command at all.
+    for (const bad of ["it's", 'a\\b', 'a\tb']) {
+      assert.equal(runInShells(t, [bad]), null, `no command under ${JSON.stringify(bad)}`)
+    }
     return
   }
   if (!makesShortNames(tmp('probe-'))) {
