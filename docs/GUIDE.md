@@ -133,7 +133,9 @@ sinks back into the sea and is gone. Islands of the same project sit
 together in a cluster (below), and bridges join them to each other and
 to the platform (W06); the sessions menu (Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the
-horizon.
+horizon. To keep the game smooth, islands and bridges lost in the haze
+aren't drawn at all, and the sea floor under the water is plainer than
+the land; you won't see either.
 
 ## Clusters (W05)
 
@@ -170,7 +172,9 @@ island gets a bridge to the nearest one. A bridge appears once its
 island has risen and goes as soon as the island starts sinking. If that
 leaves part of a cluster cut off, a new bridge joins it back on; the
 other bridges stay where they are. The bridges have rails, and you can't
-run or jump off them.
+run or jump off them. Seen from about 70 m away, a bridge is drawn more
+simply, with a smooth deck and one rail a side instead of every plank;
+up close it has all its planks again.
 
 There's room for 16 clusters with bridges, and for 10 islands in each
 of the 8 clusters nearest the platform. Beyond that, an island is put
@@ -230,7 +234,8 @@ session ends while the chat is open, the chat closes.
 thing it said, facing you wherever you stand. It fills in as the reply
 arrives and shows the newest four lines; the full text is in the chat.
 It's part of the world, so it gets smaller as you walk away and hills
-can hide it.
+can hide it. From about 60 m away, where it's too small to read, it
+isn't shown.
 
 **The chat** (E, next to the orchestrator) shows the whole conversation:
 your messages on the right, the orchestrator's on the left, including
