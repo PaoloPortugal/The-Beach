@@ -110,6 +110,9 @@ func _bubble() -> void:
 	_check(viewport.render_target_update_mode == SubViewport.UPDATE_ONCE, "a new text draws it once")
 	await process_frame
 	await process_frame
+	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	bubble.show_text("Hello **there**.")
+	_check(viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED, "the same text again doesn't redraw it")
 	_check(viewport.render_target_update_mode != SubViewport.UPDATE_ALWAYS and bubble.shown_text() == "Hello there.", "and not every frame after (%s)" % bubble.shown_text())
 	bubble.show_text("")
 	_check(viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED and not bubble.visible, "no text: hidden, not drawing")

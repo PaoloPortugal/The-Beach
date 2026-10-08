@@ -19,6 +19,8 @@ var _bbcode := MarkdownBBCode.new()
 var _cut := false
 ## The first line shown.
 var _first_line := 0
+## The text shown, so the same text again isn't redrawn.
+var _shown := ""
 
 @onready var _viewport: SubViewport = $Viewport
 @onready var _panel: PanelContainer = $Viewport/Panel
@@ -54,6 +56,9 @@ func shown_text() -> String:
 ## Shows the end of [param text], rendered as Markdown; empty text hides
 ## the bubble.
 func show_text(text: String) -> void:
+	if text == _shown:
+		return
+	_shown = text
 	visible = not text.strip_edges().is_empty()
 	if not visible:
 		_text.text = ""
