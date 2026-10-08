@@ -1,5 +1,6 @@
 // A session's history as the world saw it through its events: completed chat
-// messages and tool calls (C04), for session.get_history. Generic: any
+// messages and tool calls (C04), and each user message's turn tokens (C08),
+// for session.get_history. Generic: any
 // provider can keep one by passing it the events it emits. In memory only,
 // never on disk (NOTES.md -> Security rules -> Private by default).
 import type { History, HistoryMessage, HistoryTool, Id, SessionEvent } from './protocol.ts'
@@ -55,6 +56,13 @@ export class HistoryLog {
           t.status = event.status
           if (event.summary) t.result = event.summary
         }
+        return null
+      }
+      case 'usage.updated': {
+        // The turn's count so far goes on the user message that started it.
+        const { message, output_tokens } = event.usage.turn
+        const m = message === null ? undefined : this.messages.findLast((x) => x.message === message)
+        if (m?.role === 'user') m.turn_tokens = output_tokens
         return null
       }
       default:

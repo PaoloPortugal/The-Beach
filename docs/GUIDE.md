@@ -18,6 +18,7 @@ here; each section is labelled with its feature ID.
 - [What Claude did: the tool calls (C04)](#what-claude-did-the-tool-calls-c04)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Permission modes and plans (C06, C07)](#permission-modes-and-plans-c06-c07)
+- [Token usage (C08)](#token-usage-c08)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [The sidecar (S01)](#the-sidecar-s01)
@@ -247,7 +248,7 @@ has it; if it can't be sent, the chat says so and gives your text back.
 
 At the top right, next to "Esc to close", the chat shows the session's
 permission mode, such as **Mode: Auto** (see Permission modes and plans
-below).
+below), and how many tokens it uses (see Token usage below).
 
 Above the box, a line says what the orchestrator is doing: working, or
 waiting for you. When it waits on a permission, a question or a plan, a
@@ -396,6 +397,60 @@ While a plan waits, the line above the message box says so. You can
 answer in the terminal instead: whichever answers first counts. As on
 the other cards, these buttons only work with a click.
 
+## Token usage (C08)
+
+The world shows how much a session is using, so you don't have to look
+in the terminal. These are the orchestrator's own tokens: subagents'
+aren't counted yet. There's no cost in dollars.
+
+**In the chat's header**, next to the mode, for example
+**Context 34% · ↑ 2.1M in · ↓ 48k out**:
+- **Context:** how full the conversation's context window is after
+  Claude's latest step. When the world can't get the percentage (see
+  below), it shows the number of tokens instead, such as **Context
+  62k**.
+- **↑ in:** every token sent to Claude in this conversation so far,
+  including the earlier messages Claude Code sends again with each step
+  (most of them come from its cache).
+- **↓ out:** every token Claude has written, its thinking included.
+
+Hold the mouse over it to see the exact figures. It appears with
+Claude's first step and starts over after `/clear`; a resumed
+conversation shows its totals so far.
+
+**After each turn** (from one of your messages to the next), a small dim
+line says how many tokens Claude wrote for it, for example **↓ 1.2k
+tokens**. While Claude works, the line sits at the end of the chat and
+goes up after each step it takes.
+
+**Your plan's limits.** With a Claude Pro or Max plan, the bottom-right
+corner of the screen shows how much of your 5-hour and weekly limits
+you've used and when each starts over, for example **5-hour 74% ·
+resets 3:40 PM   Weekly 94% · resets Fri 9:00 AM**. It's the same for
+every session, since the limits are your account's (when sessions of
+more than one AI tool report limits, each tool gets its own line,
+starting with its name, with its limits in that tool's own words), and
+stays on screen while you chat or look at
+the maps. It appears after Claude's first step in any session, and a
+limit is hidden once its time to start over has passed, until a session
+hears the new figures.
+
+Numbers are rounded: 950, 1.2k, 34k, 1.1M.
+
+**Where the figures come from.** The token counts come from Claude
+Code's own record of the conversation (its transcript). The context
+percentage and your plan's limits come from Claude Code's **status
+line**: the game sets one for its sessions that only passes the figures
+on and shows nothing, so in those sessions the terminal's status line
+stays empty, and Claude Code also hides the hints under it ("esc to
+interrupt"). If you have your own status line in your Claude Code
+settings, the game keeps yours: that session's header then shows the
+context in tokens, without a percentage, and it adds nothing to the
+corner (which still shows what your other sessions report). The game
+looks for your status line when a session starts or resumes, so one you
+add or remove meanwhile counts from the session's next start. If your
+transcripts are off, only the status line's figures show.
+
 ## Subagents (A02, A03, A04)
 
 When the orchestrator hands work to **subagents**, they appear around it
@@ -469,8 +524,9 @@ reinstalling the game restores it if it goes missing.
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
 (C02), the tool-call log (C04), answering prompts and questions (C05),
-the permission mode and plans (C06, C07) work, but stopping from
-the world doesn't have a button yet, so use the terminal for that.
+the permission mode and plans (C06, C07) and token usage (C08) work,
+but stopping from the world doesn't have a button yet, so use the
+terminal for that.
 
 **What you need.** Claude Code installed on your computer (version
 2.1.284 or newer), signed in with your own account. The game never sees

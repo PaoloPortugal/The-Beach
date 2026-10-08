@@ -1,89 +1,59 @@
-LIVE CHECK: perf pass, W06 bridges, S05
-Part P: layout demo, no sidecar
-  godot --path . res://tests/world/layout_demo.tscn -- --checklist
+LIVE CHECK: C08 token usage
 
-P1. From the platform, look along the
-   bridges: up close every plank; past
-   about 70 m a smooth deck, one rail
-   a side. Walk out and back: does
-   the swap catch your eye? Flicker?
-P2. Look across the sea: islands fade
-   into the haze, no island or bridge
-   popping in or out at the horizon.
-P3. Press B (from above, fog off): far
-   islands and bridges all drawn. B
-   again: back to normal.
-P4. Feels smoother than before?
-
-Part A: layout demo, no sidecar
-  godot --path . res://tests/world/layout_demo.tscn -- --checklist
-
-1. Press B: the view from above. 16
-   clusters in slices around the
-   platform, each joined by bridges,
-   one bridge from the platform to
-   each. Zoom out (wheel) for the far
-   islands, 2 km+ out, no bridges (4
-   clusters, 3 of the big one's).
-   Layout ok?
-2. Press B again. Walk off the
-   platform onto a bridge and across
-   to an island. Ramps ok? Rails look
-   ok? Try to run or jump off the
-   side: you can't.
-3. Minimap, top left: the cluster you
-   walk into, your arrow turning with
-   you, north up. Tab hides it while
-   the menu is open.
-4. M: the big map, on you. Drag,
-   WASD/arrows, wheel zoom; zoom out
-   to all 20 clusters' names. Zoom in:
-   titles and states under islands.
-   Click a far island: you're there.
-   M, then Esc: closes, mouse captured.
-5. Tab > Running: go to an island of
-   a cluster far out (repo-17..20):
-   no bridges there (teleport only).
-5b. S05 with many sessions: close the
-   window (64 sessions running): the
-   quit warning's list scrolls, Quit
-   and Back to the game on screen?
-   Back to the game.
-
-Part B: fake provider
+Part A: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
-6. Tab > New session... > any folder,
-   then again in the same folder. Once
-   each island is up, a bridge appears:
-   platform > first island > second.
-7. Chat (E) by an orchestrator: the
-   minimap hides, and comes back.
-S05, quit warning scrolls (same run):
-S1. Start 2 or 3 more sessions (5 in
-   all). Make the window short (drag
-   its bottom edge to about 300 px).
-S2. Close it (X or Alt+F4): count,
-   list, /exit hint, Quit and Back to
-   the game all on screen? The list
-   scrolls (wheel or bar)?
-S3. With it open, resize taller and
-   shorter: it refits, buttons always
-   visible?
-S4. Back to the game (and Esc): mouse
-   and controls as before?
-S5. Window big again, close it: no
-   scroll bar, looks as before? Quit.
 
-Part C: real claude
+1. Tab > New session... > any folder.
+   Chat (E), say hello. Header, next
+   to the mode: "Context <n>% · ↑ ...
+   in · ↓ ... out"? Hover it: the
+   exact figures? Under the reply, a
+   dim "↓ ... tokens"?
+2. Bottom right: "5-hour <n>% ·
+   resets <time>   Weekly <n>% ·
+   resets <day> <time>"? Readable,
+   out of the way? Still there with
+   the chat open, on Tab and on M?
+3. Say "usage". While it reads 4
+   files, the dim line at the end goes
+   up after each, then sits under the
+   last reply (~10k). Context 80%+,
+   5-hour 85%+?
+4. Say "clear": the header goes
+   blank, the corner stays. Say hi:
+   it starts over from a small count.
+5. Tab > Resume > "Add a save
+   system": its chat shows
+   "↓ 1.8k tokens" after the reply,
+   header "Context 31% · ...".
+
+Part B: real claude
   godot --path . -- --checklist
-8. Start two sessions in the same
-   folder. On the bridge between their
-   islands, walk to the end at the
-   FIRST island's beach and /exit the
-   second in its terminal: its island
-   stays while you're on its bridge.
-   Step onto the first island: the
-   second sinks, its bridge goes, the
-   first keeps its bridges.
+
+6. Start a session in an empty
+   folder. In the terminal: the status
+   row under the prompt is empty, and
+   the session works as usual?
+7. Ask something that reads a few
+   files. Header: Context %, in/out?
+   The dim line counts up while it
+   works? Compare with the terminal:
+   /context (context %) and /usage
+   (5-hour and weekly %, reset times):
+   about the same as the world?
+8. Your own status line wins: /exit,
+   then in that folder make
+   .claude/settings.local.json with
+   {"statusLine": {"type": "command",
+   "command": "echo mine"}}
+   Start a session there: the terminal
+   shows "mine"; the world's header
+   shows "Context <n>k" (no %) after
+   a reply, totals and hints as
+   usual; the corner keeps the last
+   limits it had (or none if it never
+   had any).
+9. Anything odd in the terminal (an
+   error line, a flash of text)?
 
 Tell Claude what you saw; paste red errors.

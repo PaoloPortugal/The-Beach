@@ -14,7 +14,7 @@ import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { CONVERSATION_CLEARED, CONVERSATION_MOVED, CONVERSATION_RESUMED, MOVED_ERROR, UNREACHABLE_ERROR } from '../src/providers/claude/session.ts'
 import { POLL_MS } from '../src/providers/claude/transcript.ts'
-import { checkMessage } from '../src/protocol.ts'
+import { checkMessage, type Usage } from '../src/protocol.ts'
 import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
 
 function post(port: number, auth: string, body: object) {
@@ -296,6 +296,8 @@ test('a hook naming a transcript in another folder is ignored', async () => {
     await x.send('UserPromptSubmit', { prompt_id: 'p1', prompt: 'first' })
     await x.c.next('message.completed')
     await x.c.next('agent.state_changed')
+    // The user's message starts a turn (C08).
+    assert.equal(((await x.c.next('usage.updated')).usage as Usage).turn.message, 'p1')
     const other = crypto.randomUUID()
     const elsewhere = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'elsewhere-')), `${other}.jsonl`)
     const r = await x.send('UserPromptSubmit', { prompt_id: 'p2', prompt: 'stray', transcript_path: elsewhere }, other)
