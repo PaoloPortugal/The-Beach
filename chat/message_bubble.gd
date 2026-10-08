@@ -4,7 +4,9 @@ extends Sprite3D
 ## rendered as Markdown (C03), always facing you. It's part of the world, so
 ## it gets smaller with distance and terrain hides it. Drawn into a
 ## SubViewport shown on this billboard sprite. While a reply streams, it
-## shows the newest lines.
+## shows the newest lines. The viewport only draws when the text changes,
+## and the bubble isn't drawn past 60 m (the scene's visibility range;
+## NOTES → Architecture → Performance).
 
 ## The widest the text gets, in pixels (about 40 characters), and the most
 ## lines shown.
@@ -55,6 +57,7 @@ func show_text(text: String) -> void:
 	visible = not text.strip_edges().is_empty()
 	if not visible:
 		_text.text = ""
+		_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		return
 	# Links can't be clicked in the world; they're only coloured.
 	_text.text = _bbcode.flat(_bbcode.parser.parse(text), [])
@@ -78,3 +81,5 @@ func show_text(text: String) -> void:
 	_viewport.size = Vector2i(_panel.get_combined_minimum_size().ceil())
 	# The bubble's bottom edge sits on the anchor, so it grows upwards.
 	offset.y = _viewport.size.y / 2.0
+	# Drawn once, this frame, after the layout; the texture keeps it.
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
