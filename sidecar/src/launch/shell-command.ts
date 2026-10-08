@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { cleanEnv, STORE_CLIENT_VARIABLES } from './env.ts'
 
 /**
  * Windows: Git Bash or PowerShell. Unquoted words of only these characters
@@ -90,8 +91,10 @@ const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject
  * Windows' own short form of an existing path (GetShortPathName, through
  * the Scripting.FileSystemObject in PowerShell), for the names it hashes
  * (`AB2761~1`), which can't be guessed. A fixed script in an argument
- * array, run from a fixed folder with an environment of only SystemRoot
- * and the path (in a variable, never on a command line). Blocks for up to
+ * array, run from a fixed folder with the user's environment, cleaned
+ * (Security rules -> Clean child environments; with only SystemRoot,
+ * PowerShell hung on CI's Windows runner), and the path (in a variable,
+ * never on a command line). Blocks for up to
  * 10 s. Only the answer's file identity is trusted (shortPath checks it).
  */
 export function askWindows(p: string, opts: AskOptions = {}): string | null {
@@ -100,7 +103,7 @@ export function askWindows(p: string, opts: AskOptions = {}): string | null {
   if (program === null || !env.SystemRoot) return null
   try {
     const r = (opts.run ?? spawnSync)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
-      cwd: opts.cwd ?? os.tmpdir(), env: { SystemRoot: env.SystemRoot, SIDECAR_SHORT_PATH: p },
+      cwd: opts.cwd ?? os.tmpdir(), env: { ...cleanEnv(env, { names: STORE_CLIENT_VARIABLES }, 'win32'), SIDECAR_SHORT_PATH: p },
       encoding: 'utf8', shell: false, timeout: 10_000, windowsHide: true,
     })
     if (r.status === 0 && typeof r.stdout === 'string' && r.stdout) return r.stdout.trim()

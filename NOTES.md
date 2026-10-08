@@ -278,8 +278,7 @@ feature that touches them follows these rules, and each is tested:
   injects into the game (e.g. Steam's `LD_PRELOAD` overlay hooks and its
   `Steam*` variables). The lists are in `sidecar/src/providers/claude/env.ts`
   and `sidecar/src/launch/env.ts`, with a test that user settings survive.
-  Our own fixed helpers that need nothing of the user's get less still:
-  C08's short-name lookup runs with only `SystemRoot` and its path.
+  This includes our own helpers, like C08's short-name lookup.
 - **Treat all session content as untrusted.** Model output, tool output and
   file content can contain anything: escape it before it becomes BBCode (no
   injected `[url]` or `[img]`), never open links or run anything from it
@@ -1878,8 +1877,10 @@ How it works:
   powershell.exe`, never a bare name Windows might look for in the
   working folder; none there means no answer) with a fixed script
   (`Scripting.FileSystemObject` → `ShortPath`) in an argument array,
-  run from the temp folder with an environment of only `SystemRoot`
-  and the path, in `SIDECAR_SHORT_PATH`, never on a command line.
+  run from the temp folder with the user's environment, cleaned (Clean
+  child environments; with only `SystemRoot` PowerShell hung on CI's
+  Windows runner), and the path in `SIDECAR_SHORT_PATH`, never on a
+  command line.
   Asked once per folder per run; it blocks the sidecar while it runs
   (under a second, at most 10 s), and if that delays a session's hooks
   they time out to the terminal's own prompts (fail safe). The answer
