@@ -1412,6 +1412,18 @@ func _sign_in_pickup(world: Node3D, chat: ChatController, id: String) -> void:
 	store.apply({"type": "agent.state_changed", "session": id, "seq": 9005, "agent": "main", "state": "working", "reason": null})
 	_check(panel.status_text() == "Working…" and panel.draft() == "", "live: picked up late by the orchestrator working: the warning and the text go")
 	store.apply({"type": "agent.state_changed", "session": id, "seq": 9006, "agent": "main", "state": "waiting", "reason": "sign_in"})
+	# The box is kept with the chat closed: a pickup then clears it too.
+	panel.set_draft("lost")
+	panel.send()
+	await _until(warned, 5.0)
+	_press("ui_cancel")
+	await _until(func() -> bool: return not chat.is_open(), 2.0)
+	_check(panel.draft() == "lost", "live: closing the chat keeps the box")
+	store.apply({"type": "message.started", "session": id, "seq": 9007, "message": "late3", "agent": "main", "role": "user"})
+	store.apply({"type": "message.completed", "session": id, "seq": 9008, "message": "late3", "text": "lost"})
+	chat.open(orchestrator)
+	await _until(func() -> bool: return chat.is_open(), 2.0)
+	_check(not warned.call() and panel.draft() == "", "live: picked up late with the chat closed: reopened, no warning and no text to send twice")
 
 	# The next call going through clears the sign-in wait.
 	panel.set_draft("signed in again")
