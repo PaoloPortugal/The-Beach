@@ -76,6 +76,21 @@ func _island() -> void:
 	for i in range(0, faces.size(), 3):
 		up = up and (faces[i + 2] - faces[i]).cross(faces[i + 1] - faces[i]).y > 0.0
 	_check(up, "every triangle faces up (clockwise from above)")
+	# Under the water its faces take the sea floor's colours, so its shelf
+	# and drop-off match the floor where they meet (W08).
+	var arrays: Array = (built["mesh"] as ArrayMesh).surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var colours: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	var under := 0
+	var matched := 0
+	for i in range(0, verts.size(), 3):
+		var h := (verts[i].y + verts[i + 1].y + verts[i + 2].y) / 3.0
+		if h < -0.5:
+			under += 1
+			# The mesh keeps 8 bits a channel.
+			if _close(colours[i], Seabed.colour(h), 1.0 / 255.0):
+				matched += 1
+	_check(under > 0 and matched == under, "under the water the island has the sea floor's colours (%d of %d)" % [matched, under])
 
 
 func _jump_assist() -> void:
@@ -171,6 +186,24 @@ func _swimming(world: Node3D, player: Player) -> void:
 	var seabed: Seabed = world.get_node("Seabed")
 	_check(seabed.chunk_count() > 0, "the seabed is built around you")
 	_check(Seabed.height_at(0, 0) == Seabed.PLATFORM_FLOOR and Seabed.height_at(5000, 300) <= Seabed.SHALLOWEST and Seabed.height_at(5000, 300) >= Seabed.DEEPEST, "shallow by the platform, deeper out at sea")
+	# Out at sea it stays between SHALLOWEST and DEEPEST (sunk islands and
+	# bridge posts count on it) but uses that range: banks, deeps, mounds.
+	var lo := 0.0
+	var hi := -100.0
+	var bumps := 0.0
+	var samples := 0
+	for i in 120:
+		for j in 120:
+			var x := 300.0 + i * 23.7
+			var z := -1400.0 + j * 21.3
+			var h := Seabed.height_at(x, z)
+			lo = minf(lo, h)
+			hi = maxf(hi, h)
+			bumps += absf(h - Seabed.height_at(x + Seabed.CELL, z))
+			samples += 1
+	_check(lo >= Seabed.DEEPEST and hi <= Seabed.SHALLOWEST, "the sea floor stays between %.0f and %.0f m (%.2f..%.2f)" % [Seabed.SHALLOWEST, Seabed.DEEPEST, hi, lo])
+	_check(hi > Seabed.SHALLOWEST - 1.0 and lo < Seabed.DEEPEST + 1.0 and bumps / samples > 0.3, "with banks, deeps and mounds (%.2f..%.2f, %.2f m a cell)" % [hi, lo, bumps / samples])
+	_check(Seabed.colour(-4.0).is_equal_approx(Seabed.SAND) and Seabed.colour(-40.0).is_equal_approx(Seabed.DEEP) and _close(Seabed.colour(-14.0), Seabed.colour(-14.01), 0.001) and _close(Seabed.colour(-19.0), Seabed.colour(-19.01), 0.001), "its colour darkens smoothly with depth")
 
 	player.global_position = Vector3(20, -3, 0)
 	player.velocity = Vector3.ZERO
@@ -208,6 +241,30 @@ func _swimming(world: Node3D, player: Player) -> void:
 	var p := player.global_position
 	var floor_y := Seabed.height_at(p.x, p.z)
 	_check(p.y > floor_y - 0.3 and p.y < floor_y + 0.6, "the seabed stops you (y %.2f, floor %.2f)" % [p.y, floor_y])
+
+	# Sprinting up leaps out of the water (a dolphin jump), not high enough
+	# to land on the platform's deck, and back in to swim.
+	player.global_position = Vector3(200, -10, 0)
+	player.velocity = Vector3.ZERO
+	await _frames(2)
+	Input.action_press("sprint")
+	Input.action_press("jump")
+	var peak := -100.0
+	var left := false
+	for i in 360:
+		await _frames(1)
+		peak = maxf(peak, player.global_position.y)
+		if not player.swimming and not left:
+			left = true
+			Input.action_release("jump")
+			Input.action_release("sprint")
+		elif left and player.swimming:
+			break
+	Input.action_release("jump")
+	Input.action_release("sprint")
+	_check(left and peak > -player.float_depth + 1.0, "sprinting up leaps out of the water (feet to %.2f)" % peak)
+	_check(peak < world.get_script().get_script_constant_map()["PLATFORM_TOP"], "but not as high as the platform's deck (%.2f)" % peak)
+	_check(player.swimming and player.global_position.y < -player.swim_depth, "and falls back in to swim (y %.2f)" % player.global_position.y)
 
 	# Out of the water only up a beach.
 	var island := Island.new()
@@ -1579,6 +1636,11 @@ func _press(action: String) -> void:
 		event.action = action
 		event.pressed = pressed
 		Input.parse_input_event(event)
+
+
+# Whether two colours are within [param by] in every channel.
+func _close(a: Color, b: Color, by: float) -> bool:
+	return absf(a.r - b.r) < by and absf(a.g - b.g) < by and absf(a.b - b.b) < by
 
 
 func _frames(n: int) -> void:

@@ -3,7 +3,8 @@ extends CharacterBody3D
 ## First-person player (W03): walk, sprint and jump, with coyote time and
 ## jump buffering so parkour stays possible later. In deep water it swims
 ## (W08): toward where you look, Space up, Ctrl down, floating at the
-## surface; out of the water only by walking up a beach. Esc frees the mouse
+## surface or leaping out of it when you come up fast; out of the water
+## only by walking up a beach. Esc frees the mouse
 ## and a click captures it again.
 
 @export var walk_speed := 5.0
@@ -25,6 +26,10 @@ extends CharacterBody3D
 @export var float_depth := 1.15
 ## How firmly the water holds you at the surface, per second.
 @export var surface_pull := 4.0
+## Reaching the surface faster than this, m/s upward, leaps out of the
+## water with all your speed (a dolphin jump). Above swim_speed, so only
+## sprinting up breaches; swimming up at your normal speed floats.
+@export var breach_speed := 4.5
 
 ## The water level (W02).
 const WATER_Y := 0.0
@@ -94,7 +99,7 @@ func _physics_process(delta: float) -> void:
 
 
 # Swimming: toward where the camera looks, Space up and Ctrl down, held
-# at the surface rather than climbing out of it.
+# at the surface rather than climbing out of it, except for a leap.
 func _swim(delta: float, depth: float) -> void:
 	var input := Vector2.ZERO
 	var rise := 0.0
@@ -104,9 +109,14 @@ func _swim(delta: float, depth: float) -> void:
 	var direction := (_head.global_basis * Vector3(input.x, 0.0, input.y) + Vector3(0.0, rise, 0.0)).limit_length(1.0)
 	var speed := swim_sprint_speed if controls_enabled and Input.is_action_pressed("sprint") else swim_speed
 	velocity = velocity.move_toward(direction * speed, swim_accel * delta)
-	# At the surface: no higher than floating, and back to it if above.
+	# At the surface: no higher than floating, and back to it if above,
+	# unless you come up fast and away from the ground: then you leap out
+	# with all your speed and gravity brings you back.
 	if depth < float_depth:
-		velocity.y = minf(velocity.y, (depth - float_depth) * surface_pull)
+		if velocity.y > breach_speed and not _grounded:
+			swimming = false
+		else:
+			velocity.y = minf(velocity.y, (depth - float_depth) * surface_pull)
 	move_and_slide()
 	# Swimming into a slope (a beach) rides up it rather than sliding along
 	# it, so you come out of the water there.
