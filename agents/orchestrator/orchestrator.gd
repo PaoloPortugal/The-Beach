@@ -3,7 +3,8 @@ extends Node3D
 ## A session's orchestrator (A01): a plain placeholder at a desk until its
 ## look is decided (open question 7). Its chat zone tells the world when
 ## the player is close enough to chat (C01). Its state marker (A03) sits
-## between its head and its message bubble.
+## between its head and its message bubble. A lamp on its desk lights up
+## at night (W09).
 
 signal player_entered(orchestrator: Orchestrator)
 signal player_exited(orchestrator: Orchestrator)
@@ -16,6 +17,9 @@ var session_id := ""
 
 
 func _ready() -> void:
+	var lamp := NightLight.lamp()
+	lamp.position = Vector3(0.62, 0.8, 0.62) # the desk's front corner
+	add_child(lamp)
 	_zone.body_entered.connect(func(body: Node3D) -> void:
 		if body is Player:
 			player_entered.emit(self))

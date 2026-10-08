@@ -6,7 +6,8 @@ extends Node3D
 ## run asks first (S05). Sessions waiting on you draw attention (A05).
 ## Bridges join each cluster's islands and the platform, a minimap
 ## shows the cluster you're in, and M opens a map of the world (W06).
-## The plan's usage limits are in the bottom-right corner (C08).
+## The plan's usage limits are in the bottom-right corner (C08). The day
+## turns to night and back, and the weather changes (W09).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -24,6 +25,13 @@ var world_map := WorldMap.new()
 var usage_limits := UsageLimits.new()
 ## The view under the water (W08).
 var underwater := Underwater.new()
+## The day and night cycle and the weather (W09), with the clouds, rain and
+## lightning they bring.
+var day_night := DayNight.new()
+var weather := Weather.new()
+var clouds := Clouds.new()
+var rain := Rain.new()
+var lightning_bolt := LightningBolt.new()
 
 ## The spawn platform's deck: half its width and its top (world.tscn).
 const PLATFORM_HALF := 6.0
@@ -51,6 +59,7 @@ func _ready() -> void:
 	_menu.player = _player
 	add_child(underwater)
 	underwater.setup($WorldEnvironment.environment)
+	_setup_sky()
 
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
@@ -90,6 +99,40 @@ func _ready() -> void:
 	if "--checklist" in OS.get_cmdline_user_args():
 		add_child(load("res://tests/live/checklist.tscn").instantiate())
 		minimap.top = 56.0 # under it
+
+
+# W09: the sky, the weather and what they bring. Dev flags (NOTES →
+# Running it): --hour <0-24> sets the time of day, --weather <kind> fixes
+# the weather (clear, cloudy, rain, windy, storm), --day-minutes <n>
+# shortens the day.
+func _setup_sky() -> void:
+	weather.name = "Weather"
+	add_child(weather)
+	day_night.name = "DayNight"
+	add_child(day_night)
+	day_night.setup($WorldEnvironment.environment, $Sun, weather, underwater)
+	clouds.name = "Clouds"
+	clouds.weather = weather
+	add_child(clouds)
+	rain.name = "Rain"
+	rain.weather = weather
+	rain.wind_direction = clouds.wind_direction
+	add_child(rain)
+	lightning_bolt.name = "LightningBolt"
+	add_child(lightning_bolt)
+	weather.lightning.connect(lightning_bolt.strike)
+	$Ocean.weather = weather
+	var args := OS.get_cmdline_user_args()
+	var hour := args.find("--hour")
+	if hour >= 0 and hour + 1 < args.size():
+		day_night.set_hour(args[hour + 1].to_float())
+	var kind := args.find("--weather")
+	if kind >= 0 and kind + 1 < args.size() and Weather.kind_named(args[kind + 1]) >= 0:
+		weather.set_kind(Weather.kind_named(args[kind + 1]) as Weather.Kind, true)
+		weather.changes = false
+	var minutes := args.find("--day-minutes")
+	if minutes >= 0 and minutes + 1 < args.size() and args[minutes + 1].to_float() > 0.0:
+		day_night.cycle = args[minutes + 1].to_float() * 60.0
 
 
 ## Puts the player back on the spawn platform (W08: the sea no longer

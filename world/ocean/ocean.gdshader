@@ -3,6 +3,9 @@
 // deep water. The waves move the vertices; the normals come from
 // screen-space derivatives, so every triangle is lit flat. The depth under
 // the surface comes from the depth buffer, which both renderers have.
+// The weather (W09) sets how far the waves have moved (wind makes them
+// faster and a little higher; ocean.gd keeps the phase so a change of
+// speed doesn't jump them) and rain rings on the surface.
 shader_type spatial;
 render_mode cull_disabled, depth_draw_always;
 
@@ -21,21 +24,44 @@ uniform float clarity = 0.18;
 uniform float min_alpha = 0.25;
 uniform float wave_height = 0.35;
 uniform float wave_length = 14.0;
-uniform float wave_speed = 0.8;
+// How far the waves have moved: time times their speed (ocean.gd).
+uniform float wave_phase = 0.0;
+// Rain on the water, 0 to 1: rings where drops land.
+uniform float rain = 0.0;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 
 varying float height;
+varying vec2 world_xz;
 
-float waves(vec2 p, float t) {
+float waves(vec2 p, float phase) {
 	float k = 6.2831853 / wave_length;
-	return sin(dot(p, vec2(0.8, 0.6)) * k + t * wave_speed)
-		+ 0.6 * sin(dot(p, vec2(-0.5, 0.9)) * k * 1.7 + t * wave_speed * 1.3)
-		+ 0.3 * sin(dot(p, vec2(0.2, -1.0)) * k * 2.9 + t * wave_speed * 1.9);
+	return sin(dot(p, vec2(0.8, 0.6)) * k + phase)
+		+ 0.6 * sin(dot(p, vec2(-0.5, 0.9)) * k * 1.7 + phase * 1.3)
+		+ 0.3 * sin(dot(p, vec2(0.2, -1.0)) * k * 2.9 + phase * 1.9);
+}
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Rain rings: one spreading ring at a time in some of the 1.2 m cells,
+// each at its own moment, as many cells as it's raining hard.
+float rings(vec2 p, float t) {
+	vec2 cell = floor(p / 1.2);
+	float h = hash(cell);
+	if (h > rain) {
+		return 0.0;
+	}
+	vec2 centre = (cell + 0.3 + 0.4 * vec2(hash(cell + 7.1), hash(cell + 3.7))) * 1.2;
+	float age = fract(t * 1.3 + h * 17.0);
+	float ring = 1.0 - smoothstep(0.0, 0.035, abs(length(p - centre) - age * 0.5));
+	return ring * (1.0 - age);
 }
 
 void vertex() {
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	height = waves(world.xz, TIME) / 1.9;
+	world_xz = world.xz;
+	height = waves(world.xz, wave_phase) / 1.9;
 	VERTEX.y += height * wave_height;
 }
 
@@ -64,6 +90,9 @@ void fragment() {
 		vec3 tint = d < 0.25 ? mix(shallow_colour.rgb, water_colour.rgb, d / 0.25)
 			: mix(water_colour.rgb, deep_colour.rgb, (d - 0.25) / 0.75);
 		ALBEDO = mix(tint, crest_colour.rgb, clamp(height * 0.5 + 0.5, 0.0, 1.0) * 0.35);
+		if (rain > 0.0) {
+			ALBEDO = mix(ALBEDO, vec3(0.85, 0.92, 0.95), rings(world_xz, TIME) * 0.5);
+		}
 		float through = max(length(behind.xyz) - length(VERTEX), 0.0);
 		ALPHA = clamp(1.0 - exp(-through * clarity), min_alpha, 1.0);
 	}
