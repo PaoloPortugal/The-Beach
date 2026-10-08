@@ -36,6 +36,19 @@ const NOTICE_TEXT := {
 ## Notices about the session switching conversations.
 const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 
+## What stopped a turn, for the error reasons any provider may report
+## (Protocol → state_reason); any other says only "Stopped.". The
+## sign_in_needed notice has no text of ours: the provider's message says
+## what to do in its own window (S06).
+const STOP_TEXT := {
+	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.",
+	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.",
+	"server_error": "Stopped: the AI service had an error. Try again in a moment.",
+	"invalid_request": "Stopped: the AI service refused the request. See the terminal.",
+	"model_not_found": "Stopped: the model isn't available. Pick another in the terminal.",
+	"max_output_tokens": "Stopped: the reply reached its length limit.",
+}
+
 var store: SessionStore
 var sidecar: SidecarClient
 ## The session shown, or "" when closed.
@@ -447,10 +460,12 @@ func _refresh_status() -> void:
 					_status.text = "Waiting for an answer: answer the question above or in the terminal."
 				"plan":
 					_status.text = "Waiting for you to approve the plan: answer it above or in the terminal."
+				"sign_in":
+					_status.text = "Waiting for you to sign in, in the terminal."
 				_:
 					_status.text = "Waiting for you in the terminal."
 		"error":
-			_status.text = "Stopped."
+			_status.text = STOP_TEXT.get(agent.get("reason"), "Stopped.")
 		_:
 			_status.text = ""
 
