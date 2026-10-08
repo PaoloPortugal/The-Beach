@@ -1820,9 +1820,9 @@ without leaving the world. Research and spike: dev log
   going on has it at the end of the chat, going up with each API call;
   none until it has tokens.
 - **Limits:** "5-hour 74% · resets 3:40 PM   Weekly 94% · resets Fri
-  9:00 AM" in the bottom-right corner (a line per provider, Godot below) (the minimap is top left, the
-  waiting count top right), shown always, over the chat and the maps
-  too. The reset in local time: a time today, a weekday and time within
+  9:00 AM" in the bottom-right corner, a line per provider (see Godot
+  below; the minimap is top left, the waiting count top right), shown
+  always, over the chat and the maps too. The reset in local time: a time today, a weekday and time within
   a week, else a date.
 - **Numbers** (my pick, conventional): compact like the terminal's:
   950, 1.2k (one decimal under 10k), 34k, 1.1M (one decimal under 10M),
@@ -1848,9 +1848,10 @@ How it works:
   gives.
 - **The status line relay.** The session's `--settings` sets
   `statusLine` to our executable in `statusline` mode with the path of
-  a relay file (like the hook relay: loopback URL and the session's
-  token, readable only by this user). It reads the status line's JSON
-  from stdin, posts it to the hook endpoint, prints nothing, gives up
+  its own relay file, `status.json` in the session's private folder
+  (like the hook relay's: loopback URL and the session's token, readable
+  only by this user). It reads the status line's JSON from stdin, posts
+  it to the hook server's `/status` path, prints nothing, gives up
   after 2 s and always exits 0. Claude Code runs it after each API call
   (about every 1.5 s while working, debounced at 300 ms). The sidecar
   takes only `context_window` (`used_percentage`,
@@ -1923,8 +1924,8 @@ How it works:
   across that provider's sessions. One line per provider; each line
   starts with the provider's name (from the hello's `providers`, else
   its id: "Claude: 5-hour ...") only when more than one has limits, so
-  Claude alone reads as above; more lines grow upwards. A limit whose `resets_at` has passed is
-  hidden (Claude Code drops it too, and the sidecar keeps the last
+  Claude alone reads as above; more lines grow upwards. A limit whose
+  `resets_at` has passed is hidden (Claude Code drops it too, and the sidecar keeps the last
   figures while the status line has none); the corner looks again every
   15 s. Formatting is `UsageText` (`chat/usage_text.gd`), shared by the
   chat panel and the corner (`world/usage_limits.gd`).

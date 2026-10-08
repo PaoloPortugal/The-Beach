@@ -44,7 +44,7 @@ sequenceDiagram
         Note over Sidecar: only for the followed conversation (session_id):<br/>context_window (% and size), rate_limits (5-hour, weekly)
         Sidecar->>World: usage.updated (context %, the plan's limits), if they changed
     end
-    Note over World: the header: context and totals#59; the turn's hint at its end#59;<br/>the plan's limits in the corner (latest across sessions)
+    Note over World: the header: context and totals#59; the turn's hint at its end#59;<br/>the plan's limits in the corner (a line per provider, the latest across its sessions)
 ```
 
 **History.** `session.get_history` gives each user message its turn's
