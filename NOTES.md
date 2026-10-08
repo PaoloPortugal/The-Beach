@@ -89,6 +89,7 @@ v1 slice.
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
+| W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -1168,6 +1169,26 @@ chatting.
 the platform when you wade too deep (W03's placeholder), and a seabed worth
 seeing: varied depths (shallows, drop-offs, deeper water) rather than one
 flat sea floor, which also means the water can't stay opaque everywhere.
+Scope: core (world only).
+
+*Decided (user's, 2026-10-08):*
+- *Diving:* swim on the surface and dive freely, with no breath limit.
+- *Water:* see-through in the shallows, tinting through turquoise to
+  deep blue with depth; still flat-shaded with W02's waves.
+- *Sea floor:* one continuous seabed everywhere, not only around islands:
+  islands on shallow shelves, drop-offs, deeper water and trenches
+  between them.
+- *Islands and the seabed:* each island carries its own shelf and
+  drop-off down to the sea floor, and rises out of the seabed and sinks
+  fully back into it (W04), visibly through the water.
+- *Controls:* swim where you look (W moves toward the camera's
+  direction, so looking down dives); Space rises, Ctrl sinks.
+- *Getting out:* only by swimming to a beach and walking out; no
+  climbing onto the platform's or bridges' decks.
+- *Way back:* the sea respawn goes; the sessions menu (Tab) gets a fixed
+  "Platform" entry that takes you to the spawn platform from anywhere,
+  and clicking the platform on the big map (M) takes you there too, like
+  clicking a session's island.
 
 ### W09 Day/night cycle and weather
 *Planned (user's request, 2026-10-01).* The sun moves through a day and
@@ -1184,6 +1205,13 @@ worked out with bridges (W06, built as a general "connect regions"
 system for this). Not a provider feature: world only. Undesigned: which
 biomes, what picks an island's biome (random, the project, the
 cluster), and whether a cluster mixes them.
+
+### W11 Crouch and slide
+*Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
+slide when crouching at a run, extending W03's movement towards parkour.
+Not a provider feature: world only. Likely on Ctrl, which sinks you in
+the water (W08). Undesigned: crouch speed and height, the slide's speed,
+length and slopes, and whether you can jump out of a slide.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
