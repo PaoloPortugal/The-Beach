@@ -439,7 +439,7 @@ removing a provider means deleting its folders.
 | `licenses/` | Node's license text, for the shipped notices. |
 
 **Performance** (user's decisions, 2026-10-07; dev log
-2026-10-08-perf-pass). The game is **GPU-bound**: the CPU's share of a
+2026-10-08-perf-pass). Scope: core. The game is **GPU-bound**: the CPU's share of a
 frame is about 1 ms, physics 0.3-0.5 ms.
 - *Budget, measured* with the layout demo (W06: 64 sessions in 20
   clusters, 56 bridges) at 1920x1080 with vsync off, on an integrated
@@ -460,7 +460,7 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   4.5 ms; bridges' near versions about 4-5 ms close to the platform,
   where 16 bridges start (their far versions about 0.3 ms); islands
   2-9 ms by view; the ocean 4-7 ms (measured before). Making an island
-  stalled a frame for 140-170 ms before, about 54 ms of it generating
+  stalled a frame for 140-170 ms before, about 54-64 ms of it generating
   the mesh, now 25 ms; loading the demo's 64 sessions took 9-11 s.
 - *How to measure:* a throwaway script (not in the repo) that loads
   `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
@@ -1033,7 +1033,7 @@ and the real layout (user's, 2026-10-02; W07).
   and at 66 m coming back, never flickering. Only what each version is
   made of is the placeholder; the segments stay when bridges become art.
   The collision is unchanged (one shape for the whole bridge). Far
-  versions also go past the fog, like the islands.
+  versions are hidden past the fog, like the islands.
 - *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
   under `SessionIslands`): regions are keys with a centre, a reach and an
   edge (a Callable giving where a bridge heading for a point meets the
@@ -1367,7 +1367,8 @@ in a message shows as written (tested with an injected `[url]`).
   orchestrator has said something. The bubble's bottom edge sits on the
   anchor, so it grows upwards. *Drawing* (user's decision, 2026-10-07;
   Architecture → Performance): its `SubViewport` draws once when the
-  text changes (`UPDATE_ONCE`, after the layout) and not at all while
+  text changes (`UPDATE_ONCE`, after the layout; the same text again
+  draws nothing) and not at all while
   hidden; the texture keeps the last drawing. Before, every bubble
   redrew every frame (64 showing text cost about 5 ms). The bubble isn't
   drawn past 60 m (`visibility_range_end`, 4 m margin), where its text is

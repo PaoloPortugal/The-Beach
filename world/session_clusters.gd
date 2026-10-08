@@ -29,7 +29,7 @@ const NEW := "new"
 ## Wedges per ring (inner, outer), each [code]TAU / WEDGES[/code] wide.
 const WEDGES := 8
 ## Distance between neighbouring islands, metres. An island's land
-## reaches at most about 44 m from its centre (its sea floor, about 67 m).
+## reaches at most about 44 m from its centre (its sea floor, 68 m).
 const ISLAND_SPACING := 100.0
 ## How far an island's centre stays inside its wedge's edges, metres: its
 ## land and a bridge along the edge (a corridor) clear of it.
