@@ -364,6 +364,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "session.notice", "session": "h1", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	_check(panel.get_node("Layout/Notices").visible, "notices show")
 	await _card(store, panel)
+	await _usage(world, store, panel)
 
 	# Sending to a session the sidecar doesn't have: refused, text kept.
 	panel.set_draft("hello")
@@ -780,6 +781,72 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_modes_and_plans(store, panel)
 
 
+# C08: context and totals in the chat's header, each turn's tokens at its
+# end, and the plan's limits in the corner.
+func _usage(world: Node3D, store: SessionStore, panel: ChatPanel) -> void:
+	var corner: UsageLimits = world.usage_limits
+	_check(panel.usage_text() == "" and panel.turn_hints().is_empty() and corner.text() == "", "usage: nothing shown without it")
+	var snap := store.session("h1").duplicate(true)
+	snap["seq"] = 40
+	snap["capabilities"]["usage"] = {}
+	snap["usage"] = null
+	store.apply({"type": "session.snapshot", "session": snap})
+	_check(panel.usage_text() == "", "usage: none before the first count")
+	var usage := {
+		"tokens": {"input": 40, "output": 1234, "cache_read": 52000, "cache_write": 9000},
+		"context": {"tokens": 61040, "percent": 31, "window": 200000},
+		"turn": {"message": "uu1", "output_tokens": 1234}, "limits": {},
+	}
+	var say := func(id: String, role: String, seq: int) -> void:
+		store.apply({"type": "message.started", "session": "h1", "seq": seq, "message": id, "agent": "main", "role": role})
+		store.apply({"type": "message.completed", "session": "h1", "seq": seq + 1, "message": id, "text": id})
+	say.call("uu1", "user", 41)
+	say.call("ua1", "assistant", 43)
+	store.apply({"type": "usage.updated", "session": "h1", "seq": 45, "usage": usage.duplicate(true)})
+	_check(panel.usage_text() == "Context 31% · ↑ 61k in · ↓ 1.2k out", "usage: context and totals in the header")
+	_check(panel.get_node("Layout/Header/Usage").tooltip_text.contains("Cache reads: 52,000"), "usage: the exact figures on hover")
+	_check(panel.turn_hints() == [["ua1", "↓ 1.2k tokens"]], "usage: the turn's tokens at its end")
+	say.call("uu2", "user", 46)
+	usage["turn"] = {"message": "uu2", "output_tokens": 0}
+	store.apply({"type": "usage.updated", "session": "h1", "seq": 48, "usage": usage.duplicate(true)})
+	_check(panel.turn_hints() == [["ua1", "↓ 1.2k tokens"]], "usage: a new turn has none until it counts")
+	usage["turn"]["output_tokens"] = 480
+	store.apply({"type": "usage.updated", "session": "h1", "seq": 49, "usage": usage.duplicate(true)})
+	_check(panel.turn_hints() == [["ua1", "↓ 1.2k tokens"], ["uu2", "↓ 480 tokens"]], "usage: it goes up while working")
+	say.call("ua2", "assistant", 50)
+	usage["turn"]["output_tokens"] = 2600
+	usage["context"] = {"tokens": 64000, "percent": null, "window": null}
+	store.apply({"type": "usage.updated", "session": "h1", "seq": 52, "usage": usage.duplicate(true)})
+	_check(panel.turn_hints() == [["ua1", "↓ 1.2k tokens"], ["ua2", "↓ 2.6k tokens"]], "usage: and stays at the turn's end")
+	_check(panel.usage_text().begins_with("Context 64k · "), "usage: without a %, the context in tokens")
+	panel.close()
+	panel.open("h1")
+	await _until(func() -> bool: return not panel.is_loading(), 3.0)
+	_check(panel.turn_hints() == [["ua1", "↓ 1.2k tokens"], ["ua2", "↓ 2.6k tokens"]] and panel.usage_text() != "", "usage: laid out again on opening")
+
+	# The plan's limits: once, the latest across sessions, hidden once over.
+	var now := SessionStore.unix_time("2026-10-08T12:00:00Z")
+	corner.now = func() -> float: return now
+	usage["limits"] = {"five_hour": {"used_percent": 74, "resets_at": "2026-10-08T13:00:00.000Z"}}
+	store.apply({"type": "usage.updated", "session": "h1", "seq": 53, "usage": usage.duplicate(true)})
+	_check(corner.text().begins_with("5-hour 74% · resets "), "usage: the 5-hour limit in the corner")
+	var other := store.session("h2").duplicate(true)
+	other["seq"] = 40
+	other["usage"] = {"tokens": usage["tokens"], "context": null, "turn": {"message": null, "output_tokens": 0},
+		"limits": {"five_hour": {"used_percent": 76, "resets_at": "2026-10-08T13:00:00.000Z"}, "seven_day": {"used_percent": 94, "resets_at": "2026-10-10T09:00:00.000Z"}}}
+	store.apply({"type": "session.snapshot", "session": other})
+	_check(corner.text().begins_with("5-hour 76%") and corner.text().contains("   Weekly 94% · resets "), "usage: the latest figures across sessions, both limits")
+	var later := SessionStore.unix_time("2026-10-08T13:00:01Z")
+	corner.now = func() -> float: return later
+	corner.refresh()
+	_check(corner.text().begins_with("Weekly 94%"), "usage: a limit past its reset is hidden")
+	var after := SessionStore.unix_time("2026-10-11T00:00:00Z")
+	corner.now = func() -> float: return after
+	corner.refresh()
+	_check(corner.text() == "", "usage: none once every window is over")
+	corner.now = func() -> float: return Time.get_unix_time_from_system()
+
+
 # Records the commands sent and refuses each, so a card can be clicked again.
 class _Recorder extends SidecarClient:
 	var sent := []
@@ -1116,6 +1183,20 @@ func _live(world: Node3D, player: Player) -> void:
 	_click(card, "Yes, manually approve edits")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("approved"), 8.0)
 	_check(not card.visible and panel.mode_text() == "Mode: Manual", "live: approved from the card, in the chosen mode")
+
+	# C08: a heavy turn fills the context and the 5-hour limit; its tokens
+	# show at its end.
+	var percent := func(text: String, after: String) -> int:
+		var at := text.find(after)
+		return text.substr(at + after.length()).to_int() if at >= 0 else -1
+	_check(panel.usage_text().begins_with("Context ") and world.usage_limits.text().begins_with("5-hour "), "live: usage in the header, limits in the corner")
+	panel.set_draft("usage")
+	panel.send()
+	await _until(func() -> bool: return panel.shown_messages()[-1].begins_with("Done. The context") and world.store.agent(id, "main")["state"] == "idle", 10.0)
+	_check(percent.call(panel.usage_text(), "Context ") >= 80, "live: the context fills: %s" % panel.usage_text())
+	_check(percent.call(world.usage_limits.text(), "5-hour ") >= 85 and world.usage_limits.text().contains("Weekly "), "live: the 5-hour limit climbs: %s" % world.usage_limits.text())
+	var last_hint: Array = panel.turn_hints().back()
+	_check(last_hint[0] == world.store.messages(id).back()["message"] and (last_hint[1].begins_with("↓ 10k") or last_hint[1].begins_with("↓ 11k")), "live: the turn's tokens at its end: %s" % [last_hint])
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
 
@@ -1154,6 +1235,11 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return islands.orchestrator(resumed) != null and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, 6.0)
 	_check(islands.orchestrator(resumed) != null and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: its island comes back and you're taken there")
 	_check(chat.bubble(resumed).shown_text() == "Resumed Add a save system.", "live: with its chat so far")
+	chat.open(islands.orchestrator(resumed))
+	await _until(func() -> bool: return chat.is_open() and panel.turn_hints().size() == 1 and panel.usage_text() != "", 5.0)
+	_check(panel.turn_hints() == [["r2", "↓ 1.8k tokens"]] and panel.usage_text().begins_with("Context 31% · "), "live: and its usage so far: %s %s" % [panel.turn_hints(), panel.usage_text()])
+	_press("ui_cancel")
+	await _until(func() -> bool: return not chat.is_open(), 2.0)
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.entries().size() == 7, 5.0)
 	var now := menu.entries()
