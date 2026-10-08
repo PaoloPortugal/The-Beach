@@ -1402,7 +1402,8 @@ all of it, so markup in a message shows as written (tested with an injected
   the turn for the reasons any provider may report ("Stopped: a usage or
   rate limit was reached. See the terminal.", the AI service overloaded,
   its error, a refused request, a model that isn't available, a reply at
-  its length limit; `STOP_TEXT`), else "Stopped.", or a failed send.
+  its length limit; `STOP_TEXT`), else "Stopped.", a failed send, or a
+  message the session didn't pick up (S06).
 - **Sending:** Enter sends (`message.send`), Shift+Enter is a new line;
   the Send button too. The box clears at once; your message appears when
   the session reports it (`message.started`, role `user`). A refused send
@@ -2600,7 +2601,24 @@ rules), so the world only points there.
   `session_store_test.gd` (by hand, and live with the fake) and
   `world_test.gd` (the notice, the status, the "!" and the cue, the
   clearing, the stop reasons).
-- *Live check:* to do with the user (`tests/live/checklist.txt` → S06).
+- **A message that isn't picked up** (user's decision, 2026-10-08, after
+  the live check): sending from the world while the account can't be
+  used, Claude Code dropped the channel message unseen, so nothing came
+  back. The chat panel now watches each message it sends while the
+  orchestrator isn't busy (idle, stopped, or waiting on `sign_in`; a
+  busy one queues messages for after its turn): if no user message
+  arrives and the orchestrator doesn't start working within 15 s, the
+  status says "Your message hasn't reached the session. Check its
+  terminal, then send it again." and the text goes back in the box
+  (when it's empty, also on reopening the chat). The next message that
+  arrives clears it. Generic: it reads only the store. Tested live with
+  the fake's `lost` word (`world_test.gd`).
+- *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
+  an invalid API key: a message typed in the terminal brought the
+  notice, the status, the "!" and the beacon; one sent from the world
+  never reached Claude Code (above). Signing out with `/logout` ends the
+  session, so a login expiring on its own is still to see (Watch items →
+  A login expiring on its own).
 
 ## Conventions
 
@@ -2663,7 +2681,8 @@ In `sidecar/`:
   the last failing; a notice; the turn failing on the account like an
   expired login, S06: the `sign_in_needed` notice and the orchestrator
   waiting on `sign_in`, cleared by the next message that goes through;
-  a new conversation like `/clear`), and `rename <name>` renames the session
+  a new conversation like `/clear`); a message with the word `lost` never
+  reaches the session (no event at all, S06's pickup notice), and `rename <name>` renames the session
   like `/rename`; anything else is echoed back. Sessions start in auto
   mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
   Accept edits, Plan); `permission`'s prompt offers "Yes, and don't ask
@@ -2948,9 +2967,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S06 sign-in needed, built on `s06-sign-in` and
-ready for the user's review and live check (dev log
-2026-10-08-s06-sign-in). C08 token usage is paused as WIP on
+**Current focus:** S06 sign-in needed, built on `s06-sign-in`; live
+check done with an invalid key, the pickup notice added after it; ready
+for the user's review (dev log 2026-10-08-s06-sign-in). A login expiring
+on its own is a watch item. C08 token usage is paused as WIP on
 `c08-usage` (dev log 2026-10-03-c08-usage-spike).
 **Merged to `main` (2026-10-08), reviewed by the user: the performance
 pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
@@ -3231,6 +3251,16 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **A login expiring on its own** (S06; user's, 2026-10-08). Not yet
+  seen live: the live check could only simulate a failed account with
+  an invalid API key, and `/logout` in a world session ends the session,
+  so a real expiry can't be forced. When a login expires naturally,
+  check: whether a message sent from the world still reaches Claude Code
+  (with the bad key it didn't: channels need a working account, and the
+  pickup notice covered it), the `sign_in_needed` notice, the status,
+  the "!" and the beacon, and whether `/login` fires `auth_success` (the
+  notice goes at once) or the notice only goes with the next reply.
 
 - **Prompt options not seen live** (C05; a stopgap, user's,
   2026-10-03). The live check (`claude` 2.1.288) paired nine prompts

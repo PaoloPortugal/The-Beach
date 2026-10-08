@@ -60,3 +60,11 @@ The world never handles a login: it only says where to sort it out
 been seen live yet, so a call going through also clears the notice.
 Failing again the same way keeps the notice that is up; another account
 error replaces its text.
+
+**A message that never arrives.** Without a working account Claude Code
+may drop a channel message unseen (seen with an invalid API key): steps
+4 and 5 happen, but no `UserPromptSubmit` follows, so nothing comes back.
+The world's chat panel watches each message it sends while the
+orchestrator isn't busy; if no user message arrives (and the
+orchestrator doesn't start working) within 15 s, it says the message
+hasn't reached the session and puts the text back in the box.

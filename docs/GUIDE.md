@@ -464,6 +464,13 @@ Go to that session's terminal and sign in (`/login`), or do what it
 asks. Then send your message again. The notice goes away once Claude
 Code says you're signed in, or as soon as Claude answers again.
 
+While Claude Code can't use your account, a message you send from the
+game may never reach it. If a message hasn't shown up in the chat after
+about 15 seconds, the line above the box says "Your message hasn't
+reached the session. Check its terminal, then send it again." and your
+text goes back in the box. (Messages you send while Claude is busy wait
+for its turn to end, so they don't get this warning.)
+
 ## The sidecar (S01)
 
 The game comes with a small helper program called the **sidecar**. The
