@@ -25,6 +25,11 @@
 //                event at all, whatever other words it has
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
+//   usage        a heavy turn: the context nearly full and the 5-hour
+//                limit nearly used up (C08)
+// Every reply and tool call counts tokens like an API call would (C08):
+// the session's totals, its context, the turn's output tokens, and the
+// account's 5-hour and weekly limits, shared by all sessions.
 // A new session has no title until its first message names it, like
 // Claude Code naming it. Sessions start in auto mode, like Claude Code
 // where auto is available.
@@ -35,8 +40,19 @@ import { serve } from '../src/serve.ts'
 import { FakeProvider, FakeSession } from './fake-provider.ts'
 import type { Id, SessionEvent, StoredSession } from '../src/protocol.ts'
 import { HistoryLog } from '../src/history.ts'
+import { UsageCounter } from '../src/providers/claude/usage.ts'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** The account's limits, shared by every session like the real ones (C08). */
+const limits = {
+  five_hour: { used: 12, resets_at: new Date(Date.now() + 3.5 * 3600_000).toISOString() },
+  seven_day: { used: 41, resets_at: new Date(Date.now() + 4 * 24 * 3600_000).toISOString() },
+}
+/** The fake model's context window. */
+const WINDOW = 200_000
+/** What a conversation starts with: system prompt and tools. */
+const BASE_CONTEXT = 18_000
 
 /** The Shift+Tab cycle, from auto (C06). */
 const MODES = ['auto', 'default', 'acceptEdits', 'plan']
@@ -52,10 +68,53 @@ class ScriptedSession extends FakeSession {
   private signInNeeded = false
   /** What get_history answers, kept from the events like a real provider. */
   readonly chat = new HistoryLog()
+  /** Token usage (C08), counted as if each reply and tool call were an API call. */
+  readonly usage = new UsageCounter()
+  private calls = 0
+  /** The context's size in tokens. */
+  context = BASE_CONTEXT
 
   private emit(e: SessionEvent) {
     if (this.host.ended) return
     if (this.host.emit(e)) this.chat.remember(e)
+    // A user message starts a turn; a reply or a tool call is an API call.
+    if (e.type === 'message.started' && e.role === 'user' && e.agent === 'main') {
+      this.usage.newTurn(e.message)
+      this.sendUsage()
+    } else if (e.type === 'message.completed' && e.message.startsWith('a')) { // an assistant's (say())
+      this.apiCall(150 + Math.ceil(e.text.length / 4))
+    } else if (e.type === 'tool.started' && e.agent === 'main') {
+      this.apiCall(80 + 7 * (this.calls % 5))
+    }
+  }
+
+  /** One API call of `output` tokens: the context grows by it, the account's limits a little. */
+  apiCall(output: number, grow = output + 300) {
+    grow = Math.round(grow) // token counts are whole
+    this.context = Math.min(WINDOW, this.context + grow)
+    limits.five_hour.used = Math.min(100, limits.five_hour.used + output / 2000)
+    limits.seven_day.used = Math.min(100, limits.seven_day.used + output / 20000)
+    this.usage.add({ id: `call${++this.calls}`, input: 40, output, cacheRead: this.context - grow - 40, cacheWrite: grow })
+    this.statusLine()
+  }
+
+  /** What Claude Code's status line would say now. */
+  statusLine() {
+    const round = (n: number) => Math.round(n * 10) / 10
+    this.usage.status({
+      sessionId: null,
+      context: { tokens: this.context, percent: Math.round((this.context / WINDOW) * 100), window: WINDOW },
+      limits: [
+        { id: 'five_hour', label: '5-hour', used_percent: round(limits.five_hour.used), resets_at: limits.five_hour.resets_at },
+        { id: 'seven_day', label: 'Weekly', used_percent: round(limits.seven_day.used), resets_at: limits.seven_day.resets_at },
+      ],
+    })
+    this.sendUsage()
+  }
+
+  sendUsage() {
+    const usage = this.usage.get()
+    if (usage) this.emit({ type: 'usage.updated', usage })
   }
 
   override async getHistory() {
@@ -101,6 +160,7 @@ class ScriptedSession extends FakeSession {
     else if (word.includes('signin')) void this.signInTurn()
     else if (/\bclear\b/.test(word)) void this.clearTurn()
     else if (/^rename\s+\S/.test(word)) void this.renameTurn(text.trim().slice(6).trim())
+    else if (/\busage\b/.test(word)) void this.usageTurn()
     else void this.echoTurn(text)
   }
 
@@ -301,6 +361,22 @@ class ScriptedSession extends FakeSession {
     this.state('main', 'waiting', 'sign_in')
   }
 
+  private async usageTurn() {
+    await this.say('assistant', 'Reading the whole codebase, this will take a lot of context.')
+    for (let i = 0; i < 4 && !this.stopped; i++) {
+      const id = `tool${++this.n}`
+      this.emit({ type: 'tool.started', tool_call: id, agent: 'main', tool: 'Read', summary: `Read big${i}.ts`, input: { file_path: `big${i}.ts` } })
+      await sleep(600)
+      if (this.stopped) return
+      this.emit({ type: 'tool.finished', tool_call: id, status: 'ok' })
+      // Each file read fills the context; the 5-hour limit climbs too.
+      this.apiCall(2500, Math.max(0, Math.round(WINDOW * 0.88) - this.context) / (4 - i))
+      limits.five_hour.used = Math.max(limits.five_hour.used, 70 + 6 * i)
+      this.statusLine()
+    }
+    return this.finish('Done. The context is nearly full now.')
+  }
+
   private retitle(title: string) {
     this.title = title
     this.emit({ type: 'session.updated', title })
@@ -315,11 +391,14 @@ class ScriptedSession extends FakeSession {
     this.state('main', 'idle')
     await sleep(300)
     this.title = null
+    this.context = BASE_CONTEXT
+    this.usage.reset()
     this.emit({ type: 'session.updated', native_id: crypto.randomUUID(), title: null })
     this.emit({ type: 'session.notice', notice: {
       code: 'conversation_cleared',
       message: 'A new conversation started in this session (/clear). Claude no longer remembers the chat above.',
     } })
+    this.sendUsage()
   }
 
   override interrupt = async () => {
@@ -362,13 +441,17 @@ class ScriptedProvider extends FakeProvider {
     s.mode = 'auto'
     s.chat.replace({
       messages: [
-        { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at },
+        { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at, turn_tokens: 1840 },
         { message: 'r2', agent: 'main', role: 'assistant', text: `Resumed **${stored.title ?? 'this session'}**.`, at: stored.updated_at },
       ],
       tools: [{ tool_call: 'rt1', agent: 'main', tool: 'Read', summary: 'Read NOTES.md', input: { file_path: 'NOTES.md' }, status: 'ok', after: 'r1' }],
     })
+    // Its usage so far: one turn, as if read from its transcript.
+    s.usage.newTurn('r1')
+    s.usage.add({ id: 'stored-call', input: 1200, output: 1840, cacheRead: 52_000, cacheWrite: 9_000 })
+    s.context = 62_200
     this.sessions.push(s)
-    setTimeout(() => s.announce(), 500)
+    setTimeout(() => { s.announce(); s.statusLine() }, 500)
     return s
   }
 
@@ -384,5 +467,5 @@ class ScriptedProvider extends FakeProvider {
 }
 
 await serve([new ScriptedProvider({
-  capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} },
+  capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} },
 })])
