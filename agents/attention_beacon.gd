@@ -48,6 +48,8 @@ func _ready() -> void:
 	_pillar.mesh = mesh
 	_pillar.position.y = BASE + HEIGHT / 2.0
 	_pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Seen across the ocean through the fog: never past the draw distance.
+	_pillar.set_meta(DrawDistance.UNLIMITED, true)
 	add_child(_pillar)
 	visible = false
 	set_process(false)

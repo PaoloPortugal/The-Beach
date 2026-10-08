@@ -7,6 +7,11 @@ extends StaticBody3D
 ## [constant CLEARANCE] above the water in between; ends higher than that
 ## are joined in a straight line (W10's different heights). A placeholder
 ## that art can replace.
+##
+## It's drawn in segments (see [constant SEGMENT]), each with its up-close
+## look and a simple far version shown past [constant NEAR_DISTANCE]
+## (NOTES → Architecture → Performance). That split stays when art
+## replaces the generated look: only what each version is made of changes.
 
 const WOOD := Color(0.55, 0.4, 0.26)
 ## Deck width and the planks' size along the bridge, metres.
@@ -29,6 +34,17 @@ const WALL_HEIGHT := 2.2
 const POST_BOTTOM := -5.0
 ## How far the deck runs on past each end, into the ground.
 const OVERRUN := 1.5
+## Segments are at most this long, metres, so a long bridge's near part
+## isn't judged by its middle's distance.
+const SEGMENT := 24.0
+## A segment whose middle is further than this from the camera, metres,
+## shows its far version. The margin keeps it from flickering at the line:
+## it swaps at NEAR_DISTANCE + NEAR_MARGIN going away and at
+## NEAR_DISTANCE - NEAR_MARGIN coming back.
+const NEAR_DISTANCE := 70.0
+const NEAR_MARGIN := 4.0
+## The far version's pieces are at most this long, metres.
+const FAR_STEP := 4.0
 
 var from: Vector3
 var to: Vector3
@@ -44,21 +60,48 @@ func _ready() -> void:
 	position = from
 	# Local -z runs along the bridge, +x across it.
 	rotation.y = atan2(-flat.x, -flat.y)
-	var built := _build(flat.length())
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.vertex_color_is_srgb = true
 	material.roughness = 1.0
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = built["mesh"]
-	mesh.material_override = material
-	add_child(mesh)
+	var bounds := segment_bounds()
+	var near := _near_meshes(flat.length(), bounds)
+	for k in bounds.size() - 1:
+		var segment := Node3D.new()
+		segment.name = "Segment%d" % k
+		add_child(segment)
+		var up_close := MeshInstance3D.new()
+		up_close.name = "Near"
+		up_close.mesh = near[k]
+		up_close.material_override = material
+		up_close.visibility_range_end = NEAR_DISTANCE
+		up_close.visibility_range_end_margin = NEAR_MARGIN
+		segment.add_child(up_close)
+		var far := MeshInstance3D.new()
+		far.name = "Far"
+		far.mesh = _far_mesh(flat.length(), bounds[k], bounds[k + 1])
+		far.material_override = material
+		far.visibility_range_begin = NEAR_DISTANCE
+		far.visibility_range_begin_margin = NEAR_MARGIN
+		segment.add_child(far)
 	var shape := ConcavePolygonShape3D.new()
 	shape.backface_collision = true # the rail walls work from both sides
-	shape.set_faces(built["faces"])
+	shape.set_faces(_collision_faces(flat.length()))
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	add_child(collision)
+
+
+## Where the segments start and end, metres along from [member from]: the
+## deck's whole run (overrun included) cut evenly, none longer than
+## [constant SEGMENT].
+func segment_bounds() -> PackedFloat32Array:
+	var total := length() + 2.0 * OVERRUN
+	var count := maxi(1, ceili(total / SEGMENT))
+	var out := PackedFloat32Array()
+	for k in count + 1:
+		out.append(-OVERRUN + total * k / count)
+	return out
 
 
 ## The horizontal length, metres.
@@ -88,17 +131,25 @@ func carries(point: Vector3) -> bool:
 		and point.y >= deck_y(s) - 0.5 and point.y <= deck_y(s) + 3.0
 
 
-func _build(length: float) -> Dictionary:
+# The up-close look, one mesh per segment: planks across the deck, each
+# tilted to the slope under it, and posts with two rails on both sides. A
+# piece goes in the segment where it starts.
+func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([from, to])
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var faces := PackedVector3Array()
-	# Local heights: the node sits at [member from].
-	var y := func(s: float) -> float: return deck_height(from.y, to.y, length, s) - from.y
+	var tools: Array[SurfaceTool] = []
+	for k in bounds.size() - 1:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		tools.append(st)
+	var segment_at := func(s: float) -> SurfaceTool:
+		for k in range(bounds.size() - 2, 0, -1):
+			if s >= bounds[k]:
+				return tools[k]
+		return tools[0]
+	var y := _deck_y_local(length)
 	var half := WIDTH / 2.0
 
-	# Planks across the deck, each tilted to the slope under it.
 	var s := -OVERRUN
 	while s < length + OVERRUN:
 		var s1 := minf(s + PLANK, length + OVERRUN)
@@ -106,10 +157,95 @@ func _build(length: float) -> Dictionary:
 		var y1: float = y.call(s1) + rng.randf_range(-0.015, 0.015)
 		var shade := WOOD.lightened(rng.randf_range(-0.08, 0.12))
 		var w := half + rng.randf_range(-0.06, 0.06)
-		_slab(st, Vector3(-w, y0, -s), Vector3(w, y0, -s), Vector3(w, y1, -s1), Vector3(-w, y1, -s1), THICKNESS, shade)
+		_slab(segment_at.call(s), Vector3(-w, y0, -s), Vector3(w, y0, -s), Vector3(w, y1, -s1), Vector3(-w, y1, -s1), THICKNESS, shade)
 		s = s1 + PLANK_GAP
 
-	# The deck's collision: one strip, sampled every metre.
+	var posts := _posts(length)
+	var dark := WOOD.darkened(0.25)
+	for side in [-1.0, 1.0]:
+		var x: float = side * (half + 0.08)
+		for i in posts.size():
+			var at := posts[i]
+			var st: SurfaceTool = segment_at.call(at)
+			var top: float = y.call(at) + RAIL_HEIGHT
+			var bottom := POST_BOTTOM - from.y
+			_box(st, Vector3(x, (bottom + top) / 2.0, -at), Vector3(0.18, top - bottom, 0.18), dark)
+			if i == posts.size() - 1:
+				continue
+			var nxt := posts[i + 1]
+			for h in [RAIL_HEIGHT, RAIL_HEIGHT * 0.5]:
+				var ya: float = y.call(at) + h
+				var yb: float = y.call(nxt) + h
+				_slab(st, Vector3(x - 0.06, ya, -at), Vector3(x + 0.06, ya, -at), Vector3(x + 0.06, yb, -nxt), Vector3(x - 0.06, yb, -nxt), 0.1, WOOD.lightened(0.05))
+	var out: Array[ArrayMesh] = []
+	for st in tools:
+		out.append(st.commit())
+	return out
+
+
+# The far version of the segment from [param s0] to [param s1]: the deck
+# as one slab (its top and sides), a top rail on each side and plain posts
+# down to the water, in the near pieces' colours.
+func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var y := _deck_y_local(length)
+	var half := WIDTH / 2.0
+	var down := Vector3(0.0, -THICKNESS, 0.0)
+	var steps := maxi(1, ceili((s1 - s0) / FAR_STEP))
+	for i in steps:
+		var a := lerpf(s0, s1, float(i) / steps)
+		var b := lerpf(s0, s1, float(i + 1) / steps)
+		var ya: float = y.call(a)
+		var yb: float = y.call(b)
+		var l0 := Vector3(-half, ya, -a)
+		var r0 := Vector3(half, ya, -a)
+		var r1 := Vector3(half, yb, -b)
+		var l1 := Vector3(-half, yb, -b)
+		var inside := (l0 + r1) / 2.0 + down / 2.0
+		_quad(st, inside, l0, r0, r1, l1, WOOD.lightened(0.02))
+		_quad(st, inside, r0, r1, r1 + down, r0 + down, WOOD.darkened(0.15))
+		_quad(st, inside, l0, l1, l1 + down, l0 + down, WOOD.darkened(0.15))
+	var posts := _posts(length)
+	if posts.is_empty():
+		return st.commit()
+	var dark := WOOD.darkened(0.25)
+	var rail := WOOD.lightened(0.05)
+	for side in [-1.0, 1.0]:
+		var x: float = side * (half + 0.08)
+		for at in posts:
+			# Each post in one segment: the one it starts in.
+			if at >= s0 and at < s1:
+				_post(st, Vector3(x, y.call(at) + RAIL_HEIGHT, -at), -0.5 - from.y, dark)
+		# The top rail, where this segment has one.
+		var ra := maxf(s0, posts[0])
+		var rb := minf(s1, posts[-1])
+		if rb - ra < 0.01:
+			continue
+		var rail_steps := maxi(1, ceili((rb - ra) / FAR_STEP))
+		var lo := Vector3(0.0, -0.1, 0.0)
+		for i in rail_steps:
+			var a := lerpf(ra, rb, float(i) / rail_steps)
+			var b := lerpf(ra, rb, float(i + 1) / rail_steps)
+			var ya: float = y.call(a) + RAIL_HEIGHT
+			var yb: float = y.call(b) + RAIL_HEIGHT
+			var inside := Vector3(x, (ya + yb) / 2.0 - 0.05, -(a + b) / 2.0)
+			var p0 := Vector3(x - 0.06, ya, -a)
+			var q0 := Vector3(x + 0.06, ya, -a)
+			var q1 := Vector3(x + 0.06, yb, -b)
+			var p1 := Vector3(x - 0.06, yb, -b)
+			_quad(st, inside, p0, q0, q1, p1, rail)
+			_quad(st, inside, q0, q1, q1 + lo, q0 + lo, rail.darkened(0.15))
+			_quad(st, inside, p0, p1, p1 + lo, p0 + lo, rail.darkened(0.15))
+	return st.commit()
+
+
+# The deck's collision as one strip sampled every metre, and on both sides
+# a wall 2.2 m high you can't get past.
+func _collision_faces(length: float) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	var y := _deck_y_local(length)
+	var half := WIDTH / 2.0
 	var steps := maxi(1, ceili((length + 2.0 * OVERRUN) / 1.0))
 	for i in steps:
 		var a := -OVERRUN + (length + 2.0 * OVERRUN) * i / steps
@@ -117,35 +253,52 @@ func _build(length: float) -> Dictionary:
 		var ya: float = y.call(a)
 		var yb: float = y.call(b)
 		_quad_faces(faces, Vector3(-half, ya, -a), Vector3(half, ya, -a), Vector3(half, yb, -b), Vector3(-half, yb, -b))
+	var posts := _posts(length)
+	for side in [-1.0, 1.0]:
+		var x: float = side * (half + 0.08)
+		for i in posts.size() - 1:
+			var at := posts[i]
+			var nxt := posts[i + 1]
+			# Sampled like the deck, so a ramp's wall follows it.
+			var m := maxi(1, ceili(nxt - at))
+			for j in m:
+				var a := at + (nxt - at) * j / m
+				var b := at + (nxt - at) * (j + 1) / m
+				var ya: float = y.call(a)
+				var yb: float = y.call(b)
+				_quad_faces(faces, Vector3(x, ya, -a), Vector3(x, ya + WALL_HEIGHT, -a), Vector3(x, yb + WALL_HEIGHT, -b), Vector3(x, yb, -b))
+	return faces
 
-	# Posts, rails and the walls you can't get past.
-	if length > 2.0 * RAIL_INSET:
-		var span := length - 2.0 * RAIL_INSET
-		var n := maxi(1, ceili(span / POST_SPACING))
-		var dark := WOOD.darkened(0.25)
-		for side in [-1.0, 1.0]:
-			var x: float = side * (half + 0.08)
-			for i in n + 1:
-				var at := RAIL_INSET + span * i / n
-				var top: float = y.call(at) + RAIL_HEIGHT
-				var bottom := POST_BOTTOM - from.y
-				_box(st, Vector3(x, (bottom + top) / 2.0, -at), Vector3(0.18, top - bottom, 0.18), dark)
-				if i == n:
-					continue
-				var nxt := RAIL_INSET + span * (i + 1) / n
-				for h in [RAIL_HEIGHT, RAIL_HEIGHT * 0.5]:
-					var ya: float = y.call(at) + h
-					var yb: float = y.call(nxt) + h
-					_slab(st, Vector3(x - 0.06, ya, -at), Vector3(x + 0.06, ya, -at), Vector3(x + 0.06, yb, -nxt), Vector3(x - 0.06, yb, -nxt), 0.1, WOOD.lightened(0.05))
-				# Sampled like the deck, so a ramp's wall follows it.
-				var m := maxi(1, ceili(nxt - at))
-				for j in m:
-					var a := at + (nxt - at) * j / m
-					var b := at + (nxt - at) * (j + 1) / m
-					var ya: float = y.call(a)
-					var yb: float = y.call(b)
-					_quad_faces(faces, Vector3(x, ya, -a), Vector3(x, ya + WALL_HEIGHT, -a), Vector3(x, yb + WALL_HEIGHT, -b), Vector3(x, yb, -b))
-	return {"mesh": st.commit(), "faces": faces}
+
+# The deck's top in local heights (the node sits at [member from]), by
+# the distance along.
+func _deck_y_local(length: float) -> Callable:
+	return func(s: float) -> float: return deck_height(from.y, to.y, length, s) - from.y
+
+
+# Where the posts stand, metres along: at most POST_SPACING apart between
+# the rails' ends, which stop RAIL_INSET from each end. None on a bridge
+# too short for rails.
+func _posts(length: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if length <= 2.0 * RAIL_INSET:
+		return out
+	var span := length - 2.0 * RAIL_INSET
+	var n := maxi(1, ceili(span / POST_SPACING))
+	for i in n + 1:
+		out.append(RAIL_INSET + span * i / n)
+	return out
+
+
+# A far post: its four sides, from [param bottom] up to [param top].
+func _post(st: SurfaceTool, top: Vector3, bottom: float, colour: Color) -> void:
+	var h := 0.09
+	var inside := Vector3(top.x, (top.y + bottom) / 2.0, top.z)
+	var corners := [Vector3(-h, 0, h), Vector3(h, 0, h), Vector3(h, 0, -h), Vector3(-h, 0, -h)]
+	for k in 4:
+		var c0: Vector3 = top + corners[k]
+		var c1: Vector3 = top + corners[(k + 1) % 4]
+		_quad(st, inside, c0, c1, Vector3(c1.x, bottom, c1.z), Vector3(c0.x, bottom, c0.z), colour)
 
 
 # A flat slab whose top is the quad a b c d, [param thick] deep.

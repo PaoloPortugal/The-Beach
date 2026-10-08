@@ -415,7 +415,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -437,6 +437,69 @@ removing a provider means deleting its folders.
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
+
+**Performance** (user's decisions, 2026-10-07; dev log
+2026-10-08-perf-pass). Scope: core. The game is **GPU-bound**: the CPU's share of a
+frame is about 1 ms, physics 0.3-0.5 ms.
+- *Budget, measured* with the layout demo (W06: 64 sessions in 20
+  clusters, 56 bridges) at 1920x1080 with vsync off, on an integrated
+  AMD Radeon, other programs sharing it (so absolute numbers are
+  pessimistic; compare changes). Median GPU time per frame over 180
+  frames at four fixed viewpoints (the platform looking out two ways, an
+  island, a bridge's middle):
+
+  | | GPU per frame | Triangles per frame |
+  |---|---|---|
+  | Before (2026-10-07) | 23-29 ms | 1.2-1.8 million, over half in the sun's shadows |
+  | After this pass (2026-10-08) | 15-18 ms | 0.33-0.45 million |
+
+  The segments cost some CPU: draw calls went from about 240 to
+  210-330, CPU rendering from 0.8 to 1.2 ms.
+
+  What's left (each measured by hiding it): the sun's shadows about
+  4.5 ms; bridges' near versions about 4-5 ms close to the platform,
+  where 16 bridges start (their far versions about 0.3 ms); islands
+  2-9 ms by view; the ocean 4-7 ms (measured before). Making an island
+  stalled a frame for 140-170 ms before, about 54-64 ms of it generating
+  the mesh, now 25 ms; loading the demo's 64 sessions took 9-11 s.
+- *How to measure:* a throwaway script (not in the repo) that loads
+  `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
+  freezes the player (`set_physics_process(false)`: hiding collision would
+  drop it in the sea) at fixed viewpoints, and reads
+  `RenderingServer.viewport_set_measure_render_time` /
+  `viewport_get_measured_render_time_gpu` and `get_rendering_info`
+  (primitives, draw calls), 180 frames each after a warm-up. Close other
+  Godot windows first. Measure each change between two fresh baselines;
+  runs vary by 1-3 ms. Hiding one part at a time shows what it costs.
+- **Rules.** Every generated mesh gets a far version or a visibility
+  range tied to the fog:
+  - *Nothing the fog hides fully is drawn.* `SessionIslands.draw_distance`
+    is the fog's end (`world.gd` → `fit_draw_distance` reads
+    `fog_depth_end` from the WorldEnvironment, 390 m: one source); 0 is no
+    limit (fog off, like the demo's view from above, which calls it
+    again). Every `GeometryInstance3D` under `SessionIslands`, islands,
+    orchestrators, agents and bridges, those that come later included
+    (`SceneTree.node_added`), gets `visibility_range_end` = draw distance
+    + its own box's half diagonal (`DrawDistance`,
+    `world/draw_distance.gd`), measured from its middle, so only what is
+    fully fogged goes. Geometry with a range of its own keeps it, and
+    A05's beacons, which ignore the fog, are marked to show at any
+    distance (`DrawDistance.UNLIMITED`).
+  - *Long things come in segments,* each with its up-close look and a
+    simple far version that swap at a distance (`visibility_range_end` /
+    `visibility_range_begin` with the same margin), so a long one's near
+    part isn't judged by its middle. Bridges (W06): 24 m segments, far
+    past 70 m. This stays when art replaces the generated look.
+  - *Detail nobody sees is coarse:* the seabed under the opaque water is
+    on an 8 m grid instead of 2 m (W01).
+  - *In-world UI drawn through a SubViewport only redraws when it
+    changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
+    and hides once too far to read: the message bubble (C02).
+- *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
+  keeps 4 shadow splits; no resolution setting yet (later, in a graphics
+  settings menu); no threaded island generation, mesh merging, or
+  collision off far away (collision and per-frame scripts measured no
+  cost).
 
 ## Protocol
 
@@ -637,6 +700,16 @@ The water level is y = 0.
   diagonals, one normal per triangle (flat shading), and one colour per
   triangle by height: seabed, wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
+- *Coarse seabed* (user's decision, 2026-10-07; Architecture →
+  Performance). The opaque water hides the sea floor, so it is drawn
+  coarser: the grid (68 m out from the middle) is cut into blocks of
+  4 x 4 cells, and a block whose vertices are all below -1 m
+  (`coarse_below`; the waves reach ±0.35 m) is two triangles, 8 m
+  across. Where a 2 m cell meets such a block, its vertices on the shared
+  edge move onto that edge, so there are no cracks. About 3,000-3,400
+  triangles an island instead of 9,248, and half the time to build. The
+  collision uses the same faces; `height_at` (placing agents, the
+  orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
@@ -834,7 +907,7 @@ and sessions in the same repository are grouped automatically.
   the session id when the reply comes (before `session.created`).
 - *Layout:* since W06, clusters in wedges from the platform (see W06).
   An island's land reaches at most about 44 m from its centre, its sea
-  floor about 67 m. `SessionIslands.session_at` picks the nearest island,
+  floor 68 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
 - *Sessions menu* (S03): a "Cluster:" row under the search box with
   "Automatic (by repository)", each running cluster and "New cluster";
@@ -948,6 +1021,19 @@ and the real layout (user's, 2026-10-02; W07).
   a mid rail. The rails start 1 m from each end. Collision: the deck as
   one strip, and on both sides a wall 2.2 m high (higher than a jump) so
   you can't run or jump off. Flat-shaded, vertex colours like the islands.
+- *Far version* (user's decision, 2026-10-07; Architecture →
+  Performance). A bridge is drawn in segments: its deck's run, overrun
+  included, cut evenly into pieces of at most 24 m (`SEGMENT`,
+  `segment_bounds`), each a `Segment<k>` node with two meshes. `Near` is
+  the planks, posts and rails starting in it, hidden past 70 m
+  (`NEAR_DISTANCE`, measured to its middle); `Far` shows from there: the
+  deck as one slab (top and sides), one top rail a side and plain posts
+  down to the water, in the same colours, about a fifth of the
+  triangles. Both use a 4 m margin, so a segment swaps at 74 m going away
+  and at 66 m coming back, never flickering. Only what each version is
+  made of is the placeholder; the segments stay when bridges become art.
+  The collision is unchanged (one shape for the whole bridge). Far
+  versions are hidden past the fog, like the islands.
 - *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
   under `SessionIslands`): regions are keys with a centre, a reach and an
   edge (a Callable giving where a bridge heading for a point meets the
@@ -999,7 +1085,8 @@ and the real layout (user's, 2026-10-02; W07).
 - *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
   made-up sessions in 20 clusters (one of 13 islands, four past 16), the
   sidecar stopped so nothing real shows. B switches to a view from above
-  with the fog off (mouse wheel zooms). `godot --path .
+  with the fog off, and so with no draw distance (Architecture →
+  Performance; mouse wheel zooms). `godot --path .
   res://tests/world/layout_demo.tscn`. `tests/world/bridges_test.gd`
   checks the same scene: every island in a wedge joined to the platform,
   no bridge over another island's land or across another bridge, before
@@ -1277,7 +1364,14 @@ all of it, so markup in a message shows as written (tested with an injected
   characters), then wraps; only its last 4 wrapped lines show, through a
   clip, with a small "…" above when anything was cut. Hidden until the
   orchestrator has said something. The bubble's bottom edge sits on the
-  anchor, so it grows upwards.
+  anchor, so it grows upwards. *Drawing* (user's decision, 2026-10-07;
+  Architecture → Performance): its `SubViewport` draws once when the
+  text changes (`UPDATE_ONCE`, after the layout; the same text again
+  draws nothing) and not at all while
+  hidden; the texture keeps the last drawing. Before, every bubble
+  redrew every frame (64 showing text cost about 5 ms). The bubble isn't
+  drawn past 60 m (`visibility_range_end`, 4 m margin), where its text is
+  too small to read anyway.
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
   project's name, the permission mode when known (C06), and "Esc to
@@ -2541,11 +2635,24 @@ godot --headless --path . --script res://tests/world/world_test.gd
 godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/clusters_test.gd
 godot --headless --path . --script res://tests/world/bridges_test.gd
+godot --headless --path . --script res://tests/world/performance_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
 The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
+
+The performance test (Architecture → Performance) checks that the coarse
+seabed has no gaps, overlaps or cracks and far fewer triangles while the
+land keeps its 2 m detail; that a bridge's segments are at most 24 m,
+each swapping to a much simpler far version at 70 m in the same place;
+that a bubble's viewport draws once per new text and not while hidden,
+and hides past 60 m; and, in the layout demo, that islands, orchestrators,
+markers, far bridges and a subagent spawned later end at the fog plus
+their size, the near versions, bubbles and beacons keep their own, and
+that turning the fog off (B) and on again follows. Headless Godot draws
+nothing, so it checks how each is set up; the drawing was measured in a
+window.
 
 **Any error fails a suite** (user's choice, 2026-10-03; dev log
 2026-10-03-script-errors-fail-tests). A GDScript runtime error
@@ -2765,8 +2872,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the performance pass on `perf-pass`, waiting for the
-user's live check and review (dev log 2026-10-08-perf-pass).
+**Current focus:** none picked; the user chooses next (C08 token usage
+is paused as WIP on `c08-usage`, dev log 2026-10-03-c08-usage-spike).
+**Merged to `main` (2026-10-08), reviewed by the user: the performance
+pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
+bridges' far versions, a coarse seabed, nothing drawn past the fog,
+bubbles redrawn only on a change.
 **Merged to `main` (2026-10-08), reviewed by the user: W06 bridges**
 (dev log 2026-10-07-w06-bridges): clusters in wedges from the platform,
 bridges joining each cluster and the platform as a tree, a minimap and
@@ -3206,7 +3317,10 @@ exists.
   gone with the pre-pass off, so `project.godot` sets
   `rendering/driver/depth_prepass/enable=false` for every GPU (other
   vendors couldn't be tested; islands also move up and down since W04). The cost
-  is some overdraw, small for this low-poly world. Recheck on Godot
+  is some overdraw, small for this low-poly world, but it now includes
+  every seabed and post under the opaque water, which is still drawn
+  (Architecture → Performance; the seabed is coarse for that): worth
+  rechecking whether the pre-pass can come back. Recheck on Godot
   updates; if it's a Godot bug, report it and turn the pre-pass back on
   once fixed (dev log 2026-09-30-chat-panel-session-islands).
 - **Untested on macOS and Linux.** Everything verified so far (S02, C03)

@@ -6,8 +6,9 @@ extends Node3D
 ##
 ##   godot --path . res://tests/world/layout_demo.tscn
 ##
-## B switches to a view from above (fog off; mouse wheel zooms); Tab's
-## Running list goes to any island; M opens the big map.
+## B switches to a view from above (fog off, so no draw distance; mouse
+## wheel zooms); Tab's Running list goes to any island; M opens the big
+## map.
 
 ## Islands per cluster: 64 in 20 clusters.
 const SIZES := [13, 7, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2]
@@ -67,3 +68,5 @@ func _unhandled_input(event: InputEvent) -> void:
 func _set_fog(on: bool) -> void:
 	for env: WorldEnvironment in world.find_children("*", "WorldEnvironment", true, false):
 		env.environment.fog_enabled = on
+	# Without the fog, everything is drawn however far.
+	world.fit_draw_distance()
