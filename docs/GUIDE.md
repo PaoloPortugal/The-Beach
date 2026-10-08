@@ -468,7 +468,8 @@ While Claude Code can't use your account, a message you send from the
 game may never reach it. If a message hasn't shown up in the chat after
 about 15 seconds, the line above the box says "Your message hasn't
 reached the session. Check its terminal, then send it again." and your
-text goes back in the box. (Messages you send while Claude is busy wait
+text goes back in the box. The warning goes when you send again or Claude
+Code picks a message up. (Messages you send while Claude is busy wait
 for its turn to end, so they don't get this warning.)
 
 ## The sidecar (S01)

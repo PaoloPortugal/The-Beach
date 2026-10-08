@@ -2597,7 +2597,8 @@ rules), so the world only points there.
 - *Tests:* `hooks.test.ts` (the `error` field, each account error, the
   clearing paths, a repeated failure), `notices.test.ts` (the registry,
   and end to end through a real session), the dev fake's `signin` word
-  (`dev-fake.test.ts`, which also fails on any event the sidecar drops),
+  and `lost` (`dev-fake.test.ts`, which also fails on any event the
+  sidecar drops),
   `session_store_test.gd` (by hand, and live with the fake) and
   `world_test.gd` (the notice, the status, the "!" and the cue, the
   clearing, the stop reasons).
@@ -2610,9 +2611,10 @@ rules), so the world only points there.
   arrives and the orchestrator doesn't start working within 15 s, the
   status says "Your message hasn't reached the session. Check its
   terminal, then send it again." and the text goes back in the box
-  (when it's empty, also on reopening the chat). The next message that
-  arrives clears it. Generic: it reads only the store. Tested live with
-  the fake's `lost` word (`world_test.gd`).
+  (when it's empty, also on reopening the chat). Sending again, a user
+  message arriving or the orchestrator starting to work clears it.
+  Generic: it reads only the store. Tested with the fake's `lost` word
+  (`dev-fake.test.ts`: accepted, then no event; `world_test.gd` live).
 - *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
   an invalid API key: a message typed in the terminal brought the
   notice, the status, the "!" and the beacon; one sent from the world
@@ -2681,8 +2683,9 @@ In `sidecar/`:
   the last failing; a notice; the turn failing on the account like an
   expired login, S06: the `sign_in_needed` notice and the orchestrator
   waiting on `sign_in`, cleared by the next message that goes through;
-  a new conversation like `/clear`); a message with the word `lost` never
-  reaches the session (no event at all, S06's pickup notice), and `rename <name>` renames the session
+  a new conversation like `/clear`); a message with the word `lost`
+  never reaches the session (no event at all, whatever other words it
+  has: S06's pickup notice), and `rename <name>` renames the session
   like `/rename`; anything else is echoed back. Sessions start in auto
   mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
   Accept edits, Plan); `permission`'s prompt offers "Yes, and don't ask
