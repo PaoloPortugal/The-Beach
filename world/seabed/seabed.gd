@@ -14,7 +14,8 @@ const CELL := 4.0
 ## (trenches included). Islands' drop-offs reach below DEEPEST.
 const SHALLOWEST := -14.0
 const DEEPEST := -30.0
-## Mounds and hollows on top of the banks and deeps, up to this high or deep.
+## Mounds and hollows on top of the banks and deeps: mostly within this
+## high or deep, a few up to about 1.6 times it (the depth is clamped after).
 const MOUNDS := 2.0
 ## How hard the base noise is pushed toward the banks and the deeps, so
 ## the floor uses its whole range rather than sitting in the middle.

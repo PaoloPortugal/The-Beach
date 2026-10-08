@@ -251,7 +251,8 @@ it, so the two match where they meet. A new session's island rises out of the se
 one sinks back into it, and you can watch both through the water.
 
 You get out of the water by swimming to a beach and walking up it. You
-can't climb or leap onto the platform or a bridge from the water. To get back to
+can't climb or leap onto the platform or a bridge's railed sides from the
+water. To get back to
 the platform from anywhere, choose **⌂ Platform** in the sessions menu
 (Tab), or click the platform on the big map (M).
 
