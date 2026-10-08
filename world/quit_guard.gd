@@ -7,6 +7,13 @@ extends CanvasLayer
 ## closing the window with sessions running asks first, listing them with
 ## what they're doing, and says to end them in their terminals. With none
 ## running, the game just quits. A PLACEHOLDER, like all UI for now.
+## The list scrolls once it's taller than the window allows, so the
+## buttons always stay on screen, however many sessions run.
+
+## The dialog's width, unless the window is narrower.
+const WIDTH := 560.0
+## Room kept between the dialog and the window's edges.
+const MARGIN := 16.0
 
 var store: SessionStore
 var player: Player
@@ -14,6 +21,11 @@ var player: Player
 var quit: Callable = func() -> void: get_tree().quit()
 
 var _dialog := ConfirmationDialog.new()
+var _header := Label.new()
+## The sessions, one per line, in [member _scroll].
+var _list := Label.new()
+var _scroll := ScrollContainer.new()
+var _footer := Label.new()
 ## The mouse mode and controls to give back on "Back to the game".
 var _mouse_before := Input.MOUSE_MODE_VISIBLE
 var _controls_before := true
@@ -24,8 +36,15 @@ func _init() -> void:
 	_dialog.title = "Quit"
 	_dialog.ok_button_text = "Quit"
 	_dialog.cancel_button_text = "Back to the game"
-	_dialog.dialog_autowrap = true
-	_dialog.min_size = Vector2i(560, 0)
+	for l: Label in [_header, _list, _footer]:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_list)
+	var box := VBoxContainer.new()
+	for c in [_header, _scroll, _footer]:
+		box.add_child(c)
+	_dialog.add_child(box)
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.confirmed.connect(func() -> void: quit.call())
 	_dialog.canceled.connect(_give_back)
@@ -34,6 +53,9 @@ func _init() -> void:
 
 func _ready() -> void:
 	get_tree().set_auto_accept_quit(false)
+	get_viewport().size_changed.connect(func() -> void:
+		if is_asking():
+			_fit())
 
 
 func setup(p_store: SessionStore, p_player: Player) -> void:
@@ -42,10 +64,10 @@ func setup(p_store: SessionStore, p_player: Player) -> void:
 	for sig in [store.session_added, store.session_removed, store.agent_changed, store.agent_added]:
 		sig.connect(func(_a = null, _b = null) -> void:
 			if is_asking():
-				_dialog.dialog_text = warning())
+				_show())
 	store.session_changed.connect(func(_id: String, fields: Array) -> void:
 		if "title" in fields and is_asking():
-			_dialog.dialog_text = warning())
+			_show())
 
 
 func _notification(what: int) -> void:
@@ -64,32 +86,75 @@ func request_quit() -> void:
 	_controls_before = player.controls_enabled
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_dialog.dialog_text = warning()
-	_dialog.popup_centered()
+	_dialog.popup()
+	_show()
 
 
 func is_asking() -> bool:
 	return _dialog.visible
 
 
-## The dialog's text: the sessions still running, and what to do.
-func warning() -> String:
-	var n := store.sessions.size()
-	if n == 0:
-		return "No sessions are running any more."
-	var lines: Array[String] = []
-	lines.append("1 session is still running:" if n == 1 else "%d sessions are still running:" % n)
-	for id in store.sessions:
-		var s: Dictionary = store.sessions[id]
-		var project: Dictionary = s.get("project", {})
-		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
-	lines.append("")
-	lines.append("Quitting won't end them: they keep running in their terminals, and the game can't reach them any more. To end one, type /exit in its terminal.")
-	return "\n".join(lines)
+## The dialog's text as shown, for tests.
+func shown_text() -> String:
+	var parts := [_header.text, _list.text, _footer.text].filter(func(t: String) -> bool: return t != "")
+	return "\n".join(parts)
 
 
 func dialog() -> ConfirmationDialog:
 	return _dialog
+
+
+## The list's scroll, for tests.
+func list_scroll() -> ScrollContainer:
+	return _scroll
+
+
+## The dialog's text: a header, the sessions still running (one per line)
+## and what to do.
+func _show() -> void:
+	var n := store.sessions.size()
+	var lines: Array[String] = []
+	for id in store.sessions:
+		var s: Dictionary = store.sessions[id]
+		var project: Dictionary = s.get("project", {})
+		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
+	_list.text = "\n".join(lines)
+	if n == 0:
+		_header.text = "No sessions are running any more."
+		_footer.text = ""
+	else:
+		_header.text = "1 session is still running:" if n == 1 else "%d sessions are still running:" % n
+		_footer.text = "Quitting won't end them: they keep running in their terminals, and the game can't reach them any more. To end one, type /exit in its terminal."
+	_scroll.visible = n > 0
+	_footer.visible = n > 0
+	_fit()
+
+
+## Sizes the dialog to its text, but no bigger than the window: the list
+## gets the height the rest leaves, and scrolls if it needs more.
+func _fit() -> void:
+	var room := get_viewport().get_visible_rect().size
+	var title := float(_dialog.get_theme_constant("title_height"))
+	var width := maxf(minf(WIDTH, room.x - 2 * MARGIN), 1.0)
+	# Wrapped labels measure their height at their width: the dialog's,
+	# less its panel's margins.
+	var inner := maxf(width - _dialog.get_theme_stylebox("panel").get_minimum_size().x, 1.0)
+	for l: Label in [_header, _list, _footer]:
+		l.size.x = inner
+		l.update_minimum_size()
+	_scroll.custom_minimum_size.y = 0
+	_dialog.min_size = Vector2i(int(width), 0)
+	_dialog.reset_size()
+	var free := room.y - 2 * MARGIN - title - float(_dialog.get_contents_minimum_size().y)
+	if _scroll.visible:
+		_scroll.custom_minimum_size.y = clampf(_list.get_minimum_size().y, 0.0, maxf(free, 0.0))
+	_dialog.reset_size()
+	# Centred, below its title bar; in a window too short even for that,
+	# the bottom stays on screen, so the buttons do.
+	var at := ((room - Vector2(_dialog.size)) / 2 + Vector2(0, title / 2)).max(Vector2(0, title))
+	at.y = minf(at.y, room.y - MARGIN - _dialog.size.y)
+	_dialog.position = Vector2i(at)
+
 
 
 func _give_back() -> void:

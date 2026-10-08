@@ -2262,7 +2262,14 @@ it's doing" (kept up to date while the dialog is open), then "Quitting
 won't end them: they keep running in their terminals, and the game can't
 reach them any more. To end one, type /exit in its terminal." Buttons:
 Quit, and Back to the game (or Esc), which gives the mouse and controls
-back as they were. With no session running it quits at once. A
+back as they were. With no session running it quits at once. The list
+scrolls once it's taller than the window leaves room for (the header and
+the hint stay put), so the buttons are always on screen, however many
+sessions run; the dialog is 560 px wide, or the window's width less a
+margin if that's narrower, and refits when the window is resized. In a
+window too short even for the header and the hint, it keeps its bottom
+on screen, so the buttons still show (dev log 2026-10-07-s05-quit-scroll;
+before that, many sessions pushed the buttons off screen). A
 **placeholder**, like all UI. "What it's doing" is the session's
 `SessionStore.activity`, subagents included: waiting for you if any agent
 waits, else working if any works (so an idle orchestrator waiting on its
@@ -2605,6 +2612,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** W06 bridges (user's order, 2026-10-07: W04, then
 W06).
+**Merged to `main` (2026-10-08), reviewed by the user: the quit
+warning's list scrolls** (S05, dev log 2026-10-07-s05-quit-scroll): with
+many sessions the Quit button went off screen.
 **Merged to `main` (2026-10-07), reviewed by the user: W04, islands
 rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
 edge arrow showing where a new session's island is (placeholders); live

@@ -103,9 +103,10 @@ under Running, but you aren't taken there.
 Sessions don't end when you quit: they keep running in their terminal
 windows, but the game can no longer see or reach them. So if you close
 the game while sessions are running, it asks first. It lists them with
-what each is doing, and reminds you that to end a session you type
-`/exit` in its terminal. **Quit** closes the game anyway; **Back to the
-game** (or Esc) returns you to where you were. With no session running,
+what each is doing (scroll the list if there are many), and reminds you
+that to end a session you type `/exit` in its terminal. **Quit** closes
+the game anyway; **Back to the game** (or Esc) returns you to where you
+were. With no session running,
 the game just closes.
 
 The game can't end sessions for you: Claude Code has no clean way to do
