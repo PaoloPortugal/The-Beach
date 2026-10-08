@@ -1282,7 +1282,8 @@ chosen as offered):*
 the shelf colours and the sea floor's variation, from the user's notes
 after the live check ("keep some of the speed when leaving the water so
 you can jump out"; the shelf "goes straight from the island's sand
-colour to the floor's"; more depth variation). Live check pending.
+colour to the floor's"; more depth variation). Live check passed
+(2026-10-08, the user: "looks good").
 
 ### W09 Day/night cycle and weather
 *Planned (user's request, 2026-10-01).* The sun moves through a day and
@@ -3355,10 +3356,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W08's follow-ups built on `w08-tuning` (dolphin jump,
-shelf colours, sea floor variation), waiting for the user's live check
-and review. Then W09, W10 and W11, then a settings menu with graphics
+**Current focus:** W09 day/night cycle and weather, starting with its
+design questions; then W10 and W11, then a settings menu with graphics
 settings, in that order (user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
+(dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
+sea floor's colours (now a smooth gradient by depth), a warped, spread
+sea floor with mounds; live check passed.
 **Merged to `main` (2026-10-08), reviewed by the user: W08 swimming and
 seabed** (dev log 2026-10-08-w08-swimming): one sea floor everywhere,
 clear water tinted by depth, swimming and diving, islands rising out of
