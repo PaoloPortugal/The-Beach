@@ -251,9 +251,9 @@ permission mode, such as **Mode: Auto** (see Permission modes and plans
 below).
 
 Above the box, a line says what the orchestrator is doing: working, or
-waiting for you. If a reply stopped because of a problem on the AI
-service's side (busy, a usage limit, an error), the line says so; check
-the terminal for details. When it waits on a permission, a question or a plan, a
+waiting for you. If a reply stopped for a reason Claude Code reports (a
+usage limit, the service busy or failing, a reply too long, ...), the
+line says so and what to do. When it waits on a permission, a question or a plan, a
 card above that line lets you answer it (see below). Only the latest 200
 messages are shown at once. A long chat appears newest first, and the
 older messages fill in above it over a moment.

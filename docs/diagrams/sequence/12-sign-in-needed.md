@@ -29,15 +29,15 @@ sequenceDiagram
     Sidecar->>World: message.started / .completed (role user),<br/>orchestrator → working
     Note over Claude: The API call fails: the login expired or was signed out<br/>(401), the account is on hold, billing, ...
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/hooks.ts (SIGN_IN_ERRORS)<br/>Godot: chat/chat_panel.gd, A03 marker, A05 cue
+        Note over Sidecar,Claude: providers/claude/hooks.ts (SIGN_IN_ERRORS)<br/>Godot: chat/chat_panel.gd, agents/state_marker.gd,<br/>agents/attention_beacon.gd, world/attention.gd
         Claude->>Sidecar: StopFailure (error "authentication_failed")
         Sidecar-->>Claude: nothing to add
-        alt an account error (and the notice isn't up already)
-            Sidecar->>World: session.notice sign_in_needed<br/>(the provider's message: "… run /login in its terminal.")
+        alt an account error
+            Sidecar->>World: session.notice sign_in_needed, unless the same one is up<br/>(the provider's message: "… run /login in its terminal.")
             Sidecar->>World: agent.state_changed orchestrator → waiting (sign_in)
             Note over World: The chat shows the notice as sent and "Waiting for you<br/>to sign in, in the terminal."; the "!", beacon and count show.
         else any other error
-            Sidecar->>World: agent.state_changed orchestrator → error (its type)
+            Sidecar->>World: agent.state_changed orchestrator → error<br/>(its type if generic, else unknown)
             Note over World: The chat says what stopped the turn, else "Stopped."
         end
     end
