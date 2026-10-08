@@ -738,7 +738,8 @@ The water level is y = 0.
   stray islets).
 - *Low-poly look.* A 2 m grid with jittered vertices and alternating
   diagonals, one normal per triangle (flat shading), and one colour per
-  triangle by height: seabed, wet sand, sand, grass on dune tops. The
+  triangle by height: under the water the sea floor's (`Seabed.colour`,
+  W08), then wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
 - *Coarse drop-off* (user's decision, 2026-10-07, for the seabed under
   the then opaque water; Architecture → Performance). The grid (about
@@ -1199,18 +1200,40 @@ opaque everywhere (user's request, 2026-09-30).
   and clicking the platform on the big map (M) takes you there too, like
   clicking a session's island.
 
+*Decided after the live check (user's, 2026-10-08; my recommendations,
+chosen as offered):*
+- *Dolphin jump:* coming up fast leaps out of the water on its own,
+  keeping all the speed; gravity brings you back. Swimming up at the
+  normal speed still floats.
+- *Shelf colours:* an island's underwater faces take the sea floor's
+  colour by depth, and that colour becomes a smooth gradient instead of
+  three bands.
+- *Sea floor:* the base noise domain-warped (winding banks, not round
+  blobs) and spread over the whole depth range, plus a layer of mounds
+  and hollows; still between -14 m and -30 m.
+
 **How it works** (depths, speeds and colours my picks).
 - *Seabed* (`Seabed`, `world/seabed/seabed.gd`, in `world.tscn`). A
-  height field the same every run (`height_at`): Perlin noise between
-  -14 m (`SHALLOWEST`) and -30 m (`DEEPEST`), with trenches along a second
-  noise's zero lines, rising to a flat -6 m within 40 m of the platform
-  and blending back by 90 m. Built in 64 m chunks on a 4 m grid (vertices
+  height field the same every run (`height_at`) between -14 m
+  (`SHALLOWEST`) and -30 m (`DEEPEST`): domain-warped Perlin noise (warp
+  90 m at frequency 0.003) pushed toward the banks and the deeps
+  (`SPREAD` 1.7, eased), so it uses the whole range (spread 4.5 m, about
+  6 % of it within 2 m of the shallowest); mounds and hollows about
+  40 m across, mostly within 2 m and at most about 3 m (`MOUNDS`, Perlin
+  noise at 0.025); trenches along a second noise's zero lines; rising to
+  a flat -6 m within 40 m of the platform and blending back by 90 m.
+  Features narrower than about 12 m wouldn't show on the 4 m grid.
+  Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
   with matching collision, from the camera out to 420 m (past the fog)
   and dropped past 548 m; at most 6 chunks a frame, nearest first. Flat
-  shaded, three colours by depth, no shadows cast.
+  shaded, no shadows cast. Coloured by depth (`colour`): sand to -10 m,
+  blending to a greyer mid colour at -19 m and to the deep colour at
+  -28 m.
 - *Islands* (W01): a shelf at -4 m, then a drop-off below the deepest
-  floor, so an island stands on its own shelf wherever it is. W04 sinks
+  floor, so an island stands on its own shelf wherever it is. Under the
+  water (below -0.5 m) its faces take `Seabed.colour`, so the shelf and
+  drop-off match the floor where they meet. W04 sinks
   them to 4 m under the deepest floor, so they rise out of the seabed and
   sink back into it, visibly through the water. Bridge posts reach 0.5 m
   into the floor under them (W06); the platform is a block down to its
@@ -1233,7 +1256,19 @@ opaque everywhere (user's request, 2026-09-30).
   key), at 3.5 m/s or 6 m/s sprinting, eased at 8 m/s². Below the surface
   it neither sinks nor rises on its own; at the surface it floats with
   the feet 1.15 m under (`float_depth`, the eyes just above the waves) and
-  can't go higher, so there's no climbing out. Swimming into ground that
+  can't go higher (except a dolphin jump, below), so there's no climbing
+  out.
+- *Dolphin jump* (`Player`): reaching the surface rising faster than
+  4.5 m/s (`breach_speed`), and not touching ground, ends swimming with
+  all the speed kept: you leap out, gravity (and W03's air control) takes
+  over, and back in the water you swim again, sinking a little before
+  the water stops you. The threshold is above `swim_speed` (3.5), so only
+  sprinting up breaches (straight up, or steeper than about 50°); plain
+  Space or W toward the sky still floats. At the 6 m/s sprint the feet
+  reach about 0.8 m above the water: under the platform's 1 m deck (tried
+  from every gap and angle, never lands on it), and the bridges' rails
+  are 2.2 m walls; only their last metre on an island's beach is open,
+  and that beach is a way out anyway. Swimming into ground that
   slopes up (facing up more than 0.35) rides up it, and touching such
   ground with the feet less than 1.2 m under ends swimming: that's how you
   walk out up a beach. The platform's and bridges' sides are walls.
@@ -1243,15 +1278,12 @@ opaque everywhere (user's request, 2026-09-30).
   the big map (W06).
 - *Live check passed (2026-10-08)* with the user and the fake provider.
 
-*Next (user's, after the live check, 2026-10-08):*
-- **Dolphin jump:** rising out of the water shouldn't kill your momentum
-  at once; keep some of the speed when leaving the water so you can jump
-  out of it.
-- **Shelf colours:** the island's shelf meets the sea floor well in shape
-  but not in colour: it goes straight from the island's sand colour to
-  the floor's. Blend them.
-- **More depth variation** in the sea floor (which noise is undecided;
-  recommend one).
+*Follow-ups built (2026-10-08, branch `w08-tuning`):* the dolphin jump,
+the shelf colours and the sea floor's variation, from the user's notes
+after the live check ("keep some of the speed when leaving the water so
+you can jump out"; the shelf "goes straight from the island's sand
+colour to the floor's"; more depth variation). Live check passed
+(2026-10-08, the user: "looks good").
 
 ### W09 Day/night cycle and weather
 *Planned (user's request, 2026-10-01).* The sun moves through a day and
@@ -3110,8 +3142,10 @@ ends like a full render.
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
 platform, walking, jumping), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
-fog, out of the water up a beach, back by the menu's "Platform" and the
-big map), the sessions menu (the
+fog, out of the water up a beach, the dolphin jump (out of the water,
+below the platform's deck, back in), back by the menu's "Platform" and
+the big map; the sea floor's range, banks and mounds, its colour
+gradient, and islands' underwater faces in its colours), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
@@ -3322,9 +3356,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W08's follow-ups (W08 → Next: dolphin jump, shelf
-colours, sea floor depth variation), then W09, W10 and W11, in that order
-(user's, 2026-10-08).
+**Current focus:** W09 day/night cycle and weather, starting with its
+design questions; then W10 and W11, then a settings menu with graphics
+settings, in that order (user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
+(dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
+sea floor's colours (now a smooth gradient by depth), a warped, spread
+sea floor with mounds; live check passed.
 **Merged to `main` (2026-10-08), reviewed by the user: W08 swimming and
 seabed** (dev log 2026-10-08-w08-swimming): one sea floor everywhere,
 clear water tinted by depth, swimming and diving, islands rising out of
