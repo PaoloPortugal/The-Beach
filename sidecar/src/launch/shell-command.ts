@@ -8,6 +8,7 @@
 // as soon as the CLI offers one (NOTES.md -> Watch items).
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 /**
@@ -59,30 +60,60 @@ export function shortNameGuesses(name: string): string[] {
 /** Asks Windows for a path's short form; null if it can't say. */
 export type AskShort = (p: string) => string | null
 
-/** Windows' answers, per path: asked at most once per run. */
-const asked = new Map<string, string | null>()
+/**
+ * Windows PowerShell by its full path under SystemRoot, never by a bare
+ * name Windows might look for in the working folder first (like conhost
+ * in terminal.ts); null if it isn't there.
+ */
+export function windowsPowerShell(env: NodeJS.ProcessEnv = process.env): string | null {
+  const root = env.SystemRoot
+  if (!root || !/^[A-Za-z]:\\/.test(root)) return null
+  const exe = path.win32.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  return fs.existsSync(exe) ? exe : null
+}
+
+/** What askWindows runs, injectable for tests. */
+export interface AskOptions {
+  /** The PowerShell to run (default windowsPowerShell()); null: no answer. */
+  program?: string | null
+  /** Its working folder: a fixed one (default the temp folder), not whatever the sidecar inherited. */
+  cwd?: string
+  env?: NodeJS.ProcessEnv
+  run?: typeof spawnSync
+}
+
+const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject; $p = $env:SIDECAR_SHORT_PATH; ' +
+  'if ($f.FileExists($p)) { [Console]::Out.Write($f.GetFile($p).ShortPath) } ' +
+  'elseif ($f.FolderExists($p)) { [Console]::Out.Write($f.GetFolder($p).ShortPath) }'
 
 /**
  * Windows' own short form of an existing path (GetShortPathName, through
  * the Scripting.FileSystemObject in PowerShell), for the names it hashes
  * (`AB2761~1`), which can't be guessed. A fixed script in an argument
- * array; the path goes in an environment variable, never on a command
- * line. Only the answer's file identity is trusted (shortPath checks it).
+ * array, run from a fixed folder with an environment of only SystemRoot
+ * and the path (in a variable, never on a command line). Blocks for up to
+ * 10 s. Only the answer's file identity is trusted (shortPath checks it).
  */
-const askWindows: AskShort = (p) => {
-  if (asked.has(p)) return asked.get(p)!
-  const script = '$f = New-Object -ComObject Scripting.FileSystemObject; $p = $env:SIDECAR_SHORT_PATH; ' +
-    'if ($f.FileExists($p)) { [Console]::Out.Write($f.GetFile($p).ShortPath) } ' +
-    'elseif ($f.FolderExists($p)) { [Console]::Out.Write($f.GetFolder($p).ShortPath) }'
-  let answer: string | null = null
+export function askWindows(p: string, opts: AskOptions = {}): string | null {
+  const env = opts.env ?? process.env
+  const program = opts.program === undefined ? windowsPowerShell(env) : opts.program
+  if (program === null || !env.SystemRoot) return null
   try {
-    const r = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
-      env: { ...process.env, SIDECAR_SHORT_PATH: p }, encoding: 'utf8', shell: false, timeout: 10_000, windowsHide: true,
+    const r = (opts.run ?? spawnSync)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
+      cwd: opts.cwd ?? os.tmpdir(), env: { SystemRoot: env.SystemRoot, SIDECAR_SHORT_PATH: p },
+      encoding: 'utf8', shell: false, timeout: 10_000, windowsHide: true,
     })
-    if (r.status === 0 && r.stdout) answer = r.stdout.trim()
+    if (r.status === 0 && typeof r.stdout === 'string' && r.stdout) return r.stdout.trim()
   } catch { /* no PowerShell: no answer */ }
-  asked.set(p, answer)
-  return answer
+  return null
+}
+
+/** Windows' answers, per path: asked at most once per run. */
+const asked = new Map<string, string | null>()
+
+const askWindowsOnce: AskShort = (p) => {
+  if (!asked.has(p)) asked.set(p, askWindows(p))
+  return asked.get(p)!
 }
 
 /**
@@ -95,7 +126,7 @@ const askWindows: AskShort = (p) => {
  * Null when the volume makes no short names, or a short name still isn't
  * safe (`$(NEW-~1`).
  */
-export function shortPath(p: string, id: Identify = identify, ask: AskShort = askWindows): string | null {
+export function shortPath(p: string, id: Identify = identify, ask: AskShort = askWindowsOnce): string | null {
   const full = path.win32.resolve(p)
   const root = path.win32.parse(full).root
   if (!/^[A-Za-z]:\\$/.test(root)) return null // UNC and device paths: no
