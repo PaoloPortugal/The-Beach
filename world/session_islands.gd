@@ -10,6 +10,8 @@ extends Node3D
 ## while the player is on it (or on one of its bridges), then sinks and is
 ## freed. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
 ## spawn platform once an island is up, and go when it starts sinking.
+## Everything under it, agents and bridges that come later included, is
+## hidden past [member draw_distance] ([DrawDistance]).
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
 ## A new session's island is up (at once for one already running).
@@ -35,6 +37,16 @@ var player: Node3D
 ## Seconds to rise and to sink.
 var rise_time := 3.0
 var sink_time := 4.0
+## Islands, agents and bridges further than this from the camera, plus
+## their own size, aren't drawn: the fog hides them fully (world.gd sets
+## it from the fog). 0 is no limit. Setting it applies it to everything.
+var draw_distance := 0.0:
+	set(value):
+		draw_distance = value
+		if is_inside_tree():
+			for node in get_tree().get_nodes_in_group(DrawDistance.GROUP):
+				if is_ancestor_of(node):
+					DrawDistance.limit(node, draw_distance)
 
 var _islands := {} # session id → Island
 var _rising := {} # session id → its Tween
@@ -48,6 +60,7 @@ var _far := {} # Island → true, for one in a far spot (no bridges)
 func _ready() -> void:
 	bridges.name = "Bridges"
 	add_child(bridges)
+	get_tree().node_added.connect(_on_node_added)
 
 
 ## Call once, before anything else that listens for new sessions (see
@@ -248,6 +261,18 @@ func _sink(i: Island) -> void:
 		_cluster.erase(i)
 		_far.erase(i)
 		i.queue_free())
+
+
+# Geometry coming under us gets the draw distance, once it's set up (its
+# mesh may come after it enters the tree).
+func _on_node_added(node: Node) -> void:
+	if node is GeometryInstance3D and is_ancestor_of(node):
+		_limit.call_deferred(node)
+
+
+func _limit(node: Variant) -> void:
+	if is_instance_valid(node) and (node as Node).is_inside_tree():
+		DrawDistance.limit(node, draw_distance)
 
 
 # A risen island joins its cluster's bridges, unless it's in a far spot.
