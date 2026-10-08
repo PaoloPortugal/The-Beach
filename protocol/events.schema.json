@@ -192,7 +192,7 @@
       "required": ["id", "label", "used_percent", "resets_at"],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "label": { "description": "No control characters (no new lines) and no bidi overrides, so it can't fake a line or another provider's text.", "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]+$" },
         "used_percent": { "description": "0 to 100 (may pass 100 once over the limit).", "type": "number", "minimum": 0 },
         "resets_at": { "$ref": "#/$defs/timestamp" }
       },

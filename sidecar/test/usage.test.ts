@@ -600,12 +600,16 @@ test('usage.updated fits the schema; a bad one doesn\'t', () => {
   }
   const one = good.usage.limits[0]!
   assert.ok(checkMessage(good).ok)
+  assert.ok(checkMessage({ ...good, usage: { ...good.usage, limits: [{ ...one, label: 'Semana · 7 días' }] } } as Msg).ok, 'any language')
   for (const bad of [
     { ...good, usage: { ...good.usage, tokens: { ...good.usage.tokens, input: -1 } } },
     { ...good, usage: { ...good.usage, context: { tokens: 1, percent: null, window: 0 } } },
     { ...good, usage: { ...good.usage, limits: { five_hour: one } } }, // the old shape
     { ...good, usage: { ...good.usage, limits: [{ ...one, label: '' }] } },
     { ...good, usage: { ...good.usage, limits: [{ ...one, label: 'x'.repeat(41) }] } },
+    { ...good, usage: { ...good.usage, limits: [{ ...one, label: '5-hour\nClaude: 5-hour 1%' }] } }, // a fake line
+    { ...good, usage: { ...good.usage, limits: [{ ...one, label: String.fromCharCode(0x202e) + 'ruoh-5' }] } }, // a bidi override
+    { ...good, usage: { ...good.usage, limits: [{ ...one, label: 'a\u0000b' }] } },
     { ...good, usage: { ...good.usage, limits: [{ ...one, id: 'Five hour' }] } },
     { ...good, usage: { ...good.usage, limits: [{ id: 'five_hour', used_percent: 1, resets_at: one.resets_at }] } },
     { ...good, usage: { ...good.usage, limits: [{ ...one, cost: 1 }] } },
