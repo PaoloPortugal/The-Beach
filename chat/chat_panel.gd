@@ -83,6 +83,9 @@ var _watching := {}
 var _not_picked_up := {}
 var _given_back := {}
 var _watch_count := 0
+## The session the message box's text was typed for: one box serves every
+## chat, kept while closed, emptied on opening another session's.
+var _box_session := ""
 
 @onready var _title: Label = $Layout/Header/Title
 @onready var _mode: Label = $Layout/Header/Mode
@@ -150,6 +153,12 @@ func open(p_session_id: String) -> void:
 	session_id = p_session_id
 	_send_error = ""
 	visible = true
+	if session_id != _box_session:
+		# A text given back and not sent comes back on returning there.
+		if _given_back.has(_box_session) and _input.text == _not_picked_up.get(_box_session):
+			_given_back.erase(_box_session)
+		_input.text = ""
+		_box_session = session_id
 	_give_back(session_id)
 	_rebuild()
 	_pending.show_session(session_id)
@@ -253,6 +262,10 @@ func send() -> void:
 	var id := sidecar.send_command("message.send", {"session": session_id, "text": text}, func(reply: Dictionary) -> void:
 		if reply.get("type") == "error":
 			_watching.erase(sent_to)
+			# Another session's chat opened meanwhile: neither the error nor
+			# the text belongs there.
+			if _box_session != sent_to:
+				return
 			_send_error = "Couldn't send: %s" % reply.get("message", "")
 			# Give the text back, unless something new was typed meanwhile.
 			if _input.text.is_empty():
@@ -312,9 +325,8 @@ func _picked_up(session: String) -> void:
 	var given := _given_back.erase(session)
 	if not _not_picked_up.erase(session):
 		return
-	# The box is shared by every chat and kept when closed: clear it
-	# whichever is showing.
-	if given and _input.text == text:
+	# The box is kept while the chat is closed: clear it then too.
+	if given and _box_session == session and _input.text == text:
 		_input.text = ""
 	if session == session_id:
 		_refresh_status()
