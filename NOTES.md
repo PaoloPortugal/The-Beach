@@ -3222,14 +3222,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S06 sign-in needed, built on `s06-sign-in`; live
-check done with an invalid key, the pickup notice added after it;
-the review's notes fixed and tested; opening another session's chat
-empties the message box (user's decision); ready for the user's review
-(dev log 2026-10-08-s06-sign-in). Still open, kept as is unless the
-user minds: Open questions → 10's last part (a message typed in the
-terminal takes the given-back text). A login expiring on its own is a
-watch item.
+**Current focus:** none picked; the user chooses next.
+**Merged to `main` (2026-10-08), reviewed by the user: S06 sign-in
+needed** (dev log 2026-10-08-s06-sign-in): an account error raises a
+notice and the orchestrator waits on `sign_in`; a message the session
+never picks up says so and comes back; opening another session's chat
+empties the message box. Live check passed with the fake (Part A, run
+again after the review fixes) and the real `claude` with an invalid
+key. Still open, kept as is: Open questions → 10's last part; a login
+expiring on its own is a watch item.
 **Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
 (dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
 and totals in the chat header, each turn's tokens, the plans' limits in
