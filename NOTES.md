@@ -2114,9 +2114,12 @@ How it works:
 ### C09 Debug commands
 *Planned (user's request, 2026-10-08), for the developer while
 debugging; not scheduled.* Typed commands in the style of Minecraft's,
-to change the world's state on the spot, e.g. `/weather <clear, rain,
-thunder, wind>` and `/time set <day, night, {seconds}s, {minutes}m>`
-(W09). Scope: core (world only). They'd take over from W09's dev flags
+to change the world's state on the spot, e.g. `/weather <kind>` and
+`/time set <day, night, {seconds}s, {minutes}m>` (W09). A number with
+`s` or `m` jumps to that point of the 28-minute day, counted from
+sunrise (`/time set 90s`, `/time set 14m` is sunset). Names and words
+are mine to pick (user's, 2026-10-08): the weather kinds will match
+W09's. Scope: core (world only). They'd take over from W09's dev flags
 (`--hour`, `--weather`, `--day-minutes`). Undesigned: where you type
 them (a console key, or the chat box with a leading `/`, which would
 clash with commands meant for the session), the full command list, and
