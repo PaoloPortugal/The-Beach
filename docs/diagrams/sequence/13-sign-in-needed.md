@@ -67,4 +67,6 @@ may drop a channel message unseen (seen with an invalid API key): steps
 The world's chat panel watches each message it sends while the
 orchestrator isn't busy; if no user message arrives (and the
 orchestrator doesn't start working) within 15 s, it says the message
-hasn't reached the session and puts the text back in the box.
+hasn't reached the session and puts the text back in the box (once,
+when the box is empty). If the message turns up after all, the warning
+goes, and so does that text if the box still holds just it.
