@@ -20,6 +20,7 @@ here; each section is labelled with its feature ID.
 - [Permission modes and plans (C06, C07)](#permission-modes-and-plans-c06-c07)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
+- [When you need to sign in again (S06)](#when-you-need-to-sign-in-again-s06)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
@@ -250,7 +251,9 @@ permission mode, such as **Mode: Auto** (see Permission modes and plans
 below).
 
 Above the box, a line says what the orchestrator is doing: working, or
-waiting for you. When it waits on a permission, a question or a plan, a
+waiting for you. If a reply stopped because of a problem on the AI
+service's side (busy, a usage limit, an error), the line says so; check
+the terminal for details. When it waits on a permission, a question or a plan, a
 card above that line lets you answer it (see below). Only the latest 200
 messages are shown at once. A long chat appears newest first, and the
 older messages fill in above it over a moment.
@@ -440,6 +443,26 @@ placeholder.
 
 To turn the chime off, open the sessions menu (Tab) and untick **Sound
 when waiting** at the bottom; the game remembers it.
+
+## When you need to sign in again (S06)
+
+The game never asks for your login: signing in happens only in Claude
+Code itself. When Claude Code can't use your account, for example
+because your login expired, you signed out, or there's a problem with
+the account or its billing, the game tells you and points you to the
+terminal:
+
+- **In the chat,** a notice at the top in Claude Code's own words, such
+  as "Claude Code needs you to sign in again: run /login in its
+  terminal.", and the line above the box says "Waiting for you to sign
+  in, in the terminal."
+- **In the world,** the orchestrator waits for you like for a
+  permission: its orange "!", the light beacon and the "sessions
+  waiting" count (see When something waits for you, above).
+
+Go to that session's terminal and sign in (`/login`), or do what it
+asks. Then send your message again. The notice goes away once Claude
+Code says you're signed in, or as soon as Claude answers again.
 
 ## The sidecar (S01)
 

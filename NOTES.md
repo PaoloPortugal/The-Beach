@@ -106,6 +106,7 @@ v1 slice.
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `world/sessions_menu/` |
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
+| S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 
 ## When a feature lands
 
@@ -564,10 +565,10 @@ session after finishing; Godot decides what to show. **States:**
 | State | Orchestrator | Subagent | Meaning |
 |---|---|---|---|
 | `working` | ✓ | ✓ | thinking or running tools |
-| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `question`, `input`, ...) |
+| `waiting` | ✓ | ✓ | needs the user; `reason` says why (`permission`, `question`, `input`, `plan`, `sign_in`, ...) |
 | `idle` | ✓ | | turn finished, the user's move |
 | `done` | | ✓ | result returned; may be resumed (back to `working`) |
-| `error` | ✓ | ✓ | failed or interrupted |
+| `error` | ✓ | ✓ | failed or interrupted; `reason` says why (`interrupted`, or what stopped the turn: `rate_limit`, `overloaded`, `server_error`, `invalid_request`, `model_not_found`, `max_output_tokens`, `unknown`) |
 
 The orchestrator never becomes `done`: the session ending is `session.ended`.
 
@@ -576,7 +577,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | Sidecar → Godot | Godot → sidecar |
 |---|---|
 | `hello`, `sync.completed`, `ok`, `error` | `session.create`, `session.resume`, `session.list_stored` |
-| `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice` | `session.end`, `session.get_snapshot`, `session.get_history` |
+| `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice`, `session.notice_cleared` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`, optional `option`) |
 | `tool.started`, `tool.finished` | |
@@ -631,9 +632,15 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   `conversation_resumed` (the session switched to an earlier
   conversation; the chat is now that conversation's),
   `conversation_moved` (the conversation went on somewhere the world
-  can't reach; continue it in the provider's own window). *(Shape
-  accepted by the user, 2026-09-29, to be revisited if the world needs
-  more.)*
+  can't reach; continue it in the provider's own window),
+  `sign_in_needed` (the provider can't use the user's account; sort it
+  out in its own window; Godot shows the provider's `message` as is,
+  S06). *(Shape accepted by the user, 2026-09-29, to be revisited if the
+  world needs more.)*
+- `session.notice_cleared` (`code`): that notice no longer applies (e.g.
+  `sign_in_needed` once the user signed in again); it leaves the
+  snapshot's `notices` too. Added 2026-10-08 (S06) without a version
+  change (additive; Godot and the sidecar ship together).
 
 **Capabilities.** A session declares `capabilities`, keyed by name, each with
 its own config object (e.g. `"usage": {}`). A capability's events use its
@@ -1390,8 +1397,12 @@ all of it, so markup in a message shows as written (tested with an injected
   the end, or keeps its distance from the end if you scrolled up
   (rendering Markdown costs tens of milliseconds per long message, C03). Status: "Working…",
   "Waiting for a permission / an answer / you to approve the plan: …
-  above or in the terminal" (the card above is C05, C07), "Stopped." after an
-  error, or a failed send.
+  above or in the terminal" (the card above is C05, C07), "Waiting for
+  you to sign in, in the terminal." (S06), after an error what stopped
+  the turn for the reasons any provider may report ("Stopped: a usage or
+  rate limit was reached. See the terminal.", the AI service overloaded,
+  its error, a refused request, a model that isn't available, a reply at
+  its length limit; `STOP_TEXT`), else "Stopped.", or a failed send.
 - **Sending:** Enter sends (`message.send`), Shift+Enter is a new line;
   the Send button too. The box clears at once; your message appears when
   the session reports it (`message.started`, role `user`). A refused send
@@ -1819,7 +1830,7 @@ before the live ones (C04).
 A snapshot (resync) replaces the state but keeps the chat. After a
 reconnect, sessions without a snapshot ended meanwhile and are removed;
 the client's `sync_started` signal (on `hello`) marks where a reconnect's
-snapshots begin. It's the Godot handler for `session.notice`.
+snapshots begin. It's the Godot handler for `session.notice` and `session.notice_cleared`.
 
 Not yet: the sidecar isn't restarted if it dies (sessions it launched keep
 running, but the world loses them); export presets that copy the executable
@@ -1942,7 +1953,15 @@ for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
   (from the docs; not yet seen live). `permission_prompt` and
   `idle_prompt` add nothing.
 - `Stop` → orchestrator `idle` (completing any reply cut short);
-  `StopFailure` → `error` with the error type.
+  `StopFailure` → `error` with the error type, read from `error` (seen
+  live on 2.1.294; the docs' types: `rate_limit`, `overloaded`,
+  `authentication_failed`, `oauth_org_not_allowed`, `account_on_hold`,
+  `billing_error`, `invalid_request`, `model_not_found`, `server_error`,
+  `max_output_tokens`, `cloud_credential_error`, `unknown`), except an
+  account error, which raises the `sign_in_needed` notice and leaves the
+  orchestrator `waiting` (reason `sign_in`) instead (S06). `Notification`
+  `auth_success` (from the docs, not yet seen live), a `PreToolUse` or a
+  `Stop` clears that notice.
 - `SessionStart` → a `/clear` or `/resume` (see Following the
   conversation). It can't be an HTTP hook, so it's a **command hook in
   exec form** (`command` plus `args`: spawned directly, no shell; Security
@@ -2529,6 +2548,58 @@ conversation while the old `claude` still runs. *To fix with attaching
 to running sessions* (user's decision; Open questions → 5): a session
 still running should be attached to, not resumed.
 
+### S06 Sign-in needed
+*Built (2026-10-08). Scope: core* (the `sign_in_needed` notice, the
+`sign_in` waiting reason and `session.notice_cleared` are generic: every
+tool has logins; only mapping Claude Code's error types to them is
+Claude-specific, in its provider). When the AI tool can't use the
+user's account (the login expired or was signed out, the account is on
+hold, a billing problem), the world tells the player to sort it out in
+the tool's own terminal. We never handle a login (Principles; Security
+rules), so the world only points there.
+
+*Decided (user's, 2026-10-08; dev log 2026-10-08-s06-sign-in):*
+- **How:** a notice in the chat panel, and the orchestrator waits, so it
+  shows A03's orange "!" and A05's cue (beacon, count, flash and chime
+  in the background) like any wait.
+- **Which errors:** Claude Code's `authentication_failed`,
+  `oauth_org_not_allowed`, `account_on_hold`, `billing_error` and
+  `cloud_credential_error`. Any other failure stops the turn (`error`)
+  with a readable reason in the chat instead of only "Stopped.".
+- **When it clears:** when Claude Code reports `auth_success`, or when
+  the next API call goes through (a safety net: `auth_success` is from
+  the docs, not yet seen live).
+
+**How it works.**
+- *Sidecar* (`hooks.ts`): `StopFailure` carries the error type in
+  `error` (checked live on 2.1.294 with an invalid API key: `"error":
+  "authentication_failed"`, `last_assistant_message` "Failed to
+  authenticate. API Error: 401 …"; there is no `error_type`, which the
+  provider read before, so every failure was "unknown"). An account
+  error sends `session.notice` `sign_in_needed` whose `message` is the
+  provider's own English text, pointing to the terminal (e.g. "Claude
+  Code needs you to sign in again: run /login in its terminal.";
+  `SIGN_IN_ERRORS`), and sets the orchestrator `waiting` with reason
+  `sign_in`. Failing again the same way keeps the notice that is up;
+  another account error replaces its text. The notice goes
+  (`session.notice_cleared`, once) on `Notification` `auth_success`, a
+  `PreToolUse` or a `Stop`; an orchestrator still waiting on `sign_in`
+  becomes `idle`. The registry removes a cleared notice from the
+  snapshot and drops a clear with nothing to clear.
+- *Godot:* `SessionStore` removes a cleared notice (`notices_changed`).
+  The chat panel (C02) shows the provider's message as is (no text of
+  ours for this code, Multi-provider rules) and the status "Waiting for
+  you to sign in, in the terminal."; A03 and A05 react to the wait as to
+  any other.
+- *Tests:* `hooks.test.ts` (the `error` field, each account error, the
+  clearing paths, a repeated failure), `notices.test.ts` (the registry,
+  and end to end through a real session), the dev fake's `signin` word
+  (`dev-fake.test.ts`, which also fails on any event the sidecar drops),
+  `session_store_test.gd` (by hand, and live with the fake) and
+  `world_test.gd` (the notice, the status, the "!" and the cue, the
+  clearing, the stop reasons).
+- *Live check:* to do with the user (`tests/live/checklist.txt` → S06).
+
 ## Conventions
 
 - **A new feature** first gets its provider scope decided (core, capability
@@ -2583,11 +2654,14 @@ In `sidecar/`:
 - `npm ci` once, then `npm test` (all suites) and `npm run typecheck`.
 - `npm run dev:fake`: the sidecar with a scripted fake provider, for
   building the world without Claude. Chat drives it: a message containing
-  `permission`, `question`, `agents [n]`, `tools`, `notice` or `clear`
-  acts out that part of a session (a prompt to answer, a two-item
+  `permission`, `question`, `agents [n]`, `tools`, `notice`, `signin` or
+  `clear` acts out that part of a session (a prompt to answer, a two-item
   question: one choice, then several; n background subagents, each
   started by an Agent call with its own calls inside; three tool calls,
-  the last failing; a notice, a new conversation like `/clear`), and `rename <name>` renames the session
+  the last failing; a notice; the turn failing on the account like an
+  expired login, S06: the `sign_in_needed` notice and the orchestrator
+  waiting on `sign_in`, cleared by the next message that goes through;
+  a new conversation like `/clear`), and `rename <name>` renames the session
   like `/rename`; anything else is echoed back. Sessions start in auto
   mode; `mode` moves to the next one like Shift+Tab (auto, Manual,
   Accept edits, Plan); `permission`'s prompt offers "Yes, and don't ask
@@ -2872,8 +2946,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none picked; the user chooses next (C08 token usage
-is paused as WIP on `c08-usage`, dev log 2026-10-03-c08-usage-spike).
+**Current focus:** S06 sign-in needed, built on `s06-sign-in` and
+ready for the user's review and live check (dev log
+2026-10-08-s06-sign-in). C08 token usage is paused as WIP on
+`c08-usage` (dev log 2026-10-03-c08-usage-spike).
 **Merged to `main` (2026-10-08), reviewed by the user: the performance
 pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
 bridges' far versions, a coarse seabed, nothing drawn past the fog,
