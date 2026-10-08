@@ -173,10 +173,16 @@ test('the sign-in notice goes when Claude Code says the user signed in, or an AP
   assert.deepEqual(run(t, hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared'), [], 'once')
   t = failed()
   assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared').length, 1)
-  // Failing again shows it again; nothing to clear without one.
+  // Failing again the same way keeps the notice up and waits again; another
+  // account error replaces its message; nothing to clear without one.
   t = failed()
-  assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'authentication_failed' })).slice(-2).map((e) => e.type),
-    ['session.notice', 'agent.state_changed'])
+  assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'authentication_failed' })).slice(-1),
+    [{ type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' }])
+  assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'billing_error' })).slice(-2), [
+    { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: SIGN_IN_ERRORS.billing_error } },
+    { type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' },
+  ])
+  assert.deepEqual(run(t, hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared').length, 1)
   assert.deepEqual(run(new HookTranslator(CWD), hook('Notification', { notification_type: 'auth_success' }), hook('Stop', {}))
     .filter((e) => e.type === 'session.notice_cleared'), [])
 })

@@ -167,8 +167,8 @@ export class HookTranslator {
   /** Each subagent's Agent call, for its own calls' `within` (C04). */
   private readonly spawnedBy = new Map<Id, Id>()
 
-  /** Whether the sign_in_needed notice is up (S06). */
-  private signInNeeded = false
+  /** The sign_in_needed notice's message while it is up (S06). */
+  private signInNeeded: string | null = null
 
   constructor(cwd: string) {
     this.cwd = cwd
@@ -236,8 +236,9 @@ export class HookTranslator {
         const error = str(p.error) ?? 'unknown'
         const signIn = Object.hasOwn(SIGN_IN_ERRORS, error) ? SIGN_IN_ERRORS[error] : undefined
         if (signIn !== undefined) {
-          this.signInNeeded = true
-          out.push({ type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: signIn } })
+          // Failing again the same way keeps the notice that is up.
+          if (this.signInNeeded !== signIn) out.push({ type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: signIn } })
+          this.signInNeeded = signIn
           this.setState(MAIN, 'waiting', 'sign_in', out)
         } else {
           this.setState(MAIN, 'error', error, out)
@@ -341,8 +342,8 @@ export class HookTranslator {
    * goes; an orchestrator still waiting to sign in is idle.
    */
   private signedIn(out: SessionEvent[]) {
-    if (!this.signInNeeded) return
-    this.signInNeeded = false
+    if (this.signInNeeded === null) return
+    this.signInNeeded = null
     out.push({ type: 'session.notice_cleared', code: SIGN_IN_NEEDED })
     if (this.states.get(MAIN) === 'waiting' && this.reasons.get(MAIN) === 'sign_in') this.setState(MAIN, 'idle', null, out)
   }
