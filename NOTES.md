@@ -121,7 +121,8 @@ v1 slice.
 - [ ] Update Architecture / Protocol / Conventions if it touched them, and
       the matching file in `docs/diagrams/sequence/` (listed in
       `docs/flows.md`) if it changed how the pieces talk.
-- [ ] Record any new assets in `assets/CREDITS.md`.
+- [ ] Record any new assets in `assets/CREDITS.md`, and any shader or
+      code-generated visual Claude wrote.
 - [ ] Write a dev-log entry and add it to `docs/devlog/README.md`.
 - [ ] Update "Current focus".
 
@@ -992,7 +993,8 @@ and the real layout (user's, 2026-10-02; W07).
   and vanish when one starts sinking; how they show up and leave is
   designed later (rejected for now: rising after the island and sinking
   first; tilting with the island).
-- **Rails** you can't walk through, so you don't fall in the sea.
+- **Rails** you can't walk through, so you don't fall in the sea (since
+  W08 you'd have to swim to a beach: no climbing back on).
 - **Minimap now:** a small map of the cluster (islands, bridges, you).
   Placeholder UI, like all UI. A square in the top left (the top right
   has A05's count), north-up, fitted to the cluster you're in or nearest
@@ -1123,7 +1125,7 @@ and the real layout (user's, 2026-10-02; W07).
   a click on it (the button let go within 6 px of where it went down, so
   not a drag) closes the map and teleports you there (`world.gd` →
   `teleport`). An ended session's island isn't clickable. A click on the
-  platform (its square, at least 8 px across each way) closes the map
+  platform (its square, at least 16 px across) closes the map
   and puts you on it (`go_to_platform`; W08).
 - *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
   made-up sessions in 20 clusters (one of 13 islands, four past 16), the
@@ -2942,6 +2944,11 @@ rules), so the world only points there.
   the provider's UI module if it's an extension).
 - **A new asset** needs a row in `assets/CREDITS.md` (source, author,
   license). CC0 or made by the user only; never AI-generated.
+- **A shader or code-generated visual Claude writes or rewrites**
+  (placeholder models, generated terrain, drawn maps) gets a row in
+  `assets/CREDITS.md` → Shaders and code-generated visuals saying so
+  (user's, 2026-10-08: some people may count them as AI art, though the
+  user doesn't).
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
@@ -3052,7 +3059,7 @@ The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
 
 The performance test (Architecture → Performance) checks that the coarse
-seabed has no gaps, overlaps or cracks and far fewer triangles while the
+drop-off has no gaps, overlaps or cracks and far fewer triangles while the
 land keeps its 2 m detail; that a bridge's segments are at most 24 m,
 each swapping to a much simpler far version at 70 m in the same place;
 that a bubble's viewport draws once per new text and not while hidden,
