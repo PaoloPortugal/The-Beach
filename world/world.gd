@@ -61,7 +61,7 @@ func _ready() -> void:
 	add_child(attention)
 	attention.setup(store)
 	add_child(usage_limits)
-	usage_limits.setup(store)
+	usage_limits.setup(store, Sidecar)
 	add_child(pointers)
 	pointers.setup(_islands, store)
 	add_child(minimap)

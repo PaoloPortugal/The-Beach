@@ -251,15 +251,24 @@ func _usage_by_hand() -> void:
 	other["capabilities"] = {"usage": {}}
 	other["usage"] = _usage(null, 0, {"five_hour": lim.call(75, "2026-10-08T14:00:00.000Z"), "seven_day": lim.call(90, "2026-10-10T09:00:00.000Z")})
 	store.apply({"type": "session.snapshot", "session": other})
-	var limits := store.usage_limits(now)
+	var limits: Dictionary = store.usage_limits(now)["fake"]
 	_check(limits["five_hour"]["used_percent"] == 75 and limits["seven_day"]["used_percent"] == 94, "usage: the same window: the highest use, across sessions")
 	store.apply({"type": "usage.updated", "session": "u", "seq": 11, "usage": _usage("m1", 900,
 		{"five_hour": lim.call(3, "2026-10-08T19:00:00.000Z")})})
-	limits = store.usage_limits(now)
+	limits = store.usage_limits(now)["fake"]
 	_check(limits["five_hour"]["used_percent"] == 3 and limits["seven_day"]["used_percent"] == 90, "usage: a later window wins; an absent limit leaves the other session's")
-	limits = store.usage_limits(SessionStore.unix_time("2026-10-08T20:00:00Z"))
+	# Another provider's limits are its own account's: kept apart.
+	var codex := _snapshot("w")
+	codex["provider"] = "codex"
+	codex["capabilities"] = {"usage": {}}
+	codex["usage"] = _usage(null, 0, {"five_hour": lim.call(99, "2026-10-08T23:00:00.000Z")})
+	store.apply({"type": "session.snapshot", "session": codex})
+	var both := store.usage_limits(now)
+	_check(both.size() == 2 and both["codex"] == {"five_hour": lim.call(99, "2026-10-08T23:00:00.000Z")}
+		and both["fake"]["five_hour"]["used_percent"] == 3 and both["fake"]["seven_day"]["used_percent"] == 90, "usage: limits per provider, never mixed")
+	limits = store.usage_limits(SessionStore.unix_time("2026-10-08T20:00:00Z"))["fake"]
 	_check(limits.size() == 1 and limits["seven_day"]["used_percent"] == 90, "usage: a limit past its reset is left out")
-	_check(store.usage_limits(SessionStore.unix_time("2026-10-11T00:00:00Z")).is_empty(), "usage: none once every window is over")
+	_check(store.usage_limits(SessionStore.unix_time("2026-10-11T00:00:00Z")).is_empty(), "usage: none once every window is over, nor its provider")
 
 
 func _usage_text() -> void:
