@@ -17,39 +17,33 @@ Part A: fake provider
 4. Send "hello": the reply comes, the
    notice goes, no "!", no beacon, no
    count. Readable as written?
+5. NEW: send "lost" (the fake drops
+   it). After 15 s: "Your message
+   hasn't reached the session. Check
+   its terminal, then send it
+   again." and "lost" back in the
+   box. Readable?
+6. Send "hello": it arrives, the
+   warning goes.
 
 Part B: real claude, bad API key
-  (PowerShell, from the repo root)
+  (PowerShell, from the worktree)
   $env:ANTHROPIC_API_KEY="sk-ant-bad"
   godot --path . -- --checklist
   (Close the game after; a new
   PowerShell window drops the key.)
 
-5. Start a session. If its terminal
-   asks whether to use the API key,
-   say Yes.
-6. Send "hi" from the world: the
-   notice in Claude Code's words, the
-   status, the "!" and beacon, as in
-   1 and 2? The terminal shows the
-   401. /exit in the terminal.
+7. Start a session (say Yes if the
+   terminal asks about the key).
+8. Send "hi" from the world: after
+   15 s, the "hasn't reached the
+   session" line, text back in the
+   box?
+9. Type "hi" in the terminal: the
+   notice, the status, the "!" and
+   beacon, as before? /exit.
 
-Part C: real claude, signed out
-  Signs you out of Claude Code on
-  this computer until /login.
-  godot --path . -- --checklist
-
-7. Start a session. In its terminal:
-   /logout. If claude quits, note it,
-   run claude in any terminal to
-   /login again, and skip to the end.
-8. Send "hi" from the world: notice,
-   status, "!", beacon?
-9. /login in the terminal, sign in.
-   Did the notice go at once (that's
-   auth_success), or only after
-   you send "hi" again? Note which.
-10. Send "hi": a normal reply, no
-   notice, no "!".
+A real expired login: check it when
+it happens (NOTES Watch items).
 
 Tell Claude what you saw; paste red errors.
