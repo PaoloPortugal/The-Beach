@@ -2481,8 +2481,10 @@ by seconds on a loaded runner). In the Godot suites, a check after an
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
-2026-10-03-world-test-flaky). A logged error fails a step like a failed
-check (above).
+2026-10-03-world-test-flaky). Likewise, state kept up to date in
+`_process` is read after process frames (`_settle`), not physics ones
+(dev log 2026-10-07-w04-arrow-check-flaky). A logged error fails a
+step like a failed check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
@@ -2615,6 +2617,10 @@ W06).
 **Merged to `main` (2026-10-08), reviewed by the user: the quit
 warning's list scrolls** (S05, dev log 2026-10-07-s05-quit-scroll): with
 many sessions the Quit button went off screen.
+**Merged to `main` (2026-10-08), reviewed by the user: W04's flaky
+edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the
+world test read the arrows before `_process` had run; it now waits on
+process frames.
 **Merged to `main` (2026-10-07), reviewed by the user: W04, islands
 rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
 edge arrow showing where a new session's island is (placeholders); live
