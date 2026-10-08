@@ -95,10 +95,10 @@ class ScriptedSession extends FakeSession {
     this.usage.status({
       sessionId: null,
       context: { tokens: this.context, percent: Math.round((this.context / WINDOW) * 100), window: WINDOW },
-      limits: {
-        five_hour: { used_percent: round(limits.five_hour.used), resets_at: limits.five_hour.resets_at },
-        seven_day: { used_percent: round(limits.seven_day.used), resets_at: limits.seven_day.resets_at },
-      },
+      limits: [
+        { id: 'five_hour', label: '5-hour', used_percent: round(limits.five_hour.used), resets_at: limits.five_hour.resets_at },
+        { id: 'seven_day', label: 'Weekly', used_percent: round(limits.seven_day.used), resets_at: limits.seven_day.resets_at },
+      ],
     })
     this.sendUsage()
   }

@@ -43,7 +43,8 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     const counted = (await c.next('usage.updated', 5000)).usage as any
     assert.ok(counted.turn.output_tokens > 0 && counted.tokens.output === counted.turn.output_tokens)
     assert.equal(counted.context.window, 200000)
-    assert.ok(counted.limits.five_hour.used_percent > 0 && counted.limits.seven_day.used_percent > 0)
+    assert.deepEqual(counted.limits.map((l: any) => [l.id, l.label]), [['five_hour', '5-hour'], ['seven_day', 'Weekly']])
+    assert.ok(counted.limits.every((l: any) => l.used_percent > 0))
     await c.next(idle, 5000)
     const told = ((await c.command({ type: 'session.get_history', session })).result as { messages: any[] }).messages
     assert.equal(told.find((m) => m.role === 'user')?.turn_tokens, counted.turn.output_tokens)
@@ -53,7 +54,7 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     await c.next((m) => m.type === 'message.completed' && /nearly full/.test(String(m.text)), 10000)
     const heavy = (await c.next('usage.updated', 5000)).usage as any
     assert.ok(heavy.context.percent >= 80, `context ${heavy.context.percent}%`)
-    assert.ok(heavy.limits.five_hour.used_percent >= 85)
+    assert.ok(heavy.limits.find((l: any) => l.id === 'five_hour').used_percent >= 85)
     await c.next(idle, 5000)
 
     await say('ask for permission please')

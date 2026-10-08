@@ -56,8 +56,12 @@ export interface Question { question: Id; agent: Id; asked_at?: string; items: Q
 
 export interface Notice { code: string; message: string }
 
-/** One of the account's usage limits (usage capability). */
-export interface UsageLimit { used_percent: number; resets_at: string }
+/**
+ * One of the account's usage limits (usage capability). `id` is stable per
+ * provider (Claude: five_hour, seven_day); `label` is the provider's own
+ * words for it ("5-hour", "Weekly"), shown as plain text.
+ */
+export interface UsageLimit { id: string; label: string; used_percent: number; resets_at: string }
 
 /** A session's token usage (usage capability), the whole current figures. See NOTES.md -> C08. */
 export interface Usage {
@@ -66,7 +70,8 @@ export interface Usage {
   context: { tokens: number; percent: number | null; window: number | null } | null
   /** The turn going on or last finished: the user message that started it, and its output tokens. */
   turn: { message: Id | null; output_tokens: number }
-  limits: { five_hour?: UsageLimit; seven_day?: UsageLimit }
+  /** In the provider's order, each id once; empty while none are known. */
+  limits: UsageLimit[]
 }
 
 export interface Session {

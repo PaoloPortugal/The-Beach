@@ -78,9 +78,10 @@ static func turn(output_tokens: int) -> String:
 	return "↓ %s tokens" % tokens(output_tokens)
 
 
-## One plan limit: "5-hour 74% · resets 3:40 PM" ([method when]).
-static func limit(name: String, used_percent: float, resets_at: float, now: float) -> String:
-	return "%s %d%% · resets %s" % [name, roundi(used_percent), when(resets_at, now)]
+## One plan limit by the provider's label: "5-hour 74% · resets 3:40 PM"
+## ([method when]).
+static func limit(label: String, used_percent: float, resets_at: float, now: float) -> String:
+	return "%s %d%% · resets %s" % [label, roundi(used_percent), when(resets_at, now)]
 
 
 ## A coming time (Unix seconds) in local time: "3:40 PM" today, "Fri 3:40

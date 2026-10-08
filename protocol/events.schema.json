@@ -187,10 +187,12 @@
     "token_count": { "type": "integer", "minimum": 0 },
 
     "usage_limit": {
-      "description": "One of the account's usage limits (usage capability): how much of it is used, and when it starts over.",
+      "description": "One of the account's usage limits (usage capability): how much of it is used, and when it starts over. id: a stable name per provider (Claude: five_hour, seven_day). label: the provider's own words for it (Claude: \"5-hour\", \"Weekly\"), shown as plain text (untrusted).",
       "type": "object",
-      "required": ["used_percent", "resets_at"],
+      "required": ["id", "label", "used_percent", "resets_at"],
       "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
         "used_percent": { "description": "0 to 100 (may pass 100 once over the limit).", "type": "number", "minimum": 0 },
         "resets_at": { "$ref": "#/$defs/timestamp" }
       },
@@ -198,7 +200,7 @@
     },
 
     "usage": {
-      "description": "How many tokens a session uses (usage capability), the whole current figures. tokens: the conversation's totals so far, each API call counted once. context: how full the context window is after the latest call (input, cache reads and cache writes); null until the first call. turn: the turn going on or last finished: the user message that started it (null before the first) and the output tokens of its calls so far. limits: the account's usage limits, each absent while unknown.",
+      "description": "How many tokens a session uses (usage capability), the whole current figures. tokens: the conversation's totals so far, each API call counted once. context: how full the context window is after the latest call (input, cache reads and cache writes); null until the first call. turn: the turn going on or last finished: the user message that started it (null before the first) and the output tokens of its calls so far. limits: the account's usage limits, a list (empty while none are known).",
       "type": "object",
       "required": ["tokens", "context", "turn", "limits"],
       "properties": {
@@ -235,12 +237,9 @@
           "additionalProperties": false
         },
         "limits": {
-          "type": "object",
-          "properties": {
-            "five_hour": { "$ref": "#/$defs/usage_limit" },
-            "seven_day": { "$ref": "#/$defs/usage_limit" }
-          },
-          "additionalProperties": false
+          "description": "In the provider's order, each id once; empty while none are known.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/usage_limit" }
         }
       },
       "additionalProperties": false
