@@ -31,6 +31,15 @@ export const SIGN_IN_ERRORS: Readonly<Record<string, string>> = {
 /** The notice's code (generic: every tool has logins). */
 export const SIGN_IN_NEEDED = 'sign_in_needed'
 
+/**
+ * StopFailure's other errors, passed on as the generic `error` reason
+ * (Protocol -> state_reason). Any type Claude Code adds later is `unknown`,
+ * so no Claude-only name reaches the protocol.
+ */
+export const STOP_REASONS: ReadonlySet<string> = new Set([
+  'rate_limit', 'overloaded', 'server_error', 'invalid_request', 'model_not_found', 'max_output_tokens',
+])
+
 /** Hooks that only report: short, so a hung sidecar costs little. */
 const REPORT_TIMEOUT_S = 5
 /** MessageDisplay holds up the text on screen; answered instantly anyway. */
@@ -241,7 +250,7 @@ export class HookTranslator {
           this.signInNeeded = signIn
           this.setState(MAIN, 'waiting', 'sign_in', out)
         } else {
-          this.setState(MAIN, 'error', error, out)
+          this.setState(MAIN, 'error', STOP_REASONS.has(error) ? error : 'unknown', out)
         }
         break
       }

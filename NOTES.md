@@ -1957,8 +1957,9 @@ for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
   live on 2.1.294; the docs' types: `rate_limit`, `overloaded`,
   `authentication_failed`, `oauth_org_not_allowed`, `account_on_hold`,
   `billing_error`, `invalid_request`, `model_not_found`, `server_error`,
-  `max_output_tokens`, `cloud_credential_error`, `unknown`), except an
-  account error, which raises the `sign_in_needed` notice and leaves the
+  `max_output_tokens`, `cloud_credential_error`, `unknown`; a type not
+  in this list becomes `unknown`, so no new Claude-only name reaches the
+  protocol), except an account error, which raises the `sign_in_needed` notice and leaves the
   orchestrator `waiting` (reason `sign_in`) instead (S06). `Notification`
   `auth_success` (from the docs, not yet seen live), a `PreToolUse` or a
   `Stop` clears that notice.
@@ -2580,7 +2581,8 @@ rules), so the world only points there.
   provider's own English text, pointing to the terminal (e.g. "Claude
   Code needs you to sign in again: run /login in its terminal.";
   `SIGN_IN_ERRORS`), and sets the orchestrator `waiting` with reason
-  `sign_in`. Failing again the same way keeps the notice that is up;
+  `sign_in`. Any other error sets `error` with its type as the reason
+  when it's one of the generic ones (`STOP_REASONS`), else `unknown`. Failing again the same way keeps the notice that is up;
   another account error replaces its text. The notice goes
   (`session.notice_cleared`, once) on `Notification` `auth_success`, a
   `PreToolUse` or a `Stop`; an orchestrator still waiting on `sign_in`

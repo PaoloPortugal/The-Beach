@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { HookServer, MAX_HOOK_BODY } from '../src/providers/claude/hook-server.ts'
 import {
-  HookTranslator, hookSettings, MAIN, parseHandback, parseTaskNotification, REPORTED_HOOKS, SIGN_IN_ERRORS, SIGN_IN_NEEDED, summarizeTool, unwrapChannel,
+  HookTranslator, hookSettings, MAIN, parseHandback, parseTaskNotification, REPORTED_HOOKS, SIGN_IN_ERRORS, SIGN_IN_NEEDED, STOP_REASONS, summarizeTool, unwrapChannel,
 } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import type { SessionEvent } from '../src/protocol.ts'
@@ -138,7 +138,13 @@ test('a failed turn stops with its error type, read from `error` as Claude Code 
   assert.deepEqual(run(t, hook('StopFailure', { error_type: 'rate_limit' })).slice(-1),
     [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'unknown' }], 'no `error`: unknown')
   assert.deepEqual(run(new HookTranslator(CWD), hook('StopFailure', { error: 'toString' })).slice(-1),
-    [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'toString' }], 'not an account error, whatever the name')
+    [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'unknown' }], 'not an account error, whatever the name')
+  assert.deepEqual(run(new HookTranslator(CWD), hook('StopFailure', { error: 'some_new_error' })).slice(-1),
+    [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'unknown' }], 'a type we don\'t know: unknown, no provider name in the protocol')
+  for (const error of STOP_REASONS) {
+    assert.deepEqual(run(new HookTranslator(CWD), hook('StopFailure', { error })).slice(-1),
+      [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: error }])
+  }
 })
 
 test('an account the provider can\'t use: the sign-in notice, and the orchestrator waits for the user in the terminal', () => {
