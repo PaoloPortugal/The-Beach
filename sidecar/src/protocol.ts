@@ -128,6 +128,7 @@ export type SessionEvent =
   | { type: 'plan.asked'; plan: Plan }
   | { type: 'plan.resolved'; plan: Id; decision: 'approved' | 'rejected'; by: 'app' | 'external' }
   | { type: 'session.notice'; notice: Notice }
+  | { type: 'session.notice_cleared'; code: string }
   | { type: 'session.updated'; native_id?: string; title?: string | null; mode?: string }
   | { type: `ext.${string}`; [key: string]: unknown }
 

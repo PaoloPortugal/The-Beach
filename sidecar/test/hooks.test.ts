@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { HookServer, MAX_HOOK_BODY } from '../src/providers/claude/hook-server.ts'
 import {
-  HookTranslator, hookSettings, MAIN, parseHandback, parseTaskNotification, REPORTED_HOOKS, summarizeTool, unwrapChannel,
+  HookTranslator, hookSettings, MAIN, parseHandback, parseTaskNotification, REPORTED_HOOKS, SIGN_IN_ERRORS, SIGN_IN_NEEDED, summarizeTool, unwrapChannel,
 } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import type { SessionEvent } from '../src/protocol.ts'
@@ -119,12 +119,66 @@ test('a reply cut off before its final batch is completed when the turn ends', (
   const ev = run(t,
     hook('UserPromptSubmit', { prompt: 'go' }),
     hook('MessageDisplay', { message_id: 'm', index: 0, final: false, delta: 'Half' }),
-    hook('StopFailure', { error: 'overloaded', error_type: 'overloaded' }),
+    hook('StopFailure', { error: 'overloaded', error_details: '529', last_assistant_message: 'API Error: Overloaded' }),
   )
   assert.deepEqual(ev.slice(-2), [
     { type: 'message.completed', message: 'm', text: 'Half' },
     { type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'overloaded' },
   ])
+})
+
+test('a failed turn stops with its error type, read from `error` as Claude Code sends it', () => {
+  // The payload as recorded live (2.1.294): `error`, no `error_type`.
+  for (const error of ['rate_limit', 'server_error', 'max_output_tokens']) {
+    const t = new HookTranslator(CWD)
+    assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'go' }), hook('StopFailure', { error })).slice(-1),
+      [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: error }])
+  }
+  const t = new HookTranslator(CWD)
+  assert.deepEqual(run(t, hook('StopFailure', { error_type: 'rate_limit' })).slice(-1),
+    [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'unknown' }], 'no `error`: unknown')
+  assert.deepEqual(run(new HookTranslator(CWD), hook('StopFailure', { error: 'toString' })).slice(-1),
+    [{ type: 'agent.state_changed', agent: MAIN, state: 'error', reason: 'toString' }], 'not an account error, whatever the name')
+})
+
+test('an account the provider can\'t use: the sign-in notice, and the orchestrator waits for the user in the terminal', () => {
+  for (const [error, message] of Object.entries(SIGN_IN_ERRORS)) {
+    const t = new HookTranslator(CWD)
+    const ev = run(t, hook('UserPromptSubmit', { prompt: 'go' }),
+      hook('StopFailure', { error, last_assistant_message: 'Failed to authenticate. API Error: 401' }))
+    assert.deepEqual(ev.slice(-2), [
+      { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message } },
+      { type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' },
+    ], error)
+    assert.ok(message.includes('terminal'), `${error}: points to the terminal`)
+  }
+})
+
+test('the sign-in notice goes when Claude Code says the user signed in, or an API call goes through', () => {
+  const failed = () => {
+    const t = new HookTranslator(CWD)
+    run(t, hook('UserPromptSubmit', { prompt: 'go' }), hook('StopFailure', { error: 'authentication_failed' }))
+    return t
+  }
+  // /login in the terminal.
+  assert.deepEqual(run(failed(), hook('Notification', { notification_type: 'auth_success' })), [
+    { type: 'session.notice_cleared', code: SIGN_IN_NEEDED },
+    { type: 'agent.state_changed', agent: MAIN, state: 'idle', reason: null },
+  ])
+  // The next turn works: its prompt starts it, its first tool call or its end clears the notice.
+  let t = failed()
+  const ev = run(t, hook('UserPromptSubmit', { prompt: 'again' }),
+    hook('PreToolUse', { tool_name: 'Read', tool_use_id: 'r1', tool_input: { file_path: 'a.txt' } }))
+  assert.deepEqual(ev.filter((e) => e.type === 'session.notice_cleared'), [{ type: 'session.notice_cleared', code: SIGN_IN_NEEDED }])
+  assert.deepEqual(run(t, hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared'), [], 'once')
+  t = failed()
+  assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared').length, 1)
+  // Failing again shows it again; nothing to clear without one.
+  t = failed()
+  assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'authentication_failed' })).slice(-2).map((e) => e.type),
+    ['session.notice', 'agent.state_changed'])
+  assert.deepEqual(run(new HookTranslator(CWD), hook('Notification', { notification_type: 'auth_success' }), hook('Stop', {}))
+    .filter((e) => e.type === 'session.notice_cleared'), [])
 })
 
 test('messages from the world are unwrapped; the terminal\'s are shown as typed', () => {
