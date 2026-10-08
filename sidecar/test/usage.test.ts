@@ -14,7 +14,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callUsageIn, statusFiguresIn, UsageCounter } from '../src/providers/claude/usage.ts'
 import { readConversation } from '../src/providers/claude/store.ts'
-import { shellCommand, shortNameGuesses, shortPath } from '../src/launch/shell-command.ts'
+import { askWindows, shellCommand, shortNameGuesses, shortPath, windowsPowerShell } from '../src/launch/shell-command.ts'
 import { ourStatusLine, statusLineSettingsFiles, userStatusLine } from '../src/providers/claude/statusline.ts'
 import { HookServer, STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { writeRelayFile } from '../src/launch/relay.ts'
@@ -198,6 +198,47 @@ test('shortPath: a guess is used only if it is the very same file', () => {
   ids['C:\\$(AB~1'] = 'ab'
   assert.equal(shortPath('C:\\a b\\x', id, ask('C:\\$(AB~1')), null, 'a short name that still isn\'t safe')
   assert.equal(shortPath('C:\\a b\\x', id, ask('AB2761~1')), null, 'not absolute')
+})
+
+test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, with only SystemRoot and the path', () => {
+  const calls: { file: string; args: readonly string[]; opts: { cwd?: unknown; env?: unknown; shell?: unknown } }[] = []
+  const run = ((file: string, args: readonly string[], opts: object) => {
+    calls.push({ file, args, opts })
+    return { status: 0, stdout: 'C:\\AB2761~1\r\n' }
+  }) as unknown as typeof spawnSync
+  const env = { SystemRoot: 'C:\\Windows', PATH: 'C:\\evil', SECRET: 'x' }
+  assert.equal(askWindows('C:\\a b', { program: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cwd: 'C:\\fixed', env, run }), 'C:\\AB2761~1')
+  assert.equal(calls[0]!.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+  assert.ok(!calls[0]!.args.some((a) => a.includes('a b')), 'the path is never in the arguments')
+  assert.equal(calls[0]!.opts.cwd, 'C:\\fixed')
+  assert.equal(calls[0]!.opts.shell, false)
+  assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', SIDECAR_SHORT_PATH: 'C:\\a b' }, 'nothing else of ours or the user\'s')
+  assert.equal(askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
+  assert.equal(askWindows('C:\\a b', { env: {}, run }), null, 'no SystemRoot: no answer')
+  assert.equal(windowsPowerShell({}), null)
+  assert.equal(windowsPowerShell({ SystemRoot: 'Windows' }), null, 'a relative SystemRoot')
+  assert.equal(windowsPowerShell({ SystemRoot: tmp('no-ps-') }), null, 'not there')
+  assert.equal(calls.length, 1)
+})
+
+test('askWindows, for real: a hostile folder name runs nothing, and any answer is that very folder', { skip: process.platform !== 'win32' }, () => {
+  const exe = windowsPowerShell()
+  assert.ok(exe, 'Windows PowerShell is under SystemRoot')
+  assert.match(exe, /^[A-Za-z]:\\.+\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i)
+  const used: string[] = []
+  const run = ((file: string, args: readonly string[], opts: object) => { used.push(file); return spawnSync(file, args, opts as never) }) as unknown as typeof spawnSync
+  const base = tmp('ask-')
+  const cwd = tmp('ask-cwd-')
+  const before = fs.existsSync(path.join(os.tmpdir(), 'PWNED'))
+  for (const name of ['$(New-Item PWNED)', '`ni PWNED`', "a';ni PWNED;'b"]) {
+    const dir = path.join(base, name)
+    fs.mkdirSync(dir)
+    const answer = askWindows(dir, { cwd, run })
+    if (answer !== null) assert.equal(fileId(answer), fileId(dir), `${name}: the same folder`)
+    for (const d of [cwd, base, dir, process.cwd()]) assert.ok(!fs.existsSync(path.join(d, 'PWNED')), `${name}: nothing ran (${d})`)
+  }
+  assert.equal(fs.existsSync(path.join(os.tmpdir(), 'PWNED')), before, 'nothing ran in the temp folder')
+  assert.deepEqual(used, [exe, exe, exe], 'always the System32 PowerShell')
 })
 
 test('shellCommand: Windows words unquoted with forward slashes, POSIX single quotes; anything unsafe means no command', () => {
