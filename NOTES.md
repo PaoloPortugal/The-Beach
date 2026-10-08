@@ -178,7 +178,7 @@ flowchart TB
     session --> launch
 
     launch ==>|"opens a terminal<br/>argument list only"| claude
-    endpoints <==>|"hooks · HTTP · token<br/>(SessionStart via the relay)"| claude
+    endpoints <==>|"hooks · HTTP · token<br/>(SessionStart and the status line via the relay)"| claude
     endpoints <==>|"chat, prompts, verdicts<br/>TCP · loopback · token"| bridge
     bridge <==>|"MCP · stdio"| claude
     user -->|"types, answers"| claude
@@ -413,7 +413,7 @@ top-level folders sit beside it:
 |------|------|
 | `project.godot`, `icon.svg` | Godot project (4.7, GDScript, no .NET). Version pinned in `.godotrc`. |
 | `assets/` | Art and audio, plus `CREDITS.md`. |
-| `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher and a hook relay (S02). Has a `.gdignore` so Godot doesn't scan it. Files below. |
+| `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher, a hook relay (S02) and a status line relay (C08). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
@@ -444,7 +444,7 @@ removing a provider means deleting its folders.
 | `src/commands.ts` | Runs commands from Godot. |
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
-| `src/launch/` | Generic: terminal launcher, `launch` mode, `relay` mode (command hooks), clean environments. |
+| `src/launch/` | Generic: terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
 | `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions (S04). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
@@ -1944,7 +1944,7 @@ so on its own it serves an empty world. Dev log 2026-09-29-sidecar-core.
   log files), and exit when stdin closes, which covers Godot quitting or
   crashing on every OS (verified on Windows, including a hard kill of
   Godot). `main.ts` picks the executable's mode; S02 adds the bridge,
-  launcher and relay modes.
+  launcher and relay modes, C08 the `statusline` mode.
 - **Packaging** (`scripts/`): esbuild bundles to one CommonJS file (Node's
   single-executable feature runs only CommonJS), which is injected into the
   official Node binary for each platform (`win-x64`, `linux-x64`,
