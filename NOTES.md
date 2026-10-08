@@ -87,7 +87,7 @@ v1 slice.
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
-| W09 | Day/night cycle and weather               | designed | n/a          | n/a       |
+| W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -1287,7 +1287,7 @@ colour to the floor's"; more depth variation). Live check passed
 (2026-10-08, the user: "looks good").
 
 ### W09 Day/night cycle and weather
-*Designed, being built (2026-10-08). Scope: core (world only).* The sun
+*Built (2026-10-08). Scope: core (world only).* The sun
 moves through a day and night cycle, and the weather changes (user's
 request, 2026-10-01).
 
@@ -1309,6 +1309,80 @@ request, 2026-10-01).
   afar. Bubbles and UI stay as readable as by day.
 - *Sound:* silent for now; hooks so a CC0 or the user's own thunder and
   rain sound drops in later (recorded in `assets/CREDITS.md`).
+
+**How it works** (colours, energies, counts and timings my picks). All
+of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
+- *Clock* (`DayNight`, `day_night.gd`): `time` runs 0 to 1 over `cycle`
+  seconds (`CYCLE`, 28 minutes): 0 sunrise, 0.25 noon, 0.5 sunset, 0.75
+  midnight, so the sun is up exactly half of it. Each launch starts at
+  `START` 0.12 (about 8:50 on a 24-hour clock, where sunrise is 6:00;
+  `set_hour` / `hour`). The sun (`sun_direction`) rises due east, crosses
+  the south at most 60° up and sets due west; the moon is exactly
+  opposite. `darkness` eases from 0 to 1 while the sun goes from 6° above
+  the horizon to 6° below (`current_darkness` keeps it for lights made
+  later).
+- *Light:* `world.tscn`'s one `DirectionalLight3D` (`Sun`) is the sun by
+  day and the moon by night (pale blue, `MOON_ENERGY` 0.12 against the
+  sun's 1.1), swapping at the horizon where both have faded to nothing;
+  the sun reddens toward the horizon. Clouds dim it (to 40 % at full
+  cover) and storms a little more. The ambient light is a colour set by
+  the hour (`AMBIENT_SOURCE_COLOR`, energy 0.6 by day, 0.35 by night), so
+  night stays readable mostly through it. Under the water at night
+  (`Underwater.active`) both drop to 40 %, so the sea floor doesn't glow
+  against the dark water's fog.
+- *Sky* (`sky.gdshader`): a gradient from horizon to top (eased:
+  `1 - exp(-6 * up)`, so sunset colours stay a band near the horizon),
+  the sun's disc and glow, the moon's disc opposite, and stars (hashed
+  direction cells, fading toward the horizon) by night. `DayNight` sets
+  every colour: day, a gold and orange horizon at dusk and dawn, night;
+  greyed by cloud (`OVERCAST`), darker in storms (`STORM_SKY`), lifted by
+  lightning. The fog's colour follows the horizon (through
+  `Underwater.set_above`, so W08's underwater fog still takes over), and
+  the underwater fog darkens by night (`Underwater.light`).
+- *Weather* (`Weather`, `weather.gd`): a kind (`Kind`: clear, cloudy,
+  rain, windy, storm) sets targets for four levels between 0 and 1,
+  `cover`, `rain`, `wind` and `storm` (`TARGETS`); the levels move toward
+  them at 1/60 a second, so a change takes about a minute. A kind lasts
+  3 to 8 minutes, then the next is drawn by `WEIGHTS` (clear 50 %, cloudy
+  20 %, rain and windy 12 % each, storm 6 %; the same kind can come
+  again). Nothing reads it but the look.
+- *Lightning:* with `storm` above 0.6 and `lightning_enabled` (for the
+  settings menu's switch), a strike every 10 to 20 s (`MIN_GAP`,
+  `MAX_GAP`): `flash` makes two soft pulses over 0.35 s, peaking at 0.6
+  (`FLASH_PEAK`), which lift the sky, the light and the ambient, never
+  to white; and a bolt (`LightningBolt`, `lightning_bolt.gd`), a jagged
+  ribbon from 110 m up to the sea, 180 to 320 m away in a random
+  direction, fading over 0.3 s. Its `lightning` signal is the hook for a
+  thunder sound.
+- *Clouds* (`Clouds`, `clouds.gd`): 40 low-poly clumps (flattened
+  six-sided blobs, 60 to 130 m long) 80 to 120 m up, drifting with the
+  wind (2 to 12 m/s, one random direction per run) and wrapping round
+  an 800 m square around the camera. Cover sets how many show (cloud i
+  grows in as cover passes i/40); storms turn them grey.
+- *Rain* (`Rain`, `rain.gd`): up to 2,400 streaks (`GPUParticles3D`, as
+  many as `rain` says) falling in a 52 m box over the camera, slanting
+  with the wind, dimmer at night; none while the camera is under the
+  water. On the water, `ocean.gdshader` draws spreading rings in some of
+  its 1.2 m cells (as many as it rains), within 60 m of the camera.
+- *Wind on the waves* (`ocean.gd`): the waves' phase is kept in the
+  script (`wave_phase`), so a change of speed doesn't jump them; full
+  wind makes them 2.2 times faster but only 1.15 times higher, since the
+  floating eyes are about 0.45 m above still water (W08).
+- *Night lights* (`NightLight`, `night_light.gd`): warm `OmniLight3D`s
+  with an unshaded flame, placeholders until there's art: four torches
+  per island (`Island.torches`, where its beach is 0.5 m above the water,
+  on the diagonals) and a lamp on the orchestrator's desk. They come on
+  as `darkness` passes 0.3 to 0.8 (group `night_lights`, called by
+  `DayNight`) and fade out 60 to 90 m from the camera; no shadows.
+- *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
+  it: `changes` off) and `--day-minutes <n>`, after `--`. C09's debug
+  commands will replace them.
+- *Performance* (Architecture → Performance): the sky's uniforms are
+  only set when a change would show (a 1/255 step, about once a second;
+  each set redraws the sky's reflection map, which measured 1.6-1.9 ms a
+  frame when it happened every frame); rain rings only within 60 m;
+  clouds, rain and the bolt cast no shadows. Measured costs are in
+  Architecture → Performance.
 
 ### W10 Island biomes
 *Planned (user's request, 2026-10-07).* Islands of other kinds besides
@@ -3132,6 +3206,12 @@ godot --headless --path . --script res://tests/world/performance_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
+Dev flags for the day and the weather (W09), after `--` like the
+others: `--hour <0-24>` starts at that time (6 sunrise, 18 sunset),
+`--weather <clear|cloudy|rain|windy|storm>` fixes the weather, and
+`--day-minutes <n>` makes a whole day and night last n minutes, e.g.
+`godot --path . -- --hour 19 --weather storm --day-minutes 4`.
+
 The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
 
@@ -3174,7 +3254,16 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping), swimming (W08: floating at the surface, Space
+platform, walking, jumping), the day and the weather (W09: starting
+mid-morning, the sun's path and the moon opposite, half the cycle night,
+set_hour and --day-minutes, the sky not re-sent for a change too small
+to see, an island's torches and the desk lamp lit at night and out by
+day, without shadows and fading by 100 m, the weather's weights,
+easing and bounds, a storm's lightning 10-20 s apart with a flash no
+brighter than 0.6, none with lightning off or without a storm, the kind
+kept with changes off, clouds by cover, rain in a storm and none under
+the water, the bolt far off and gone in a moment, and no shadows from
+clouds, rain or the bolt), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
 below the platform's deck, back in), back by the menu's "Platform" and
