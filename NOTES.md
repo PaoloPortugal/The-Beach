@@ -2117,7 +2117,9 @@ debugging; not scheduled.* Typed commands in the style of Minecraft's,
 to change the world's state on the spot, e.g. `/weather <kind>` and
 `/time set <day, night, {seconds}s, {minutes}m>` (W09). A number with
 `s` or `m` jumps to that point of the 28-minute day, counted from
-sunrise (`/time set 90s`, `/time set 14m` is sunset). Names and words
+midnight (user's, 2026-10-08): `0s` midnight, `7m` sunrise, `14m` noon,
+`21m` sunset (W09's 14 minutes of day and 14 of night). W09's launch
+time, mid-morning, is about `10m 22s`. Names and words
 are mine to pick (user's, 2026-10-08): the weather kinds will match
 W09's. Scope: core (world only). They'd take over from W09's dev flags
 (`--hour`, `--weather`, `--day-minutes`). Undesigned: where you type
