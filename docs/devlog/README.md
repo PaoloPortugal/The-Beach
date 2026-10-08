@@ -71,3 +71,4 @@ reading; look things up by feature ID.
 | 2026-10-07 | [Built features' status lines match the index](2026-10-07-notes-status-lines.md) | docs |
 | 2026-10-07 | [The quit warning's list scrolls](2026-10-07-s05-quit-scroll.md) | S05 |
 | 2026-10-07 | [W04's edge-arrow check was flaky](2026-10-07-w04-arrow-check-flaky.md) | tooling |
+| 2026-10-07 | [W06: bridges, wedges and the maps](2026-10-07-w06-bridges.md) | W06, W05, W04, W07 |

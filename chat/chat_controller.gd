@@ -112,7 +112,7 @@ func _input(event: InputEvent) -> void:
 			_panel.cancel_link()
 		else:
 			close()
-	elif _open == null and not _near.is_empty() and event.is_action_pressed("interact"):
+	elif _open == null and not _near.is_empty() and player.controls_enabled and event.is_action_pressed("interact"):
 		get_viewport().set_input_as_handled()
 		open(_near.back())
 

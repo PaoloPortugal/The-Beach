@@ -127,6 +127,9 @@ jobs:
       - name: Clusters
         timeout-minutes: 8
         run: '"$GODOT" --headless --path . --script res://tests/world/clusters_test.gd'
+      - name: Bridges
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --path . --script res://tests/world/bridges_test.gd'
       - name: Markdown
         timeout-minutes: 8
         run: '"$GODOT" --headless --path . --script res://tests/chat/markdown_test.gd'
