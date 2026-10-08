@@ -21,6 +21,7 @@ here; each section is labelled with its feature ID.
 - [Token usage (C08)](#token-usage-c08)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
+- [When you need to sign in again (S06)](#when-you-need-to-sign-in-again-s06)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
@@ -245,13 +246,21 @@ what was said in the terminal. Replies appear as they're written. You can
 select text to copy it. Type in the box at the bottom: **Enter** sends,
 **Shift+Enter** starts a new line. Your message shows up once the session
 has it; if it can't be sent, the chat says so and gives your text back.
+What you type stays in the box if you close the chat and come back to
+the same session; opening another session's chat starts with an empty
+box (or with that session's message that didn't arrive: see When you
+need to sign in again, below). If a message couldn't be sent after you
+moved to another session's chat, its own chat says so when you go back,
+and gives it back.
 
 At the top right, next to "Esc to close", the chat shows the session's
 permission mode, such as **Mode: Auto** (see Permission modes and plans
 below), and how many tokens it uses (see Token usage below).
 
 Above the box, a line says what the orchestrator is doing: working, or
-waiting for you. When it waits on a permission, a question or a plan, a
+waiting for you. If a reply stopped for a reason Claude Code reports (a
+usage limit, the service busy or failing, a reply too long, ...), the
+line says so and what to do. When it waits on a permission, a question or a plan, a
 card above that line lets you answer it (see below). Only the latest 200
 messages are shown at once. A long chat appears newest first, and the
 older messages fill in above it over a moment.
@@ -495,6 +504,41 @@ placeholder.
 
 To turn the chime off, open the sessions menu (Tab) and untick **Sound
 when waiting** at the bottom; the game remembers it.
+
+## When you need to sign in again (S06)
+
+The game never asks for your login: signing in happens only in Claude
+Code itself. When Claude Code can't use your account, for example
+because your login expired, you signed out, or there's a problem with
+the account or its billing, the game tells you and points you to the
+terminal:
+
+- **In the chat,** a notice at the top in Claude Code's own words, such
+  as "Claude Code needs you to sign in again: run /login in its
+  terminal.", and the line above the box says "Waiting for you to sign
+  in, in the terminal."
+- **In the world,** the orchestrator waits for you like for a
+  permission: its orange "!", the light beacon and the "sessions
+  waiting" count (see When something waits for you, above).
+
+Go to that session's terminal and sign in (`/login`), or do what it
+asks. Then send your message again. The notice goes away once Claude
+Code says you're signed in, or as soon as Claude answers again.
+
+While Claude Code can't use your account, a message you send from the
+game may never reach it. If a message hasn't shown up in the chat after
+about 15 seconds, the line above the box says "Your message hasn't
+reached the session. Check its terminal, then send it again." and your
+text goes back in the box (only if the box is empty: otherwise when you
+next open the chat with it empty). If you clear it, it stays clear; if
+you go to another session's chat and come back without sending or
+changing it, it comes back. The warning goes when you send again or Claude Code picks a
+message up. If your message turns up after all, the text put back in the
+box goes too, unless you changed it, so it isn't sent twice. A message
+you type in the terminal counts too: after it, the text put back goes,
+so copy it first if you still want to send it. (Messages you send while
+Claude is busy wait for its turn to end, so they don't get this
+warning.)
 
 ## The sidecar (S01)
 
