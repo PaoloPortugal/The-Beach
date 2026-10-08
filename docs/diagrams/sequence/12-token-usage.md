@@ -41,10 +41,10 @@ sequenceDiagram
             Sidecar-->>Relay: 200, nothing
             Relay-->>Claude: exit 0, nothing on stdout: the terminal's status row stays empty
         end
-        Note over Sidecar: only for the followed conversation (session_id):<br/>context_window (% and size), rate_limits (5-hour, weekly)
-        Sidecar->>World: usage.updated (context %, the plan's limits), if they changed
+        Note over Sidecar: only for the followed conversation (session_id):<br/>context_window (% and size), rate_limits (5-hour, weekly)<br/>as limits five_hour (5-hour) and seven_day (Weekly), the last of each kept
+        Sidecar->>World: usage.updated (context %, the plan's limits as a list), if they changed
     end
-    Note over World: the header: context and totals#59; the turn's hint at its end#59;<br/>the plan's limits in the corner (a line per provider, the latest across its sessions)
+    Note over World: the header: context and totals#59; the turn's hint at its end#59;<br/>the plan's limits in the corner (a line per provider, the latest of each id<br/>across its sessions, by its label, in its order)
 ```
 
 **History.** `session.get_history` gives each user message its turn's

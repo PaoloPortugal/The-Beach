@@ -686,8 +686,11 @@ Each one is added to the schema and listed here:
   `output`, `cache_read`, `cache_write`), `context` (`tokens`, and
   `percent` and `window` or null; null until known), `turn` (`message`:
   the user message that started it, or null; `output_tokens`) and
-  `limits` (`five_hour`, `seven_day`: `used_percent`, `resets_at`; each
-  may be absent). The snapshot's `usage` is null until there is
+  `limits`: the account's limits, a list in the provider's order of
+  `{id, label, used_percent, resets_at}` (`id` stable per provider, e.g.
+  `five_hour`; `label` the provider's own words, e.g. "5-hour", shown as
+  plain text; each id once; empty while none are known). The
+  snapshot's `usage` is null until there is
   something to count: an API call, a user message (its new turn, at 0)
   or the status line's figures; history user messages may have
   `turn_tokens`.
@@ -1776,6 +1779,8 @@ switch button became one of C05's prompt options (2026-10-03).
 counts exist in other tools too). How much the session is using,
 without leaving the world. Research and spike: dev log
 2026-10-03-c08-usage-spike; build: dev log 2026-10-08-c08-usage.
+*Live check passed (2026-10-08)* with the user, the fake and the real
+`claude`.
 
 *Decided (user's, 2026-10-03):*
 - **Shown:** how full the context is, the session's token totals, and a
@@ -1856,7 +1861,10 @@ How it works:
   takes only `context_window` (`used_percentage`,
   `context_window_size`) and `rate_limits` (`five_hour`, `seven_day`:
   `used_percentage`, `resets_at`), and only from the session's own
-  conversation (`session_id`). The terminal's status row stays empty,
+  conversation (`session_id`). The two become the protocol's limits
+  `five_hour` "5-hour" and `seven_day` "Weekly", in that order; an input
+  without one keeps the last known of it (Claude Code drops a window
+  once it's over). The terminal's status row stays empty,
   and Claude Code then hides its footer hints ("esc to interrupt") in
   world sessions.
 - **The command string** (the exception): only our executable's
@@ -1906,9 +1914,11 @@ How it works:
   `output`, `cache_read`, `cache_write`), `context` (`tokens`,
   `percent` and `window`, those two null without the status line; null
   until the first call), `turn` (`message`: the user message that
-  started it, or null; `output_tokens`) and `limits` (`five_hour`,
-  `seven_day`, each `{used_percent, resets_at}`, either absent when
-  unknown). The snapshot has `usage` (null until the first API call,
+  started it, or null; `output_tokens`) and `limits`, a list of
+  `{id, label, used_percent, resets_at}` in the provider's order, empty
+  while none are known (user's decision, 2026-10-08: a general list, so
+  other tools' limits fit without another protocol change; the registry
+  drops a list giving an id twice). The snapshot has `usage` (null until the first API call,
   user message or status line figures). In
   the history, a user message has `turn_tokens`: the output tokens of
   the turn it started.
@@ -1920,9 +1930,12 @@ How it works:
   session's `provider`; user's requirement, 2026-10-08: a user may run
   several tools at once, each with its own plan). Each session's figures
   stay as they were until it hears again; the corner shows, per provider
-  and limit, the one with the latest `resets_at` (a later window) and in
-  the same window the highest use (use only grows within a window),
-  across that provider's sessions. One line per provider; each line
+  and limit id, the one with the latest `resets_at` (a later window) and
+  in the same window the highest use (use only grows within a window),
+  across that provider's sessions, by its label and in the order the
+  provider sends (`SessionStore.usage_limits` → `{provider: [limits]}`).
+  The label is untrusted text: a plain `Label`, never BBCode. One line
+  per provider; each line
   starts with the provider's name (from the hello's `providers`, else
   its id: "Claude: 5-hour ...") only when more than one has limits, so
   Claude alone reads as above; more lines grow upwards. A limit whose
@@ -3077,10 +3090,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** C08 token usage (user's pick, 2026-10-03), built on
 branch `c08-usage` (2026-10-08; dev logs 2026-10-03-c08-usage-spike,
-2026-10-08-c08-usage) and waiting for the user's live check
-(`tests/live/checklist.txt`): context and totals in the chat header,
-each turn's tokens, the plan's limits in the bottom-right corner, and
-the status line relay with the real `claude`.
+2026-10-08-c08-usage), live check passed with the fake and the real
+`claude` (2026-10-08), and the protocol's `usage.limits` now a general
+list (user's decision, 2026-10-08); its merge into `main` is prepared
+for the user to push: context and totals in the chat header, each
+turn's tokens, the plans' limits in the bottom-right corner, and the
+status line relay.
 **Merged to `main` (2026-10-08), reviewed by the user: the performance
 pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
 bridges' far versions, a coarse seabed, nothing drawn past the fog,

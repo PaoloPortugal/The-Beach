@@ -429,7 +429,8 @@ you've used and when each starts over, for example **5-hour 74% ·
 resets 3:40 PM   Weekly 94% · resets Fri 9:00 AM**. It's the same for
 every session, since the limits are your account's (when sessions of
 more than one AI tool report limits, each tool gets its own line,
-starting with its name), and stays on screen while you chat or look at
+starting with its name, with its limits in that tool's own words), and
+stays on screen while you chat or look at
 the maps. It appears after Claude's first step in any session, and a
 limit is hidden once its time to start over has passed, until a session
 hears the new figures.
