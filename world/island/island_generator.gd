@@ -7,7 +7,6 @@ extends RefCounted
 ## gives a different island. Flat-shaded and coloured by height. The water
 ## level is y = 0.
 
-const SEABED := Color(0.62, 0.64, 0.52)
 const WET_SAND := Color(0.82, 0.72, 0.52)
 const SAND := Color(0.94, 0.85, 0.63)
 const GRASS := Color(0.48, 0.68, 0.34)
@@ -189,7 +188,7 @@ func _add_triangle(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Ve
 
 func _colour(h: float) -> Color:
 	if h < -0.5:
-		return SEABED
+		return Seabed.colour(h) # the sea floor's own colours (W08)
 	if h < 0.25:
 		return WET_SAND
 	if h > plateau_height + 0.4:
