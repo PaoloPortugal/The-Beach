@@ -12,6 +12,9 @@ const script = path.join(import.meta.dirname, 'dev-fake.ts')
 
 test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice, stop and resume all play out validly', { timeout: 60000 }, async () => {
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'pipe'] })
+  // The sidecar drops (and logs) an event that fails the schema.
+  let errors = ''
+  child.stderr.setEncoding('utf8').on('data', (d: string) => { errors += d })
   try {
     const hs = await new Promise<{ port: number; token: string }>((resolve, reject) => {
       let buf = ''
@@ -27,12 +30,31 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     const r = await c.command({ type: 'session.create', provider: 'fake', project: { path: os.tmpdir() } })
     const session = (r.result as { session: string }).session
     const created = await c.next('session.created', 3000)
-    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} })
+    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} })
+    assert.equal((created.session as any).usage, null)
     const idle = (m: Msg) => m.type === 'agent.state_changed' && m.agent === 'main' && m.state === 'idle'
     const say = (text: string) => c.command({ type: 'message.send', session, text })
 
     await say('hello')
+    // C08: the user's message starts a turn; the reply counts tokens.
+    const started = await c.next((m) => m.type === 'message.started' && m.role === 'user', 5000)
+    assert.deepEqual(((await c.next('usage.updated', 5000)).usage as any).turn, { message: started.message, output_tokens: 0 })
     assert.match(String((await c.next((m) => m.type === 'message.completed' && String(m.message).startsWith('a'), 5000)).text), /You said/)
+    const counted = (await c.next('usage.updated', 5000)).usage as any
+    assert.ok(counted.turn.output_tokens > 0 && counted.tokens.output === counted.turn.output_tokens)
+    assert.equal(counted.context.window, 200000)
+    assert.deepEqual(counted.limits.map((l: any) => [l.id, l.label]), [['five_hour', '5-hour'], ['seven_day', 'Weekly']])
+    assert.ok(counted.limits.every((l: any) => l.used_percent > 0))
+    await c.next(idle, 5000)
+    const told = ((await c.command({ type: 'session.get_history', session })).result as { messages: any[] }).messages
+    assert.equal(told.find((m) => m.role === 'user')?.turn_tokens, counted.turn.output_tokens)
+
+    // A heavy turn: the context nearly full, the 5-hour limit high.
+    await say('use up some usage')
+    await c.next((m) => m.type === 'message.completed' && /nearly full/.test(String(m.text)), 10000)
+    const heavy = (await c.next('usage.updated', 5000)).usage as any
+    assert.ok(heavy.context.percent >= 80, `context ${heavy.context.percent}%`)
+    assert.ok(heavy.limits.find((l: any) => l.id === 'five_hour').used_percent >= 85)
     await c.next(idle, 5000)
 
     await say('ask for permission please')
@@ -132,8 +154,12 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     assert.equal((back.session as any).title, 'Add a save system')
     const chat = (await c.command({ type: 'session.get_history', session: resumed.session })).result as { messages: any[] }
     assert.deepEqual(chat.messages.map((m) => m.text), ['Where were we?', 'Resumed **Add a save system**.'])
+    assert.equal(chat.messages[0].turn_tokens, 1840)
+    await c.command({ type: 'session.get_snapshot', session: resumed.session })
+    assert.equal(((await c.next('session.snapshot', 3000)).session as any).usage.tokens.output, 1840, 'its usage so far')
     assert.deepEqual((await list()).map((s) => s.native_id), ['stored-1', 'stored-3'])
     assert.deepEqual(c.invalid, [])
+    assert.doesNotMatch(errors, /dropped/)
     await c.close()
   } finally { child.kill() }
 })

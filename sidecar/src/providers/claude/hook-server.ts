@@ -9,6 +9,11 @@ import crypto from 'node:crypto'
 import type { Log } from '../../log.ts'
 
 export const HOOK_PATH = '/hook'
+/**
+ * Where the status line relay posts Claude Code's status line input
+ * (C08), with the session's hook token. Answered at once, with nothing.
+ */
+export const STATUS_PATH = '/status'
 /** Largest hook body accepted. Tool inputs can be whole files (Write). */
 export const MAX_HOOK_BODY = 16 * 1024 * 1024
 
@@ -22,6 +27,8 @@ export interface HookHandlers {
    * `gone` fires if Claude Code stops waiting first (timeout, exit).
    */
   onHook(payload: HookPayload, gone: AbortSignal): Record<string, unknown> | void | Promise<Record<string, unknown> | void>
+  /** One status line input from this session (C08): a JSON object, untrusted. */
+  onStatus?(payload: Record<string, unknown>): void
 }
 
 export interface HookLink {
@@ -54,6 +61,11 @@ export class HookServer {
     return `http://127.0.0.1:${this.port}${HOOK_PATH}`
   }
 
+  /** The URL the status line relay posts to (C08). */
+  get statusUrl(): string {
+    return `http://127.0.0.1:${this.port}${STATUS_PATH}`
+  }
+
   /** A new session's token; valid until unregistered. */
   register(handlers: HookHandlers): HookLink {
     const token = crypto.randomBytes(32).toString('hex')
@@ -82,7 +94,7 @@ export class HookServer {
     // Browsers always send Origin; Claude Code doesn't. A Host other than
     // our own address means DNS rebinding.
     if (req.headers.origin !== undefined || req.headers.host !== `127.0.0.1:${this.port}`) return reply(403)
-    if (req.method !== 'POST' || req.url !== HOOK_PATH) return reply(404)
+    if (req.method !== 'POST' || (req.url !== HOOK_PATH && req.url !== STATUS_PATH)) return reply(404)
     const handlers = this.find(req.headers.authorization)
     if (!handlers) {
       this.log.warn('refused a hook request: bad token')
@@ -93,6 +105,13 @@ export class HookServer {
     try { body = await readBody(req) } catch { return reply(413) }
     let payload: unknown
     try { payload = JSON.parse(body) } catch { return reply(400) }
+    if (req.url === STATUS_PATH) {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return reply(400)
+      try { handlers.onStatus?.(payload as Record<string, unknown>) } catch (e) {
+        this.log.error(`status line input failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
+      return reply(200)
+    }
     if (typeof payload !== 'object' || payload === null || typeof (payload as HookPayload).hook_event_name !== 'string') {
       return reply(400)
     }

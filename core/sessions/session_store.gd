@@ -41,6 +41,10 @@ signal session_changed(session: String, fields: Array)
 ## The chat was replaced as a whole ([method replace_history]): lay it out
 ## again.
 signal messages_replaced(session: String)
+## The session's token usage changed (C08, the [code]usage[/code]
+## capability): its [code]usage[/code], and the turn's
+## [code]turn_tokens[/code] on the user message that started it.
+signal usage_changed(session: String)
 ## A provider extension message ([code]ext.<provider>.<name>[/code]).
 signal extension_event(session: String, msg: Dictionary)
 
@@ -56,6 +60,10 @@ const MAX_TOOLS := 5000
 ## [code]"plan"[/code]) and
 ## [code]message_order[/code] (ids, oldest first), [code]tools[/code]
 ## (tool call id → call, shaped like the protocol's [code]history_tool[/code])
+## A user message may have [code]turn_tokens[/code]: the output tokens of the
+## turn it started (C08), from the history and kept up from
+## [code]usage.updated[/code]. [code]usage[/code] is the session's latest
+## figures (null until the first count).
 ## and [code]tool_order[/code], and
 ## [code]pending_order[/code] ([code][kind, id][/code] per pending permission,
 ## question and plan, oldest first; read it through [method pending]).
@@ -132,6 +140,57 @@ func messages(session_id: String) -> Array[Dictionary]:
 	for id in s.get("message_order", []):
 		out.append(s["messages"][id])
 	return out
+
+
+## The plans' usage limits (C08), per provider, across its sessions:
+## [code]{provider: [{id, label, used_percent, resets_at}]}[/code], each id
+## once, with the most recent figures, in the order the provider sends
+## them. Each provider's are its own account's (a user may run several
+## tools at once). A session's figures stay as they were until it hears
+## again, so the newest is the one with the latest [code]resets_at[/code]
+## (a later window) and, in the same window, the highest use (use only
+## grows within a window). One whose [code]resets_at[/code] has passed by
+## [param now] (Unix seconds) is left out: that window is over and its
+## figures say nothing about the next (Claude Code drops it too). A
+## provider with none is left out.
+func usage_limits(now: float) -> Dictionary:
+	var out := {}
+	for id in sessions:
+		var usage = sessions[id].get("usage")
+		if not usage is Dictionary or not usage.get("limits") is Array:
+			continue
+		var provider := str(sessions[id].get("provider", ""))
+		var theirs: Array = out.get(provider, [])
+		# Where this session's next new id goes: after the last of its ids
+		# already there, so a provider's order holds across its sessions.
+		var place := 0
+		for limit in usage["limits"]:
+			if not limit is Dictionary:
+				continue
+			var resets := unix_time(limit.get("resets_at"))
+			if resets <= now:
+				continue
+			var i := theirs.find_custom(func(l: Dictionary) -> bool: return l["id"] == limit.get("id"))
+			if i < 0:
+				theirs.insert(place, limit)
+				place += 1
+				continue
+			place = i + 1
+			var best: Dictionary = theirs[i]
+			var at := unix_time(best["resets_at"])
+			if resets > at or (resets == at and float(limit.get("used_percent", 0)) > float(best["used_percent"])):
+				theirs[i] = limit
+		if not theirs.is_empty():
+			out[provider] = theirs
+	return out
+
+
+## A protocol timestamp ([code]2026-10-08T12:00:00.000Z[/code], UTC) in Unix
+## seconds, or 0 if it can't be read.
+static func unix_time(timestamp) -> float:
+	if not timestamp is String or timestamp.length() < 19:
+		return 0.0
+	return float(Time.get_unix_time_from_datetime_string(timestamp.substr(0, 19)))
 
 
 ## The tool calls, oldest first.
@@ -370,6 +429,20 @@ func apply(msg: Dictionary) -> void:
 			list.assign(list.filter(func(p: Dictionary) -> bool: return p["plan"] != msg["plan"]))
 			s["pending_order"].erase(["plan", msg["plan"]])
 			plans_changed.emit(id)
+		"usage.updated":
+			s["usage"] = msg["usage"]
+			_note_turn(s)
+			usage_changed.emit(id)
+
+
+# The turn's tokens so far go on the user message that started it.
+static func _note_turn(s: Dictionary) -> void:
+	var usage = s.get("usage")
+	if not usage is Dictionary:
+		return
+	var m: Dictionary = s["messages"].get(usage["turn"]["message"], {})
+	if m.get("role") == "user":
+		m["turn_tokens"] = int(usage["turn"]["output_tokens"])
 
 
 func _put_session(snapshot: Dictionary, created: bool) -> void:
@@ -410,6 +483,7 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 	s["tool_order"] = old.get("tool_order", [])
 	var known := not old.is_empty()
 	sessions[id] = s
+	_note_turn(s)
 	_seen_since_sync[id] = true
 	if known:
 		# Everything may have changed (a resync after a gap).
@@ -425,6 +499,8 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 		questions_changed.emit(id)
 		plans_changed.emit(id)
 		notices_changed.emit(id)
+		if s.get("usage") != old.get("usage"):
+			usage_changed.emit(id)
 	else:
 		session_added.emit(id, created)
 
@@ -446,6 +522,8 @@ static func _message(m: Dictionary) -> Dictionary:
 	}
 	if m.has("kind"):
 		out["kind"] = m["kind"]
+	if m.has("turn_tokens"):
+		out["turn_tokens"] = int(m["turn_tokens"])
 	return out
 
 

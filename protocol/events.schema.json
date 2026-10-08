@@ -26,6 +26,7 @@
     { "$ref": "#/$defs/question.resolved" },
     { "$ref": "#/$defs/plan.asked" },
     { "$ref": "#/$defs/plan.resolved" },
+    { "$ref": "#/$defs/usage.updated" },
     { "$ref": "#/$defs/session.create" },
     { "$ref": "#/$defs/session.list_stored" },
     { "$ref": "#/$defs/session.resume" },
@@ -183,6 +184,67 @@
       "additionalProperties": false
     },
 
+    "token_count": { "type": "integer", "minimum": 0 },
+
+    "usage_limit": {
+      "description": "One of the account's usage limits (usage capability): how much of it is used, and when it starts over. id: a stable name per provider (Claude: five_hour, seven_day). label: the provider's own words for it (Claude: \"5-hour\", \"Weekly\"), shown as plain text (untrusted).",
+      "type": "object",
+      "required": ["id", "label", "used_percent", "resets_at"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "label": { "description": "No control characters (no new lines) and no bidi overrides, so it can't fake a line or another provider's text.", "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]+$" },
+        "used_percent": { "description": "0 to 100 (may pass 100 once over the limit).", "type": "number", "minimum": 0 },
+        "resets_at": { "$ref": "#/$defs/timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "usage": {
+      "description": "How many tokens a session uses (usage capability), the whole current figures. tokens: the conversation's totals so far, each API call counted once. context: how full the context window is after the latest call (input, cache reads and cache writes); null until the first call. turn: the turn going on or last finished: the user message that started it (null before the first) and the output tokens of its calls so far. limits: the account's usage limits, a list (empty while none are known).",
+      "type": "object",
+      "required": ["tokens", "context", "turn", "limits"],
+      "properties": {
+        "tokens": {
+          "type": "object",
+          "required": ["input", "output", "cache_read", "cache_write"],
+          "properties": {
+            "input": { "$ref": "#/$defs/token_count" },
+            "output": { "$ref": "#/$defs/token_count" },
+            "cache_read": { "$ref": "#/$defs/token_count" },
+            "cache_write": { "$ref": "#/$defs/token_count" }
+          },
+          "additionalProperties": false
+        },
+        "context": {
+          "anyOf": [{
+            "type": "object",
+            "required": ["tokens", "percent", "window"],
+            "properties": {
+              "tokens": { "$ref": "#/$defs/token_count" },
+              "percent": { "description": "How full, 0 to 100; null when the provider doesn't say.", "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+              "window": { "description": "The context window's size in tokens; null when the provider doesn't say.", "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }] }
+            },
+            "additionalProperties": false
+          }, { "type": "null" }]
+        },
+        "turn": {
+          "type": "object",
+          "required": ["message", "output_tokens"],
+          "properties": {
+            "message": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+            "output_tokens": { "$ref": "#/$defs/token_count" }
+          },
+          "additionalProperties": false
+        },
+        "limits": {
+          "description": "In the provider's order, each id once; empty while none are known.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/usage_limit" }
+        }
+      },
+      "additionalProperties": false
+    },
+
     "session": {
       "description": "Full state of one session (one island).",
       "type": "object",
@@ -236,6 +298,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/plan" }
         },
+        "usage": {
+          "description": "Token usage, null until the first count. Present only when the usage capability is declared.",
+          "anyOf": [{ "$ref": "#/$defs/usage" }, { "type": "null" }]
+        },
         "notices": {
           "description": "Current notices, at most one per code.",
           "type": "array",
@@ -274,7 +340,8 @@
         "role": { "enum": ["user", "assistant"] },
         "kind": { "$ref": "#/$defs/message_kind" },
         "text": { "description": "Markdown.", "type": "string" },
-        "at": { "$ref": "#/$defs/timestamp" }
+        "at": { "$ref": "#/$defs/timestamp" },
+        "turn_tokens": { "description": "A user message only (usage capability): the output tokens of the turn it started.", "$ref": "#/$defs/token_count" }
       },
       "additionalProperties": false
     },
@@ -611,6 +678,19 @@
         "plan": { "$ref": "#/$defs/id" },
         "decision": { "enum": ["approved", "rejected"] },
         "by": { "enum": ["app", "external"] }
+      },
+      "additionalProperties": false
+    },
+
+    "usage.updated": {
+      "description": "Sidecar -> Godot (usage capability). The session's token usage changed; usage holds the whole current figures and replaces the last.",
+      "type": "object",
+      "required": ["type", "session", "seq", "usage"],
+      "properties": {
+        "type": { "const": "usage.updated" },
+        "session": { "$ref": "#/$defs/id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "usage": { "$ref": "#/$defs/usage" }
       },
       "additionalProperties": false
     },

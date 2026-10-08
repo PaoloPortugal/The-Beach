@@ -11,8 +11,11 @@ diagram, which shows the pieces themselves, is in NOTES.md → Architecture.
 GitHub draws the Mermaid blocks as diagrams. Arrows between World and
 Sidecar are protocol messages (NOTES.md → Protocol); arrows from Claude
 Code are hooks (HTTP, with the session's token; `SessionStart` goes
-through Relay, our executable run as a command hook, [flow 9](diagrams/sequence/09-clear-or-resume.md)); Bridge is
-our channel bridge (NOTES.md → S02).
+through Relay, our executable run as a command hook,
+[flow 9](diagrams/sequence/09-clear-or-resume.md), and so does the
+status line, Relay in `statusline` mode,
+[flow 12](diagrams/sequence/12-token-usage.md)); Bridge is our channel
+bridge (NOTES.md → S02).
 
 The terminal and the world are two windows onto the same session: you can
 switch between them at any point, and whichever answers first wins.
@@ -62,6 +65,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 9 | [/clear or /resume: another conversation in the session](diagrams/sequence/09-clear-or-resume.md) | S02 |
 | 10 | [A plan to approve](diagrams/sequence/10-plan-approval.md) | C07, S02 |
 | 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
+| 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the

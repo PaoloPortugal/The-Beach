@@ -8,6 +8,9 @@ extends PanelContainer
 ## into one line (C04, [ToolFold]). The header shows the session's permission
 ## mode (C06, when the session declares [code]permission_modes[/code]); a plan
 ## waiting for approval (C07) is a full-width message, answered on the card.
+## Token usage (C08, when the session declares [code]usage[/code]): context
+## and totals in the header, beside the mode, and each turn's output tokens
+## in a dim line at its end, going up while the orchestrator works.
 ## Message text is untrusted (NOTES.md → Security rules):
 ## the Markdown converter escapes all of it, and a link opens only after a
 ## confirmation showing its full address.
@@ -42,6 +45,7 @@ var sidecar: SidecarClient
 var session_id := ""
 
 var _rows := {} # message id → its MarkdownView
+var _hints := {} # message id → the turn hint under it (C08)
 ## The tool-call log as laid out ([method SessionStore.tool_tree]), the
 ## calls placed in it, and each message's fold (id → [ToolFold]; "" for the
 ## calls before the first message, shown only when every message is).
@@ -59,6 +63,7 @@ var _send_error := ""
 
 @onready var _title: Label = $Layout/Header/Title
 @onready var _mode: Label = $Layout/Header/Mode
+@onready var _usage: Label = $Layout/Header/Usage
 @onready var _notices: Label = $Layout/Notices
 @onready var _scroll: ScrollContainer = $Layout/Scroll
 @onready var _messages: VBoxContainer = $Layout/Scroll/Messages
@@ -96,6 +101,10 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.session_changed.connect(func(id: String, _fields: Array) -> void:
 		if id == session_id:
 			_refresh_header())
+	store.usage_changed.connect(func(id: String) -> void:
+		if id == session_id and not _rebuild_queued:
+			_refresh_usage()
+			_refresh_hints())
 	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.plans_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
@@ -182,6 +191,23 @@ func mode_text() -> String:
 	return _mode.text if _mode.visible else ""
 
 
+## The header's usage text ("Context 34% · ↑ 2.1M in · ↓ 48k out"), or ""
+## when it isn't shown.
+func usage_text() -> String:
+	return _usage.text if _usage.visible else ""
+
+
+## The turn hints shown, oldest first, each [code][message id, text][/code]:
+## the message whose row it ends.
+func turn_hints() -> Array:
+	var out := []
+	for row in _messages.get_children():
+		var hint: Label = _hints.get(row.get_meta("message", ""))
+		if hint and hint.visible:
+			out.append([row.get_meta("message"), hint.text])
+	return out
+
+
 ## Sends the message box's text to the session.
 func send() -> void:
 	var text := _input.text.strip_edges()
@@ -225,6 +251,7 @@ func _on_message_changed(id: String, message: String) -> void:
 		return # built later, from the store as it is then
 	elif store.session(id)["message_order"].back() == message:
 		_add_row(m)
+		_refresh_hints()
 		if _messages.get_child_count() + _to_build.size() > MAX_SHOWN:
 			if not _to_build.is_empty():
 				_to_build.pop_back()
@@ -232,6 +259,7 @@ func _on_message_changed(id: String, message: String) -> void:
 				var first := _messages.get_child(1)
 				_rows.erase(first.get_meta("message"))
 				_folds.erase(first.get_meta("message"))
+				_hints.erase(first.get_meta("message"))
 				first.free()
 			# Not every message is shown now: nor are the calls before them.
 			var top: ToolFold = _folds.get("")
@@ -284,6 +312,7 @@ func _build_some() -> void:
 			_add_row(m, 1) # under the calls before the first message
 		if Time.get_ticks_usec() - start > BUILD_BUDGET_USEC:
 			break
+	_refresh_hints()
 
 
 ## Builds the rest a few per frame. Rows appear above what's on screen, so
@@ -309,6 +338,7 @@ func _build_rest(run: int) -> void:
 
 func _clear() -> void:
 	_rows.clear()
+	_hints.clear()
 	_folds.clear()
 	_placed.clear()
 	_tree = {}
@@ -366,6 +396,12 @@ func _add_row(m: Dictionary, at := -1) -> void:
 	var fold := _new_fold(_tree["after"].get_or_add(m["message"], []))
 	row.add_child(fold)
 	_folds[m["message"]] = fold
+	var hint := Label.new()
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", DIM)
+	hint.visible = false
+	row.add_child(hint)
+	_hints[m["message"]] = hint
 	_messages.add_child(row)
 	if at >= 0:
 		_messages.move_child(row, at)
@@ -455,14 +491,54 @@ func _refresh_status() -> void:
 			_status.text = ""
 
 
-# The title, and the mode when the session declares permission_modes and it
-# is known.
+# The title, the usage, and the mode when the session declares
+# permission_modes and it is known.
 func _refresh_header() -> void:
 	var s := store.session(session_id)
 	_title.text = _session_title(s)
 	var mode = s.get("mode")
 	_mode.visible = s.get("capabilities", {}).has("permission_modes") and mode is String
 	_mode.text = "Mode: %s" % PermissionModes.name_of(mode) if _mode.visible else ""
+	_refresh_usage()
+
+
+# Context and totals, when the session declares usage and has counted.
+func _refresh_usage() -> void:
+	var s := store.session(session_id)
+	var usage = s.get("usage") if s.get("capabilities", {}).has("usage") else null
+	_usage.text = UsageText.header(usage)
+	_usage.tooltip_text = UsageText.header_details(usage)
+	_usage.visible = not _usage.text.is_empty()
+
+
+# Each turn's output tokens at its end: under the last row before the next
+# user message, or the last row for the turn going on. A turn whose user
+# message isn't shown (older than the rows shown) has none; nor does one
+# with no tokens yet.
+func _refresh_hints() -> void:
+	if session_id.is_empty():
+		return
+	var messages: Dictionary = store.session(session_id).get("messages", {})
+	var tokens := -1 # the turn's, or -1 before the first shown user message
+	var last := ""
+	var ends := {} # message id → its turn's tokens
+	for row in _messages.get_children():
+		var id: String = row.get_meta("message", "")
+		if id.is_empty():
+			continue
+		var m: Dictionary = messages.get(id, {})
+		if m.get("role") == "user":
+			if tokens > 0:
+				ends[last] = tokens
+			tokens = int(m.get("turn_tokens", 0))
+		last = id
+	if tokens > 0:
+		ends[last] = tokens
+	for id in _hints:
+		var hint: Label = _hints[id]
+		hint.visible = ends.has(id)
+		if hint.visible:
+			hint.text = UsageText.turn(ends[id])
 
 
 static func _session_title(s: Dictionary) -> String:

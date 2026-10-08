@@ -14,7 +14,8 @@ import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
 import {
   HookTranslator, MAIN, PLAN_TOOL, QUESTION_TOOL, permissionReply, questionReply, unwrapChannel, type RelayedPermission,
 } from './hooks.ts'
-import { hasReply, NO_TITLES, pickTitle, readHistory, readTitles, type Titles } from './store.ts'
+import { hasReply, NO_TITLES, pickTitle, readConversation, readTitles, type Conversation, type Titles } from './store.ts'
+import { statusFiguresIn, UsageCounter } from './usage.ts'
 import { launcherGone } from '../../launch/launcher.ts'
 
 /**
@@ -198,10 +199,14 @@ export class ClaudeSession implements ProviderSession {
 
   /** A first message to send once the session is up (session.create's prompt). */
   private prompt: string | null
+  /** Token usage of the conversation the world follows (C08). */
+  private readonly usage = new UsageCounter()
+  /** The usage last sent, so only changes go out. */
+  private usageSent = 'null'
 
   constructor(host: SessionHost, launch: Launch, project: Project, titles: Titles, log: Log,
     cleanup: () => void, startupTimeoutMs: number, history: History = { messages: [], tools: [] }, prompt?: string,
-    hooksCheckMs = HOOKS_CHECK_MS) {
+    hooksCheckMs = HOOKS_CHECK_MS, usage?: UsageCounter) {
     this.host = host
     this.launch = launch
     this.nativeId = launch.nativeId
@@ -214,6 +219,7 @@ export class ClaudeSession implements ProviderSession {
     this.chat = new HistoryLog(history)
     this.prompt = prompt ?? null
     this.hooksCheckMs = hooksCheckMs
+    if (usage) this.usage.load(usage)
   }
 
   bridgeHandlers() {
@@ -250,10 +256,12 @@ export class ClaudeSession implements ProviderSession {
       project: this.project,
       title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
-      capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {} },
+      capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} },
       extensions: [],
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
+    // A resumed conversation's usage so far.
+    this.sendUsage()
     this.flushPrompt()
   }
 
@@ -321,7 +329,7 @@ export class ClaudeSession implements ProviderSession {
     const file = p.transcript_path as string
     // /resume: the resumed conversation's chat, all of it (no prompt has
     // woken it yet). /clear: an empty chat.
-    this.switchTo(p.session_id as string, file, source === 'resume' ? readHistory(file) : null)
+    this.switchTo(p.session_id as string, file, source === 'resume' ? readConversation(file) : null)
     this.transcript.follow(file)
   }
 
@@ -371,17 +379,20 @@ export class ClaudeSession implements ProviderSession {
   }
 
   /**
-   * The world now follows conversation `id`. `resumed` is its chat after
-   * /resume, which becomes the history; null after /clear, when the
-   * history empties, so the world's chat window clears too (user's
-   * decisions, 2026-10-01; the old conversation stays resumable).
+   * The world now follows conversation `id`. `resumed` is its chat and
+   * usage after /resume, which become the history and the counts; null
+   * after /clear, when the history empties and the counts start over, so
+   * the world's chat window clears too (user's decisions, 2026-10-01; the
+   * old conversation stays resumable).
    */
-  private switchTo(id: string, file: string, resumed: History | null) {
+  private switchTo(id: string, file: string, resumed: Conversation | null) {
     const from = this.nativeId
     this.nativeId = id
     this.transcriptDir ??= path.dirname(file)
+    if (resumed) this.usage.load(resumed.usage)
+    else this.usage.reset()
     if (resumed) {
-      this.chat.replace(resumed)
+      this.chat.replace(resumed.history)
       this.log.info(`session ${this.host.id}: it switched to an earlier conversation (/resume)`)
     } else {
       this.chat.replace({ messages: [], tools: [] })
@@ -395,6 +406,7 @@ export class ClaudeSession implements ProviderSession {
     // After the history: the world reloads it on session.updated.
     this.host.emit({ type: 'session.updated', native_id: id, ...(renamed ? { title } : {}) })
     this.host.emit({ type: 'session.notice', notice: resumed ? CONVERSATION_RESUMED : CONVERSATION_CLEARED })
+    this.sendUsage()
     this.onNativeId?.(from, id)
   }
 
@@ -472,6 +484,10 @@ export class ClaudeSession implements ProviderSession {
     if (this.disposed || this.host.ended) return
     if (s.kind === 'continued') return this.onMoved(s.sessionId)
     if (s.kind === 'title') return this.retitle({ ...this.titles, ...s.titles })
+    if (s.kind === 'usage') {
+      if (this.usage.add(s.call)) this.sendUsage()
+      return
+    }
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
@@ -502,8 +518,39 @@ export class ClaudeSession implements ProviderSession {
     }
   }
 
+  /**
+   * Claude Code's status line input (C08), relayed: the context window's
+   * size and fill, and the account's usage limits. Untrusted, and only
+   * taken for the conversation the world follows, once the session is up.
+   */
+  onStatus(p: Record<string, unknown>): void {
+    if (this.disposed || this.host.ended || this.startupTimer) return
+    const figures = statusFiguresIn(p)
+    if (figures.sessionId !== this.nativeId) return
+    if (this.usage.status(figures)) this.sendUsage()
+  }
+
+  /** Sends the usage figures if they changed since last sent. */
+  private sendUsage() {
+    if (this.startupTimer) return
+    const usage = this.usage.get()
+    const json = JSON.stringify(usage)
+    if (!usage || json === this.usageSent) return
+    if (this.host.emit({ type: 'usage.updated', usage })) {
+      this.usageSent = json
+      this.chat.remember({ type: 'usage.updated', usage })
+    }
+  }
+
   private emitAll(events: SessionEvent[]) {
+    let turn = false
     for (const event of events) {
+      // The user's message starts a new turn (C08); Claude Code's injected
+      // prompts aren't user messages, so they stay in the turn.
+      if (event.type === 'message.started' && event.role === 'user' && event.agent === MAIN) {
+        this.usage.newTurn(event.message)
+        turn = true
+      }
       if (this.host.emit(event)) this.remember(event)
       // Answered or dismissed in the terminal: let go of the held hook
       // (Claude Code no longer waits on it; NOTES.md -> S02).
@@ -512,6 +559,8 @@ export class ClaudeSession implements ProviderSession {
       // The call ended (ran, denied or stopped): its prompt's hook is moot.
       if (event.type === 'tool.finished') this.releasePrompt(event.tool_call)
     }
+    // After the message is complete, so the history can note its turn's tokens.
+    if (turn) this.sendUsage()
   }
 
   /** New titles; the world hears when the one shown changes (only once the session is up). */
@@ -689,10 +738,12 @@ export class ClaudeSession implements ProviderSession {
 /**
  * The chat already in a conversation's transcript when the world first
  * hears from it, without the prompt that woke it (that one arrives as a
- * live message). Empty for a new conversation, or without a transcript.
+ * live message), and its usage. Empty for a new conversation, or without
+ * a transcript.
  */
-function earlierChat(file: string, p: HookPayload): History {
-  const history = readHistory(file)
+function earlierChat(file: string, p: HookPayload): Conversation {
+  const read = readConversation(file)
+  const history = read.history
   const chat = history.messages
   const last = chat.at(-1)
   if (p.hook_event_name === 'UserPromptSubmit' && typeof p.prompt === 'string' &&
@@ -701,5 +752,5 @@ function earlierChat(file: string, p: HookPayload): History {
     // Nothing ran after it yet; anything tied to it would be orphaned.
     history.tools = history.tools.filter((t) => t.after !== last.message)
   }
-  return history
+  return read
 }
