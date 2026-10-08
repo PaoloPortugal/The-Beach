@@ -9,7 +9,7 @@ const MIN_DISTANCE := 180.0
 const MAX_DISTANCE := 320.0
 const TOP := 110.0
 const SEGMENTS := 9
-const WIDTH := 1.2
+const WIDTH := 2.0
 ## How long it shows, seconds.
 const SHOW_TIME := 0.3
 
