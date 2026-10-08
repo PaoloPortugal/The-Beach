@@ -8,8 +8,9 @@ here; each section is labelled with its feature ID.
 - [Running it](#running-it)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
-- [The islands and the ocean (W01, W02)](#the-islands-and-the-ocean-w01-w02)
+- [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Clusters (W05)](#clusters-w05)
+- [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
@@ -70,9 +71,11 @@ names as Claude Code's own `/resume` list.
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
   while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
-  its island, in front of its orchestrator. The order stays put, so
+  its island, in front of its orchestrator (if the island is still
+  rising, once it's up). The order stays put, so
   you always find a session in the same place: clusters in the order
-  they appeared, and each cluster's sessions in the order they started.
+  of their places around the platform, and each cluster's sessions in
+  the order of their islands.
 - **Resume** lists your earlier Claude Code sessions, newest first, with
   their project and how long ago you last used them. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions
@@ -84,8 +87,8 @@ Starting or resuming opens Claude Code in a terminal, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
 "Still starting; check the terminal, or stop waiting in the menu (Tab)."
-Once you've confirmed, the session's island appears and you're taken to
-it, right in front of its orchestrator.
+Once you've confirmed, the session's island rises out of the sea, and
+once it's up you're taken to it, right in front of its orchestrator.
 
 If the session can't start, the note says why. If Claude Code closes
 before it's ready (for example you chose not to trust the folder, or
@@ -94,7 +97,7 @@ away.
 
 One session starts at a time. While one is starting, the menu has
 **✕ Stop waiting for the session starting**: it lets you start another.
-If the first one does come up later, its island appears and it's listed
+If the first one does come up later, its island rises and it's listed
 under Running, but you aren't taken there.
 
 ## Quitting the game (S05)
@@ -102,31 +105,46 @@ under Running, but you aren't taken there.
 Sessions don't end when you quit: they keep running in their terminal
 windows, but the game can no longer see or reach them. So if you close
 the game while sessions are running, it asks first. It lists them with
-what each is doing, and reminds you that to end a session you type
-`/exit` in its terminal. **Quit** closes the game anyway; **Back to the
-game** (or Esc) returns you to where you were. With no session running,
+what each is doing (scroll the list if there are many), and reminds you
+that to end a session you type `/exit` in its terminal. **Quit** closes
+the game anyway; **Back to the game** (or Esc) returns you to where you
+were. With no session running,
 the game just closes.
 
 The game can't end sessions for you: Claude Code has no clean way to do
 that from outside.
 
-## The islands and the ocean (W01, W02)
+## The islands and the ocean (W01, W02, W04)
 
 Each session has its own small low-poly beach island: a flat spot in the
 middle where its orchestrator sits, dunes around it, and a sandy beach.
-Islands are made by the game, so no two look the same. An island appears
-once its session is running and disappears when the session ends; if you
-are standing on it then, you're put back on the platform. Islands of the same
-project sit together in a cluster (below), and clusters sit around the
-platform, far apart; for now you travel between them with
-the sessions menu (Tab), or back to the platform by falling in the sea. The ocean has gentle waves and
-fades into haze at the horizon.
+Islands are made by the game, so no two look the same.
+
+When a session starts, its island rises out of the sea, which takes a few
+seconds. A green light beam stands over a new session's island until
+you've been on it, and while the island is off-screen a green arrow at
+the edge of the screen points to it, with its project's name and how far
+it is. (The beam and arrow are a first version, like the rest of the
+game's screens for now.) Sessions that were already running when the
+game connected are simply there. When a session ends, its orchestrator and subagents
+disappear at once. If you're standing on its island, or on
+one of its bridges, the empty island stays until you leave it (walk
+away over a bridge, fall in the sea or go to another session); then it
+sinks back into the sea and is gone. Islands of the same project sit
+together in a cluster (below), and bridges join them to each other and
+to the platform (W06); the sessions menu (Tab) takes you straight to
+any of them. The ocean has gentle waves and fades into haze at the
+horizon. To keep the game smooth, islands and bridges lost in the haze
+aren't drawn at all, and the sea floor under the water is plainer than
+the land; you won't see either.
 
 ## Clusters (W05)
 
 Sessions working on the same project share a **cluster**: their islands
-sit close together, about 100 m apart, and other projects' clusters are
-farther out around the platform.
+sit close together, about 100 m apart. Each cluster has its own slice of
+sea fanning out from the platform, like a slice of cake: its first
+island is the closest to the platform, and later ones fill the slice
+outward, so a cluster never grows into another.
 
 A session joins its project's cluster on its own. "Same project" means
 the same git repository, including its worktrees (for example a
@@ -139,13 +157,44 @@ or resuming it (a new cluster you ask for is named after the session's
 folder).
 
 Clusters last only while they have sessions: when a cluster's last
-session ends, it's gone, and its place around the platform is free
-again. The game doesn't remember them after it closes.
+session ends, it's gone from the menu at once, and its place around the
+platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
-For now a cluster shows only in the sessions menu, as a heading in the
-Running list; nothing on the islands says which cluster they're in yet,
-and there are no bridges between them. A very big cluster (more than
-seven sessions) can reach close to its neighbours.
+A cluster shows in the sessions menu, as a heading in the Running list,
+and on the maps (W06); nothing on the islands says which cluster
+they're in yet.
+
+## Bridges and the maps (W06)
+
+Wooden bridges join the islands of a cluster, and a long bridge runs
+from the platform out to each cluster, so you can walk everywhere. A
+cluster's bridges make a single path between its islands: each new
+island gets a bridge to the nearest one. A bridge appears once its
+island has risen and goes as soon as the island starts sinking. If that
+leaves part of a cluster cut off, a new bridge joins it back on; the
+other bridges stay where they are. The bridges have rails, and you can't
+run or jump off them. Seen from about 70 m away, a bridge is drawn more
+simply, with a smooth deck and one rail a side instead of every plank;
+up close it has all its planks again.
+
+There's room for 16 clusters with bridges, and for 10 islands in each
+of the 8 clusters nearest the platform. Beyond that, an island is put
+far out at sea with no bridge; go there with the sessions menu (Tab).
+
+The **minimap** in the top left shows the cluster you're in or nearest
+to: its islands (an empty one is grey), its bridges, the platform when
+it's close, and you as a white arrow pointing the way you face, with
+north at the top. It hides while the chat, the sessions menu or the big
+map is open.
+
+Press **M** for the **big map** of the whole world. It opens on you,
+showing your cluster; drag it with the mouse, or use W A S D or the
+arrow keys, to look around, and the mouse wheel zooms in and out. Each
+cluster's name is over its islands, and zoomed in, each island shows its
+session's title and what it's doing (working, waiting for you, idle or
+stopped). Click an island to go there. The world carries on while the
+map is open; you just don't move. M or Esc closes it. (The bridges and
+the maps are a first version, like the rest of the game's look for now.)
 
 ## Moving around (W03)
 
@@ -159,6 +208,7 @@ You see the world through your character's eyes.
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
 | Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
+| Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -185,7 +235,8 @@ session ends while the chat is open, the chat closes.
 thing it said, facing you wherever you stand. It fills in as the reply
 arrives and shows the newest four lines; the full text is in the chat.
 It's part of the world, so it gets smaller as you walk away and hills
-can hide it.
+can hide it. From about 60 m away, where it's too small to read, it
+isn't shown.
 
 **The chat** (E, next to the orchestrator) shows the whole conversation:
 your messages on the right, the orchestrator's on the left, including
@@ -435,7 +486,7 @@ to confirm that it may connect to the game (every time, while this
 connection is an early-access feature of Claude Code), and the first time
 in a folder, whether you trust that folder. Until you answer, the world
 tells you to confirm in the terminal. Once you have, the session's island
-appears.
+rises out of the sea.
 
 **Two windows onto one session.** The terminal and the world show the same
 session, and you can use either at any time:

@@ -38,7 +38,8 @@ sequenceDiagram
 
 Ending: `/exit` in the terminal (or `session.end` from the world) →
 Claude Code exits and its bridge's connection closes → `session.ended`
-(island sinks). Not the `SessionEnd` hook: it also fires for `/clear`,
+(its orchestrator and agents go; the island sinks once the player has
+left it, NOTES.md → W04). Not the `SessionEnd` hook: it also fires for `/clear`,
 when `claude` keeps running ([flow 9](09-clear-or-resume.md)).
 
 Our settings file also turns Claude Code's agent view off
@@ -56,7 +57,7 @@ is up, commands for it get `session_starting`.
 In the world for now (S03's quick version): the user picks the folder
 from the sessions menu (Tab), whose notice at the top of the screen shows
 the reply's `notice` until `session.created`; then the session's island
-appears and the player is taken there. A session that never comes up gets
+rises out of the sea and the player is taken there once it's up (W04). A session that never comes up gets
 `session.ended` and the notice says so: at once if the launcher exits
 first (Claude Code quit at a startup dialog, or its terminal was closed;
 the launcher writes its process id next to the session file and the

@@ -58,7 +58,7 @@ func busy() -> bool:
 
 ## Stops waiting for the session being started, so another can start
 ## (S03). If it does come up later, it's just a running session: its
-## island appears, and nobody is taken there.
+## island rises, and nobody is taken there.
 func stop_waiting() -> void:
 	if pending.is_empty():
 		return
