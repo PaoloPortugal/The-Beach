@@ -69,3 +69,4 @@ reading; look things up by feature ID.
 | 2026-10-03 | [The tool log's markup checks cover results and Details](2026-10-03-c04-markup-checks.md) | tooling |
 | 2026-10-07 | [W04: islands rise and sink](2026-10-07-w04-rise-sink.md) | W04, W01, W05, A05 |
 | 2026-10-07 | [W06: bridges, wedges and the maps](2026-10-07-w06-bridges.md) | W06, W05, W04, W07 |
+| 2026-10-08 | [The performance pass: far bridges, a coarse seabed, nothing past the fog](2026-10-08-perf-pass.md) | W01, W06, C02 |
