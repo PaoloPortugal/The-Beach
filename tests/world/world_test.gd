@@ -388,8 +388,14 @@ func _sessions(world: Node3D, player: Player) -> void:
 	panel.send()
 	panel.close()
 	panel.open("h2")
-	await _until(func() -> bool: return panel.status_text().begins_with("Couldn't send"), 1.0)
-	_check(panel.draft() == "" and not panel.status_text().begins_with("Couldn't send"), "a refusal for h1 doesn't land in h2's chat")
+	await _until(func() -> bool: return panel._not_picked_up.has("h1"), 5.0)
+	_check(panel._not_picked_up.has("h1") and panel.draft() == "" and not panel.status_text().begins_with("Couldn't send"), "a refusal for h1 doesn't land in h2's chat")
+	panel.close()
+	panel.open("h1")
+	_check(panel.draft() == "hello" and panel.status_text().begins_with("Your message hasn't reached"), "returning, it says the message hasn't arrived and gives it back")
+	panel._not_picked_up.clear()
+	panel._given_back.clear()
+	panel.set_draft("")
 	# A message that wasn't picked up (set by hand: this sidecar refuses
 	# h1) comes back on returning, unless the box was cleared there.
 	panel._not_picked_up["h1"] = "lost"
@@ -408,6 +414,14 @@ func _sessions(world: Node3D, player: Player) -> void:
 	panel.close()
 	panel.open("h1")
 	_check(panel.draft() == "", "cleared, it stays clear")
+	# A late pickup for h1 leaves h2's box alone, even holding the same text.
+	panel.close()
+	panel.open("h2")
+	panel.set_draft("lost")
+	var state: Dictionary = store.orchestrator("h1").duplicate()
+	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 9001, "agent": "main", "state": "working", "reason": null})
+	_check(panel.draft() == "lost" and not panel._not_picked_up.has("h1"), "a late pickup for h1 doesn't touch h2's box")
+	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 9002, "agent": "main", "state": state["state"], "reason": state.get("reason")})
 	panel._not_picked_up.clear()
 	panel._given_back.clear()
 	panel.close()

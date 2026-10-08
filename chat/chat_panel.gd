@@ -263,8 +263,11 @@ func send() -> void:
 		if reply.get("type") == "error":
 			_watching.erase(sent_to)
 			# Another session's chat opened meanwhile: neither the error nor
-			# the text belongs there.
+			# the text belongs there. Returning, it says the message hasn't
+			# reached the session and gives the text back.
 			if _box_session != sent_to:
+				_not_picked_up[sent_to] = text
+				_given_back.erase(sent_to)
 				return
 			_send_error = "Couldn't send: %s" % reply.get("message", "")
 			# Give the text back, unless something new was typed meanwhile.
