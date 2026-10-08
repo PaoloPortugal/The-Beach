@@ -62,6 +62,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 9 | [/clear or /resume: another conversation in the session](diagrams/sequence/09-clear-or-resume.md) | S02 |
 | 10 | [A plan to approve](diagrams/sequence/10-plan-approval.md) | C07, S02 |
 | 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
+| 12 | [Sign-in needed](diagrams/sequence/12-sign-in-needed.md) | S06, S02 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the
