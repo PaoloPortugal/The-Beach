@@ -1241,6 +1241,17 @@ opaque everywhere (user's request, 2026-09-30).
   teleport waiting for an island to rise): "⌂ Platform" under
   "+ New session…" in the sessions menu, and a click on the platform on
   the big map (W06).
+- *Live check passed (2026-10-08)* with the user and the fake provider.
+
+*Next (user's, after the live check, 2026-10-08):*
+- **Dolphin jump:** rising out of the water shouldn't kill your momentum
+  at once; keep some of the speed when leaving the water so you can jump
+  out of it.
+- **Shelf colours:** the island's shelf meets the sea floor well in shape
+  but not in colour: it goes straight from the island's sand colour to
+  the floor's. Blend them.
+- **More depth variation** in the sea floor (which noise is undecided;
+  recommend one).
 
 ### W09 Day/night cycle and weather
 *Planned (user's request, 2026-10-01).* The sun moves through a day and
@@ -3311,9 +3322,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W08 swimming and seabed, built on branch `w08-swimming`
-(dev log 2026-10-08-w08-swimming), waiting for the user's live check
-and review; then W09, W10 and W11, in that order (user's, 2026-10-08).
+**Current focus:** W08's follow-ups (W08 → Next: dolphin jump, shelf
+colours, sea floor depth variation), then W09, W10 and W11, in that order
+(user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W08 swimming and
+seabed** (dev log 2026-10-08-w08-swimming): one sea floor everywhere,
+clear water tinted by depth, swimming and diving, islands rising out of
+the seabed, "Platform" in the sessions menu and on the big map; live
+check passed with the fake.
 **Merged to `main` (2026-10-08), reviewed by the user: S06 sign-in
 needed** (dev log 2026-10-08-s06-sign-in): an account error raises a
 notice and the orchestrator waits on `sign_in`; a message the session
