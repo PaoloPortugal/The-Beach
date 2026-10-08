@@ -200,19 +200,20 @@ test('shortPath: a guess is used only if it is the very same file', () => {
   assert.equal(shortPath('C:\\a b\\x', id, ask('AB2761~1')), null, 'not absolute')
 })
 
-test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, with only SystemRoot and the path', () => {
+test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, with a clean environment and the path', () => {
   const calls: { file: string; args: readonly string[]; opts: { cwd?: unknown; env?: unknown; shell?: unknown } }[] = []
   const run = ((file: string, args: readonly string[], opts: object) => {
     calls.push({ file, args, opts })
     return { status: 0, stdout: 'C:\\AB2761~1\r\n' }
   }) as unknown as typeof spawnSync
-  const env = { SystemRoot: 'C:\\Windows', PATH: 'C:\\evil', SECRET: 'x' }
+  const env = { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SteamAppId: '1', SIDECAR_SHORT_PATH: 'C:\\other' }
   assert.equal(askWindows('C:\\a b', { program: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cwd: 'C:\\fixed', env, run }), 'C:\\AB2761~1')
   assert.equal(calls[0]!.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
   assert.ok(!calls[0]!.args.some((a) => a.includes('a b')), 'the path is never in the arguments')
   assert.equal(calls[0]!.opts.cwd, 'C:\\fixed')
   assert.equal(calls[0]!.opts.shell, false)
-  assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', SIDECAR_SHORT_PATH: 'C:\\a b' }, 'nothing else of ours or the user\'s')
+  assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SIDECAR_SHORT_PATH: 'C:\\a b' },
+    'the user\'s environment, cleaned (a store client\'s variables dropped), and our path')
   assert.equal(askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
   assert.equal(askWindows('C:\\a b', { env: {}, run }), null, 'no SystemRoot: no answer')
   assert.equal(windowsPowerShell({}), null)
