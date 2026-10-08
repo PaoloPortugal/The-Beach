@@ -1,42 +1,28 @@
-LIVE CHECK: island rise / sink (W04)
-Part A: fake provider
+LIVE CHECK: quit warning scrolls (S05)
   godot --path . -- --sidecar-dev-fake --checklist
 
 1. Tab > New session... > any folder.
-   Stay on the platform: you're taken
-   to the island only once it's up
-   (about 3 s after it starts).
-2. Tab > New session... > same folder.
-   Turn around before it's up: the new
-   island rises out of the sea about
-   100 m away, then you land on it.
-   Smooth? No black stripes or gaps at
-   the waterline while it moves?
-3. Tab, click the first session under
-   Running: it takes you there at once.
-4. The feel: is a 3 s rise too slow
-   or too fast?
-5. New island pointer: Tab > New
-   session... > same folder, then
-   quickly turn your back to where it
-   rises. A green arrow at the screen
-   edge points to it ("<folder> · N m")?
-   Turn to it: arrow goes, a green beam
-   over it. Once you're taken there,
-   both go. Colour and look ok?
+   Do it 4 or 5 times (same folder is
+   fine).
+2. Make the game window short (drag its
+   bottom edge up to about 300 px).
+3. Close the window (X or Alt+F4).
+   The warning shows the count, the
+   list, the /exit hint, and Quit and
+   Back to the game, all on screen?
+   The list scrolls (wheel or bar)?
+4. With the warning open, resize the
+   window taller and shorter: it
+   refits, buttons always visible?
+5. Back to the game (and Esc): mouse
+   and controls back as before?
+6. Make the window big again, close
+   it: with few sessions, no scroll
+   bar, looks as before?
+7. Quit: the game closes.
 
-Part B: real claude (godot --path .)
-6. New session in any folder. Once
-   you're on its island, type /exit in
-   its terminal. The orchestrator goes
-   at once, the chat closes, and you
-   stay on the empty island.
-7. Walk into the sea until you're put
-   back on the platform. Turn to the
-   island: it sinks (4 s) and is gone.
-8. Start another session, walk into
-   the sea to get back to the platform,
-   then /exit it in the terminal: with
-   you away, its island sinks at once.
-
-Tell Claude what you saw; paste red errors.
+Optional, on branch w06-bridges with
+this merged in: the layout demo's 64
+sessions,
+  godot --path . res://tests/world/layout_demo.tscn
+then close the window: Quit reachable?

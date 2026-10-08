@@ -562,12 +562,13 @@ func _quit(world: Node3D, player: Player) -> void:
 	guard.quit = func() -> void: quits[0] += 1
 	var mouse := Input.mouse_mode
 	guard.request_quit()
-	var text := guard.dialog().dialog_text
+	await _settle()
+	var text := guard.shown_text()
 	_check(guard.is_asking() and quits[0] == 0, "quit: with sessions running, it asks first")
 	_check(text.begins_with("2 sessions are still running") and text.count("demo") == 2 and text.contains("/exit"), "quit: listing them, and how to end them")
 	_check(not player.controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "quit: the mouse is free to answer")
 	world.store.apply({"type": "agent.state_changed", "session": "h1", "seq": 50, "agent": "main", "state": "working", "reason": null})
-	_check(guard.dialog().dialog_text.contains("working"), "quit: the list follows what they're doing")
+	_check(guard.shown_text().contains("working"), "quit: the list follows what they're doing")
 	world.store.apply({"type": "agent.state_changed", "session": "h1", "seq": 51, "agent": "main", "state": "idle", "reason": null})
 	guard.dialog().get_cancel_button().pressed.emit()
 	await _frames(1)
@@ -581,6 +582,41 @@ func _quit(world: Node3D, player: Player) -> void:
 	empty.request_quit()
 	_check(quits[0] == 11, "quit: with no session running, it just quits")
 	empty.free()
+	await _quit_many(player)
+
+
+# S05: with more sessions than the window can list, the list scrolls and
+# the buttons stay on screen. In a window too short for even the header
+# and the hint, the buttons still do. (The test window is 64x64, too
+# narrow for the buttons, so the window is resized here.)
+func _quit_many(player: Player) -> void:
+	var store := SessionStore.new()
+	for i in 64:
+		var snap := _snapshot("m%d" % i)
+		snap["title"] = "Session number %d with a fairly long title" % i
+		store.apply({"type": "session.snapshot", "session": snap})
+	var guard := QuitGuard.new()
+	guard.quit = func() -> void: pass
+	get_root().add_child(guard)
+	guard.setup(store, player)
+	var window := get_root()
+	var before := window.size
+	for size: Vector2i in [Vector2i(1152, 648), Vector2i(640, 360), Vector2i(320, 180)]:
+		window.size = size
+		guard.request_quit()
+		await _settle()
+		var room := Rect2(Vector2.ZERO, window.get_visible_rect().size)
+		var d := guard.dialog()
+		var on_screen := [d.get_ok_button(), d.get_cancel_button()].all(func(b: Button) -> bool:
+			return b.is_visible_in_tree() and room.encloses(Rect2(Vector2(d.position) + b.get_global_rect().position, b.size)))
+		_check(on_screen, "quit: with 64 sessions, Quit and Back to the game are on screen (%dx%d)" % [size.x, size.y])
+		if size.y >= 360:
+			var bar := guard.list_scroll().get_v_scroll_bar()
+			_check(bar.page > 0 and bar.max_value > bar.page and guard.shown_text().contains("/exit"), "quit: the list scrolls, and the hint still shows (%dx%d)" % [size.x, size.y])
+		d.get_cancel_button().pressed.emit()
+		await _settle()
+	window.size = before
+	guard.free()
 
 
 # C05: the card for permission prompts and questions, on session h1 (which
