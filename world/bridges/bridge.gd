@@ -30,8 +30,8 @@ const RAIL_HEIGHT := 1.0
 const RAIL_INSET := 1.0
 ## The rails' collision is taller than they are, so you can't jump over.
 const WALL_HEIGHT := 2.2
-## How far the posts reach down (below the sea floor, W01).
-const POST_BOTTOM := -5.0
+## How far the posts reach into the sea floor (W08's [Seabed]).
+const POST_SINK := 0.5
 ## How far the deck runs on past each end, into the ground.
 const OVERRUN := 1.5
 ## Segments are at most this long, metres, so a long bridge's near part
@@ -168,7 +168,7 @@ func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]
 			var at := posts[i]
 			var st: SurfaceTool = segment_at.call(at)
 			var top: float = y.call(at) + RAIL_HEIGHT
-			var bottom := POST_BOTTOM - from.y
+			var bottom := _post_bottom(x, at)
 			_box(st, Vector3(x, (bottom + top) / 2.0, -at), Vector3(0.18, top - bottom, 0.18), dark)
 			if i == posts.size() - 1:
 				continue
@@ -185,7 +185,7 @@ func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]
 
 # The far version of the segment from [param s0] to [param s1]: the deck
 # as one slab (its top and sides), a top rail on each side and plain posts
-# down to the water, in the near pieces' colours.
+# down into the sea floor, in the near pieces' colours.
 func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -216,7 +216,7 @@ func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
 		for at in posts:
 			# Each post in one segment: the one it starts in.
 			if at >= s0 and at < s1:
-				_post(st, Vector3(x, y.call(at) + RAIL_HEIGHT, -at), -0.5 - from.y, dark)
+				_post(st, Vector3(x, y.call(at) + RAIL_HEIGHT, -at), _post_bottom(x, at), dark)
 		# The top rail, where this segment has one.
 		var ra := maxf(s0, posts[0])
 		var rb := minf(s1, posts[-1])
@@ -288,6 +288,13 @@ func _posts(length: float) -> PackedFloat32Array:
 	for i in n + 1:
 		out.append(RAIL_INSET + span * i / n)
 	return out
+
+
+# Where the post at ([param x], -[param at]) ends, in the bridge's own
+# coordinates: a little way into the sea floor under it.
+func _post_bottom(x: float, at: float) -> float:
+	var world := from + Vector3(x, 0.0, -at).rotated(Vector3.UP, rotation.y)
+	return Seabed.height_at(world.x, world.z) - POST_SINK - from.y
 
 
 # A far post: its four sides, from [param bottom] up to [param top].

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://world/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://world/session_islands.gd" id="2_islands"]
@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://world/platform/spawn_platform.tscn" id="5_platform"]
 [ext_resource type="PackedScene" path="res://chat/chat_controller.tscn" id="6_chat"]
 [ext_resource type="PackedScene" path="res://world/sessions_menu/sessions_menu.tscn" id="7_menu"]
+[ext_resource type="Script" path="res://world/seabed/seabed.gd" id="8_seabed"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.32, 0.56, 0.86, 1)
@@ -47,6 +48,9 @@ directional_shadow_max_distance = 120.0
 
 [node name="SessionIslands" type="Node3D" parent="."]
 script = ExtResource("2_islands")
+
+[node name="Seabed" type="Node3D" parent="."]
+script = ExtResource("8_seabed")
 
 [node name="Ocean" parent="." instance=ExtResource("3_ocean")]
 

@@ -37,11 +37,14 @@ func _seabed() -> void:
 		var g := IslandGenerator.new(seed)
 		var faces: PackedVector3Array = g.build()["faces"]
 		var tris := faces.size() / 3
-		# The old 2 m grid everywhere: 68 x 68 cells, 2 triangles each.
-		_check(tris < 9248 / 2, "seed %d: the seabed is coarse (%d triangles, was 9248)" % [seed, tris])
+		# The grid's half-width, as build() works it out, and its cells.
+		var cells := int(ceil(2.0 * g.radius * 1.45 * g.skirt_end / g.cell / IslandGenerator.COARSE)) * IslandGenerator.COARSE
+		var extent := cells * g.cell / 2.0
+		# The 2 m grid everywhere would be 2 triangles a cell.
+		var fine := cells * cells * 2
+		_check(tris < fine / 2, "seed %d: the drop-off is coarse (%d triangles, %d all fine)" % [seed, tris, fine])
 		var buckets := _buckets(faces)
 		# No gaps or overlaps: every point is under exactly one triangle.
-		var extent := 68.0
 		var bad := 0
 		var x := -extent + 0.37
 		while x < extent:
@@ -69,7 +72,7 @@ func _seabed() -> void:
 			var top := maxf(faces[t * 3].y, maxf(faces[t * 3 + 1].y, faces[t * 3 + 2].y))
 			if top >= g.coarse_below and _longest(faces, t) > 5.0:
 				coarse_on_land += 1
-		_check(coarse_on_land == 0, "seed %d: only the deep seabed is coarse" % seed)
+		_check(coarse_on_land == 0, "seed %d: only the drop-off is coarse" % seed)
 
 
 func _bridge() -> void:

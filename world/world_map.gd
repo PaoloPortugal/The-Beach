@@ -5,11 +5,13 @@ extends CanvasLayer
 ## WASD and the arrow keys to look around, the wheel zooms. It shows every
 ## island (far ones too), bridge, the platform, you, each cluster's name
 ## and, zoomed in, each session's title and state. Clicking a session's
-## island takes you there. The world doesn't pause; you just don't move,
+## island takes you there, and so does clicking the platform (W08). The world doesn't pause; you just don't move,
 ## and the mouse is free. M or Esc closes it. Placeholder UI, like all UI.
 
 ## The player clicked a live session's island.
 signal go_to(session_id: String)
+## The player clicked the spawn platform (W08).
+signal go_to_platform
 
 ## Its gap to the window's edges, pixels.
 const MARGIN := 24.0
@@ -28,6 +30,8 @@ const PAN_SPEED := 0.5
 const CLICK_SLOP := 6.0
 ## How close to a tiny island's middle a click still hits it, pixels.
 const MIN_HIT := 8.0
+## Half the spawn platform's width, metres (world.gd).
+const PLATFORM_HALF := 6.0
 const SEA := Color(0.06, 0.16, 0.24, 0.96)
 const HOVER := Color(1, 1, 1, 0.9)
 const NAME_COLOUR := Color(1, 1, 1)
@@ -163,9 +167,20 @@ func session_at(at: Vector2) -> String:
 	return found
 
 
+## Whether the spawn platform is at [param at] (map pixels).
+func platform_at(at: Vector2) -> bool:
+	var half := maxf(PLATFORM_HALF * zoom, MIN_HIT)
+	var d := (at - to_map(Vector3.ZERO)).abs()
+	return d.x <= half and d.y <= half
+
+
 ## A click on the map at [param at] (map pixels): on a live session's
-## island it closes the map and asks to go there.
+## island or the platform it closes the map and asks to go there.
 func click(at: Vector2) -> void:
+	if platform_at(at):
+		close()
+		go_to_platform.emit()
+		return
 	var id := session_at(at)
 	if id.is_empty():
 		return

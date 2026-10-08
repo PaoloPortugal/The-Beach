@@ -1,8 +1,10 @@
 class_name Player
 extends CharacterBody3D
 ## First-person player (W03): walk, sprint and jump, with coyote time and
-## jump buffering so parkour stays possible later. Esc frees the mouse and
-## a click captures it again.
+## jump buffering so parkour stays possible later. In deep water it swims
+## (W08): toward where you look, Space up, Ctrl down, floating at the
+## surface; out of the water only by walking up a beach. Esc frees the mouse
+## and a click captures it again.
 
 @export var walk_speed := 5.0
 @export var sprint_speed := 8.5
@@ -11,15 +13,35 @@ extends CharacterBody3D
 @export var air_accel := 12.0
 ## Radians per pixel of mouse movement.
 @export var mouse_sensitivity := 0.0025
-## Feet this far under the water put the player back at the spawn point.
-@export var respawn_depth := -1.2
+@export var swim_speed := 3.5
+@export var swim_sprint_speed := 6.0
+## How quickly the water brings you to the speed you're swimming at, m/s².
+@export var swim_accel := 8.0
+## Feet deeper than this under the water start swimming; standing on
+## ground with the feet above it again stops it.
+@export var swim_depth := 1.3
+## Where the feet float when you're at the surface: the eyes are just
+## above the waves (they reach about 0.35 m).
+@export var float_depth := 1.15
+## How firmly the water holds you at the surface, per second.
+@export var surface_pull := 4.0
+
+## The water level (W02).
+const WATER_Y := 0.0
+## Ground facing up at least this much (about 70° from flat) is a slope you
+## can swim up and stand on from the water, not a wall.
+const SLOPE_NORMAL := 0.35
 
 var spawn_point := Vector3.ZERO
 ## Off while something else has the keyboard and mouse (the chat, C01):
 ## no walking, jumping or looking, and a click doesn't capture the mouse.
 var controls_enabled := true
+## In the water and swimming, not walking.
+var swimming := false
 
 var _jump := JumpAssist.new()
+# Swimming touched sloping ground on its last move (W08).
+var _grounded := false
 
 @onready var _head: Node3D = $Head
 
@@ -42,9 +64,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if global_position.y < respawn_depth:
-		respawn()
+	var depth := WATER_Y - global_position.y
+	if depth > swim_depth:
+		swimming = true
+	elif swimming and _grounded and depth < swim_depth - 0.1:
+		swimming = false
+		velocity.y = minf(velocity.y, 0.0) # no hop out of the water
+	if swimming:
+		_swim(delta, depth)
 		return
+	_grounded = false
 	var on_floor := is_on_floor()
 	if not on_floor:
 		velocity += get_gravity() * delta
@@ -64,6 +93,34 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+# Swimming: toward where the camera looks, Space up and Ctrl down, held
+# at the surface rather than climbing out of it.
+func _swim(delta: float, depth: float) -> void:
+	var input := Vector2.ZERO
+	var rise := 0.0
+	if controls_enabled:
+		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		rise = Input.get_action_strength("jump") - Input.get_action_strength("swim_down")
+	var direction := (_head.global_basis * Vector3(input.x, 0.0, input.y) + Vector3(0.0, rise, 0.0)).limit_length(1.0)
+	var speed := swim_sprint_speed if controls_enabled and Input.is_action_pressed("sprint") else swim_speed
+	velocity = velocity.move_toward(direction * speed, swim_accel * delta)
+	# At the surface: no higher than floating, and back to it if above.
+	if depth < float_depth:
+		velocity.y = minf(velocity.y, (depth - float_depth) * surface_pull)
+	move_and_slide()
+	# Swimming into a slope (a beach) rides up it rather than sliding along
+	# it, so you come out of the water there.
+	_grounded = is_on_floor()
+	var moving := direction.length() > 0.1
+	for i in get_slide_collision_count():
+		if get_slide_collision(i).get_normal().y > SLOPE_NORMAL:
+			_grounded = true
+			if moving:
+				velocity.y = maxf(velocity.y, speed * 0.8)
+
+
+## Puts the player at the spawn point, on the platform, out of the water.
 func respawn() -> void:
 	global_position = spawn_point
 	velocity = Vector3.ZERO
+	swimming = false
