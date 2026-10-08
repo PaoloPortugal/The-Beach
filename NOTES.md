@@ -79,22 +79,23 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | built   | W01, W02      | `world/island/`, `world/session_islands.gd` |
-| W02 | Ocean (v1)                                | built   | W01, W02      | `world/ocean/` |
+| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd` |
+| W02 | Ocean (v1)                                | built   | W01, W02, W04 | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
-| W04 | Island rise / sink                        | planned | n/a           | n/a       |
+| W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
-| W06 | Bridges (region connection)               | planned | n/a           | n/a       |
+| W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | planned | n/a           | n/a       |
 | W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
+| W10 | Island biomes                             | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
 | A04 | Procedural agent placement (v1)           | built   | A02           | `agents/agent_placement.gd` |
 | A05 | Permission attention cue                  | built   | A05           | `agents/attention_beacon.gd`, `world/attention.gd` |
 | C01 | Walk up to chat (v1)                      | built   | C01           | `chat/` |
-| C02 | Chat panel, plain text and streaming (v1) | built   | C02           | `chat/` |
+| C02 | Chat panel and streaming (v1)             | built   | C02           | `chat/` |
 | C03 | Markdown rendering                        | built   | C03           | `chat/markdown/` |
 | C04 | Tool-call log                             | built (UI placeholder) | C04 | `chat/tool_fold.gd`, `sidecar/src/history.ts` |
 | C05 | Permission approve / deny (v1)            | built   | C05           | `chat/pending_card.gd`, `sidecar/src/providers/claude/prompt-options.ts` |
@@ -423,7 +424,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -445,6 +446,69 @@ removing a provider means deleting its folders.
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
+
+**Performance** (user's decisions, 2026-10-07; dev log
+2026-10-08-perf-pass). Scope: core. The game is **GPU-bound**: the CPU's share of a
+frame is about 1 ms, physics 0.3-0.5 ms.
+- *Budget, measured* with the layout demo (W06: 64 sessions in 20
+  clusters, 56 bridges) at 1920x1080 with vsync off, on an integrated
+  AMD Radeon, other programs sharing it (so absolute numbers are
+  pessimistic; compare changes). Median GPU time per frame over 180
+  frames at four fixed viewpoints (the platform looking out two ways, an
+  island, a bridge's middle):
+
+  | | GPU per frame | Triangles per frame |
+  |---|---|---|
+  | Before (2026-10-07) | 23-29 ms | 1.2-1.8 million, over half in the sun's shadows |
+  | After this pass (2026-10-08) | 15-18 ms | 0.33-0.45 million |
+
+  The segments cost some CPU: draw calls went from about 240 to
+  210-330, CPU rendering from 0.8 to 1.2 ms.
+
+  What's left (each measured by hiding it): the sun's shadows about
+  4.5 ms; bridges' near versions about 4-5 ms close to the platform,
+  where 16 bridges start (their far versions about 0.3 ms); islands
+  2-9 ms by view; the ocean 4-7 ms (measured before). Making an island
+  stalled a frame for 140-170 ms before, about 54-64 ms of it generating
+  the mesh, now 25 ms; loading the demo's 64 sessions took 9-11 s.
+- *How to measure:* a throwaway script (not in the repo) that loads
+  `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
+  freezes the player (`set_physics_process(false)`: hiding collision would
+  drop it in the sea) at fixed viewpoints, and reads
+  `RenderingServer.viewport_set_measure_render_time` /
+  `viewport_get_measured_render_time_gpu` and `get_rendering_info`
+  (primitives, draw calls), 180 frames each after a warm-up. Close other
+  Godot windows first. Measure each change between two fresh baselines;
+  runs vary by 1-3 ms. Hiding one part at a time shows what it costs.
+- **Rules.** Every generated mesh gets a far version or a visibility
+  range tied to the fog:
+  - *Nothing the fog hides fully is drawn.* `SessionIslands.draw_distance`
+    is the fog's end (`world.gd` → `fit_draw_distance` reads
+    `fog_depth_end` from the WorldEnvironment, 390 m: one source); 0 is no
+    limit (fog off, like the demo's view from above, which calls it
+    again). Every `GeometryInstance3D` under `SessionIslands`, islands,
+    orchestrators, agents and bridges, those that come later included
+    (`SceneTree.node_added`), gets `visibility_range_end` = draw distance
+    + its own box's half diagonal (`DrawDistance`,
+    `world/draw_distance.gd`), measured from its middle, so only what is
+    fully fogged goes. Geometry with a range of its own keeps it, and
+    A05's beacons, which ignore the fog, are marked to show at any
+    distance (`DrawDistance.UNLIMITED`).
+  - *Long things come in segments,* each with its up-close look and a
+    simple far version that swap at a distance (`visibility_range_end` /
+    `visibility_range_begin` with the same margin), so a long one's near
+    part isn't judged by its middle. Bridges (W06): 24 m segments, far
+    past 70 m. This stays when art replaces the generated look.
+  - *Detail nobody sees is coarse:* the seabed under the opaque water is
+    on an 8 m grid instead of 2 m (W01).
+  - *In-world UI drawn through a SubViewport only redraws when it
+    changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
+    and hides once too far to read: the message bubble (C02).
+- *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
+  keeps 4 shadow splits; no resolution setting yet (later, in a graphics
+  settings menu); no threaded island generation, mesh merging, or
+  collision off far away (collision and per-frame scripts measured no
+  cost).
 
 ## Protocol
 
@@ -632,8 +696,8 @@ prefix to that provider's UI module. Their payload schemas go in
 
 ### W01 Beach island
 *Built (v1). Scope: core.* A beach island, one per session. Islands come
-and go with their sessions (see Islands for sessions below); W04 adds the
-rise and sink.
+and go with their sessions (see Islands for sessions below), rising out of
+the sea and sinking back (W04).
 
 *Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
 an element of randomness so islands differ. Props (Kenney kits) are
@@ -654,24 +718,32 @@ The water level is y = 0.
   diagonals, one normal per triangle (flat shading), and one colour per
   triangle by height: seabed, wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
+- *Coarse seabed* (user's decision, 2026-10-07; Architecture →
+  Performance). The opaque water hides the sea floor, so it is drawn
+  coarser: the grid (68 m out from the middle) is cut into blocks of
+  4 x 4 cells, and a block whose vertices are all below -1 m
+  (`coarse_below`; the waves reach ±0.35 m) is two triangles, 8 m
+  across. Where a 2 m cell meets such a block, its vertices on the shared
+  edge move onto that edge, so there are no cracks. About 3,000-3,400
+  triangles an island instead of 9,248, and half the time to build. The
+  collision uses the same faces; `height_at` (placing agents, the
+  orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. Later the seed can come from
   the session so its island stays the same.
 
-**Islands for sessions** (user's direction, 2026-09-30; temporary, a
-stand-in for W04 until bridges and travel are designed).
+**Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
 each live session gets a new random island with an orchestrator (A01)
-bound to it, and loses it when the session ends. An island only appears
-once its session is up (`session.snapshot` or `session.created`), never
-while it is still starting. Islands are placed by cluster (W05): each
-cluster has a spot on rings around the spawn platform and its islands sit
-close together around it. A session you started or resumed
-from the sessions menu (S03, S04) takes you to its island, 6 m in front
-of the orchestrator (`world.gd` → `teleport`), and so does choosing a
-running one there (W07); sessions already running when the world
-connects don't move you. When a session ends, whoever stands on its
-island is put back on the platform.
+bound to it; when the session ends, the orchestrator and agents go and
+the island sinks (W04). An island only comes once its session is up
+(`session.snapshot` or `session.created`), never while it is still
+starting. Islands are placed by cluster (W05), each cluster in its own
+wedge from the spawn platform, joined by bridges (W06). A session you started or resumed
+from the sessions menu (S03, S04) takes you to its island once it has
+risen, 6 m in front of the orchestrator (`world.gd` → `teleport`), and
+so does choosing a running one there (W07); sessions already running
+when the world connects don't move you.
 
 ### W02 Ocean
 *Built (v1). Scope: core.* The ocean surrounding the islands. Unrelated
@@ -716,7 +788,7 @@ the camera at 1.6 m (FOV 80). No body is drawn.
 - *Falling in the sea.* The player can wade into the shallows; with the
   feet 1.2 m under the water it's put back at the spawn point, on the
   spawn platform. A placeholder until swimming (W08); for now it is also
-  the way back from an island to the platform.
+  a way back from an island to the platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
 platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
@@ -729,10 +801,72 @@ hear of a new session first, so its island exists when the menu's
 launcher reports it started.
 
 ### W04 Island rise / sink
-*Planned.* A new session makes an island rise out of the ocean; this doubles
-as the "new session" feedback. An ended session makes its island sink, and
-the island is then removed. *Until then* islands simply appear and vanish
-(W01 → Islands for sessions).
+*Built (2026-10-07); the beacon and edge arrow are placeholders. Scope:
+core.* A new session makes an island rise out
+of the ocean; this doubles as the "new session" feedback. An ended
+session makes its island sink, and the island is then removed.
+
+*Decided (user's, 2026-10-07):*
+- **Arriving:** the island rises first, then you're taken there (rejected:
+  watching it rise from a viewpoint offshore; riding it up from under the
+  water).
+- **Sessions already running when the world connects** (snapshots) are
+  just there, no rise. Whether they rise too is decided with attaching to
+  running sessions (Open questions → 5), not before.
+- **Ending:** the orchestrator and its agents go at once; the empty
+  island stays while you're on it, then sinks. Its bridges count as "on
+  it" (built with W06).
+- **Motion only** for now: no splash, foam or sound.
+- **Finding a new island** (after trying it: the rise was easy to miss,
+  and there is to be an option to turn off being taken there): a
+  **beacon** over a new session's island, rising with it, until you've
+  been on it, and an **arrow at the screen's edge** pointing to it while
+  it's off-screen (rejected: a beacon only, which is missed when behind
+  you or far out; a line of text with the direction; waiting for W06's
+  minimap). Built with W04. Both are **placeholders**, like all UI.
+
+**How it works** (`SessionIslands`; timings and depth my picks).
+- *Rise.* An island for `session.created` starts at y = -8 m (`SUNK_Y`,
+  low enough that the opaque sea hides its dunes) and rises to 0 in 3 s
+  (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
+  says so, and `island_risen` fires when it's up (at once for a
+  snapshot). `world.gd` → `teleport` waits for it: it notes the session
+  and goes on `island_risen`; a later teleport replaces the wait.
+- *Sink.* On `session.ended` the orchestrator and `IslandAgents` are
+  freed (the chat forgets the orchestrator as it leaves the tree) and the
+  island moves to the left islands (`left_islands`). Each frame, one the
+  player isn't over (within twice its shoreline radius, as in
+  `session_at`), nor on one of its bridges (W06), sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
+  is freed. You leave by falling in the sea (back to the platform), by
+  going to another session, or over a bridge (W06). A session ending mid-rise sinks from where
+  it got to (nobody can be on it yet). A sinking island can't be stood on
+  again: there's no way back to it.
+- *Its spot.* `SessionClusters.hold` takes the ended session out of its
+  cluster but keeps its island's spot until the island is freed
+  (`remove` with the hold). A cluster with only held islands isn't listed
+  (`ids`) but keeps its place, and its repository's next session still
+  joins it, beside the empty island.
+- The tweens belong to the island, so they stop if it is freed.
+- *New-island beacon* (my picks): A05's `AttentionBeacon` in green
+  (`NEW_COLOUR`; orange means waiting), from the island's middle, so it
+  rises with it (on from the first frame, fading in over 0.6 s). Only for
+  `session.created`. `unvisited` lists those sessions; each frame, one
+  whose island the player is over is cleared (its beacon fades out), and
+  so is one that ends. Being taken there by the teleport counts.
+- *Edge arrow* (`NewIslandPointers`, `world/new_island_pointers.gd`, a
+  `CanvasLayer` made by `world.gd`): for each unvisited session, when a
+  point 20 m above its island's middle is behind the camera or outside the
+  screen less a 56 px margin, a green arrow on that inset edge points
+  toward it, with "<project> · <distance> m" on the screen's side of it.
+  On screen, no arrow: the beacon shows it. The margin shrinks to a
+  quarter of a tiny window's smaller side.
+
+*Live check passed (2026-10-07)* with the user, the fake and the real
+`claude`: the rise before being taken there, a second island rising
+nearby, going to a running one at once, the beacon and the edge arrow
+(and both clearing on arrival), `/exit` taking the orchestrator while
+the empty island stays under you, sinking once you've left, and sinking
+at once with you away.
 
 ### W05 Clusters
 *Built (2026-10-02). Scope: core.* Islands of the same repository sit
@@ -754,9 +888,11 @@ and sessions in the same repository are grouped automatically.
   after choosing the folder).
 - Clusters exist **only while they have sessions**, nothing is
   remembered: when a cluster's last session ends, the cluster and its
-  spot are freed.
+  spot are freed. (W04: it leaves the menu at once, but its spot is kept
+  until its last island has sunk.)
 - **Layout until bridges (W06):** each cluster takes a spot on rings
   around the spawn platform; its islands sit close together around it.
+  *Replaced by W06's wedges (2026-10-07).*
 - The **sidecar** works out the repository and sends it in the protocol
   (`project.repo`); the game doesn't read `.git`.
 - **Shown** by name: a cluster is named after its repository's folder (a
@@ -783,14 +919,13 @@ and sessions in the same repository are grouped automatically.
   another cluster by hand doesn't take its repository's later sessions
   along (user's, 2026-10-02). Names repeat with a
   number ("game 2"). `remove` frees the island's spot and, with the last
-  session, the cluster's. The choice reaches it through
+  session, the cluster's; `hold` keeps an ended session's spot until its
+  island has sunk (W04). The choice reaches it through
   `SessionLauncher.create` / `resume`, which call `clusters.choose` with
   the session id when the reply comes (before `session.created`).
-- *Layout* (my picks): cluster spots on rings around the platform, 360 m
-  apart, six per ring, each ring turned half a step; islands of a cluster
-  100 m apart, the first in its middle, then rings of 6, 12, 18 at 100,
-  200, 300 m. An island's land reaches about 40 m from its centre, its sea
-  floor about 67 m. `SessionIslands.session_at` picks the nearest island,
+- *Layout:* since W06, clusters in wedges from the platform (see W06).
+  An island's land reaches at most about 44 m from its centre, its sea
+  floor 68 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
 - *Sessions menu* (S03): a "Cluster:" row under the search box with
   "Automatic (by repository)", each running cluster and "New cluster";
@@ -799,9 +934,9 @@ and sessions in the same repository are grouped automatically.
   The Running list (W07) shows "▸ <cluster>" headings with their
   sessions under them, and the search also matches cluster names.
 
-*Known limits.* A cluster of more than 7 islands reaches out 200 m and
-more, so it can come close to a neighbouring cluster's (spots 360 m
-apart); bridges and the real layout come with W06. Nothing in the world shows a cluster's name yet.
+*Known limits.* Nothing in the world shows a cluster's name yet. (The
+rings' limit, a big cluster reaching its neighbours, went with W06's
+wedges.)
 
 *Live check passed (2026-10-02)* with the user and the real `claude`: a
 repository and its worktree in one cluster, close together; a folder
@@ -811,11 +946,174 @@ cluster name; the selector back to Automatic on opening; a cluster gone
 with its last session, and a new one taking a free spot.
 
 ### W06 Bridges
-*Planned.* Walkable bridges connect islands within a cluster, for
-physical movement and the feel of the world. Build it as a general
-"connect regions" system, not beach-specific, so that future biomes (hills,
-mountains) plug into it. A minimap for travel on foot is decided here,
-with the real layout (user's, 2026-10-02; W07).
+*Built (2026-10-07); the bridges' look and the maps are placeholders.
+Scope: core (world only).* Walkable bridges connect islands within a
+cluster, and each cluster to the spawn platform, for physical movement
+and the feel of the world. Built as a general "connect regions" system,
+not beach-specific, so that future biomes (W10: forests, mountains, at
+different heights) plug into it. With it, a minimap for travel on foot
+and the real layout (user's, 2026-10-02; W07).
+
+*Decided (user's, 2026-10-07):*
+- **Which islands:** one path, a tree: just enough bridges to connect a
+  cluster, each new island to its nearest one (rejected: every pair of
+  neighbouring spots plus links to keep it whole; a star to the middle
+  island).
+- **Re-linking** when a sinking island cuts the tree: patch the gap.
+  Every bridge still standing stays; only the shortest new bridges that
+  join the cut pieces appear, so nothing moves under you (rejected:
+  rebuilding the whole tree each time; an empty hub left where the island
+  was).
+- **Look:** made in code, like the islands: low-poly wooden planks on
+  posts, generated to any length and slope (so W10's different heights
+  work later). A placeholder that art can replace.
+- **Coming and going:** for now bridges just appear once an island is up
+  and vanish when one starts sinking; how they show up and leave is
+  designed later (rejected for now: rising after the island and sinking
+  first; tilting with the island).
+- **Rails** you can't walk through, so you don't fall in the sea.
+- **Minimap now:** a small map of the cluster (islands, bridges, you).
+  Placeholder UI, like all UI. A square in the top left (the top right
+  has A05's count), north-up, fitted to the cluster you're in or nearest
+  to, with you as an arrow; always on (rejected: the
+  whole world, where islands become dots; a radar turning with you).
+  *Changed after trying it (user's, 2026-10-07):* M no longer toggles
+  it; it stays on, and M opens the big map instead.
+- **Big map** (user's feedback, 2026-10-07: "a big map view where you can
+  see the world, not necessarily all of it at once", with a way to scroll
+  through it). M opens it, M or Esc closes it. It fills the window and
+  opens centred on you, fitted to your cluster; drag with the mouse or
+  use WASD or the arrow keys to move it, the mouse wheel zooms (toward
+  the pointer). It shows the whole world: islands (far ones too),
+  bridges, the platform, you, each cluster's name, and, zoomed in
+  enough, each island's session title and state. Clicking a session's
+  island takes you there, like the sessions menu's Running list (W07).
+  While it's open you don't move and the mouse is free, but the world
+  doesn't pause, so the map stays live (rejected: the small map with its
+  own toggle key, or no small map; keyboard-only moving; opening zoomed
+  out to the whole world; outlines of the wedges; a view-only map;
+  pausing the world). Placeholder UI, like all UI.
+- **A bridge from the spawn platform** out to each cluster. The platform
+  is part of each cluster's tree, so its bridge goes to the cluster's
+  first island (the nearest when it comes) and re-links like any other.
+- **Layout: clusters in wedges** (the user's idea, replacing W05's rings
+  360 m out): each cluster owns a 45° wedge from the platform; its first
+  island is the wedge's spot nearest the platform, later ones fill spots
+  inside the wedge, nearest first, so a cluster grows outward and never
+  into a neighbour. 8 inner wedges, each up to 10 islands (out to about
+  520 m), then 8 outer ones centred on the corridors between them,
+  starting further out and growing without limit: 16 clusters, every
+  bridge straight. Past that (a 17th cluster at once, or an inner
+  cluster's 11th island) the island goes to a far spot with no bridge,
+  reached by teleport only: a known limit (rejected: 24 with bridges
+  that bend at junction decks; 8 inner wedges only).
+- **A demo** (user's request): a dev scene filling the world with 64
+  fake sessions in many clusters, to see how it all looks.
+- An empty island (W04) counts as "on it" while you're on one of its
+  bridges.
+
+**How it works** (sizes and timings my picks).
+- *Layout* (`SessionClusters`, `world/session_clusters.gd`). A cluster's
+  spot (`slot`) is its wedge: slots 0-7 the inner wedges (slot 0 along
+  +x), 8-15 the outer ones, turned half a wedge. Island spots in a wedge
+  are worked out once (`_wedge_spots`, the same for every wedge, turned):
+  scanning outward in rows 2 m apart, then from the middle sideways, each
+  spot is the first point at least 100 m (`ISLAND_SPACING`) from the
+  earlier ones and 50 m (`EDGE_MARGIN`) inside the wedge's edges, which
+  keeps the land (at most about 44 m) and a bridge along a corridor clear.
+  An inner wedge's first island is 133 m out and its tenth (the last,
+  `INNER_ISLANDS`) about 520 m; an outer wedge starts at 650 m
+  (`OUTER_START`). `spot(slot, index)` gives a spot; an island takes its
+  cluster's lowest free index, as before. Islands the wedges have no room
+  for get far spots (`far_spot`: rings from 2000 m, 200 m apart, the
+  lowest free number), with no bridges (`is_bridged`; held islands keep
+  theirs).
+- *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
+  from one point to another, each the deck's top at that end. The deck is
+  2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand, or
+  up to the platform's edge); away from its ends it stays 1.2 m above the water
+  (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
+  higher than that are joined straight (`deck_height`). Planks 0.45 m
+  across with gaps, a little jitter in height, width and shade; posts at
+  most 4 m apart on both sides, from the sea floor to rails 1 m up, with
+  a mid rail. The rails start 1 m from each end. Collision: the deck as
+  one strip, and on both sides a wall 2.2 m high (higher than a jump) so
+  you can't run or jump off. Flat-shaded, vertex colours like the islands.
+- *Far version* (user's decision, 2026-10-07; Architecture →
+  Performance). A bridge is drawn in segments: its deck's run, overrun
+  included, cut evenly into pieces of at most 24 m (`SEGMENT`,
+  `segment_bounds`), each a `Segment<k>` node with two meshes. `Near` is
+  the planks, posts and rails starting in it, hidden past 70 m
+  (`NEAR_DISTANCE`, measured to its middle); `Far` shows from there: the
+  deck as one slab (top and sides), one top rail a side and plain posts
+  down to the water, in the same colours, about a fifth of the
+  triangles. Both use a 4 m margin, so a segment swaps at 74 m going away
+  and at 66 m coming back, never flickering. Only what each version is
+  made of is the placeholder; the segments stay when bridges become art.
+  The collision is unchanged (one shape for the whole bridge). Far
+  versions are hidden past the fog, like the islands.
+- *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
+  under `SessionIslands`): regions are keys with a centre, a reach and an
+  edge (a Callable giving where a bridge heading for a point meets the
+  region), in groups (clusters). Hubs (the platform, `add_hub`) are in
+  every group's tree. `add` bridges a new region to its group's nearest
+  one, preferring a line that keeps clear of every other region's reach
+  (`is_clear`); `remove` frees its bridges and, while the group is in
+  pieces, adds the shortest clear bridge between two pieces.
+- *Islands* (`SessionIslands`): an island joins its cluster's tree once
+  it has risen (at once for a snapshot), unless it's in a far spot
+  (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
+  times the generator's radius; a bridge meets it at the outermost point
+  0.5 m above the water (`BRIDGE_END_HEIGHT`) on the line from its middle
+  toward the other end. An empty island doesn't sink while you're on one
+  of its bridges (`on_bridge_of`, from `Bridge.carries`).
+- *The platform* (`world.gd`): the hub `platform`, reach 8.5 m; a bridge
+  leaves from the deck's edge toward its island (`platform_edge`).
+- *Minimap* (`Minimap`, `world/minimap.gd`, a `CanvasLayer` made by
+  `world.gd`): a 200 px square (at most a third of the window's smaller
+  side), 16 px from the top left (lower under the live checklist), north-up.
+  It shows the cluster of the island nearest you
+  (`SessionIslands.nearest_cluster`): its islands in their wedges (empty
+  ones greyed), its bridges, the platform when in view and you as a white
+  arrow, fitted to them and you with 30 m of sea around. Near an island
+  in a far spot it shows just that one. It hides while the chat, the
+  sessions menu or the big map is open, or with no islands.
+- *Big map* (`WorldMap`, `world/world_map.gd`, a `CanvasLayer` made by
+  `world.gd`, over the rest of the UI; sizes my picks). M (action
+  `minimap`, a physical key) opens it while the controls are yours (not
+  chatting, in the sessions menu or asked about quitting), turning the
+  player's controls off and freeing the mouse; M or Esc closes it and
+  gives them back. It fills the window, 24 px in from its edges, drawn
+  like the minimap (sea, islands, empty ones grey, bridges, the platform,
+  you as an arrow). It opens centred on you, at the scale that fits the
+  cluster the minimap shows (with 30 m of sea around), or 1 px a metre
+  with no islands. Zoom: the wheel, 1.25 times a notch, keeping the point
+  under the pointer still, from 4 px a metre out until every island
+  fits, and at least to 0.5 px a metre. Moving: dragging with the
+  left button, or WASD and the arrow keys at half the map's width a
+  second. Each cluster's name sits over the middle of its islands; from
+  1 px a metre, each live session's island has "title · state" under it
+  (the sessions menu's words, with a dot coloured by
+  `SessionStore.activity`). A label that would overlap one already
+  drawn is left out (names first), so zoomed out some names hide.
+  Hovering a live session's island outlines it;
+  a click on it (the button let go within 6 px of where it went down, so
+  not a drag) closes the map and teleports you there (`world.gd` →
+  `teleport`). An ended session's island isn't clickable.
+- *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
+  made-up sessions in 20 clusters (one of 13 islands, four past 16), the
+  sidecar stopped so nothing real shows. B switches to a view from above
+  with the fog off, and so with no draw distance (Architecture →
+  Performance; mouse wheel zooms). `godot --path .
+  res://tests/world/layout_demo.tscn`. `tests/world/bridges_test.gd`
+  checks the same scene: every island in a wedge joined to the platform,
+  no bridge over another island's land or across another bridge, before
+  and after islands in the middle of trees sink.
+
+*Known limits.* At most 16 clusters, and 10 islands in an inner cluster,
+have bridges; the rest are in far spots, reached by teleport only. The
+ocean plane is 800 m wide around the camera, so the demo's view from
+above shows its edge.
 
 ### W07 Teleport menu
 *Built (2026-10-02), inside the sessions menu (S03); the UI is a
@@ -825,7 +1123,8 @@ never have to walk across the world to reach an orchestrator. The menu's
 (W05), as "title · project · state" (working, waiting for you, stopped
 or idle, from the whole session, subagents included: S05 →
 `SessionStore.activity`); a click closes the menu and puts you in
-front of that session's orchestrator (`world.gd` → `teleport`). The
+front of that session's orchestrator (`world.gd` → `teleport`; once its
+island is up, W04). The
 search box filters it with the rest, by cluster name too. *Live check
 passed (2026-10-01)* with the user and the real `claude`: two sessions
 under Running, jumping between them, and Tab doing nothing while
@@ -844,11 +1143,12 @@ chatting.
   hands it on with the request. It also orders a snapshot's requests,
   which before couldn't tell a permission's age from a question's (C05).
 - **Minimap:** not now; revisit with bridges and the real layout (W06).
+  *Built with W06 (2026-10-07).*
 - **A real design** for the menu comes with the UI pass, like all UI.
 
 ### W08 Swimming and seabed
 *Planned (user's request, 2026-09-30).* Swim instead of being put back on
-the island when you wade too deep (W03's placeholder), and a seabed worth
+the platform when you wade too deep (W03's placeholder), and a seabed worth
 seeing: varied depths (shallows, drop-offs, deeper water) rather than one
 flat sea floor, which also means the water can't stay opaque everywhere.
 
@@ -859,30 +1159,40 @@ waves). Not a provider feature: world only. Undesigned: the day's length
 (real time or faster), whether weather is random or reacts to anything,
 and what night looks like (readable islands and bubbles, lights).
 
+### W10 Island biomes
+*Planned (user's request, 2026-10-07).* Islands of other kinds besides
+today's beach (W01): forests, mountains and more. Some stand at
+different heights, so connecting islands of different heights has to be
+worked out with bridges (W06, built as a general "connect regions"
+system for this). Not a provider feature: world only. Undesigned: which
+biomes, what picks an island's biome (random, the project, the
+cluster), and whether a cluster mixes them.
+
 ### A01 Orchestrator
-*Planned (v1).* A bigger model at the centre of its island, at a beach
-desk or under an umbrella (look: open question 7). It's the main way you
-interact with a session (see C01).
+*Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
+centre of its island, at a beach desk or under an umbrella (look: open
+question 7). It's the main way you interact with a session (see C01).
 
 *Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
 question 7 is settled.
 
-*Placeholder built. Scope: core.* `agents/orchestrator/`: a capsule body
-and a sphere head behind a desk, all Godot primitives (no art assets),
-facing +z. It has a solid collision box and a `ChatZone` (`Area3D`,
-radius 2.5 m) that signals when the player walks in or out (C01), and a
-`MessageAnchor` above its head where its message bubble floats (C02). It
-joins the `orchestrators` group. One is made per session, in the middle of
-its island, by `SessionIslands` (W01), with `session_id` set to the
-session it belongs to.
+**How it works.** `agents/orchestrator/`: a capsule body and a sphere head
+behind a desk, all Godot primitives (no art assets), facing +z. It has a
+solid collision box and a `ChatZone` (`Area3D`, radius 2.5 m) that signals
+when the player walks in or out (C01), and a `MessageAnchor` above its head
+where its message bubble floats (C02). It joins the `orchestrators` group.
+One is made per session, in the middle of its island, by `SessionIslands`
+(W01), with `session_id` set to the session it belongs to.
 
 ### A02 Subagents
-*Planned (v1).* Small models at little PCs on the island's sand. They
-appear when the orchestrator spawns them. When one finishes (`done`), it
-runs to the agent that called it (its `parent`) with a paper on its head,
-throws the report to it, and disappears. A resumed subagent (back to
-`working`) reappears. Chat is orchestrator-only for now; whether to talk to
-subagents directly is open question 4.
+*Placeholder built (v1, 2026-09-30). Scope: core* (only the generic agent
+tree: `agent.spawned`, `agent.state_changed`, `parent`). Small models at
+little PCs on the island's sand. They appear when the orchestrator spawns
+them. When one finishes (`done`), it runs to the agent that called it (its
+`parent`) with a paper on its head, throws the report to it, and disappears
+(the placeholder walks there and shrinks away, with no throw yet; below). A
+resumed subagent (back to `working`) reappears. Chat is orchestrator-only
+for now; whether to talk to subagents directly is open question 4.
 
 *Decided (user's, 2026-09-30), for M1:* the placeholder is a smaller
 orchestrator (the same primitives at about 60 % size) at a little box PC.
@@ -891,13 +1201,11 @@ straight line to its parent (the orchestrator, or a parent subagent still
 there) with a white paper over its head, and shrinks away on arrival; no
 throw and no path-finding yet. A resumed subagent pops back in at its PC.
 
-*Placeholder built. Scope: core* (only the generic agent tree:
-`agent.spawned`, `agent.state_changed`, `parent`). `Subagent`
-(`agents/subagent/`): a capsule body and sphere head at a little desk
-with a monitor, all primitives, facing +z. Only the PC is solid; the
-body can be walked through. `IslandAgents` (`agents/island_agents.gd`),
-made by `SessionIslands` for each island at its middle, follows the
-session's agents in `SessionStore`:
+**How it works.** `Subagent` (`agents/subagent/`): a capsule body and
+sphere head at a little desk with a monitor, all primitives, facing +z.
+Only the PC is solid; the body can be walked through. `IslandAgents`
+(`agents/island_agents.gd`), made by `SessionIslands` for each island at
+its middle, follows the session's agents in `SessionStore`:
 - `working` or `waiting`: the subagent pops in at a free slot (A04), or
   back at its PC if it was leaving.
 - `done`: its PC shrinks away, and it walks at 3 m/s in a straight line
@@ -912,9 +1220,10 @@ session's agents in `SessionStore`:
   running before the world connected) aren't shown.
 
 ### A03 Agent state indicators
-*Planned.* A visible state on each agent, from the protocol's state enum
-(see Protocol): working, waiting on the user (e.g. a permission prompt),
-idle (orchestrator), done (subagent) or error.
+*Minimal version built (2026-09-30). Scope: core.* A visible state on each
+agent, from the protocol's state enum (see Protocol): working, waiting on
+the user (e.g. a permission prompt), idle (orchestrator), done (subagent)
+or error.
 
 *Decided (user's, 2026-09-30):* a minimal version comes into M1 with A02.
 A small marker floats over every agent, orchestrator included: working, a
@@ -922,19 +1231,18 @@ slowly spinning yellow diamond; waiting on you, a bouncing orange "!";
 idle and done, nothing; error, a red "×". An errored or interrupted
 subagent stays at its PC in red for about 10 s, then shrinks away.
 
-*Minimal version built. Scope: core.* `AgentStateMarker`
-(`agents/state_marker.gd`): unshaded boxes, turned to face the camera
-around the vertical axis. The orchestrator's sits between its head and
-its message bubble (the bubble's anchor moved up to 2.45 m for it);
-`IslandAgents` sets it from the orchestrator's state. The marker doesn't
-say why an agent waits (`reason`); the chat's status line does, for the
-orchestrator.
+**How it works.** `AgentStateMarker` (`agents/state_marker.gd`): unshaded
+boxes, turned to face the camera around the vertical axis. The
+orchestrator's sits between its head and its message bubble (the bubble's
+anchor moved up to 2.45 m for it); `IslandAgents` sets it from the
+orchestrator's state. The marker doesn't say why an agent waits (`reason`);
+the chat's status line does, for the orchestrator.
 
 ### A04 Procedural agent placement
-*Planned (v1).* Agents are positioned by a simple algorithm (ring, spiral
-or grid with jitter) rather than hardcoded spots, and it handles about 20–30 per
-island. Nothing may assume a fixed maximum agent count. Options for larger
-counts are in Deferred ideas.
+*Built (v1, 2026-09-30). Scope: core.* Agents are positioned by a simple
+algorithm (ring, spiral or grid with jitter) rather than hardcoded spots,
+and it handles about 20–30 per island. Nothing may assume a fixed maximum
+agent count. Options for larger counts are in Deferred ideas.
 
 *Decided (user's, 2026-09-30):* rings with fixed slots. Rings around the
 orchestrator from about 10 m out (outside the chat zone), slots about
@@ -942,20 +1250,20 @@ orchestrator from about 10 m out (outside the chat zone), slots about
 orchestrator and standing on the sand. More rings as needed, no maximum.
 An agent keeps its slot while it's there; a freed slot is reused.
 
-*Built. Scope: core.* `AgentPlacement` (`agents/agent_placement.gd`):
-ring *k* has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...),
-every other ring turned half a step. Each slot is moved up to 0.4 m in
-each direction by a random number seeded from the slot, so a slot is
-always in the same place. `IslandAgents` gives a new subagent the first
-free slot on land (ground above 0.3 m); slots in the sea are skipped
-until the rings are past any shore (1.5 × the island's radius), so
-there is still no maximum. A subagent stands at the lower of the ground
-heights under it and under its PC, so on a dune it sinks in a little
-rather than float.
+**How it works.** `AgentPlacement` (`agents/agent_placement.gd`): ring *k*
+has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...), every other
+ring turned half a step. Each slot is moved up to 0.4 m in each direction
+by a random number seeded from the slot, so a slot is always in the same
+place. `IslandAgents` gives a new subagent the first free slot on land
+(ground above 0.3 m); slots in the sea are skipped until the rings are past
+any shore (1.5 × the island's radius), so there is still no maximum. A
+subagent stands at the lower of the ground heights under it and under its
+PC, so on a dune it sinks in a little rather than float.
 
 ### A05 Permission attention cue
-*Planned.* A pending permission prompt or question is shown on the
-relevant island and agent, so a waiting agent visibly draws your attention.
+*Built (2026-10-02). Scope: core.* A pending permission prompt or question
+is shown on the relevant island and agent, so a waiting agent visibly draws
+your attention.
 
 *Decided (user's, 2026-10-02). Scope: core* (it reads only the generic
 `waiting` state, whatever its `reason`). A03's orange "!" is 30 cm tall
@@ -982,7 +1290,7 @@ game isn't in front:
   between runs. Placeholder UI, like the rest; a settings screen comes
   later.
 
-*Built (2026-10-02).*
+**How it works.**
 - **Beacon:** `AttentionBeacon` (`agents/attention_beacon.gd`), a child
   of every `AgentStateMarker` (A03), on while the marker shows
   `waiting`. An open cylinder 150 m tall from 0.6 m above the marker,
@@ -991,7 +1299,8 @@ game isn't in front:
   (`disable_fog`) and draws before other see-through things
   (`render_priority` −1), so the message bubble stays on top. It is
   0.5 m wide close up and 1 cm wider per metre away from the camera, a
-  few pixels at 300 m. Subagents get it too.
+  few pixels at 300 m. Subagents get it too. W04 reuses it, in green,
+  over new sessions' islands.
 - **The rest:** `Attention` (`world/attention.gd`, a `CanvasLayer` made
   by `world.gd`) follows every agent in `SessionStore` (agent events, a
   new session's snapshot, a resync, a session ending). The corner, top
@@ -1019,30 +1328,30 @@ game isn't in front:
   Linux unchecked: only Windows here.
 
 ### C01 Walk up to chat
-*Planned (v1).* Walking up to an orchestrator opens the chat panel for its
-session.
+*Built (v1, 2026-09-30). Scope: core.* Walking up to an orchestrator opens
+the chat panel for its session.
 
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
 opens the panel and frees the mouse, Esc closes it.
 
-*Built. Scope: core.* `ChatController` (`chat/`) listens to the chat zone
-of every orchestrator the world gives it (`watch`, called for each new
-island). While the player is in one, "Press E to chat"
-shows at the bottom of the screen. E (`interact`, physical key) opens that
-orchestrator's chat panel (C02), frees the mouse and turns the player's controls
-off (`Player.controls_enabled`: no walking, jumping, looking, or
+**How it works.** `ChatController` (`chat/`) listens to the chat zone of
+every orchestrator the world gives it (`watch`, called for each new
+island). While the player is in one, "Press E to chat" shows at the bottom
+of the screen. E (`interact`, physical key) opens that orchestrator's chat
+panel (C02), frees the mouse and turns the player's controls off
+(`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
 back; the controller reads Esc in `_input` and marks it handled, so the
 player's own Esc (free the mouse) doesn't also fire. An orchestrator that
 leaves the world (its session ended) is forgotten, and its chat closes if
-it was open. Checked headless
-(zone, prompt, open, no walking while open, close) and in the running game
-(the mouse; headless Godot has none).
+it was open. Checked headless (zone, prompt, open, no walking while open,
+close) and in the running game (the mouse; headless Godot has none).
 
 ### C02 Chat panel
-*Planned (v1: plain text).* A core feature, not an afterthought, because this
-is a working environment. It needs streaming responses. v1 renders plain text
-wired to the sidecar.
+*Built (v1, 2026-09-30). Scope: core* (it reads only the generic
+`SessionStore`). A core feature, not an afterthought, because this is a
+working environment. It needs streaming responses. v1 rendered plain text
+wired to the sidecar; since C03, messages render as Markdown.
 
 *Direction (user's, 2026-09-30, revised the same day):* two parts.
 - *Latest message, always visible:* a small window flying above each
@@ -1058,10 +1367,10 @@ shows the newest 4 lines; it is part of the world (smaller with distance,
 hidden by terrain); the full panel is a dark translucent panel with chat
 bubbles and a message box.
 
-*Built (v1). Scope: core* (it reads only the generic `SessionStore`).
-Message text is untrusted (Security rules): both the bubble and the panel
-render it as Markdown (C03), whose converter escapes all of it, so markup
-in a message shows as written (tested with an injected `[url]`).
+**How it works.** Message text is untrusted (Security rules): both the
+bubble and the panel render it as Markdown (C03), whose converter escapes
+all of it, so markup in a message shows as written (tested with an injected
+`[url]`).
 - **Bubble** (`MessageBubble`, `chat/message_bubble.tscn`): a billboard
   `Sprite3D` above the orchestrator's `MessageAnchor`, drawing a
   `SubViewport` with a dark rounded panel and a `RichTextLabel` (font
@@ -1073,7 +1382,14 @@ in a message shows as written (tested with an injected `[url]`).
   characters), then wraps; only its last 4 wrapped lines show, through a
   clip, with a small "…" above when anything was cut. Hidden until the
   orchestrator has said something. The bubble's bottom edge sits on the
-  anchor, so it grows upwards.
+  anchor, so it grows upwards. *Drawing* (user's decision, 2026-10-07;
+  Architecture → Performance): its `SubViewport` draws once when the
+  text changes (`UPDATE_ONCE`, after the layout; the same text again
+  draws nothing) and not at all while
+  hidden; the texture keeps the last drawing. Before, every bubble
+  redrew every frame (64 showing text cost about 5 ms). The bubble isn't
+  drawn past 60 m (`visibility_range_end`, 4 m margin), where its text is
+  too small to read anyway.
 - **Full panel** (`ChatPanel`, `chat/chat_panel.tscn`): over the whole
   screen but a 48 px margin. A header (the session's title, else its
   project's name, the permission mode when known (C06), and "Esc to
@@ -2120,14 +2436,14 @@ same process with no new bridge connection, the world got
 the new conversation and was answered.
 
 ### S03 Create session
-*Planned.* A "create new session" command from Godot; the sidecar launches
-a `claude` terminal (see S02). Attaching to sessions the user started
-themselves comes later (open question 5, decided); it uses the same hooks
-and channel, which such a session would need to be started with.
+*Quick version built (user's direction, 2026-09-30: "a quick create session
+feature that we can design better later"). Scope: core.* A "create new
+session" command from Godot; the sidecar launches a `claude` terminal (see
+S02). Attaching to sessions the user started themselves comes later (open
+question 5, decided); it uses the same hooks and channel, which such a
+session would need to be started with.
 
-*Quick version built (user's direction, 2026-09-30: "a quick create
-session feature that we can design better later"). Scope: core.* First a
-"New session" post on the spawn platform (M1); since 2026-10-01 the
+First a "New session" post on the spawn platform (M1); since 2026-10-01 the
 **sessions menu** (user's decisions, dev log 2026-10-01-sessions-menu):
 one menu, opened from anywhere, to start a session (S03), resume a stored
 one (S04) and go to a running one (W07). Rejected: keeping the post and
@@ -2177,14 +2493,14 @@ proper design later, like all UI.
   a refused command, "The session didn't start." if it ends before
   coming up (at once if Claude Code closes before it's up: S02 →
   Starting up), "A session is already starting.", or the sidecar's
-  failure. Once the session is up, its island appears (W01 → Islands for
-  sessions) and the player is taken there.
+  failure. Once the session is up, its island rises (W01 → Islands for
+  sessions, W04) and the player is taken there once it's up.
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
   starting, the menu shows "✕ Stop waiting for the session starting"
   under "+ New session…". It frees the launcher for another start ("Stopped
   waiting. If that session starts later, it's listed under Running.");
   the sidecar isn't told, so a session that does come up later is an
-  ordinary running session: its island appears, nobody is taken there.
+  ordinary running session: its island rises, nobody is taken there.
   *Live check passed (2026-10-02)* with the user and the real `claude`:
   declining at the startup prompt and closing the terminal while it asks
   both end the start within about a second ("The session didn't
@@ -2208,26 +2524,27 @@ provider and starting several at once. Where a session's cluster is
 chosen was decided with W05 (the cluster selector).
 
 ### S04 List and resume sessions
-*Planned (after v1).* Claude Code stores transcripts as JSONL under
+*Built (2026-10-01). Scope: core* (`session.list_stored`,
+`session.resume`). Claude Code stores transcripts as JSONL under
 `~/.claude/projects/<project-slug>/<session-id>.jsonl`, resumable with
 `claude --resume <id>`. Sessions launched from this app are ordinary CLI
 sessions in the same store, so they are resumable from a terminal, and old
-CLI sessions can be listed and resumed here (launched with `--resume`).
-The Claude desktop app's own sessions also write transcripts there; whether
-they should be listed and resumed here is to check when building S04 (see
-Deliberate limitations). Sessions run with transcripts off leave nothing to
-list or resume (S02 → When transcripts are off), and Claude Code deletes
-transcripts after `cleanupPeriodDays` (30 by default), so the list only
-reaches that far back.
-*Built. Scope: core* (`session.list_stored`, `session.resume`). The
-world side is the sessions menu's "Resume" list (S03; user's decisions,
+CLI sessions can be listed and resumed here (launched with `--resume`). The
+Claude desktop app's own sessions also write transcripts there; only CLI
+sessions are listed for now (below; see Deliberate limitations). Sessions
+run with transcripts off leave nothing to list or resume (S02 → When
+transcripts are off), and Claude Code deletes transcripts after
+`cleanupPeriodDays` (30 by default), so the list only reaches that far
+back.
+
+The world side is the sessions menu's "Resume" list (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
-newest first, as "title · project · how long ago" (titles in Claude
-Code's own order, S02 → Titles; "Untitled session" without one, which
-only another provider could list), asked for each time the menu opens, filtered by the
-search box. A click resumes it through the same launcher and notices as
-a new session; once up, you're taken to its island and its chat holds
-the conversation so far. A **placeholder**, like the rest of the menu.
+newest first, as "title · project · how long ago" (titles in Claude Code's
+own order, S02 → Titles; "Untitled session" without one, which only another
+provider could list), asked for each time the menu opens, filtered by the
+search box. A click resumes it through the same launcher and notices as a
+new session; once up, you're taken to its island and its chat holds the
+conversation so far. A **placeholder**, like the rest of the menu.
 *Live check passed (2026-10-01)* with the user and the real `claude`:
 the ended session listed under Resume and found by search, resumed with
 `claude --resume`, its earlier messages in the chat, and Claude
@@ -2259,11 +2576,12 @@ all four messages back. `claude -p` sessions are stored as `sdk-cli`, so
 they aren't listed.
 
 ### S05 End session
-*Planned.* Ending a session removes it from the registry and sinks its
-island (W04). Claude Code offers no documented way to close a session from
-outside, so until S05 decides how, `session.end` gets `not_supported` for
-Claude sessions (user's decision, S02); `/exit` in the terminal still ends
-a session and sinks its island (its channel bridge closes).
+*Quit warning built (2026-10-01, the user's decision). Scope: core.* Ending a
+session removes it from the registry and sinks its island (W04). Claude
+Code offers no documented way to close a session from outside, so
+`session.end` gets `not_supported` for Claude sessions (user's decision,
+S02, kept by S05's decision below); `/exit` in the terminal still ends a
+session and sinks its island (its channel bridge closes).
 
 *Decided (user's, 2026-10-01): sessions aren't ended from the game for
 now.* Claude Code has no documented way to end an interactive session
@@ -2281,27 +2599,32 @@ user's rule if it comes back: always the least abrupt way that doesn't
 make the player close the terminal, and nothing that injects keystrokes.
 Kept as a watch item (Watch items → Ending a session from the game).
 
-*Built: the quit warning (user's decision, 2026-10-01). Scope: core.*
-Quitting doesn't end sessions either: they keep running in their
-terminals, out of the world's reach. So `QuitGuard`
+**The quit warning.** Quitting doesn't end sessions either: they keep
+running in their terminals, out of the world's reach. So `QuitGuard`
 (`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
-window is closed (its close button, Alt+F4, Cmd+Q) while sessions run,
-asks first: "N sessions are still running:", each as "title · project ·
-what it's doing" (kept up to date while the dialog is open), then
-"Quitting won't end them: they keep running in their terminals, and the
-game can't reach them any more. To end one, type /exit in its
-terminal." Buttons: Quit, and Back to the game (or Esc), which gives the
-mouse and controls back as they were. With no session running it quits
-at once. A **placeholder**, like all UI. "What it's doing" is the
-session's `SessionStore.activity`, subagents included: waiting for you
-if any agent waits, else working if any works (so an idle orchestrator
-waiting on its subagents' reports counts as working), else stopped or
-idle (the user had seen such sessions shown as idle). The Running list
-(W07) uses it too. *Live check passed (2026-10-02)* with the user and
-the real `claude`: "working" while a subagent works, the dialog with the
-session and the `/exit` hint, following its state, Back to the game and
-Esc, Quit leaving the terminal running, and closing at once with no
-session.
+window is closed (its close button, Alt+F4, Cmd+Q) while sessions run, asks
+first: "N sessions are still running:", each as "title · project · what
+it's doing" (kept up to date while the dialog is open), then "Quitting
+won't end them: they keep running in their terminals, and the game can't
+reach them any more. To end one, type /exit in its terminal." Buttons:
+Quit, and Back to the game (or Esc), which gives the mouse and controls
+back as they were. With no session running it quits at once. The list
+scrolls once it's taller than the window leaves room for (the header and
+the hint stay put), so the buttons are always on screen, however many
+sessions run; the dialog is 560 px wide, or the window's width less a
+margin if that's narrower, and refits when the window is resized. In a
+window too short even for the header and the hint, it keeps its bottom
+on screen, so the buttons still show (dev log 2026-10-07-s05-quit-scroll;
+before that, many sessions pushed the buttons off screen). A
+**placeholder**, like all UI. "What it's doing" is the session's
+`SessionStore.activity`, subagents included: waiting for you if any agent
+waits, else working if any works (so an idle orchestrator waiting on its
+subagents' reports counts as working), else stopped or idle (the user had
+seen such sessions shown as idle). The Running list (W07) uses it too.
+*Live check passed (2026-10-02)* with the user and the real `claude`:
+"working" while a subagent works, the dialog with the session and the
+`/exit` hint, following its state, Back to the game and Esc, Quit leaving
+the terminal running, and closing at once with no session.
 
 **Known issue: a session from before a restart can be resumed twice**
 (seen live, 2026-10-02). After the game restarts, sessions still running
@@ -2416,8 +2739,25 @@ godot --headless --path . --script res://tests/core/session_store_test.gd -- --s
 godot --headless --path . --script res://tests/world/world_test.gd
 godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
 godot --headless --path . --script res://tests/world/clusters_test.gd
+godot --headless --path . --script res://tests/world/bridges_test.gd
+godot --headless --path . --script res://tests/world/performance_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
+
+The layout demo (W06), 64 made-up sessions with no sidecar:
+`godot --path . res://tests/world/layout_demo.tscn`.
+
+The performance test (Architecture → Performance) checks that the coarse
+seabed has no gaps, overlaps or cracks and far fewer triangles while the
+land keeps its 2 m detail; that a bridge's segments are at most 24 m,
+each swapping to a much simpler far version at 70 m in the same place;
+that a bubble's viewport draws once per new text and not while hidden,
+and hides past 60 m; and, in the layout demo, that islands, orchestrators,
+markers, far bridges and a subagent spawned later end at the fog plus
+their size, the near versions, bubbles and beacons keep their own, and
+that turning the fog off (B) and on again follows. Headless Godot draws
+nothing, so it checks how each is set up; the drawing was measured in a
+window.
 
 **Any error fails a suite** (user's choice, 2026-10-03; dev log
 2026-10-03-script-errors-fail-tests). A GDScript runtime error
@@ -2434,8 +2774,9 @@ same (the file's header shows how). No suite causes an error on purpose;
 one that needs to would first have to teach the watch to expect it.
 
 The clusters test (W05) checks grouping by repository and worktree,
-folders outside git, a chosen or new cluster, names, freeing spots and
-the layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
+folders outside git, a chosen or new cluster, names, freeing spots,
+holding an ended session's spot until its island has sunk (W04) and the
+layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
 emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
@@ -2445,14 +2786,19 @@ hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
 folder), islands for sessions applied to the store by hand (one
-per session, in the folder's cluster, the bubble streaming and rendering Markdown, the teleport, the chat
+per session, in the folder's cluster, a new one rising and the teleport
+waiting for it, an ended one staying while you're on it and sinking once
+you leave, one ending mid-rise, the new-island beacon and edge arrow
+(W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the mode in the header, a plan message and the plan card's
 choices and commands through a recording stand-in for the sidecar (C06,
-C07), the session ending under you), and walking up to chat (A01,
+C07), the session ending under you: its orchestrator goes and the
+chat closes), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
+(its island rising before you're taken there, W04)
 through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
 checks the log's Agent calls and a tools turn (C04),
@@ -2483,7 +2829,10 @@ minute), 30 of them macOS, so about 45 pushes a month on the free
 2,000; without macOS a branch push costs about 14. Nothing here is
 built for macOS on its own and no one develops on a Mac, so checking it
 when a branch merges (or by hand before, with Run workflow) catches the
-same breakage for a third of the cost. The system list is one
+same breakage for a third of the cost. *Once the repo is public*
+(user's, 2026-10-07): Actions minutes are free for public repositories,
+so macOS then runs on every push with Windows and Linux; until then,
+keep it as is. The system list is one
 expression in both jobs' matrices; the Godot job picks its release
 archive and binary from the runner's OS, so bumping Godot means
 changing `GODOT_VERSION` only. The actions are pinned to major versions
@@ -2495,8 +2844,10 @@ by seconds on a loaded runner). In the Godot suites, a check after an
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
-2026-10-03-world-test-flaky). A logged error fails a step like a failed
-check (above).
+2026-10-03-world-test-flaky). Likewise, state kept up to date in
+`_process` is read after process frames (`_settle`), not physics ones
+(dev log 2026-10-07-w04-arrow-check-flaky). A logged error fails a
+step like a failed check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
@@ -2571,7 +2922,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    sessions menu (Tab), which lists running sessions to jump to (W07's
    basic version). Running sessions are grouped by cluster (W05).
    *Answered (user's, 2026-10-02):* a fixed order with no pinning, and
-   the minimap waits for W06 (W07).
+   the minimap waits for W06 (W07). *Built with W06 (2026-10-07):* a
+   minimap of the cluster you're in, and a big map of the whole world (M)
+   whose islands you can click to go to.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
    status for now (orchestrator-only chat, as currently designed)?
 5. ~~**Session ownership.**~~ *Decided (user's):* both, eventually. v1 only
@@ -2585,6 +2938,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    we pass at launch (S02), and the channel from our launch flags. A
    session started elsewhere has none of these, so attaching must give
    it the same hooks, the relay included, and test both switches there.
+   *Also (user's, 2026-10-07):* whether the islands of sessions already
+   running when the world connects rise too is decided with attaching
+   (W04).
    *Also (user's, 2026-10-02):* sessions the game started before a
    restart are still running but listed under Resume, and resuming one
    runs the conversation twice (S05 → Known issue). Attaching should
@@ -2621,9 +2977,29 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C08 token usage (user's pick, 2026-10-03): design
-decided and spiked (dev log 2026-10-03-c08-usage-spike), being built on
-branch `c08-usage`.
+**Current focus:** C08 token usage (user's pick, 2026-10-03, resumed
+2026-10-08): design decided and spiked (dev log
+2026-10-03-c08-usage-spike), being built on branch `c08-usage`.
+**Merged to `main` (2026-10-08), reviewed by the user: the performance
+pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
+bridges' far versions, a coarse seabed, nothing drawn past the fog,
+bubbles redrawn only on a change.
+**Merged to `main` (2026-10-08), reviewed by the user: W06 bridges**
+(dev log 2026-10-07-w06-bridges): clusters in wedges from the platform,
+bridges joining each cluster and the platform as a tree, a minimap and
+a big map (M); live check passed with the layout demo, the fake and the
+real `claude`.
+**Merged to `main` (2026-10-08), reviewed by the user: the quit
+warning's list scrolls** (S05, dev log 2026-10-07-s05-quit-scroll): with
+many sessions the Quit button went off screen.
+**Merged to `main` (2026-10-08), reviewed by the user: W04's flaky
+edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the
+world test read the arrows before `_process` had run; it now waits on
+process frames.
+**Merged to `main` (2026-10-07), reviewed by the user: W04, islands
+rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
+edge arrow showing where a new session's island is (placeholders); live
+check passed with the fake and the real `claude`.
 **Merged to `main` (2026-10-03), reviewed by the user: the tool log's
 markup checks cover results and Details** (dev log
 2026-10-03-c04-markup-checks).
@@ -2814,6 +3190,11 @@ exists.
 
 - **The terminal's other prompt options:** built (C05, 2026-10-03).
 
+- **Turning off being taken to a new session's island** (user's,
+  2026-10-07): an option, later, so starting a session leaves you where
+  you are. W04's beacon and edge arrow then show where it went. Belongs
+  with a settings screen.
+
 - **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
   The sidecar and its protocol don't depend on the game: others could
   build on them (a web dashboard, another engine, another provider such
@@ -2843,7 +3224,7 @@ exists.
     clicked. This is the route to "unlimited" agents.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
-- **Other biomes:** hills, mountains, joined by the same bridge system (W06).
+- **Other biomes:** now a planned feature, W10.
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
 - **Commands from the world** (probably a capability). Skills and custom
@@ -3048,8 +3429,11 @@ exists.
   pixels. Not lighting (it stayed with the sun and shadows off), and
   gone with the pre-pass off, so `project.godot` sets
   `rendering/driver/depth_prepass/enable=false` for every GPU (other
-  vendors couldn't be tested; islands will move with W04 anyway). The cost
-  is some overdraw, small for this low-poly world. Recheck on Godot
+  vendors couldn't be tested; islands also move up and down since W04). The cost
+  is some overdraw, small for this low-poly world, but it now includes
+  every seabed and post under the opaque water, which is still drawn
+  (Architecture → Performance; the seabed is coarse for that): worth
+  rechecking whether the pre-pass can come back. Recheck on Godot
   updates; if it's a Godot bug, report it and turn the pre-pass back on
   once fixed (dev log 2026-09-30-chat-panel-session-islands).
 - **Untested on macOS and Linux.** Everything verified so far (S02, C03)
