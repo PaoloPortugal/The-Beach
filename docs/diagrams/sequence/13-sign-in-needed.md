@@ -70,4 +70,6 @@ orchestrator doesn't start working) within 15 s, it says the message
 hasn't reached the session and puts the text back in the box (once:
 when the box is empty, else on reopening the chat with it empty). If a
 user message arrives after all, the warning goes, and so does that text
-if the box still holds just it.
+if the box still holds just it. One box serves every chat: opening
+another session's empties it, and an unsent given-back text comes back
+on returning.
