@@ -81,6 +81,7 @@ class ScriptedSession extends FakeSession {
 
   /** One API call of `output` tokens: the context grows by it, the account's limits a little. */
   apiCall(output: number, grow = output + 300) {
+    grow = Math.round(grow) // token counts are whole
     this.context = Math.min(WINDOW, this.context + grow)
     limits.five_hour.used = Math.min(100, limits.five_hour.used + output / 2000)
     limits.seven_day.used = Math.min(100, limits.seven_day.used + output / 20000)
