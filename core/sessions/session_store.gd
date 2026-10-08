@@ -142,21 +142,23 @@ func messages(session_id: String) -> Array[Dictionary]:
 	return out
 
 
-## The plan's usage limits across every session (C08): for each of
-## [code]five_hour[/code] and [code]seven_day[/code], the most recent figures,
-## [code]{used_percent, resets_at}[/code]. A session's figures stay as they
-## were until it hears again, so the newest is the one with the latest
-## [code]resets_at[/code] (a later window) and, in the same window, the
-## highest use (use only grows within a window). One whose
+## The plans' usage limits (C08), per provider, across its sessions:
+## [code]{provider: {five_hour, seven_day}}[/code], each the most recent
+## figures, [code]{used_percent, resets_at}[/code]. Each provider's are its
+## own account's (a user may run several tools at once). A session's
+## figures stay as they were until it hears again, so the newest is the
+## one with the latest [code]resets_at[/code] (a later window) and, in the
+## same window, the highest use (use only grows within a window). One whose
 ## [code]resets_at[/code] has passed by [param now] (Unix seconds) is left
 ## out: that window is over and its figures say nothing about the next
-## (Claude Code drops it too).
+## (Claude Code drops it too). A provider with none is left out.
 func usage_limits(now: float) -> Dictionary:
 	var out := {}
 	for id in sessions:
 		var usage = sessions[id].get("usage")
 		if not usage is Dictionary:
 			continue
+		var provider := str(sessions[id].get("provider", ""))
 		var limits: Dictionary = usage.get("limits", {})
 		for key in ["five_hour", "seven_day"]:
 			var limit = limits.get(key)
@@ -165,9 +167,12 @@ func usage_limits(now: float) -> Dictionary:
 			var resets := unix_time(limit["resets_at"])
 			if resets <= now:
 				continue
-			var best: Dictionary = out.get(key, {})
-			if best.is_empty() or resets > unix_time(best["resets_at"]) 					or (resets == unix_time(best["resets_at"]) and limit["used_percent"] > best["used_percent"]):
-				out[key] = limit
+			var theirs: Dictionary = out.get(provider, {})
+			var best: Dictionary = theirs.get(key, {})
+			var at := unix_time(best.get("resets_at"))
+			if best.is_empty() or resets > at or (resets == at and limit["used_percent"] > best["used_percent"]):
+				theirs[key] = limit
+				out[provider] = theirs
 	return out
 
 

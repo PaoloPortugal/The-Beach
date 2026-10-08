@@ -1820,7 +1820,7 @@ without leaving the world. Research and spike: dev log
   going on has it at the end of the chat, going up with each API call;
   none until it has tokens.
 - **Limits:** "5-hour 74% · resets 3:40 PM   Weekly 94% · resets Fri
-  9:00 AM" in the bottom-right corner (the minimap is top left, the
+  9:00 AM" in the bottom-right corner (a line per provider, Godot below) (the minimap is top left, the
   waiting count top right), shown always, over the chat and the maps
   too. The reset in local time: a time today, a weekday and time within
   a week, else a date.
@@ -1913,11 +1913,17 @@ How it works:
 - **Godot.** The session store keeps `usage` (from the snapshot and
   `usage.updated`) and each turn's tokens on its user message
   (`turn_tokens`, from the history and from the `usage.updated` turn),
-  and says `usage_changed`. The plan's limits are the account's, but
-  each session's figures stay as they were until it hears again; the
-  corner shows, per limit, the one with the latest `resets_at` (a later
-  window) and in the same window the highest use (use only grows within
-  a window), across sessions. A limit whose `resets_at` has passed is
+  and says `usage_changed`. The plan's limits are the account's, so
+  they're kept per provider (`SessionStore.usage_limits`, by each
+  session's `provider`; user's requirement, 2026-10-08: a user may run
+  several tools at once, each with its own plan). Each session's figures
+  stay as they were until it hears again; the corner shows, per provider
+  and limit, the one with the latest `resets_at` (a later window) and in
+  the same window the highest use (use only grows within a window),
+  across that provider's sessions. One line per provider; each line
+  starts with the provider's name (from the hello's `providers`, else
+  its id: "Claude: 5-hour ...") only when more than one has limits, so
+  Claude alone reads as above; more lines grow upwards. A limit whose `resets_at` has passed is
   hidden (Claude Code drops it too, and the sidecar keeps the last
   figures while the status line has none); the corner looks again every
   15 s. Formatting is `UsageText` (`chat/usage_text.gd`), shared by the
@@ -2859,7 +2865,11 @@ one that needs to would first have to teach the watch to expect it.
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
 holding an ended session's spot until its island has sunk (W04) and the
-layout. The Markdown test (C03) checks escaping and links (with a fuzz test),
+layout. The session store test (with the fake) also checks C08's figures:
+usage null until counted, each turn's tokens on its user message from
+the history and live, a resync, the plan's limits per provider (the
+latest window, the highest use in it, a window that's over left out)
+and the number formats. The Markdown test (C03) checks escaping and links (with a fuzz test),
 emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
@@ -2878,8 +2888,9 @@ built newest first),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the mode in the header, a plan message and the plan card's
 choices and commands through a recording stand-in for the sidecar (C06,
-C07), the session ending under you: its orchestrator goes and the
-chat closes), and walking up to chat (A01,
+C07), C08's header, turn hints and limits corner (a line per provider,
+growing upwards, a window that's over hidden), the session ending under
+you: its orchestrator goes and the chat closes), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
 (its island rising before you're taken there, W04)
 through the menu's launcher (choosing a folder in the picker is replaced
@@ -2887,7 +2898,9 @@ by calling `SessionLauncher.create`, which it calls), chats with it,
 checks the log's Agent calls and a tools turn (C04),
 answers a permission prompt and a question on the card, follows a mode
 switch in the header, allows a prompt with the switch to auto, sends a
-plan back with a note and approves the revised one (C06, C07), then lists,
+plan back with a note and approves the revised one (C06, C07), plays a
+heavy turn (`usage`: the context and the 5-hour limit climb, the turn's
+tokens at its end; C08), then lists,
 searches and resumes a stored session (S04) and goes to a running one
 from the menu (W07), listed under its cluster. It can't check looks or the mouse: for those, run the game, under both
 renderers (`--rendering-method gl_compatibility` for Compatibility).

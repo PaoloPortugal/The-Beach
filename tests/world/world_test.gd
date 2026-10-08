@@ -836,6 +836,31 @@ func _usage(world: Node3D, store: SessionStore, panel: ChatPanel) -> void:
 		"limits": {"five_hour": {"used_percent": 76, "resets_at": "2026-10-08T13:00:00.000Z"}, "seven_day": {"used_percent": 94, "resets_at": "2026-10-10T09:00:00.000Z"}}}
 	store.apply({"type": "session.snapshot", "session": other})
 	_check(corner.text().begins_with("5-hour 76%") and corner.text().contains("   Weekly 94% · resets "), "usage: the latest figures across sessions, both limits")
+	# Each provider's limits are its own account's: a line each, named.
+	var offered := corner.providers
+	corner.providers = func() -> Array: return [{"provider": "fake", "name": "Fake"}, {"provider": "codex", "name": "Codex"}]
+	other["seq"] = 41
+	other["provider"] = "codex" # never changes for real: refreshed by hand
+	store.apply({"type": "session.snapshot", "session": other.duplicate(true)})
+	corner.refresh()
+	var lines := corner.text().split("\n")
+	_check(lines.size() == 2 and lines[0].begins_with("Fake: 5-hour 74% · resets ") and not lines[0].contains("Weekly")
+		and lines[1].begins_with("Codex: 5-hour 76% · resets ") and lines[1].contains("   Weekly 94% · resets "), "usage: a line per provider, named: %s" % [lines])
+	await process_frame
+	await process_frame
+	var label: Label = corner.get_node("Limits")
+	var bottom := label.get_viewport_rect().size.y - 12.0
+	_check(label.size.y >= label.get_combined_minimum_size().y and label.size.y > 28.0 and is_equal_approx(label.get_rect().end.y, bottom),
+		"usage: more lines grow upwards from the corner: %s in %s" % [label.get_rect(), label.get_viewport_rect()])
+	corner.providers = func() -> Array: return [{"provider": "fake", "name": "Fake"}]
+	corner.refresh()
+	_check(corner.text().split("\n")[1].begins_with("codex: 5-hour 76%"), "usage: a provider the sidecar doesn't list by its id")
+	other["seq"] = 42
+	other["provider"] = "fake"
+	store.apply({"type": "session.snapshot", "session": other.duplicate(true)})
+	corner.refresh()
+	_check(corner.text().begins_with("5-hour 76%") and not corner.text().contains("\n"), "usage: one provider: one line, unnamed")
+	corner.providers = offered
 	var later := SessionStore.unix_time("2026-10-08T13:00:01Z")
 	corner.now = func() -> float: return later
 	corner.refresh()
