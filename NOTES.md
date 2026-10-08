@@ -688,8 +688,9 @@ Each one is added to the schema and listed here:
   the user message that started it, or null; `output_tokens`) and
   `limits`: the account's limits, a list in the provider's order of
   `{id, label, used_percent, resets_at}` (`id` stable per provider, e.g.
-  `five_hour`; `label` the provider's own words, e.g. "5-hour", shown as
-  plain text; each id once; empty while none are known). The
+  `five_hour`; `label` the provider's own words, e.g. "5-hour", 1–40
+  characters with no control or bidi characters, shown as plain text;
+  each id once; empty while none are known). The
   snapshot's `usage` is null until there is
   something to count: an API call, a user message (its new turn, at 0)
   or the status line's figures; history user messages may have
@@ -1780,7 +1781,8 @@ counts exist in other tools too). How much the session is using,
 without leaving the world. Research and spike: dev log
 2026-10-03-c08-usage-spike; build: dev log 2026-10-08-c08-usage.
 *Live check passed (2026-10-08)* with the user, the fake and the real
-`claude`.
+`claude`, before `limits` became a list (the same day); the list was
+checked with the fake and the tests, and reads the same for Claude.
 
 *Decided (user's, 2026-10-03):*
 - **Shown:** how full the context is, the session's token totals, and a
@@ -2882,8 +2884,9 @@ folders outside git, a chosen or new cluster, names, freeing spots,
 holding an ended session's spot until its island has sunk (W04) and the
 layout. The session store test (with the fake) also checks C08's figures:
 usage null until counted, each turn's tokens on its user message from
-the history and live, a resync, the plan's limits per provider (the
-latest window, the highest use in it, a window that's over left out)
+the history and live, a resync, the plan's limits per provider and id
+(the latest window, the highest use in it, a window that's over left
+out, the provider's order across sessions, another provider's own ids)
 and the number formats. The Markdown test (C03) checks escaping and links (with a fuzz test),
 emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
@@ -2904,7 +2907,8 @@ a refused send, the C05 card for a permission and a subagent's two-item
 question, the mode in the header, a plan message and the plan card's
 choices and commands through a recording stand-in for the sidecar (C06,
 C07), C08's header, turn hints and limits corner (a line per provider,
-growing upwards, a window that's over hidden), the session ending under
+growing upwards, a window that's over hidden, a provider's labels as
+plain text in its order), the session ending under
 you: its orchestrator goes and the chat closes), and walking up to chat (A01,
 C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
 (its island rising before you're taken there, W04)
@@ -3091,9 +3095,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** C08 token usage (user's pick, 2026-10-03), built on
 branch `c08-usage` (2026-10-08; dev logs 2026-10-03-c08-usage-spike,
 2026-10-08-c08-usage), live check passed with the fake and the real
-`claude` (2026-10-08), and the protocol's `usage.limits` now a general
-list (user's decision, 2026-10-08); its merge into `main` is prepared
-for the user to push: context and totals in the chat header, each
+`claude` (2026-10-08), then the protocol's `usage.limits` made a general
+list (user's decision, 2026-10-08); ready to merge into `main`: context and totals in the chat header, each
 turn's tokens, the plans' limits in the bottom-right corner, and the
 status line relay.
 **Merged to `main` (2026-10-08), reviewed by the user: the performance
