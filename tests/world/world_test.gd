@@ -1203,6 +1203,7 @@ func _live(world: Node3D, player: Player) -> void:
 	var asked: String = world.store.session(id)["permissions"][0]["permission"]
 	sidecar.send_command("permission.respond", {"session": id, "permission": asked, "decision": "deny"}, func(_r: Dictionary) -> void: pass)
 	await _until(func() -> bool: return world.store.orchestrator(id).get("state") == "idle", 8.0)
+	await _sign_in_pickup(world, chat, id)
 	panel.pickup_timeout = 15.0
 	_check(world.store.sessions[id].get("title") == "hello", "live: the first message's first line names the session")
 	panel.set_draft("rename Tidy the notes")
@@ -1351,6 +1352,73 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(not menu.is_open() and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: a running one takes you to its island")
 	sidecar.send_command("session.end", {"session": resumed})
 	await _until(func() -> bool: return islands.island(resumed) == null, 5.0)
+
+
+# S06, live with the fake and h1's chat open, pickup_timeout short: waiting
+# on sign_in isn't busy, so a message is watched there too; a draft typed
+# meanwhile stays; the text comes back on reopening, once; a late pickup
+# (a user message, or the orchestrator working, applied by hand: the fake
+# never picks up a lost one) takes the warning and the text given back.
+func _sign_in_pickup(world: Node3D, chat: ChatController, id: String) -> void:
+	var store: SessionStore = world.store
+	var panel := chat.panel()
+	var orchestrator := (world.get_node("SessionIslands") as SessionIslands).orchestrator(id)
+	var warned := func() -> bool: return panel.status_text().begins_with("Your message hasn't reached")
+	var reopen := func() -> void:
+		_press("ui_cancel")
+		await _until(func() -> bool: return not chat.is_open(), 2.0)
+		chat.open(orchestrator)
+		await _until(func() -> bool: return chat.is_open(), 2.0)
+	panel.set_draft("signin")
+	panel.send()
+	await _until(func() -> bool: return store.orchestrator(id).get("reason") == "sign_in", 8.0)
+	_check(panel.status_text() == "Waiting for you to sign in, in the terminal.", "live: signin, the orchestrator waits on sign_in")
+	panel.set_draft("lost")
+	panel.send()
+	await _until(warned, 5.0)
+	_check(warned.call() and panel.draft() == "lost", "live: waiting on sign_in, one never picked up says so, its text back")
+
+	panel.set_draft("lost")
+	panel.send()
+	_check(panel.status_text() == "Waiting for you to sign in, in the terminal.", "live: sending again takes the warning")
+	panel.set_draft("a draft")
+	await _until(warned, 5.0)
+	_check(warned.call() and panel.draft() == "a draft", "live: a draft typed before the warning isn't replaced")
+	panel.set_draft("")
+	await reopen.call()
+	_check(warned.call() and panel.draft() == "lost", "live: reopening with the box empty gives the text back")
+	panel.set_draft("")
+	await reopen.call()
+	_check(warned.call() and panel.draft() == "", "live: once only: cleared, it stays clear; the warning stays")
+
+	panel.set_draft("lost")
+	panel.send()
+	await _until(warned, 5.0)
+	_check(panel.draft() == "lost", "live: given back again for the next one lost")
+	store.apply({"type": "message.started", "session": id, "seq": 9001, "message": "late1", "agent": "main", "role": "user"})
+	store.apply({"type": "message.completed", "session": id, "seq": 9002, "message": "late1", "text": "lost"})
+	_check(panel.status_text() == "Waiting for you to sign in, in the terminal." and panel.draft() == "", "live: picked up late by a user message: the warning and the text given back go")
+	panel.set_draft("lost")
+	panel.send()
+	await _until(warned, 5.0)
+	panel.set_draft("lost, edited")
+	store.apply({"type": "message.started", "session": id, "seq": 9003, "message": "late2", "agent": "main", "role": "user"})
+	store.apply({"type": "message.completed", "session": id, "seq": 9004, "message": "late2", "text": "lost"})
+	_check(not warned.call() and panel.draft() == "lost, edited", "live: picked up late, an edited box is left alone")
+	panel.set_draft("lost")
+	panel.send()
+	await _until(warned, 5.0)
+	_check(panel.draft() == "lost", "live: and given back once more")
+	store.apply({"type": "agent.state_changed", "session": id, "seq": 9005, "agent": "main", "state": "working", "reason": null})
+	_check(panel.status_text() == "Working…" and panel.draft() == "", "live: picked up late by the orchestrator working: the warning and the text go")
+	store.apply({"type": "agent.state_changed", "session": id, "seq": 9006, "agent": "main", "state": "waiting", "reason": "sign_in"})
+
+	# The next call going through clears the sign-in wait.
+	panel.set_draft("signed in again")
+	panel.send()
+	await _until(func() -> bool: return store.orchestrator(id).get("state") == "idle" and store.session(id)["notices"].is_empty(), 8.0)
+	await _frames(40)
+	_check(panel.status_text() == "" and panel.draft() == "" and panel.shown_messages()[-1].contains("signed in again"), "live: the next one goes through and the wait clears")
 
 
 func _press(action: String) -> void:

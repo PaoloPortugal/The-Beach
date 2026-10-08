@@ -77,9 +77,11 @@ var _send_error := ""
 ## panel says it wasn't picked up (S06). A var for tests.
 var pickup_timeout := 15.0
 ## Sessions with a sent message being watched (session → its timer's
-## token), and those whose message wasn't picked up (session → its text).
+## token), those whose message wasn't picked up (session → its text), and
+## of those, the ones whose text was given back already (once only).
 var _watching := {}
 var _not_picked_up := {}
+var _given_back := {}
 var _watch_count := 0
 
 @onready var _title: Label = $Layout/Header/Title
@@ -259,14 +261,15 @@ func send() -> void:
 	_send_error = ""
 	_input.text = ""
 	_not_picked_up.erase(session_id)
+	_given_back.erase(session_id)
 	_watch_pickup(session_id, text)
 	_refresh_status()
 
 
 # Watches a sent message until it shows up (S06). A provider may never pick
-# it up, e.g. Claude Code signed out drops it unseen; then the status says
-# so and the text comes back. Only while the orchestrator isn't busy: a busy
-# one queues it for after its turn.
+# it up, e.g. a provider whose account can't be used may drop it unseen;
+# then the status says so and the text comes back. Only while the
+# orchestrator isn't busy: a busy one queues it for after its turn.
 func _watch_pickup(session: String, text: String) -> void:
 	var agent := store.orchestrator(session)
 	var busy: bool = agent.get("state") == "working" \
@@ -288,15 +291,24 @@ func _watch_pickup(session: String, text: String) -> void:
 
 
 # Puts a message that wasn't picked up back in the box, unless something
-# else was typed meanwhile.
+# else was typed meanwhile; once only, so a box cleared stays clear. The
+# warning stays until it's picked up or something is sent.
 func _give_back(session: String) -> void:
-	if _input.text.is_empty():
-		_input.text = _not_picked_up.get(session, "")
+	if _input.text.is_empty() and _not_picked_up.has(session) and not _given_back.has(session):
+		_input.text = _not_picked_up[session]
+		_given_back[session] = true
 
 
+# Picked up after all, maybe after the warning: the warning goes, and so
+# does the text given back, if the box still holds just that (sending it
+# again would send it twice).
 func _picked_up(session: String) -> void:
 	_watching.erase(session)
+	var text: String = _not_picked_up.get(session, "")
+	var given := _given_back.erase(session)
 	if _not_picked_up.erase(session) and session == session_id:
+		if given and _input.text == text:
+			_input.text = ""
 		_refresh_status()
 
 
