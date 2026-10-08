@@ -92,7 +92,7 @@ Starting or resuming opens Claude Code in a terminal, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
 "Still starting; check the terminal, or stop waiting in the menu (Tab)."
-Once you've confirmed, the session's island rises out of the sea, and
+Once you've confirmed, the session's island rises out of the seabed, and
 once it's up you're taken to it, right in front of its orchestrator.
 
 If the session can't start, the note says why. If Claude Code closes
@@ -125,7 +125,7 @@ Each session has its own small low-poly beach island: a flat spot in the
 middle where its orchestrator sits, dunes around it, and a sandy beach.
 Islands are made by the game, so no two look the same.
 
-When a session starts, its island rises out of the sea, which takes a few
+When a session starts, its island rises out of the seabed, which takes a few
 seconds. A green light beam stands over a new session's island until
 you've been on it, and while the island is off-screen a green arrow at
 the edge of the screen points to it, with its project's name and how far
@@ -217,7 +217,7 @@ You see the world through your character's eyes.
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
-| Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
+| Sessions menu: start, resume or go to a session or the platform | Tab (Tab or Esc closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 
@@ -614,7 +614,7 @@ to confirm that it may connect to the game (every time, while this
 connection is an early-access feature of Claude Code), and the first time
 in a folder, whether you trust that folder. Until you answer, the world
 tells you to confirm in the terminal. Once you have, the session's island
-rises out of the sea.
+rises out of the seabed.
 
 **Two windows onto one session.** The terminal and the world show the same
 session, and you can use either at any time:
