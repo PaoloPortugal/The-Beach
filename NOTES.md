@@ -2819,11 +2819,17 @@ rules), so the world only points there.
   busy one queues messages for after its turn): if no user message
   arrives and the orchestrator doesn't start working within 15 s, the
   status says "Your message hasn't reached the session. Check its
-  terminal, then send it again." and the text goes back in the box
-  (when it's empty, also on reopening the chat). Sending again, a user
-  message arriving or the orchestrator starting to work clears it.
-  Generic: it reads only the store. Tested with the fake's `lost` word
-  (`dev-fake.test.ts`: accepted, then no event; `world_test.gd` live).
+  terminal, then send it again." and the text goes back in the box,
+  once: when the box is empty, else on reopening the chat with it empty
+  (a box cleared stays clear; the warning stays). Sending again, a user
+  message arriving or the orchestrator starting to work clears the
+  warning; picked up late, the text given back leaves the box too if the
+  box still holds just that, so one Enter can't send it twice. Generic:
+  it reads only the store. Tested with the fake's `lost` word
+  (`dev-fake.test.ts`: accepted, then no event; `world_test.gd` live:
+  idle and waiting on `sign_in`, busy not watched, a draft typed before
+  the warning kept, reopening, once only, a late pickup by a user
+  message or by the orchestrator working, applied by hand).
 - *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
   an invalid API key: a message typed in the terminal brought the
   notice, the status, the "!" and the beacon; one sent from the world
@@ -3192,8 +3198,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** S06 sign-in needed, built on `s06-sign-in`; live
 check done with an invalid key, the pickup notice added after it;
-review notes being fixed, then ready for the user's review (dev log
-2026-10-08-s06-sign-in). A login expiring on its own is a watch item.
+the review's notes fixed and tested; ready for the user's review (dev
+log 2026-10-08-s06-sign-in). Open: whether opening another session's
+chat should empty the shared message box. A login expiring on its own is a watch item.
 **Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
 (dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
 and totals in the chat header, each turn's tokens, the plans' limits in
