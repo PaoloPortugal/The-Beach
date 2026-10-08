@@ -134,6 +134,11 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     await c.command({ type: 'session.get_snapshot', session })
     assert.deepEqual(((await c.next('session.snapshot', 5000)).session as any).notices.map((n: any) => n.code), ['transcripts_off'])
 
+    // A message that never reaches the session: accepted, then nothing.
+    assert.equal((await say('lost')).type, 'ok')
+    await new Promise((r) => setTimeout(r, 1000))
+    assert.deepEqual(c.received.filter((m) => m.type !== 'ok').map((m) => m.type), [])
+
     await say('agents 3')
     await c.next('agent.spawned', 5000)
     assert.equal((await c.command({ type: 'interrupt.request', session })).type, 'ok')

@@ -1076,6 +1076,33 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.shown_messages()[0] == "hello\nworld", "live: your message in the panel")
 	_check(panel.shown_messages().size() == 2 and panel.shown_messages()[1].contains("> world"), "live: the reply streamed into the panel")
 	_check(chat.bubble(id).shown_text().ends_with("(This is the fake provider.)"), "live: and into the bubble")
+	# S06: a message the session never picks up says so and comes back; the
+	# next one that arrives clears it.
+	await _until(func() -> bool: return world.store.orchestrator(id).get("state") == "idle", 5.0)
+	panel.pickup_timeout = 0.5
+	panel.set_draft("lost")
+	panel.send()
+	_check(panel.draft() == "" and panel.status_text() == "", "live: a message sent, nothing said yet")
+	await _until(func() -> bool: return panel.status_text().begins_with("Your message hasn't reached"), 5.0)
+	_check(panel.status_text().begins_with("Your message hasn't reached") and panel.draft() == "lost", "live: one never picked up says so, its text back in the box")
+	panel.set_draft("hello again")
+	panel.send()
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("hello again") and world.store.orchestrator(id).get("state") == "idle", 8.0)
+	await _frames(40)
+	_check(panel.status_text() == "" and panel.shown_messages()[-1].contains("hello again"), "live: the next one arrives, and the warning goes")
+	# Busy (here, waiting on a permission), the provider queues a message for
+	# after its turn: not watched.
+	panel.set_draft("permission")
+	panel.send()
+	await _until(func() -> bool: return not world.store.session(id)["permissions"].is_empty(), 8.0)
+	panel.set_draft("lost")
+	panel.send()
+	await _frames(90)
+	_check(panel.status_text().begins_with("Waiting for a permission") and panel.draft() == "", "live: a message sent while busy isn't watched")
+	var asked: String = world.store.session(id)["permissions"][0]["permission"]
+	sidecar.send_command("permission.respond", {"session": id, "permission": asked, "decision": "deny"}, func(_r: Dictionary) -> void: pass)
+	await _until(func() -> bool: return world.store.orchestrator(id).get("state") == "idle", 8.0)
+	panel.pickup_timeout = 15.0
 	_check(world.store.sessions[id].get("title") == "hello", "live: the first message's first line names the session")
 	panel.set_draft("rename Tidy the notes")
 	panel.send()

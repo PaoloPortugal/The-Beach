@@ -69,6 +69,14 @@ var _build_run := 0
 var _link_dialog: ConfirmationDialog
 var _link_url := ""
 var _send_error := ""
+## How long a sent message may take to show up in the chat before the
+## panel says it wasn't picked up (S06). A var for tests.
+var pickup_timeout := 15.0
+## Sessions with a sent message being watched (session → its timer's
+## token), and those whose message wasn't picked up (session → its text).
+var _watching := {}
+var _not_picked_up := {}
+var _watch_count := 0
 
 @onready var _title: Label = $Layout/Header/Title
 @onready var _mode: Label = $Layout/Header/Mode
@@ -109,6 +117,14 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.session_changed.connect(func(id: String, _fields: Array) -> void:
 		if id == session_id:
 			_refresh_header())
+	# A sent message is picked up when a user message arrives, or the
+	# orchestrator starts working (S06).
+	store.message_changed.connect(func(id: String, message: String) -> void:
+		if store.session(id).get("messages", {}).get(message, {}).get("role") == "user":
+			_picked_up(id))
+	store.agent_changed.connect(func(id: String, _agent: String) -> void:
+		if store.orchestrator(id).get("state") == "working":
+			_picked_up(id))
 	for sig in [store.agent_changed, store.permissions_changed, store.questions_changed, store.plans_changed, store.notices_changed]:
 		sig.connect(func(id: String, _rest = null) -> void:
 			if id == session_id:
@@ -119,6 +135,7 @@ func open(p_session_id: String) -> void:
 	session_id = p_session_id
 	_send_error = ""
 	visible = true
+	_give_back(session_id)
 	_rebuild()
 	_pending.show_session(session_id)
 	_refresh_status()
@@ -200,8 +217,10 @@ func send() -> void:
 	var text := _input.text.strip_edges()
 	if text.is_empty() or session_id.is_empty():
 		return
+	var sent_to := session_id
 	var id := sidecar.send_command("message.send", {"session": session_id, "text": text}, func(reply: Dictionary) -> void:
 		if reply.get("type") == "error":
+			_watching.erase(sent_to)
 			_send_error = "Couldn't send: %s" % reply.get("message", "")
 			# Give the text back, unless something new was typed meanwhile.
 			if _input.text.is_empty():
@@ -213,7 +232,46 @@ func send() -> void:
 		return
 	_send_error = ""
 	_input.text = ""
+	_not_picked_up.erase(session_id)
+	_watch_pickup(session_id, text)
 	_refresh_status()
+
+
+# Watches a sent message until it shows up (S06). A provider may never pick
+# it up, e.g. Claude Code signed out drops it unseen; then the status says
+# so and the text comes back. Only while the orchestrator isn't busy: a busy
+# one queues it for after its turn.
+func _watch_pickup(session: String, text: String) -> void:
+	var agent := store.orchestrator(session)
+	var busy: bool = agent.get("state") == "working" \
+			or (agent.get("state") == "waiting" and agent.get("reason") != "sign_in")
+	if busy:
+		_watching.erase(session)
+		return
+	_watch_count += 1
+	var token := _watch_count
+	_watching[session] = token
+	get_tree().create_timer(pickup_timeout).timeout.connect(func() -> void:
+		if _watching.get(session) != token:
+			return
+		_watching.erase(session)
+		_not_picked_up[session] = text
+		if session == session_id:
+			_give_back(session)
+			_refresh_status())
+
+
+# Puts a message that wasn't picked up back in the box, unless something
+# else was typed meanwhile.
+func _give_back(session: String) -> void:
+	if _input.text.is_empty():
+		_input.text = _not_picked_up.get(session, "")
+
+
+func _picked_up(session: String) -> void:
+	_watching.erase(session)
+	if _not_picked_up.erase(session) and session == session_id:
+		_refresh_status()
 
 
 # Enter sends; Shift+Enter is a new line.
@@ -447,6 +505,9 @@ func _refresh_status() -> void:
 	_notices.visible = not lines.is_empty()
 	if not _send_error.is_empty():
 		_status.text = _send_error
+		return
+	if _not_picked_up.has(session_id):
+		_status.text = "Your message hasn't reached the session. Check its terminal, then send it again."
 		return
 	var agent := store.orchestrator(session_id)
 	match agent.get("state", ""):

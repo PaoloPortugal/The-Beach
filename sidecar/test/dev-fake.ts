@@ -20,6 +20,9 @@
 //                (S06): the sign_in_needed notice, the orchestrator waiting
 //                with reason sign_in; the next message goes through and
 //                clears it
+//   lost         the message never reaches the session, like Claude Code
+//                signed out dropping a channel message unseen (S06): no
+//                event at all
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
 // A new session has no title until its first message names it, like
@@ -82,6 +85,7 @@ class ScriptedSession extends FakeSession {
   }
 
   override async sendMessage(text: string) {
+    if (/\blost\b/i.test(text)) return
     this.stopped = false
     await this.say('user', text)
     if (this.title === null) this.retitle(text.trim().split('\n', 1)[0]!.slice(0, 80))
