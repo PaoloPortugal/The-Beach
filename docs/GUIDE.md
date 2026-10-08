@@ -12,6 +12,7 @@ here; each section is labelled with its feature ID.
 - [Clusters (W05)](#clusters-w05)
 - [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
+- [Swimming and the sea floor (W08)](#swimming-and-the-sea-floor-w08)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -69,6 +70,8 @@ names as Claude Code's own `/resume` list.
   switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
   get back to the game; choosing a folder in it afterwards does nothing.
   If your system has no picker of its own, the game shows its own.
+- **⌂ Platform** takes you back to the spawn platform, wherever you are,
+  in the water too.
 - **Running** lists the sessions running now, grouped under their
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
@@ -131,14 +134,16 @@ game's screens for now.) Sessions that were already running when the
 game connected are simply there. When a session ends, its orchestrator and subagents
 disappear at once. If you're standing on its island, or on
 one of its bridges, the empty island stays until you leave it (walk
-away over a bridge, fall in the sea or go to another session); then it
-sinks back into the sea and is gone. Islands of the same project sit
+away over a bridge, swim away, or go to another session or the
+platform); then it sinks back into the seabed and is gone. Islands of the same project sit
 together in a cluster (below), and bridges join them to each other and
 to the platform (W06); the sessions menu (Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the
-horizon. To keep the game smooth, islands and bridges lost in the haze
-aren't drawn at all, and the sea floor under the water is plainer than
-the land; you won't see either.
+horizon. The water is clear over the shallows and deepens to dark blue
+over deep water, so you can see the sea floor (see Swimming and the sea
+floor below). To keep the game smooth, islands and bridges lost in the
+haze aren't drawn at all, and the steep slopes under the water are
+plainer than the land.
 
 ## Clusters (W05)
 
@@ -194,7 +199,8 @@ showing your cluster; drag it with the mouse, or use W A S D or the
 arrow keys, to look around, and the mouse wheel zooms in and out. Each
 cluster's name is over its islands, and zoomed in, each island shows its
 session's title and what it's doing (working, waiting for you, idle or
-stopped). Click an island to go there. The world carries on while the
+stopped). Click an island to go there, or the platform to go back to
+it. The world carries on while the
 map is open; you just don't move. M or Esc closes it. (The bridges and
 the maps are a first version, like the rest of the game's look for now.)
 
@@ -207,6 +213,8 @@ You see the world through your character's eyes.
 | Walk | W A S D |
 | Sprint | hold Shift |
 | Jump | Space |
+| Swim (in deep water) | W A S D, toward where you look |
+| Swim up / down | Space / Ctrl |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
 | Sessions menu: start, resume or go to a session | Tab (Tab or Esc closes it) |
@@ -217,8 +225,28 @@ The keys follow their position on the keyboard, so on other layouts
 (such as AZERTY) use the keys in the same place.
 
 Jumps are forgiving: pressing jump just before you land, or just after
-you step off an edge, still counts. You can wade into the shallows; go
-too deep and you're put back on the platform (swimming comes later).
+you step off an edge, still counts. Walk into the sea and once it's too deep to stand, you
+swim (below).
+
+## Swimming and the sea floor (W08)
+
+Out of your depth, you swim. You float at the surface with your head just
+above the waves. W A S D swim toward where you're looking, so look down
+and press W to dive; Space takes you up and Ctrl down, and Shift swims
+faster. There's no air to run out of: stay under as long as you like.
+Under the water everything turns blue and fades out after a few dozen
+metres.
+
+The sea floor is everywhere. It's shallow around the platform, and
+further out there are sandbanks, deeper water and trenches. Each island
+sits on its own shallow shelf, which drops away steeply to the deep sea
+floor. A new session's island rises out of the seabed, and an ended
+one sinks back into it, and you can watch both through the water.
+
+You get out of the water by swimming to a beach and walking up it. You
+can't climb onto the platform or a bridge from the water. To get back to
+the platform from anywhere, choose **⌂ Platform** in the sessions menu
+(Tab), or click the platform on the big map (M).
 
 ## Talking to the orchestrator (C01)
 
