@@ -87,7 +87,7 @@ v1 slice.
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
-| W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
+| W09 | Day/night cycle and weather               | designed | n/a          | n/a       |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -1286,11 +1286,28 @@ colour to the floor's"; more depth variation). Live check passed
 (2026-10-08, the user: "looks good").
 
 ### W09 Day/night cycle and weather
-*Planned (user's request, 2026-10-01).* The sun moves through a day and
-night cycle, and the weather changes (e.g. clouds, rain, wind on the
-waves). Not a provider feature: world only. Undesigned: the day's length
-(real time or faster), whether weather is random or reacts to anything,
-and what night looks like (readable islands and bubbles, lights).
+*Designed, being built (2026-10-08). Scope: core (world only).* The sun
+moves through a day and night cycle, and the weather changes (user's
+request, 2026-10-01).
+
+*Decided (user's, 2026-10-08):*
+- *Day:* a 28-minute cycle, 14 minutes of day and 14 of night, with a
+  natural progression: the sun goes down and the moon comes up. Every
+  launch starts at mid-morning.
+- *Weather:* random and gentle, meaning nothing (so it can't be mistaken
+  for an agent's state, A03/A05): mostly clear, drifting now and then
+  into clouds, rain, wind on the waves (W02) or a thunderstorm, changing
+  smoothly.
+- *Thunderstorms:* a stronger rain with wind and lightning. Lightning is
+  soft and rare: a short, gentle brightening (never a white-out), at
+  most one every 10-20 s, with a bolt in the distance. The settings menu
+  (after W11) gets an off switch.
+- *Night:* moonlit and readable: blue moonlight to walk and swim by,
+  stars, and warm lights on each island (the orchestrator's desk lamp, a
+  few torches; placeholders until there's art), so islands read from
+  afar. Bubbles and UI stay as readable as by day.
+- *Sound:* silent for now; hooks so a CC0 or the user's own thunder and
+  rain sound drops in later (recorded in `assets/CREDITS.md`).
 
 ### W10 Island biomes
 *Planned (user's request, 2026-10-07).* Islands of other kinds besides
@@ -3356,8 +3373,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W09 day/night cycle and weather, starting with its
-design questions; then W10 and W11, then a settings menu with graphics
+**Current focus:** W09 day/night cycle and weather (designed, being built
+on `w09-day-night`); then W10 and W11, then a settings menu with graphics
 settings, in that order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
 (dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
