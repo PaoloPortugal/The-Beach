@@ -22,6 +22,8 @@ var minimap := Minimap.new()
 var world_map := WorldMap.new()
 ## The plan's usage limits, bottom right (C08).
 var usage_limits := UsageLimits.new()
+## The view under the water (W08).
+var underwater := Underwater.new()
 
 ## The spawn platform's deck: half its width and its top (world.tscn).
 const PLATFORM_HALF := 6.0
@@ -42,11 +44,13 @@ func _ready() -> void:
 	# there.
 	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
 		$Sun.shadow_enabled = false
-	# The platform's deck is at y = 1. Falling in the sea brings you back
-	# here.
+	# The platform's deck is at y = 1. The sessions menu's "Platform" and
+	# the big map bring you back here (W08).
 	_player.spawn_point = Vector3(0.0, 1.1, 3.0)
 	_player.respawn()
 	_menu.player = _player
+	add_child(underwater)
+	underwater.setup($WorldEnvironment.environment)
 
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
@@ -70,6 +74,7 @@ func _ready() -> void:
 	add_child(world_map)
 	world_map.setup(_islands, _player, store, minimap)
 	world_map.go_to.connect(teleport)
+	world_map.go_to_platform.connect(go_to_platform)
 	_menu.attention = attention
 	_islands.player = _player
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
@@ -79,11 +84,20 @@ func _ready() -> void:
 			teleport(id))
 	_menu.launcher.session_started.connect(teleport)
 	_menu.go_to.connect(teleport)
+	_menu.go_to_platform.connect(go_to_platform)
 	store.attach(Sidecar)
 	# Dev tool: the current live check's steps, top left (NOTES → Running it).
 	if "--checklist" in OS.get_cmdline_user_args():
 		add_child(load("res://tests/live/checklist.tscn").instantiate())
 		minimap.top = 56.0 # under it
+
+
+## Puts the player back on the spawn platform (W08: the sea no longer
+## does), from the sessions menu and the big map. It replaces a teleport
+## still waiting for its island to rise.
+func go_to_platform() -> void:
+	_teleport_when_risen = ""
+	_player.respawn()
 
 
 ## Puts the player on a session's island, facing its orchestrator, once

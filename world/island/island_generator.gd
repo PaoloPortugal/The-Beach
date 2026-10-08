@@ -1,7 +1,8 @@
 class_name IslandGenerator
 extends RefCounted
 ## Builds a low-poly beach island from a seed (W01): a height field that
-## rises from the sea floor to a flat middle, where the orchestrator will
+## rises from below the sea floor (W08's [Seabed]) up a drop-off, across a
+## shallow shelf and the beach to a flat middle, where the orchestrator will
 ## stand. Perlin noise bends the shoreline and adds dunes, so every seed
 ## gives a different island. Flat-shaded and coloured by height. The water
 ## level is y = 0.
@@ -10,9 +11,9 @@ const SEABED := Color(0.62, 0.64, 0.52)
 const WET_SAND := Color(0.82, 0.72, 0.52)
 const SAND := Color(0.94, 0.85, 0.63)
 const GRASS := Color(0.48, 0.68, 0.34)
-## The seabed, deep under the opaque water, is coarser: a block of
-## COARSE x COARSE cells whose vertices are all below [member coarse_below]
-## is two triangles (8 m across with 2 m cells).
+## The drop-off is coarser: a block of COARSE x COARSE cells whose vertices
+## are all below [member coarse_below] is two triangles (8 m across with
+## 2 m cells).
 const COARSE := 4
 
 ## Rough shoreline radius, metres. The noise moves it by up to a third.
@@ -25,10 +26,19 @@ var plateau_height := 2.0
 var plateau_radius := 7.0
 ## Height of the dunes between the middle and the beach.
 var dune_height := 1.2
+## The shallow shelf around the beach: it reaches [member sea_floor] at
+## [member shelf_start] shoreline radii and stays there to
+## [member shelf_end], then the drop-off falls to [member skirt_floor],
+## below the deepest sea floor ([constant Seabed.DEEPEST]), by
+## [member skirt_end].
 var sea_floor := -4.0
-## Depth below which the seabed is coarse (see [constant COARSE]). The
-## waves reach about ±0.35 m.
-var coarse_below := -1.0
+var shelf_start := 1.25
+var shelf_end := 1.4
+var skirt_end := 1.75
+var skirt_floor := -36.0
+## Depth below which the island is coarse (see [constant COARSE]): the
+## drop-off, below the shelf.
+var coarse_below := -5.0
 
 var _shore_noise := FastNoiseLite.new()
 var _dune_noise := FastNoiseLite.new()
@@ -61,7 +71,8 @@ func height_at(x: float, z: float) -> float:
 	if t < 1.0:
 		h = plateau_height * (1.0 - smoothstep(flat, 1.0, t))
 	else:
-		h = sea_floor * smoothstep(1.0, 1.6, t)
+		h = sea_floor * smoothstep(1.0, shelf_start, t)
+		h += (skirt_floor - sea_floor) * smoothstep(shelf_end, skirt_end, t)
 	# Dunes: none on the flat middle, and gone before the beach so the
 	# shoreline stays clean (no holes or stray islets).
 	var dunes := smoothstep(flat, flat + 0.2, t) * (1.0 - smoothstep(0.65, 0.9, t))
@@ -73,7 +84,7 @@ func height_at(x: float, z: float) -> float:
 ## COARSE]); fine cells beside a coarse block have their vertices on the
 ## shared edge moved onto it, so there are no cracks.
 func build() -> Dictionary:
-	var extent := radius * 1.4 * 1.6
+	var extent := radius * 1.45 * skirt_end
 	# A whole number of coarse blocks across.
 	var n := int(ceil(2.0 * extent / cell / COARSE)) * COARSE
 	extent = n * cell / 2.0

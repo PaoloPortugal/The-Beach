@@ -1,56 +1,39 @@
-LIVE CHECK: S06 sign-in needed
-Part A: fake provider
+LIVE CHECK: W08 swimming, seabed
   godot --path . -- --sidecar-dev-fake --checklist
+Check both renderers if you can:
+add --rendering-method
+gl_compatibility for the second.
 
-1. Tab > New session... > any folder.
-   Chat (E): send "signin". At the
-   top: "Claude Code needs you to
-   sign in again: run /login in its
-   terminal." Status line: "Waiting
-   for you to sign in, in the
-   terminal."
-2. Esc: the orchestrator's orange
-   "!", the beacon, "1 session
-   waiting" top right.
-3. Chat again, send "signin" again:
-   still one notice, still waiting.
-4. Send "hello": the reply comes, the
-   notice goes, no "!", no beacon, no
-   count. Readable as written?
-5. Send "lost" (the fake drops it).
-   After 15 s: "Your message hasn't
-   reached the session. Check its
-   terminal, then send it again."
-   and "lost" back in the box.
-   Readable?
-6. NEW: Esc, Tab > New session... >
-   another folder. Open its chat:
-   the box is empty, no warning.
-   Type "draft", Esc.
-7. NEW: Tab > the first session.
-   Open its chat: "lost" back in the
-   box, the warning still there.
-8. Send "hello": it arrives, the
-   warning goes.
-
-Part B: real claude, bad API key
-  (PowerShell, from the worktree)
-  $env:ANTHROPIC_API_KEY="sk-ant-bad"
-  godot --path . -- --checklist
-  (Close the game after; a new
-  PowerShell window drops the key.)
-
-9. Start a session (say Yes if the
-   terminal asks about the key).
-10. Send "hi" from the world: after
-   15 s, the "hasn't reached the
-   session" line, text back in the
-   box?
-11. Type "hi" in the terminal: the
-   notice, the status, the "!" and
-   beacon, as before? /exit.
-
-A real expired login: check it when
-it happens (NOTES Watch items).
-
-Tell Claude what you saw; paste red errors.
+1. On the platform: the water is
+   clear near it, the sea floor
+   visible below. Looks right?
+2. Walk off the platform into the
+   sea: you float, eyes just above
+   the waves. Space doesn't lift
+   you out.
+3. Look down, hold W: you dive.
+   Ctrl sinks, Space rises, Shift
+   is faster. Blue fog under water,
+   gone again at the surface.
+4. Swim down to the floor: it stops
+   you. Swim into the platform's
+   side: a wall, no climbing.
+5. Tab > New session... > a folder.
+   The island rises out of the
+   seabed (about 34 m in 3 s: too
+   fast?). Taken there: shelf,
+   drop-off, deep water around.
+6. Walk into the sea off its beach,
+   swim out over the drop-off,
+   then back and walk up the beach.
+   No hop, no getting stuck?
+7. Bridges: posts reach the floor.
+8. Tab > "Platform": back on it.
+9. Swim out again, M, click the
+   platform: back on it.
+10. End the session (/exit in its
+   terminal), step off its island:
+   it sinks into the seabed, fully.
+11. Smooth? Any stutter while
+   swimming far (the floor builds
+   around you)?
