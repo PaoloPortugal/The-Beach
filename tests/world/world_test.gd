@@ -521,7 +521,6 @@ func _tool_log(store: SessionStore, panel: ChatPanel) -> void:
 		store.apply({"type": "tool.finished", "session": "h1", "seq": 89, "tool_call": t, "status": "ok"})
 
 
-# A05: h1's orchestrator waits on a permission; h2's comes and goes.
 # S06, with h1's chat open: the account can't be used. The provider's notice
 # shows as sent, the status points to the terminal, the orchestrator shows
 # the "!" and A05's cue; a sign-in or a call going through clears it. Other
@@ -561,6 +560,7 @@ func _sign_in(world: Node3D, panel: ChatPanel) -> void:
 	await _frames(2)
 
 
+# A05: h1's orchestrator waits on a permission; h2's comes and goes.
 func _attention(world: Node3D) -> void:
 	var store: SessionStore = world.store
 	var islands: SessionIslands = world.get_node("SessionIslands")
