@@ -1,7 +1,8 @@
 class_name SessionsMenu
 extends CanvasLayer
 ## The sessions menu (S03, S04, a first W07): Tab opens it anywhere you're
-## not chatting. "New session…" picks a project folder; the sessions
+## not chatting. "New session…" picks a project folder; "Platform" takes
+## you back to the spawn platform (W08); the sessions
 ## running now are listed by cluster (W05) to jump to their island; stored
 ## ones, newest first, to resume. A search box filters both, and the
 ## cluster selector says where a new or resumed session goes (by its
@@ -19,6 +20,8 @@ extends CanvasLayer
 
 ## The player asked to go to a running session's island.
 signal go_to(session_id: String)
+## The player asked to go to the spawn platform (W08).
+signal go_to_platform
 ## The system's folder picker was asked for (tests watch this).
 signal native_picker_shown(directory: String)
 
@@ -279,6 +282,9 @@ func _fill() -> void:
 		child.queue_free()
 	var query := _search.text.strip_edges().to_lower()
 	_add_button("+ New session…", _pick_folder)
+	_add_button("⌂ Platform", func() -> void:
+		close()
+		go_to_platform.emit())
 	if not launcher.pending.is_empty():
 		_add_button("✕ Stop waiting for the session starting", func() -> void:
 			launcher.stop_waiting()
