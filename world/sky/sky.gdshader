@@ -24,12 +24,12 @@ void sky() {
 	vec3 d = EYEDIR;
 	// Up from the horizon; below it, the horizon's colour (the sea hides it).
 	float up = clamp(d.y, 0.0, 1.0);
-	vec3 c = mix(horizon_colour, top_colour, pow(up, 0.6));
+	vec3 c = mix(horizon_colour, top_colour, 1.0 - exp(-up * 6.0));
 
 	// Sun: a disc with a soft glow, low-poly plain.
 	vec3 sun = normalize(sun_direction);
 	float s = dot(d, sun);
-	c += sun_colour * (smoothstep(0.9990, 0.9993, s) * 1.5 + pow(max(s, 0.0), 60.0) * 0.25) * discs;
+	c += sun_colour * (smoothstep(0.9990, 0.9993, s) * 1.2 + pow(max(s, 0.0), 60.0) * 0.25) * discs;
 	// Moon: a pale disc where the sun isn't.
 	float m = dot(d, -sun);
 	c = mix(c, moon_colour, smoothstep(0.9993, 0.9995, m) * discs);

@@ -5,17 +5,17 @@ extends Node3D
 ## (each grows in or shrinks away rather than popping) and a storm darkens
 ## them. They wrap around the camera, so there are always clouds about.
 
-const COUNT := 30
+const COUNT := 40
 ## The square around the camera they drift in, metres, and their height.
 const AREA := 800.0
-const MIN_Y := 90.0
-const MAX_Y := 130.0
+const MIN_Y := 80.0
+const MAX_Y := 120.0
 ## Drift speed, m/s: calm and at full wind.
 const CALM_DRIFT := 2.0
 const WINDY_DRIFT := 12.0
 
 const WHITE := Color(0.96, 0.97, 0.98)
-const STORMY := Color(0.42, 0.44, 0.48)
+const STORMY := Color(0.34, 0.36, 0.40)
 
 var weather: Weather
 ## The wind's direction, the same for the whole run.
@@ -79,11 +79,11 @@ static func make_cloud(rng: RandomNumberGenerator) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var blobs := rng.randi_range(3, 6)
-	var length := rng.randf_range(30.0, 60.0)
+	var length := rng.randf_range(60.0, 130.0)
 	for b in blobs:
 		var along := (b / float(blobs - 1) - 0.5) * length
-		var r := rng.randf_range(8.0, 15.0) * (1.0 - absf(along) / length)
-		var centre := Vector3(along, rng.randf_range(-1.0, 3.0), rng.randf_range(-5.0, 5.0))
+		var r := rng.randf_range(16.0, 30.0) * (1.0 - absf(along) / length)
+		var centre := Vector3(along, rng.randf_range(-2.0, 5.0), rng.randf_range(-10.0, 10.0))
 		_blob(st, centre, Vector3(r * 1.3, r * 0.45, r))
 	st.generate_normals() # per face: the vertices aren't shared
 	return st.commit()

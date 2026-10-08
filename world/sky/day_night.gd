@@ -20,23 +20,25 @@ const SUN_COLOUR := Color(1.0, 0.97, 0.92)
 const SUNSET_COLOUR := Color(1.0, 0.62, 0.38)
 const MOON_COLOUR := Color(0.62, 0.72, 1.0)
 const SUN_ENERGY := 1.1
-const MOON_ENERGY := 0.4
+const MOON_ENERGY := 0.12
 
 ## The sky's top and horizon colours by day, at sunset and by night.
 const DAY_TOP := Color(0.32, 0.56, 0.86)
 const DAY_HORIZON := Color(0.66, 0.8, 0.9)
-const DUSK_TOP := Color(0.30, 0.36, 0.62)
-const DUSK_HORIZON := Color(0.93, 0.62, 0.45)
+const DUSK_TOP := Color(0.22, 0.32, 0.58)
+const DUSK_HORIZON := Color(0.98, 0.58, 0.30)
 const NIGHT_TOP := Color(0.03, 0.05, 0.13)
 const NIGHT_HORIZON := Color(0.10, 0.15, 0.27)
-## Overcast skies tend to this grey (times the light of the hour).
+## Overcast skies tend to this grey (times the light of the hour), and
+## a storm's to a darker one.
 const OVERCAST := Color(0.56, 0.60, 0.64)
+const STORM_SKY := Color(0.27, 0.30, 0.34)
 
 ## Ambient light, day and night: night keeps enough to find your way.
 const DAY_AMBIENT := Color(0.66, 0.8, 0.9)
 const NIGHT_AMBIENT := Color(0.32, 0.40, 0.62)
 const DAY_AMBIENT_ENERGY := 0.6
-const NIGHT_AMBIENT_ENERGY := 0.55
+const NIGHT_AMBIENT_ENERGY := 0.35
 
 ## The darkness now, for night lights made after it was last sent.
 static var current_darkness := 0.0
@@ -117,6 +119,7 @@ func apply() -> void:
 	var h := sun.y
 	darkness = darkness_at(h)
 	var cover := weather.cover if weather else 0.0
+	var storm := weather.storm if weather else 0.0
 	var flash := weather.flash if weather else 0.0
 
 	# The light: the sun above the horizon, the moon (opposite) below it.
@@ -131,7 +134,13 @@ func apply() -> void:
 	else:
 		energy = MOON_ENERGY * smoothstep(0.0, 0.2, up)
 		colour = MOON_COLOUR
-	energy *= 1.0 - 0.6 * cover
+	energy *= (1.0 - 0.6 * cover) * (1.0 - 0.3 * storm)
+	# Under the water at night the sea floor would stand out pale against
+	# the dark water's fog: less light reaches down there.
+	var below := 1.0
+	if underwater and underwater.active:
+		below = lerpf(1.0, 0.4, darkness)
+	energy *= below
 	_light.light_color = colour
 	_light.light_energy = energy + flash * 0.6
 	_light.visible = energy > 0.001 or flash > 0.0
@@ -147,8 +156,11 @@ func apply() -> void:
 	var light_of_hour := lerpf(1.0, 0.18, darkness)
 	top = top.lerp(OVERCAST * light_of_hour, cover * 0.75)
 	horizon = horizon.lerp(OVERCAST * light_of_hour, cover * 0.75)
-	top = top.lerp(Color(0.8, 0.84, 0.95), flash * 0.35)
-	horizon = horizon.lerp(Color(0.8, 0.84, 0.95), flash * 0.35)
+	top = top.lerp(STORM_SKY * light_of_hour, storm * 0.85)
+	horizon = horizon.lerp(STORM_SKY * light_of_hour, storm * 0.75)
+	# Lightning lifts the sky for a moment, never to white.
+	top = top.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
+	horizon = horizon.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
 	_sky.set_shader_parameter("top_colour", top)
 	_sky.set_shader_parameter("horizon_colour", horizon)
 	_sky.set_shader_parameter("sun_direction", sun)
@@ -160,7 +172,7 @@ func apply() -> void:
 	var ambient := DAY_AMBIENT.lerp(NIGHT_AMBIENT, darkness)
 	ambient = ambient.lerp(OVERCAST, cover * 0.4)
 	_environment.ambient_light_color = ambient
-	_environment.ambient_light_energy = lerpf(DAY_AMBIENT_ENERGY, NIGHT_AMBIENT_ENERGY, darkness) * (1.0 - 0.2 * cover) + flash * 0.5
+	_environment.ambient_light_energy = lerpf(DAY_AMBIENT_ENERGY, NIGHT_AMBIENT_ENERGY, darkness) * (1.0 - 0.2 * cover) * (1.0 - 0.25 * storm) * below + flash * 0.6
 
 	# The fog fades into the horizon above the water; under it, the
 	# water's own blue, darker by night.
