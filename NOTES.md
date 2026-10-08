@@ -1442,7 +1442,8 @@ all of it, so markup in a message shows as written (tested with an injected
   another session's chat opens (user's decision, 2026-10-08, S06
   review: a draft or a message given back shouldn't go to the wrong
   session). A send refused after switching isn't shown in the other
-  chat.
+  chat; returning, the status says the message hasn't reached the
+  session and the text comes back (S06's pickup notice).
 - **History:** the chat so far isn't in the snapshot, so the controller
   asks for `session.get_history` once per session when its orchestrator
   appears (this also fills the bubble). If that fails (an error, or no
@@ -2840,8 +2841,10 @@ rules), so the world only points there.
   `world_test.gd` live: idle and waiting on `sign_in`, busy not watched,
   a draft typed before the warning kept, reopening, once only, a late
   pickup by a user message or by the orchestrator working, applied by
-  hand, an edited box left alone, and with the chat closed; by hand:
-  switching sessions, the given-back text coming back on returning).
+  hand, an edited box left alone, and with the chat closed; with the
+  panel's pickup state set by hand: switching sessions, a refusal after
+  switching, the given-back text coming back on returning, a late
+  pickup leaving another session's box alone).
 - *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
   an invalid API key: a message typed in the terminal brought the
   notice, the status, the "!" and the beacon; one sent from the world
@@ -3223,7 +3226,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 check done with an invalid key, the pickup notice added after it;
 the review's notes fixed and tested; opening another session's chat
 empties the message box (user's decision); ready for the user's review
-(dev log 2026-10-08-s06-sign-in). A login expiring on its own is a
+(dev log 2026-10-08-s06-sign-in). Still open, kept as is unless the
+user minds: Open questions → 10's last part (a message typed in the
+terminal takes the given-back text). A login expiring on its own is a
 watch item.
 **Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
 (dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
