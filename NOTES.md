@@ -738,7 +738,8 @@ The water level is y = 0.
   stray islets).
 - *Low-poly look.* A 2 m grid with jittered vertices and alternating
   diagonals, one normal per triangle (flat shading), and one colour per
-  triangle by height: seabed, wet sand, sand, grass on dune tops. The
+  triangle by height: under the water the sea floor's (`Seabed.colour`,
+  W08), then wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
 - *Coarse drop-off* (user's decision, 2026-10-07, for the seabed under
   the then opaque water; Architecture → Performance). The grid (about
@@ -1217,11 +1218,12 @@ chosen as offered):*
   (`SHALLOWEST`) and -30 m (`DEEPEST`): domain-warped Perlin noise (warp
   90 m at frequency 0.003) pushed toward the banks and the deeps
   (`SPREAD` 1.7, eased), so it uses the whole range (spread 4.5 m, about
-  6 % of it within 2 m of the shallowest); mounds and hollows of up to
-  2 m about 40 m across (`MOUNDS`, simplex noise at 0.025); trenches
-  along a second noise's zero lines; rising to a flat -6 m within 40 m
-  of the platform and blending back by 90 m. Features narrower than
-  about 12 m wouldn't show on the 4 m grid. Built in 64 m chunks on a 4 m grid (vertices
+  6 % of it within 2 m of the shallowest); mounds and hollows about
+  40 m across, mostly within 2 m and at most about 3 m (`MOUNDS`, Perlin
+  noise at 0.025); trenches along a second noise's zero lines; rising to
+  a flat -6 m within 40 m of the platform and blending back by 90 m.
+  Features narrower than about 12 m wouldn't show on the 4 m grid.
+  Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
   with matching collision, from the camera out to 420 m (past the fog)
   and dropped past 548 m; at most 6 chunks a frame, nearest first. Flat
@@ -1254,7 +1256,8 @@ chosen as offered):*
   key), at 3.5 m/s or 6 m/s sprinting, eased at 8 m/s². Below the surface
   it neither sinks nor rises on its own; at the surface it floats with
   the feet 1.15 m under (`float_depth`, the eyes just above the waves) and
-  can't go higher, so there's no climbing out.
+  can't go higher (except a dolphin jump, below), so there's no climbing
+  out.
 - *Dolphin jump* (`Player`): reaching the surface rising faster than
   4.5 m/s (`breach_speed`), and not touching ground, ends swimming with
   all the speed kept: you leap out, gravity (and W03's air control) takes
@@ -3138,8 +3141,10 @@ ends like a full render.
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
 platform, walking, jumping), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
-fog, out of the water up a beach, back by the menu's "Platform" and the
-big map), the sessions menu (the
+fog, out of the water up a beach, the dolphin jump (out of the water,
+below the platform's deck, back in), back by the menu's "Platform" and
+the big map; the sea floor's range, banks and mounds, its colour
+gradient, and islands' underwater faces in its colours), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
