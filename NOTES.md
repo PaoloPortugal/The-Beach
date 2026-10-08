@@ -1437,6 +1437,12 @@ all of it, so markup in a message shows as written (tested with an injected
   the session reports it (`message.started`, role `user`). A refused send
   says "Couldn't send: …" and puts the text back if the box is still
   empty.
+- **One message box** for every session's chat: its text is kept when
+  the chat closes and reopens on the same session, and emptied when
+  another session's chat opens (user's decision, 2026-10-08, S06
+  review: a draft or a message given back shouldn't go to the wrong
+  session). A send refused after switching isn't shown in the other
+  chat.
 - **History:** the chat so far isn't in the snapshot, so the controller
   asks for `session.get_history` once per session when its orchestrator
   appears (this also fills the bubble). If that fails (an error, or no
@@ -2821,7 +2827,9 @@ rules), so the world only points there.
   status says "Your message hasn't reached the session. Check its
   terminal, then send it again." and the text goes back in the box,
   once: when the box is empty, else on reopening the chat with it empty
-  (a box cleared stays clear; the warning stays). Sending again, a user
+  (a box cleared stays clear; the warning stays). Opening another
+  session's chat empties the box (C02); if it held just the text given
+  back, that comes back on returning. Sending again, a user
   message arriving or the orchestrator starting to work clears the
   warning; picked up late, the text given back leaves the box too if the
   box still holds just that (chat open or not), so one Enter can't send
@@ -2832,7 +2840,8 @@ rules), so the world only points there.
   `world_test.gd` live: idle and waiting on `sign_in`, busy not watched,
   a draft typed before the warning kept, reopening, once only, a late
   pickup by a user message or by the orchestrator working, applied by
-  hand, an edited box left alone, and with the chat closed).
+  hand, an edited box left alone, and with the chat closed; by hand:
+  switching sessions, the given-back text coming back on returning).
 - *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
   an invalid API key: a message typed in the terminal brought the
   notice, the status, the "!" and the beacon; one sent from the world
@@ -3196,11 +3205,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    used, which may be the user's own. kitty (remote control) and WezTerm
    (`cli spawn`) can target a window if told which. My recommendation: a
    window each there until someone can test.
-10. **The shared message box (S06 review, 2026-10-08).** One box serves
-    every session's chat and is kept when the chat closes, so a draft,
-    or a message given back by the pickup notice, goes along into
-    another session's chat (from before S06). My recommendation: empty
-    the box when opening a different session's chat. Also: a late
+10. ~~**The shared message box (S06 review, 2026-10-08).**~~ One box
+    serves every session's chat and was kept when the chat closed, so a
+    draft, or a message given back by the pickup notice, went along
+    into another session's chat (from before S06). *Decided (user's,
+    2026-10-08, the recommendation):* opening another session's chat
+    empties the box (C02). Still open, kept as is for now: a late
     pickup takes the given-back text out of the box even when the
     message that arrived was typed in the terminal (the world's was
     lost); the alternative is to take it out only when the arriving
@@ -3211,9 +3221,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** S06 sign-in needed, built on `s06-sign-in`; live
 check done with an invalid key, the pickup notice added after it;
-the review's notes fixed and tested; ready for the user's review (dev
-log 2026-10-08-s06-sign-in). Open: the shared message box (Open
-questions → 10). A login expiring on its own is a watch item.
+the review's notes fixed and tested; opening another session's chat
+empties the message box (user's decision); ready for the user's review
+(dev log 2026-10-08-s06-sign-in). A login expiring on its own is a
+watch item.
 **Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
 (dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
 and totals in the chat header, each turn's tokens, the plans' limits in
