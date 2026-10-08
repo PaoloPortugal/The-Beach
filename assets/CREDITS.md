@@ -20,8 +20,8 @@ Every new one Claude writes or rewrites gets a row.
 | File | Written by | Notes |
 |------|------------|-------|
 | `world/ocean/ocean.gdshader` | Claude (Claude Code) | Shader. The ocean (W02, 2026-09-30): waves and flat shading. Rewritten for W08 (2026-10-08): see-through, tinted by depth, an underside. |
-| `world/island/island_generator.gd`, `world/island/island.gd` | Claude (Claude Code) | Generated islands (W01, 2026-09-30): height field, flat-shaded triangles, colours by height. Shelf and drop-off added for W08. |
-| `world/seabed/seabed.gd` | Claude (Claude Code) | Generated sea floor (W08, 2026-10-08). |
+| `world/island/island_generator.gd`, `world/island/island.gd` | Claude (Claude Code) | Generated islands (W01, 2026-09-30): height field, flat-shaded triangles, colours by height. Shelf and drop-off added for W08; underwater colours from the sea floor's (2026-10-08). |
+| `world/seabed/seabed.gd` | Claude (Claude Code) | Generated sea floor (W08, 2026-10-08). Warped noise, mounds and a colour gradient by depth added the same day (W08 follow-ups). |
 | `world/bridges/bridge.gd` | Claude (Claude Code) | Placeholder bridges (W06, 2026-10-07): planks, posts and rails from boxes and quads. |
 | `world/platform/spawn_platform.tscn` | Claude (Claude Code) | Placeholder spawn platform: one wooden-coloured box. |
 | `world/ocean/ocean.tscn` | Claude (Claude Code) | The ocean's plane mesh, for the shader above. |
