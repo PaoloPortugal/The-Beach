@@ -1,39 +1,35 @@
-LIVE CHECK: W08 swimming, seabed
+LIVE CHECK: W08 follow-ups
   godot --path . -- --sidecar-dev-fake --checklist
 Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
 
-1. On the platform: the water is
-   clear near it, the sea floor
-   visible below. Looks right?
-2. Walk off the platform into the
-   sea: you float, eyes just above
-   the waves. Space doesn't lift
-   you out.
-3. Look down, hold W: you dive.
-   Ctrl sinks, Space rises, Shift
-   is faster. Blue fog under water,
-   gone again at the surface.
-4. Swim down to the floor: it stops
-   you. Swim into the platform's
-   side: a wall, no climbing.
-5. Tab > New session... > a folder.
-   The island rises out of the
-   seabed (about 34 m in 3 s: too
-   fast?). Taken there: shelf,
-   drop-off, deep water around.
-6. Walk into the sea off its beach,
-   swim out over the drop-off,
-   then back and walk up the beach.
-   No hop, no getting stuck?
-7. Bridges: posts reach the floor.
-8. Tab > "Platform": back on it.
-9. Swim out again, M, click the
-   platform: back on it.
-10. End the session (/exit in its
-   terminal), step off its island:
-   it sinks into the seabed, fully.
-11. Smooth? Any stutter while
+1. Walk off the platform, swim out
+   a bit. Space alone: you float at
+   the surface, no leap.
+2. Dive a few metres, then hold
+   Shift + Space: you leap out of
+   the water and splash back in.
+   Feels right? Too high, too low?
+3. Dive, look steeply up, hold
+   Shift + W: you leap too, and
+   carry forward. Hold it: you can
+   porpoise along?
+4. Next to the platform: Shift +
+   Space up its side. You can't
+   land on the deck.
+5. Swim under water over the open
+   sea: banks, deeper water and
+   mounds. More varied than before?
+   Colour darkens with depth, no
+   hard bands?
+6. Tab > New session... > a folder.
+   Swim down its drop-off: its
+   colour matches the floor where
+   they meet?
+7. Sprint into its beach from the
+   water: you still walk out, no
+   hop.
+8. Smooth? Any stutter while
    swimming far (the floor builds
    around you)?

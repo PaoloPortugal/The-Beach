@@ -14,6 +14,12 @@ const CELL := 4.0
 ## (trenches included). Islands' drop-offs reach below DEEPEST.
 const SHALLOWEST := -14.0
 const DEEPEST := -30.0
+## Mounds and hollows on top of the banks and deeps: mostly within this
+## high or deep, a few up to about 1.6 times it (the depth is clamped after).
+const MOUNDS := 2.0
+## How hard the base noise is pushed toward the banks and the deeps, so
+## the floor uses its whole range rather than sitting in the middle.
+const SPREAD := 1.7
 ## Around the spawn platform the floor rises to PLATFORM_FLOOR, flat out to
 ## PLATFORM_FLAT metres and back to the open floor by PLATFORM_BLEND.
 const PLATFORM_FLOOR := -6.0
@@ -29,9 +35,14 @@ const BUILDS_PER_FRAME := 6
 const SAND := Color(0.70, 0.68, 0.54)
 const MID := Color(0.56, 0.58, 0.50)
 const DEEP := Color(0.42, 0.47, 0.46)
+## Where colour() is all SAND (above), all MID, and all DEEP (below).
+const SAND_TO := -10.0
+const MID_AT := -19.0
+const DEEP_FROM := -28.0
 
-static var _base := _noise(7101, 0.004, 3)
+static var _base := _warped(_noise(7101, 0.004, 3))
 static var _trench := _noise(7102, 0.003, 1)
+static var _mounds := _noise(7103, 0.025, 2)
 
 ## Chunk coordinates -> MeshInstance3D.
 var _chunks := {}
@@ -47,9 +58,22 @@ static func _noise(p_seed: int, frequency: float, octaves: int) -> FastNoiseLite
 	return n
 
 
+# Bends the noise's space so its banks wind and stretch rather than being
+# round blobs.
+static func _warped(n: FastNoiseLite) -> FastNoiseLite:
+	n.domain_warp_enabled = true
+	n.domain_warp_type = FastNoiseLite.DOMAIN_WARP_SIMPLEX
+	n.domain_warp_frequency = 0.003
+	n.domain_warp_amplitude = 90.0
+	n.domain_warp_fractal_type = FastNoiseLite.DOMAIN_WARP_FRACTAL_NONE
+	return n
+
+
 ## The floor's height at a world point. The same every run.
 static func height_at(x: float, z: float) -> float:
-	var open := lerpf(SHALLOWEST, DEEPEST - 4.0, _base.get_noise_2d(x, z) * 0.5 + 0.5)
+	var t := smoothstep(0.0, 1.0, clampf(_base.get_noise_2d(x, z) * SPREAD + 0.5, 0.0, 1.0))
+	var open := lerpf(SHALLOWEST - MOUNDS, DEEPEST + MOUNDS, t)
+	open += _mounds.get_noise_2d(x, z) * MOUNDS * 2.0
 	# Trenches along the noise's zero lines.
 	var ridge := 1.0 - absf(_trench.get_noise_2d(x, z))
 	open -= smoothstep(0.88, 1.0, ridge) * 8.0
@@ -175,10 +199,10 @@ static func _triangle(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b:
 		faces.append(v)
 
 
-## The floor's colour at a height: lighter sand in the shallows.
+## The floor's colour at a height: sand in the shallows, darkening
+## smoothly through MID to DEEP. Islands' shelves use it too (W01), so the
+## two match where they meet.
 static func colour(h: float) -> Color:
-	if h > -11.0:
-		return SAND
-	if h > -20.0:
-		return MID
-	return DEEP
+	if h > MID_AT:
+		return SAND.lerp(MID, inverse_lerp(SAND_TO, MID_AT, minf(h, SAND_TO)))
+	return MID.lerp(DEEP, inverse_lerp(MID_AT, DEEP_FROM, maxf(h, DEEP_FROM)))
