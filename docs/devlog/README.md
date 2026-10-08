@@ -77,3 +77,4 @@ reading; look things up by feature ID.
 | 2026-10-08 | [S06: sign-in needed](2026-10-08-s06-sign-in.md) | S06, S02, C02, A05 |
 | 2026-10-08 | [C08 token usage, built](2026-10-08-c08-usage.md) | C08, S02 |
 | 2026-10-08 | [W08: swimming and the seabed](2026-10-08-w08-swimming.md) | W08, W01, W02, W03, W04, W06, W07 |
+| 2026-10-08 | [W08 follow-ups: dolphin jump, shelf colours, sea floor](2026-10-08-w08-tuning.md) | W08, W01, W03 |

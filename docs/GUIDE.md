@@ -237,14 +237,21 @@ faster. There's no air to run out of: stay under as long as you like.
 Under the water everything turns blue and fades out after a few dozen
 metres.
 
+Swim up fast enough and you leap out of the water like a dolphin, then
+splash back in. Only a sprint does it: hold Shift with Space, or with W
+while looking steeply up. Swimming up at the normal speed just brings you
+to the surface.
+
 The sea floor is everywhere. It's shallow around the platform, and
-further out there are sandbanks, deeper water and trenches. Each island
-sits on its own shallow shelf, which drops away steeply to the deep sea
-floor. A new session's island rises out of the seabed, and an ended
+further out there are winding sandbanks, deeper water and trenches, all
+dotted with mounds and hollows. It's sandy where it's shallow and gets
+darker and greyer the deeper it goes. Each island sits on its own
+shallow shelf, which drops away steeply to the sea floor and darkens with
+it, so the two match where they meet. A new session's island rises out of the seabed, and an ended
 one sinks back into it, and you can watch both through the water.
 
 You get out of the water by swimming to a beach and walking up it. You
-can't climb onto the platform or a bridge from the water. To get back to
+can't climb or leap onto the platform or a bridge from the water. To get back to
 the platform from anywhere, choose **⌂ Platform** in the sessions menu
 (Tab), or click the platform on the big map (M).
 
