@@ -29,6 +29,11 @@ changes, `security-reviewer`) subagents
   conventional choice, go ahead and say what you picked.
 - **One branch per feature**, small reviewable commits. Say when a feature
   is ready; the user reviews before it merges to `main`.
+- **Delete a branch once its work is done**: after the user has pushed its
+  merge to `main`, remove its worktree and delete the branch, locally and on
+  `origin`, plus any local helper branches made for it (e.g.
+  `<branch>-work`). First check the worktree is clean and the branch is
+  fully in `origin/main`; if not, ask.
 - **The user changes things between sessions.** Re-read a file before
   editing it. If code and docs disagree, ask which is right.
 - Keep the "Current focus" line at the top of NOTES.md's next-steps section
