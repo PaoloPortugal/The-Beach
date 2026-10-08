@@ -292,6 +292,7 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
     case 'usage.updated':
       // The whole figures each time; the same again isn't news.
       if (JSON.stringify(e.usage) === JSON.stringify(s.usage)) return 'nothing changed'
+      if (new Set(e.usage.limits.map((l) => l.id)).size !== e.usage.limits.length) return 'a usage limit id given twice'
       s.usage = structuredClone(e.usage)
       return null
 

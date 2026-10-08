@@ -2,8 +2,9 @@ class_name UsageLimits
 extends CanvasLayer
 ## The plans' usage limits (C08), once per provider (each its own
 ## account), in the bottom-right corner: "5-hour 74% · resets 3:40 PM
-## Weekly 94% · resets Fri 9:00 AM". The most recent figures across each
-## provider's sessions ([method SessionStore.usage_limits]); a limit whose
+## Weekly 94% · resets Fri 9:00 AM", each limit by the provider's own
+## label, in its order. The most recent figures across each provider's
+## sessions ([method SessionStore.usage_limits]); a limit whose
 ## window is over is hidden until a session hears the new one. One line per
 ## provider, named ("Claude: 5-hour ...") only when more than one has
 ## limits. Always shown, the chat and the maps included (user's choice,
@@ -77,11 +78,10 @@ func refresh() -> void:
 	var lines: PackedStringArray = []
 	for provider in order:
 		var parts: PackedStringArray = []
-		for key in ["five_hour", "seven_day"]:
-			if limits[provider].has(key):
-				var l: Dictionary = limits[provider][key]
-				parts.append(UsageText.limit("5-hour" if key == "five_hour" else "Weekly",
-					float(l["used_percent"]), SessionStore.unix_time(l["resets_at"]), t))
+		# In the provider's order, by its own words (plain text: untrusted).
+		for l: Dictionary in limits[provider]:
+			parts.append(UsageText.limit(str(l["label"]), float(l["used_percent"]),
+				SessionStore.unix_time(l["resets_at"]), t))
 		var line := "   ".join(parts)
 		lines.append(line if order.size() == 1 else "%s: %s" % [_name(offered, provider), line])
 	_text.text = "\n".join(lines)

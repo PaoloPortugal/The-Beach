@@ -59,12 +59,18 @@ function epoch(v: unknown): string | null {
   return new Date(s * 1000).toISOString()
 }
 
-function limitIn(v: unknown): UsageLimit | null {
+/** Claude's limits in `rate_limits`, in this order, with Claude's own words for them. */
+const CLAUDE_LIMITS = [
+  { id: 'five_hour', label: '5-hour' },
+  { id: 'seven_day', label: 'Weekly' },
+] as const
+
+function limitIn(v: unknown, id: string, label: string): UsageLimit | null {
   if (typeof v !== 'object' || v === null) return null
   const r = v as Record<string, unknown>
   const used = num(r.used_percentage)
   const resets = epoch(r.resets_at)
-  return used === null || resets === null ? null : { used_percent: used, resets_at: resets }
+  return used === null || resets === null ? null : { id, label, used_percent: used, resets_at: resets }
 }
 
 /**
@@ -95,9 +101,11 @@ export function statusFiguresIn(p: Record<string, unknown>): StatusFigures {
   const rl = p.rate_limits
   if (typeof rl === 'object' && rl !== null) {
     const r = rl as Record<string, unknown>
-    const five = limitIn(r.five_hour)
-    const seven = limitIn(r.seven_day)
-    limits = { ...(five ? { five_hour: five } : {}), ...(seven ? { seven_day: seven } : {}) }
+    limits = []
+    for (const { id, label } of CLAUDE_LIMITS) {
+      const l = limitIn(r[id], id, label)
+      if (l) limits.push(l)
+    }
   }
   return { sessionId, context, limits }
 }
@@ -115,7 +123,7 @@ export class UsageCounter {
   private tokens = { input: 0, output: 0, cache_read: 0, cache_write: 0 }
   private context: Usage['context'] = null
   private turn: Usage['turn'] = { message: null, output_tokens: 0 }
-  private limits: Usage['limits'] = {}
+  private limits: Usage['limits'] = []
   /** Whether there is anything to show yet (the snapshot's usage is null until then). */
   private counted = false
 
@@ -154,9 +162,11 @@ export class UsageCounter {
         this.counted = true
       }
     }
-    // The account's limits; an input without them (not known yet) keeps the last.
+    // The account's limits, the last known of each: an input without one
+    // (not known yet, or its window over) keeps the last.
     if (f.limits) {
-      this.limits = f.limits
+      const known = new Map([...this.limits, ...f.limits].map((l) => [l.id, l]))
+      this.limits = CLAUDE_LIMITS.flatMap(({ id }) => known.get(id) ?? [])
       this.counted = true
     }
     return JSON.stringify(this.get()) !== before
@@ -168,7 +178,7 @@ export class UsageCounter {
     this.tokens = { input: 0, output: 0, cache_read: 0, cache_write: 0 }
     this.context = null
     this.turn = { message: null, output_tokens: 0 }
-    this.counted = Object.keys(this.limits).length > 0
+    this.counted = this.limits.length > 0
   }
 
   /** Starts from a conversation read from its transcript (/resume), keeping the account's limits. */
@@ -180,7 +190,7 @@ export class UsageCounter {
     this.context = read.context ? { ...read.context } : null
     this.turn = { ...read.turn }
     this.limits = limits
-    this.counted = read.counted || Object.keys(limits).length > 0
+    this.counted = read.counted || limits.length > 0
   }
 
   /** The current figures, or null before there's anything to show. */

@@ -795,7 +795,7 @@ func _usage(world: Node3D, store: SessionStore, panel: ChatPanel) -> void:
 	var usage := {
 		"tokens": {"input": 40, "output": 1234, "cache_read": 52000, "cache_write": 9000},
 		"context": {"tokens": 61040, "percent": 31, "window": 200000},
-		"turn": {"message": "uu1", "output_tokens": 1234}, "limits": {},
+		"turn": {"message": "uu1", "output_tokens": 1234}, "limits": [],
 	}
 	var say := func(id: String, role: String, seq: int) -> void:
 		store.apply({"type": "message.started", "session": "h1", "seq": seq, "message": id, "agent": "main", "role": role})
@@ -827,13 +827,15 @@ func _usage(world: Node3D, store: SessionStore, panel: ChatPanel) -> void:
 	# The plan's limits: once, the latest across sessions, hidden once over.
 	var now := SessionStore.unix_time("2026-10-08T12:00:00Z")
 	corner.now = func() -> float: return now
-	usage["limits"] = {"five_hour": {"used_percent": 74, "resets_at": "2026-10-08T13:00:00.000Z"}}
+	var five := {"id": "five_hour", "label": "5-hour", "used_percent": 74, "resets_at": "2026-10-08T13:00:00.000Z"}
+	var week := {"id": "seven_day", "label": "Weekly", "used_percent": 94, "resets_at": "2026-10-10T09:00:00.000Z"}
+	usage["limits"] = [five]
 	store.apply({"type": "usage.updated", "session": "h1", "seq": 53, "usage": usage.duplicate(true)})
 	_check(corner.text().begins_with("5-hour 74% · resets "), "usage: the 5-hour limit in the corner")
 	var other := store.session("h2").duplicate(true)
 	other["seq"] = 40
 	other["usage"] = {"tokens": usage["tokens"], "context": null, "turn": {"message": null, "output_tokens": 0},
-		"limits": {"five_hour": {"used_percent": 76, "resets_at": "2026-10-08T13:00:00.000Z"}, "seven_day": {"used_percent": 94, "resets_at": "2026-10-10T09:00:00.000Z"}}}
+		"limits": [five.merged({"used_percent": 76}, true), week]}
 	store.apply({"type": "session.snapshot", "session": other})
 	_check(corner.text().begins_with("5-hour 76%") and corner.text().contains("   Weekly 94% · resets "), "usage: the latest figures across sessions, both limits")
 	# Each provider's limits are its own account's: a line each, named.
@@ -869,6 +871,13 @@ func _usage(world: Node3D, store: SessionStore, panel: ChatPanel) -> void:
 	corner.now = func() -> float: return after
 	corner.refresh()
 	_check(corner.text() == "", "usage: none once every window is over")
+	# The provider's own words, in its order, as plain text (untrusted).
+	corner.now = func() -> float: return now
+	other["seq"] = 43
+	other["usage"]["limits"] = [week.merged({"label": "[b]Weekly[/b]"}, true), five.merged({"id": "daily", "label": "Today"}, true)]
+	store.apply({"type": "session.snapshot", "session": other.duplicate(true)})
+	_check(corner.text().begins_with("[b]Weekly[/b] 94% · resets ") and corner.text().contains("   Today 74% · resets ") and not corner.text().contains("5-hour 76"),
+		"usage: the provider's labels and order, shown as they are: %s" % corner.text())
 	corner.now = func() -> float: return Time.get_unix_time_from_system()
 
 

@@ -19,8 +19,9 @@ import { ourStatusLine, statusLineSettingsFiles, userStatusLine } from '../src/p
 import { HookServer, STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { writeRelayFile } from '../src/launch/relay.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { checkMessage, type Usage } from '../src/protocol.ts'
+import { checkMessage, type Usage, type UsageLimit } from '../src/protocol.ts'
 import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
+import { FakeProvider } from './fake-provider.ts'
 
 const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'main.ts')
 const tmp = (prefix: string) => fs.mkdtempSync(path.join(os.tmpdir(), prefix))
@@ -57,6 +58,9 @@ const STATUS = (sid: string, extra: object = {}) => ({
   ...extra,
 })
 
+/** One limit of some usage figures, by id. */
+const lim = (u: { limits: UsageLimit[] }, id: string) => u.limits.find((l) => l.id === id)
+
 // ---- counting ----
 
 test('callUsageIn: an assistant entry of the main conversation; subagents, other entries and odd figures left out', () => {
@@ -76,25 +80,25 @@ test('statusFiguresIn: context and limits only; cost, spend limit and the rest i
   assert.deepEqual(f, {
     sessionId: 's1',
     context: { tokens: 24000, percent: 12, window: 200000 },
-    limits: {
-      five_hour: { used_percent: 23.5, resets_at: new Date(1791000000 * 1000).toISOString() },
-      seven_day: { used_percent: 41.2, resets_at: new Date(1791500000 * 1000).toISOString() },
-    },
-  })
+    limits: [
+      { id: 'five_hour', label: '5-hour', used_percent: 23.5, resets_at: new Date(1791000000 * 1000).toISOString() },
+      { id: 'seven_day', label: 'Weekly', used_percent: 41.2, resets_at: new Date(1791500000 * 1000).toISOString() },
+    ],
+  }, "Claude's order and words")
   // Early in a session: no current usage, no % yet, no limits.
   assert.deepEqual(statusFiguresIn({ session_id: 's1', context_window: { context_window_size: 200000, used_percentage: null, current_usage: null } }),
     { sessionId: 's1', context: { tokens: null, percent: null, window: 200000 }, limits: null })
   // Broken or hostile input: nothing taken from it.
-  assert.deepEqual(statusFiguresIn({ session_id: 5, context_window: 'x', rate_limits: [] }), { sessionId: null, context: null, limits: {} })
+  assert.deepEqual(statusFiguresIn({ session_id: 5, context_window: 'x', rate_limits: [] }), { sessionId: null, context: null, limits: [] })
   assert.deepEqual(statusFiguresIn({ rate_limits: { five_hour: { used_percentage: 5, resets_at: 1e15 }, seven_day: { used_percentage: -1, resets_at: 1 } } }).limits,
-    {}, 'an absurd time or a negative % drops that limit')
+    [], 'an absurd time or a negative % drops that limit')
 })
 
 test('UsageCounter: each call once, context from the latest, a turn\'s output tokens, /clear and /resume', () => {
   const u = new UsageCounter()
   assert.equal(u.get(), null, 'nothing to show before the first count')
   u.newTurn('p1')
-  assert.deepEqual(u.get(), { tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, context: null, turn: { message: 'p1', output_tokens: 0 }, limits: {} })
+  assert.deepEqual(u.get(), { tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, context: null, turn: { message: 'p1', output_tokens: 0 }, limits: [] })
   assert.equal(u.add({ id: 'a', input: 10, output: 100, cacheRead: 1000, cacheWrite: 50 }), true)
   assert.equal(u.add({ id: 'a', input: 10, output: 100, cacheRead: 1000, cacheWrite: 50 }), false, 'the same call again (another entry of it)')
   u.add({ id: 'b', input: 5, output: 20, cacheRead: 1200, cacheWrite: 0 })
@@ -112,17 +116,24 @@ test('UsageCounter: each call once, context from the latest, a turn\'s output to
   g = u.get()!
   assert.deepEqual(g.context, { tokens: 30000, percent: 15, window: 200000 })
   assert.deepEqual(g.turn, { message: 'p2', output_tokens: 7 }, 'a new turn counts from 0')
-  assert.equal(g.limits.five_hour?.used_percent, 23.5)
+  assert.equal(lim(g, 'five_hour')?.used_percent, 23.5)
   // A status line input without limits (not known yet) keeps the last.
   u.status(statusFiguresIn(STATUS('s', { rate_limits: undefined })))
-  assert.equal(u.get()!.limits.seven_day?.used_percent, 41.2)
+  assert.equal(lim(u.get()!, 'seven_day')?.used_percent, 41.2)
+  // One without a limit (its window over, so Claude Code drops it) keeps
+  // the last of that one; the rest are the new figures, in Claude's order.
+  assert.equal(u.status(statusFiguresIn(STATUS('s', { rate_limits: { seven_day: { used_percentage: 50, resets_at: 1791500000 } } }))), true)
+  assert.deepEqual(u.get()!.limits.map((l) => [l.id, l.used_percent]), [['five_hour', 23.5], ['seven_day', 50]])
+  u.status(statusFiguresIn(STATUS('s', { rate_limits: { five_hour: { used_percentage: 2, resets_at: 1791018000 } } })))
+  assert.deepEqual(u.get()!.limits.map((l) => [l.id, l.used_percent]), [['five_hour', 2], ['seven_day', 50]])
+  u.status(statusFiguresIn(STATUS('s')))
 
   // /clear: counts start over, the account's limits stay.
   u.reset()
   g = u.get()!
   assert.deepEqual(g.tokens, { input: 0, output: 0, cache_read: 0, cache_write: 0 })
   assert.equal(g.context, null)
-  assert.equal(g.limits.five_hour?.used_percent, 23.5)
+  assert.equal(lim(g, 'five_hour')?.used_percent, 23.5)
   assert.equal(u.add({ id: 'a', input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }), true, 'calls are counted again in a new conversation')
 
   // /resume: the read conversation's counts, limits kept; a call already read isn't counted twice.
@@ -133,7 +144,7 @@ test('UsageCounter: each call once, context from the latest, a turn\'s output to
   g = u.get()!
   assert.deepEqual(g.tokens, { input: 2, output: 3, cache_read: 4, cache_write: 5 })
   assert.deepEqual(g.turn, { message: 'r1', output_tokens: 3 })
-  assert.equal(g.limits.five_hour?.used_percent, 23.5)
+  assert.equal(lim(g, 'five_hour')?.used_percent, 23.5)
   assert.equal(u.add({ id: 'r', input: 2, output: 3, cacheRead: 4, cacheWrite: 5 }), false)
   // get() is a copy.
   g.tokens.input = 999
@@ -160,7 +171,7 @@ test('readConversation: totals, the latest context, and each user message\'s tur
     tokens: { input: 22, output: 143, cache_read: 1100, cache_write: 510 },
     context: { tokens: 617, percent: null, window: null },
     turn: { message: 'u2', output_tokens: 3 },
-    limits: {},
+    limits: [],
   })
   assert.equal(readConversation(path.join(dir, 'missing.jsonl')).usage.get(), null)
 })
@@ -542,7 +553,7 @@ test('a session declares usage; its figures follow the transcript live, each cal
     assert.deepEqual(await x.status(STATUS(x.nativeId)), { status: 200, body: '' })
     u = await x.usage()
     assert.deepEqual(u.context, { tokens: 24000, percent: 12, window: 200000 })
-    assert.equal(u.limits.five_hour?.used_percent, 23.5)
+    assert.equal(lim(u, 'five_hour')?.used_percent, 23.5)
     // Another conversation's status line (not the one the world follows) is ignored; so is the same again.
     await x.status(STATUS(crypto.randomUUID(), { context_window: { context_window_size: 1, used_percentage: 99 } }))
     await x.status(STATUS(x.nativeId))
@@ -564,7 +575,7 @@ test('a session declares usage; its figures follow the transcript live, each cal
     u = await x.usage()
     assert.deepEqual(u.tokens, { input: 0, output: 0, cache_read: 0, cache_write: 0 })
     assert.equal(u.context, null)
-    assert.equal(u.limits.five_hour?.used_percent, 23.5)
+    assert.equal(lim(u, 'five_hour')?.used_percent, 23.5)
   } finally { await x.close() }
 })
 
@@ -585,13 +596,36 @@ test('with a status line of the user\'s own, the session keeps it: no statusLine
 test('usage.updated fits the schema; a bad one doesn\'t', () => {
   const good = {
     type: 'usage.updated', session: 's', seq: 1,
-    usage: { tokens: { input: 1, output: 2, cache_read: 3, cache_write: 4 }, context: { tokens: 5, percent: 1.5, window: 200000 }, turn: { message: null, output_tokens: 0 }, limits: { five_hour: { used_percent: 101, resets_at: '2026-10-08T10:00:00.000Z' } } },
+    usage: { tokens: { input: 1, output: 2, cache_read: 3, cache_write: 4 }, context: { tokens: 5, percent: 1.5, window: 200000 }, turn: { message: null, output_tokens: 0 }, limits: [{ id: 'five_hour', label: '5-hour', used_percent: 101, resets_at: '2026-10-08T10:00:00.000Z' }] },
   }
+  const one = good.usage.limits[0]!
   assert.ok(checkMessage(good).ok)
   for (const bad of [
     { ...good, usage: { ...good.usage, tokens: { ...good.usage.tokens, input: -1 } } },
     { ...good, usage: { ...good.usage, context: { tokens: 1, percent: null, window: 0 } } },
-    { ...good, usage: { ...good.usage, limits: { spend_limit: { used_percent: 1, resets_at: '2026-10-08T10:00:00.000Z' } } } },
+    { ...good, usage: { ...good.usage, limits: { five_hour: one } } }, // the old shape
+    { ...good, usage: { ...good.usage, limits: [{ ...one, label: '' }] } },
+    { ...good, usage: { ...good.usage, limits: [{ ...one, label: 'x'.repeat(41) }] } },
+    { ...good, usage: { ...good.usage, limits: [{ ...one, id: 'Five hour' }] } },
+    { ...good, usage: { ...good.usage, limits: [{ id: 'five_hour', used_percent: 1, resets_at: one.resets_at }] } },
+    { ...good, usage: { ...good.usage, limits: [{ ...one, cost: 1 }] } },
     { ...good, usage: { ...good.usage, cost: 1 } },
   ]) assert.ok(!checkMessage(bad as Msg).ok, JSON.stringify(bad.usage))
+})
+
+test('registry: a usage.updated giving one limit id twice is dropped', async () => {
+  const p = new FakeProvider({ capabilities: { usage: {} } })
+  const s = await testServer([p])
+  const c = await connect(s.port, s.token)
+  try {
+    await c.sync()
+    await c.command({ type: 'session.create', provider: 'fake', project: { path: os.tmpdir() } })
+    await c.next('session.created')
+    const host = p.sessions[0]!.host
+    const five: UsageLimit = { id: 'five_hour', label: '5-hour', used_percent: 10, resets_at: '2026-10-08T10:00:00.000Z' }
+    const usage = (limits: UsageLimit[]): Usage => ({ tokens: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, context: null, turn: { message: null, output_tokens: 0 }, limits })
+    assert.equal(host.emit({ type: 'usage.updated', usage: usage([five, { ...five, used_percent: 20 }]) }), false)
+    assert.equal(host.emit({ type: 'usage.updated', usage: usage([five, { ...five, id: 'seven_day', label: 'Weekly' }]) }), true)
+    assert.equal(host.emit({ type: 'usage.updated', usage: usage([]) }), true, 'none known')
+  } finally { await c.close(); await s.close() }
 })

@@ -200,7 +200,7 @@ func _by_hand() -> void:
 	_check(store.sessions.is_empty(), "events for unknown sessions are ignored")
 
 
-func _usage(turn_message, turn_tokens: int, limits := {}, context = null) -> Dictionary:
+func _usage(turn_message, turn_tokens: int, limits := [], context = null) -> Dictionary:
 	return {
 		"tokens": {"input": 40, "output": 1200, "cache_read": 52000, "cache_write": 9000},
 		"context": context, "turn": {"message": turn_message, "output_tokens": turn_tokens}, "limits": limits,
@@ -244,31 +244,47 @@ func _usage_by_hand() -> void:
 	# the highest use; a window that's over is left out.
 	var now := SessionStore.unix_time("2026-10-08T12:00:00Z")
 	_check(now == 1791460800.0 and SessionStore.unix_time("2026-10-08T12:00:00.000Z") == now and SessionStore.unix_time(null) == 0.0, "usage: timestamps read as UTC")
-	var lim := func(used: float, at: String) -> Dictionary: return {"used_percent": used, "resets_at": at}
+	var lim := func(id: String, used: float, at: String) -> Dictionary:
+		return {"id": id, "label": {"five_hour": "5-hour", "seven_day": "Weekly"}.get(id, id), "used_percent": used, "resets_at": at}
+	# A provider's limits as [id, used_percent], in order.
+	var figures := func(limits: Array) -> Array: return limits.map(func(l: Dictionary) -> Array: return [l["id"], roundi(l["used_percent"])])
 	store.apply({"type": "usage.updated", "session": "u", "seq": 10, "usage": _usage("m1", 900,
-		{"five_hour": lim.call(70, "2026-10-08T14:00:00.000Z"), "seven_day": lim.call(94, "2026-10-10T09:00:00.000Z")})})
+		[lim.call("five_hour", 70, "2026-10-08T14:00:00.000Z"), lim.call("seven_day", 94, "2026-10-10T09:00:00.000Z")])})
 	var other := _snapshot("v")
 	other["capabilities"] = {"usage": {}}
-	other["usage"] = _usage(null, 0, {"five_hour": lim.call(75, "2026-10-08T14:00:00.000Z"), "seven_day": lim.call(90, "2026-10-10T09:00:00.000Z")})
+	other["usage"] = _usage(null, 0, [lim.call("five_hour", 75, "2026-10-08T14:00:00.000Z"), lim.call("seven_day", 90, "2026-10-10T09:00:00.000Z")])
 	store.apply({"type": "session.snapshot", "session": other})
-	var limits: Dictionary = store.usage_limits(now)["fake"]
-	_check(limits["five_hour"]["used_percent"] == 75 and limits["seven_day"]["used_percent"] == 94, "usage: the same window: the highest use, across sessions")
+	var limits: Array = store.usage_limits(now)["fake"]
+	_check(figures.call(limits) == [["five_hour", 75], ["seven_day", 94]], "usage: the same window: the highest use, across sessions")
+	_check(limits[0]["label"] == "5-hour" and limits[1]["label"] == "Weekly", "usage: each limit keeps the provider's label")
 	store.apply({"type": "usage.updated", "session": "u", "seq": 11, "usage": _usage("m1", 900,
-		{"five_hour": lim.call(3, "2026-10-08T19:00:00.000Z")})})
+		[lim.call("five_hour", 3, "2026-10-08T19:00:00.000Z")])})
 	limits = store.usage_limits(now)["fake"]
-	_check(limits["five_hour"]["used_percent"] == 3 and limits["seven_day"]["used_percent"] == 90, "usage: a later window wins; an absent limit leaves the other session's")
-	# Another provider's limits are its own account's: kept apart.
+	_check(figures.call(limits) == [["five_hour", 3], ["seven_day", 90]], "usage: a later window wins; an absent limit leaves the other session's")
+	# The provider's order holds across sessions, whichever has which.
+	store.apply({"type": "usage.updated", "session": "u", "seq": 12, "usage": _usage("m1", 900,
+		[lim.call("seven_day", 91, "2026-10-10T09:00:00.000Z")])})
+	_check(figures.call(store.usage_limits(now)["fake"]) == [["five_hour", 75], ["seven_day", 91]], "usage: the provider's order across sessions")
+	store.apply({"type": "usage.updated", "session": "u", "seq": 13, "usage": _usage("m1", 900,
+		[lim.call("five_hour", 3, "2026-10-08T19:00:00.000Z")])})
+	# Another provider's limits are its own account's, its own ids and
+	# words, kept apart.
 	var codex := _snapshot("w")
 	codex["provider"] = "codex"
 	codex["capabilities"] = {"usage": {}}
-	codex["usage"] = _usage(null, 0, {"five_hour": lim.call(99, "2026-10-08T23:00:00.000Z")})
+	codex["usage"] = _usage(null, 0, [lim.call("daily", 99, "2026-10-08T23:00:00.000Z"), lim.call("five_hour", 10, "2026-10-08T15:00:00.000Z")])
 	store.apply({"type": "session.snapshot", "session": codex})
 	var both := store.usage_limits(now)
-	_check(both.size() == 2 and both["codex"] == {"five_hour": lim.call(99, "2026-10-08T23:00:00.000Z")}
-		and both["fake"]["five_hour"]["used_percent"] == 3 and both["fake"]["seven_day"]["used_percent"] == 90, "usage: limits per provider, never mixed")
+	_check(both.size() == 2 and both["codex"] == codex["usage"]["limits"]
+		and figures.call(both["fake"]) == [["five_hour", 3], ["seven_day", 90]], "usage: limits per provider, never mixed")
 	limits = store.usage_limits(SessionStore.unix_time("2026-10-08T20:00:00Z"))["fake"]
-	_check(limits.size() == 1 and limits["seven_day"]["used_percent"] == 90, "usage: a limit past its reset is left out")
+	_check(figures.call(limits) == [["seven_day", 90]], "usage: a limit past its reset is left out")
 	_check(store.usage_limits(SessionStore.unix_time("2026-10-11T00:00:00Z")).is_empty(), "usage: none once every window is over, nor its provider")
+	var none := _snapshot("x")
+	none["capabilities"] = {"usage": {}}
+	none["usage"] = _usage(null, 0)
+	store.apply({"type": "session.snapshot", "session": none})
+	_check(not store.usage_limits(now).has("") and store.usage_limits(now)["fake"].size() == 2, "usage: an empty list adds nothing")
 
 
 func _usage_text() -> void:
@@ -280,7 +296,7 @@ func _usage_text() -> void:
 			wrong.append("%d → %s" % [n, UsageText.tokens(n)])
 	_check(wrong.is_empty(), "usage text: compact counts %s" % [wrong])
 	_check(UsageText.exact(1234567) == "1,234,567" and UsageText.exact(12) == "12", "usage text: exact counts")
-	var u := _usage("m1", 1234, {}, {"tokens": 62200, "percent": 31.4, "window": 200000})
+	var u := _usage("m1", 1234, [], {"tokens": 62200, "percent": 31.4, "window": 200000})
 	_check(UsageText.header(u) == "Context 31% · ↑ 61k in · ↓ 1.2k out", "usage text: the header with a context %%: %s" % UsageText.header(u))
 	u["context"] = {"tokens": 62200, "percent": null, "window": null}
 	_check(UsageText.header(u) == "Context 62k · ↑ 61k in · ↓ 1.2k out", "usage text: without the status line, context in tokens")
@@ -363,7 +379,9 @@ func _live() -> void:
 	var usage: Dictionary = store.session(id)["usage"]
 	var asked: Dictionary = store.messages(id).filter(func(m: Dictionary) -> bool: return m["role"] == "user").back()
 	_check(usage["context"]["percent"] >= 80 and usage["context"]["window"] == 200000, "live: the heavy turn fills the context")
-	_check(store.usage_limits(Time.get_unix_time_from_system())["fake"]["five_hour"]["used_percent"] >= 85, "live: and the 5-hour limit")
+	var fake_limits: Array = store.usage_limits(Time.get_unix_time_from_system())["fake"]
+	_check(fake_limits.map(func(l: Dictionary) -> String: return l["label"]) == ["5-hour", "Weekly"] and fake_limits[0]["id"] == "five_hour"
+		and fake_limits[0]["used_percent"] >= 85, "live: and the 5-hour limit, in the provider's order and words")
 	_check(usage["turn"]["message"] == asked["message"] and asked["turn_tokens"] == usage["turn"]["output_tokens"] and asked["turn_tokens"] >= 4 * 2500, "live: the turn's tokens are on its message")
 	history = await _command(sidecar, "session.get_history", {"session": id})
 	# A turn with no tokens may have 0 here and none there: neither shows.
@@ -374,7 +392,7 @@ func _live() -> void:
 	await _command(sidecar, "message.send", {"session": id, "text": "clear"})
 	await _until(func() -> bool: return store.session(id)["usage"]["turn"]["message"] == null, 5.0)
 	usage = store.session(id)["usage"]
-	_check(usage["tokens"]["output"] == 0 and usage["context"] == null and usage["limits"].has("five_hour"), "live: /clear starts the counts over, keeping the limits")
+	_check(usage["tokens"]["output"] == 0 and usage["context"] == null and usage["limits"].size() == 2, "live: /clear starts the counts over, keeping the limits")
 
 	await _command(sidecar, "session.end", {"session": id})
 	await _until(func() -> bool: return not store.sessions.has(id), 5.0)
