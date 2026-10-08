@@ -2824,12 +2824,15 @@ rules), so the world only points there.
   (a box cleared stays clear; the warning stays). Sending again, a user
   message arriving or the orchestrator starting to work clears the
   warning; picked up late, the text given back leaves the box too if the
-  box still holds just that, so one Enter can't send it twice. Generic:
-  it reads only the store. Tested with the fake's `lost` word
-  (`dev-fake.test.ts`: accepted, then no event; `world_test.gd` live:
-  idle and waiting on `sign_in`, busy not watched, a draft typed before
-  the warning kept, reopening, once only, a late pickup by a user
-  message or by the orchestrator working, applied by hand).
+  box still holds just that (chat open or not), so one Enter can't send
+  it twice. Any user message counts as the pickup, so one typed in the
+  terminal after the warning also takes that text out of the box
+  (Open questions → 10). Generic: it reads only the store. Tested with
+  the fake's `lost` word (`dev-fake.test.ts`: accepted, then no event;
+  `world_test.gd` live: idle and waiting on `sign_in`, busy not watched,
+  a draft typed before the warning kept, reopening, once only, a late
+  pickup by a user message or by the orchestrator working, applied by
+  hand, an edited box left alone, and with the chat closed).
 - *Live check (2026-10-08)* with the user and the real `claude` 2.1.294,
   an invalid API key: a message typed in the terminal brought the
   notice, the status, the "!" and the beacon; one sent from the world
@@ -3193,14 +3196,24 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    used, which may be the user's own. kitty (remote control) and WezTerm
    (`cli spawn`) can target a window if told which. My recommendation: a
    window each there until someone can test.
+10. **The shared message box (S06 review, 2026-10-08).** One box serves
+    every session's chat and is kept when the chat closes, so a draft,
+    or a message given back by the pickup notice, goes along into
+    another session's chat (from before S06). My recommendation: empty
+    the box when opening a different session's chat. Also: a late
+    pickup takes the given-back text out of the box even when the
+    message that arrived was typed in the terminal (the world's was
+    lost); the alternative is to take it out only when the arriving
+    message has the same text, which depends on how each provider
+    reports a message from the world.
 
 ## Known issues and next steps
 
 **Current focus:** S06 sign-in needed, built on `s06-sign-in`; live
 check done with an invalid key, the pickup notice added after it;
 the review's notes fixed and tested; ready for the user's review (dev
-log 2026-10-08-s06-sign-in). Open: whether opening another session's
-chat should empty the shared message box. A login expiring on its own is a watch item.
+log 2026-10-08-s06-sign-in). Open: the shared message box (Open
+questions → 10). A login expiring on its own is a watch item.
 **Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
 (dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
 and totals in the chat header, each turn's tokens, the plans' limits in

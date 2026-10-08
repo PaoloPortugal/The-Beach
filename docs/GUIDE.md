@@ -527,7 +527,9 @@ text goes back in the box (only if the box is empty: otherwise when you
 next open the chat with it empty; and only once, so if you clear it, it
 stays clear). The warning goes when you send again or Claude Code picks
 a message up. If your message turns up after all, the text put back in
-the box goes too, unless you changed it, so it isn't sent twice. (Messages you send while Claude is busy wait
+the box goes too, unless you changed it, so it isn't sent twice. A
+message you type in the terminal counts too: after it, the text put back
+goes, so copy it first if you still want to send it. (Messages you send while Claude is busy wait
 for its turn to end, so they don't get this warning.)
 
 ## The sidecar (S01)
