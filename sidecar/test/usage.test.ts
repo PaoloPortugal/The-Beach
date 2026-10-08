@@ -230,10 +230,12 @@ test('askWindows, for real: a hostile folder name runs nothing, and any answer i
   const base = tmp('ask-')
   const cwd = tmp('ask-cwd-')
   const before = fs.existsSync(path.join(os.tmpdir(), 'PWNED'))
+  const shortNames = makesShortNames(tmp('probe-'))
   for (const name of ['$(New-Item PWNED)', '`ni PWNED`', "a';ni PWNED;'b"]) {
     const dir = path.join(base, name)
     fs.mkdirSync(dir)
     const answer = askWindows(dir, { cwd, run })
+    if (shortNames) assert.ok(answer, `${name}: Windows answers on a volume with short names`)
     if (answer !== null) assert.equal(fileId(answer), fileId(dir), `${name}: the same folder`)
     for (const d of [cwd, base, dir, process.cwd()]) assert.ok(!fs.existsSync(path.join(d, 'PWNED')), `${name}: nothing ran (${d})`)
   }

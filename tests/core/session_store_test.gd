@@ -363,7 +363,7 @@ func _live() -> void:
 	var usage: Dictionary = store.session(id)["usage"]
 	var asked: Dictionary = store.messages(id).filter(func(m: Dictionary) -> bool: return m["role"] == "user").back()
 	_check(usage["context"]["percent"] >= 80 and usage["context"]["window"] == 200000, "live: the heavy turn fills the context")
-	_check(store.usage_limits(Time.get_unix_time_from_system())["five_hour"]["used_percent"] >= 85, "live: and the 5-hour limit")
+	_check(store.usage_limits(Time.get_unix_time_from_system())["fake"]["five_hour"]["used_percent"] >= 85, "live: and the 5-hour limit")
 	_check(usage["turn"]["message"] == asked["message"] and asked["turn_tokens"] == usage["turn"]["output_tokens"] and asked["turn_tokens"] >= 4 * 2500, "live: the turn's tokens are on its message")
 	history = await _command(sidecar, "session.get_history", {"session": id})
 	# A turn with no tokens may have 0 here and none there: neither shows.
