@@ -103,6 +103,7 @@ v1 slice.
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
+| C09 | Debug commands                            | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -2109,6 +2110,17 @@ How it works:
   heavy turn (context ≥ 80%, 5-hour ≥ 85%); a resumed stored session
   comes back with its usage so far (1,840 output tokens on its first
   message); `clear` starts the counts over, keeping the limits.
+
+### C09 Debug commands
+*Planned (user's request, 2026-10-08), for the developer while
+debugging; not scheduled.* Typed commands in the style of Minecraft's,
+to change the world's state on the spot, e.g. `/weather <clear, rain,
+thunder, wind>` and `/time set <day, night, {seconds}s, {minutes}m>`
+(W09). Scope: core (world only). They'd take over from W09's dev flags
+(`--hour`, `--weather`, `--day-minutes`). Undesigned: where you type
+them (a console key, or the chat box with a leading `/`, which would
+clash with commands meant for the session), the full command list, and
+whether they ship in public builds or only in debug builds.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
