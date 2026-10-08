@@ -207,6 +207,15 @@ func _sky(world: Node3D, player: Player) -> void:
 	day._process(15.0)
 	_check(absf(day.time - fposmod(t + 0.5, 1.0)) < 0.001, "--day-minutes shortens the day")
 	day.cycle = DayNight.CYCLE
+	# Performance: each change to the sky redraws its reflection map, so a
+	# change too small to see isn't sent.
+	day.set_hour(10.0)
+	var sky: ShaderMaterial = env.sky.sky_material
+	var sent: Vector3 = sky.get_shader_parameter("sun_direction")
+	day._process(0.5)
+	_check(sky.get_shader_parameter("sun_direction") == sent, "the sky isn't redrawn for a change too small to see")
+	day._process(5.0)
+	_check(sky.get_shader_parameter("sun_direction") != sent, "but is once it shows")
 
 	day.set_hour(0.0)
 	var moon := -DayNight.sun_direction(day.time)
@@ -225,6 +234,10 @@ func _sky(world: Node3D, player: Player) -> void:
 	var torches := island.torches()
 	var on_beach := torches.all(func(n: NightLight) -> bool: return absf(n.position.y - 0.5) < 0.5 and Vector2(n.position.x, n.position.z).length() > 5.0)
 	_check(torches.size() == Island.TORCHES and on_beach, "an island has %d torches along its beach" % Island.TORCHES)
+	var lights: Array[OmniLight3D] = []
+	for n: NightLight in torches + [lamp]:
+		lights.append_array(n.find_children("*", "OmniLight3D", true, false))
+	_check(lights.size() == torches.size() + 1 and lights.all(func(l: OmniLight3D) -> bool: return not l.shadow_enabled and l.distance_fade_enabled and l.distance_fade_begin + l.distance_fade_length <= 100.0), "night lights cast no shadows and fade out within 100 m")
 	_check(torches.all(func(n: NightLight) -> bool: return n.is_lit()) and lamp.is_lit(), "made at night, the torches and the desk lamp are lit")
 	day.set_hour(12.0)
 	await _settle()
@@ -306,6 +319,8 @@ func _sky(world: Node3D, player: Player) -> void:
 	player.velocity = Vector3.ZERO
 	await _until(func() -> bool: return world.underwater.active and not rain.emitting, 2.0)
 	_check(world.underwater.active and not rain.emitting, "no rain under the water")
+	var no_shadows := clouds.get_children().all(func(c: GeometryInstance3D) -> bool: return c.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+	_check(no_shadows and rain.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and bolt.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "clouds, rain and the bolt cast no shadows")
 	weather.lightning_enabled = true
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	day.set_hour(10.0)

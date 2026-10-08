@@ -28,6 +28,8 @@ uniform float wave_length = 14.0;
 uniform float wave_phase = 0.0;
 // Rain on the water, 0 to 1: rings where drops land.
 uniform float rain = 0.0;
+// How far from the camera the rings are drawn, metres.
+uniform float rings_reach = 60.0;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 
 varying float height;
@@ -90,7 +92,9 @@ void fragment() {
 		vec3 tint = d < 0.25 ? mix(shallow_colour.rgb, water_colour.rgb, d / 0.25)
 			: mix(water_colour.rgb, deep_colour.rgb, (d - 0.25) / 0.75);
 		ALBEDO = mix(tint, crest_colour.rgb, clamp(height * 0.5 + 0.5, 0.0, 1.0) * 0.35);
-		if (rain > 0.0) {
+		// Rings only near the camera: further out they'd be too small to
+		// see, only shimmer, and cost.
+		if (rain > 0.0 && -VERTEX.z < rings_reach) {
 			ALBEDO = mix(ALBEDO, vec3(0.85, 0.92, 0.95), rings(world_xz, TIME) * 0.5);
 		}
 		float through = max(length(behind.xyz) - length(VERTEX), 0.0);
