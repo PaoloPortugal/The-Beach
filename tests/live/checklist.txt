@@ -11,9 +11,9 @@ Part A: fake provider
    dim "↓ ... tokens"?
 2. Bottom right: "5-hour <n>% ·
    resets <time>   Weekly <n>% ·
-   resets <day> <time>"? Readable, out of the way?
-   Still there with the chat open, on
-   Tab and on M?
+   resets <day> <time>"? Readable,
+   out of the way? Still there with
+   the chat open, on Tab and on M?
 3. Say "usage". While it reads 4
    files, the dim line at the end goes
    up after each, then sits under the
