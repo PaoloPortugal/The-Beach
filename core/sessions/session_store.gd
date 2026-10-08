@@ -339,6 +339,12 @@ func apply(msg: Dictionary) -> void:
 			notices.assign(notices.filter(func(n: Dictionary) -> bool: return n["code"] != notice["code"]))
 			notices.append(notice)
 			notices_changed.emit(id)
+		"session.notice_cleared":
+			var notices: Array = s["notices"]
+			var before := notices.size()
+			notices.assign(notices.filter(func(n: Dictionary) -> bool: return n["code"] != msg["code"]))
+			if notices.size() != before:
+				notices_changed.emit(id)
 		"session.updated":
 			var fields := []
 			for key in msg:

@@ -1,59 +1,56 @@
-LIVE CHECK: C08 token usage
-
+LIVE CHECK: S06 sign-in needed
 Part A: fake provider
   godot --path . -- --sidecar-dev-fake --checklist
 
 1. Tab > New session... > any folder.
-   Chat (E), say hello. Header, next
-   to the mode: "Context <n>% · ↑ ...
-   in · ↓ ... out"? Hover it: the
-   exact figures? Under the reply, a
-   dim "↓ ... tokens"?
-2. Bottom right: "5-hour <n>% ·
-   resets <time>   Weekly <n>% ·
-   resets <day> <time>"? Readable,
-   out of the way? Still there with
-   the chat open, on Tab and on M?
-3. Say "usage". While it reads 4
-   files, the dim line at the end goes
-   up after each, then sits under the
-   last reply (~10k). Context 80%+,
-   5-hour 85%+?
-4. Say "clear": the header goes
-   blank, the corner stays. Say hi:
-   it starts over from a small count.
-5. Tab > Resume > "Add a save
-   system": its chat shows
-   "↓ 1.8k tokens" after the reply,
-   header "Context 31% · ...".
+   Chat (E): send "signin". At the
+   top: "Claude Code needs you to
+   sign in again: run /login in its
+   terminal." Status line: "Waiting
+   for you to sign in, in the
+   terminal."
+2. Esc: the orchestrator's orange
+   "!", the beacon, "1 session
+   waiting" top right.
+3. Chat again, send "signin" again:
+   still one notice, still waiting.
+4. Send "hello": the reply comes, the
+   notice goes, no "!", no beacon, no
+   count. Readable as written?
+5. Send "lost" (the fake drops it).
+   After 15 s: "Your message hasn't
+   reached the session. Check its
+   terminal, then send it again."
+   and "lost" back in the box.
+   Readable?
+6. NEW: Esc, Tab > New session... >
+   another folder. Open its chat:
+   the box is empty, no warning.
+   Type "draft", Esc.
+7. NEW: Tab > the first session.
+   Open its chat: "lost" back in the
+   box, the warning still there.
+8. Send "hello": it arrives, the
+   warning goes.
 
-Part B: real claude
+Part B: real claude, bad API key
+  (PowerShell, from the worktree)
+  $env:ANTHROPIC_API_KEY="sk-ant-bad"
   godot --path . -- --checklist
+  (Close the game after; a new
+  PowerShell window drops the key.)
 
-6. Start a session in an empty
-   folder. In the terminal: the status
-   row under the prompt is empty, and
-   the session works as usual?
-7. Ask something that reads a few
-   files. Header: Context %, in/out?
-   The dim line counts up while it
-   works? Compare with the terminal:
-   /context (context %) and /usage
-   (5-hour and weekly %, reset times):
-   about the same as the world?
-8. Your own status line wins: /exit,
-   then in that folder make
-   .claude/settings.local.json with
-   {"statusLine": {"type": "command",
-   "command": "echo mine"}}
-   Start a session there: the terminal
-   shows "mine"; the world's header
-   shows "Context <n>k" (no %) after
-   a reply, totals and hints as
-   usual; the corner keeps the last
-   limits it had (or none if it never
-   had any).
-9. Anything odd in the terminal (an
-   error line, a flash of text)?
+9. Start a session (say Yes if the
+   terminal asks about the key).
+10. Send "hi" from the world: after
+   15 s, the "hasn't reached the
+   session" line, text back in the
+   box?
+11. Type "hi" in the terminal: the
+   notice, the status, the "!" and
+   beacon, as before? /exit.
+
+A real expired login: check it when
+it happens (NOTES Watch items).
 
 Tell Claude what you saw; paste red errors.

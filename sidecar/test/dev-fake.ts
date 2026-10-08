@@ -16,6 +16,13 @@
 //                in the background and report back (A02, A04)
 //   tools        a few tool calls, one failing (the tool-call log, C04)
 //   notice       a session notice (transcripts off)
+//   signin       the turn fails on the account, like an expired login
+//                (S06): the sign_in_needed notice, the orchestrator waiting
+//                with reason sign_in; the next message goes through and
+//                clears it
+//   lost         the message never reaches the session, like Claude Code
+//                signed out dropping a channel message unseen (S06): no
+//                event at all, whatever other words it has
 //   clear        a new conversation in the session, like /clear (S02)
 //   rename <x>   the session is renamed x, like /rename (S02 -> Titles)
 //   usage        a heavy turn: the context nearly full and the 5-hour
@@ -57,6 +64,8 @@ class ScriptedSession extends FakeSession {
   private pendingPlan: { id: Id; resolve: (answer: { approve: true; mode: string } | { approve: false; note?: string }) => void } | null = null
   private pendingQuestion: { id: Id; resolve: (answer: string) => void } | null = null
   private readonly working = new Set<Id>()
+  /** Whether the sign_in_needed notice is up (S06). */
+  private signInNeeded = false
   /** What get_history answers, kept from the events like a real provider. */
   readonly chat = new HistoryLog()
   /** Token usage (C08), counted as if each reply and tool call were an API call. */
@@ -135,6 +144,7 @@ class ScriptedSession extends FakeSession {
   }
 
   override async sendMessage(text: string) {
+    if (/\blost\b/i.test(text)) return
     this.stopped = false
     await this.say('user', text)
     if (this.title === null) this.retitle(text.trim().split('\n', 1)[0]!.slice(0, 80))
@@ -147,6 +157,7 @@ class ScriptedSession extends FakeSession {
     else if (/\bagents?\b/.test(word)) void this.agentsTurn(Number(/\d+/.exec(word)?.[0] ?? 3))
     else if (/\btools?\b/.test(word)) void this.toolsTurn()
     else if (word.includes('notice')) void this.noticeTurn()
+    else if (word.includes('signin')) void this.signInTurn()
     else if (/\bclear\b/.test(word)) void this.clearTurn()
     else if (/^rename\s+\S/.test(word)) void this.renameTurn(text.trim().slice(6).trim())
     else if (/\busage\b/.test(word)) void this.usageTurn()
@@ -156,7 +167,14 @@ class ScriptedSession extends FakeSession {
   private async finish(reply: string) {
     if (this.stopped) return
     await this.say('assistant', reply)
-    if (!this.stopped) this.state('main', 'idle')
+    if (this.stopped) return
+    // A call went through: the account works again, like the real
+    // provider's Stop after a failed one (S06).
+    if (this.signInNeeded) {
+      this.signInNeeded = false
+      this.emit({ type: 'session.notice_cleared', code: 'sign_in_needed' })
+    }
+    this.state('main', 'idle')
   }
 
   private echoTurn(text: string) {
@@ -326,6 +344,21 @@ class ScriptedSession extends FakeSession {
       message: 'Transcript saving is off in Claude Code, so some features may not work as intended. Turning it on is recommended.',
     } })
     return this.finish('I sent a notice for this session.')
+  }
+
+  /** Like Claude Code's StopFailure with authentication_failed (S06). */
+  private async signInTurn() {
+    await sleep(500)
+    if (this.stopped) return
+    // Failing again keeps the notice that is up.
+    if (!this.signInNeeded) {
+      this.signInNeeded = true
+      this.emit({ type: 'session.notice', notice: {
+        code: 'sign_in_needed',
+        message: 'Claude Code needs you to sign in again: run /login in its terminal.',
+      } })
+    }
+    this.state('main', 'waiting', 'sign_in')
   }
 
   private async usageTurn() {

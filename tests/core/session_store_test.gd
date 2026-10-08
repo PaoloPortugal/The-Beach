@@ -131,6 +131,14 @@ func _by_hand() -> void:
 	store.apply({"type": "session.notice", "session": "a", "seq": 12, "notice": {"code": "transcripts_off", "message": "y"}})
 	var notices: Array = store.session("a")["notices"]
 	_check(notices.size() == 1 and notices[0]["message"] == "y", "one notice per code")
+	var notice_signals := [0]
+	store.notices_changed.connect(func(_id: String) -> void: notice_signals[0] += 1)
+	store.apply({"type": "session.notice", "session": "a", "seq": 13, "notice": {"code": "sign_in_needed", "message": "z"}})
+	store.apply({"type": "session.notice_cleared", "session": "a", "seq": 14, "code": "sign_in_needed"})
+	notices = store.session("a")["notices"]
+	_check(notices.size() == 1 and notices[0]["code"] == "transcripts_off" and notice_signals[0] == 2, "a cleared notice goes, the others stay")
+	store.apply({"type": "session.notice_cleared", "session": "a", "seq": 15, "code": "sign_in_needed"})
+	_check(store.session("a")["notices"].size() == 1 and notice_signals[0] == 2, "clearing one that isn't there changes nothing")
 
 	var changed := []
 	store.session_changed.connect(func(id: String, fields: Array) -> void: changed.append([id, fields]))
@@ -352,6 +360,15 @@ func _live() -> void:
 	await _command(sidecar, "message.send", {"session": id, "text": "a notice"})
 	await _until(func() -> bool: return store.session(id)["notices"].size() == 1, 5.0)
 	_check(store.session(id)["notices"][0]["code"] == "transcripts_off", "live: a notice")
+
+	# S06: the turn fails on the account, then the next message goes through.
+	await _until(func() -> bool: return store.agent(id, "main")["state"] == "idle", 5.0)
+	await _command(sidecar, "message.send", {"session": id, "text": "signin"})
+	await _until(func() -> bool: return store.agent(id, "main")["state"] == "waiting", 5.0)
+	_check(store.agent(id, "main")["reason"] == "sign_in" and store.session(id)["notices"].any(func(n: Dictionary) -> bool: return n["code"] == "sign_in_needed"), "live: the sign-in notice, waiting to sign in")
+	await _command(sidecar, "message.send", {"session": id, "text": "hello"})
+	await _until(func() -> bool: return store.agent(id, "main")["state"] == "idle", 5.0)
+	_check(store.session(id)["notices"].map(func(n: Dictionary) -> String: return n["code"]) == ["transcripts_off"], "live: the next message clears it")
 
 	await _command(sidecar, "message.send", {"session": id, "text": "use some tools"})
 	await _until(func() -> bool: return store.messages(id).back()["text"].begins_with("One test failed") and store.messages(id).back()["complete"], 8.0)

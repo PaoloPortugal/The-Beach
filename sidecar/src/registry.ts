@@ -257,6 +257,11 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       qs.push(structuredClone(e.question))
       return null
     }
+    case 'session.notice_cleared': {
+      const before = s.notices.length
+      s.notices = s.notices.filter((n) => n.code !== e.code)
+      return s.notices.length === before ? 'no such notice' : null
+    }
     case 'session.notice': {
       const i = s.notices.findIndex((n) => n.code === e.notice.code)
       if (i >= 0 && s.notices[i]!.message === e.notice.message) return 'notice already shown'

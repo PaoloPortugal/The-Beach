@@ -74,4 +74,5 @@ reading; look things up by feature ID.
 | 2026-10-07 | [W04's edge-arrow check was flaky](2026-10-07-w04-arrow-check-flaky.md) | tooling |
 | 2026-10-07 | [W06: bridges, wedges and the maps](2026-10-07-w06-bridges.md) | W06, W05, W04, W07 |
 | 2026-10-08 | [The performance pass: far bridges, a coarse seabed, nothing past the fog](2026-10-08-perf-pass.md) | W01, W06, C02 |
+| 2026-10-08 | [S06: sign-in needed](2026-10-08-s06-sign-in.md) | S06, S02, C02, A05 |
 | 2026-10-08 | [C08 token usage, built](2026-10-08-c08-usage.md) | C08, S02 |

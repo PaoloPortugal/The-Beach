@@ -39,6 +39,19 @@ const NOTICE_TEXT := {
 ## Notices about the session switching conversations.
 const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 
+## What stopped a turn, for the error reasons any provider may report
+## (Protocol → state_reason); any other says only "Stopped.". The
+## sign_in_needed notice has no text of ours: the provider's message says
+## what to do in its own window (S06).
+const STOP_TEXT := {
+	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.",
+	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.",
+	"server_error": "Stopped: the AI service had an error. Try again in a moment.",
+	"invalid_request": "Stopped: the AI service refused the request. See the terminal.",
+	"model_not_found": "Stopped: the model isn't available. Pick another in the terminal.",
+	"max_output_tokens": "Stopped: the reply reached its length limit.",
+}
+
 var store: SessionStore
 var sidecar: SidecarClient
 ## The session shown, or "" when closed.
@@ -60,6 +73,19 @@ var _build_run := 0
 var _link_dialog: ConfirmationDialog
 var _link_url := ""
 var _send_error := ""
+## How long a sent message may take to show up in the chat before the
+## panel says it wasn't picked up (S06). A var for tests.
+var pickup_timeout := 15.0
+## Sessions with a sent message being watched (session → its timer's
+## token), those whose message wasn't picked up (session → its text), and
+## of those, the ones whose text was given back already (once only).
+var _watching := {}
+var _not_picked_up := {}
+var _given_back := {}
+var _watch_count := 0
+## The session the message box's text was typed for: one box serves every
+## chat, kept while closed, emptied on opening another session's.
+var _box_session := ""
 
 @onready var _title: Label = $Layout/Header/Title
 @onready var _mode: Label = $Layout/Header/Mode
@@ -101,6 +127,18 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.session_changed.connect(func(id: String, _fields: Array) -> void:
 		if id == session_id:
 			_refresh_header())
+	# A sent message is picked up when a user message arrives, or the
+	# orchestrator starts working (S06).
+	store.message_changed.connect(func(id: String, message: String) -> void:
+		if store.session(id).get("messages", {}).get(message, {}).get("role") == "user":
+			_picked_up(id))
+	store.agent_changed.connect(func(id: String, _agent: String) -> void:
+		if store.orchestrator(id).get("state") == "working":
+			_picked_up(id))
+	store.session_removed.connect(func(id: String, _reason: String) -> void:
+		_watching.erase(id)
+		_not_picked_up.erase(id)
+		_given_back.erase(id))
 	store.usage_changed.connect(func(id: String) -> void:
 		if id == session_id and not _rebuild_queued:
 			_refresh_usage()
@@ -115,6 +153,13 @@ func open(p_session_id: String) -> void:
 	session_id = p_session_id
 	_send_error = ""
 	visible = true
+	if session_id != _box_session:
+		# A text given back and not sent comes back on returning there.
+		if _given_back.has(_box_session) and _input.text == _not_picked_up.get(_box_session):
+			_given_back.erase(_box_session)
+		_input.text = ""
+		_box_session = session_id
+	_give_back(session_id)
 	_rebuild()
 	_pending.show_session(session_id)
 	_refresh_status()
@@ -213,8 +258,17 @@ func send() -> void:
 	var text := _input.text.strip_edges()
 	if text.is_empty() or session_id.is_empty():
 		return
+	var sent_to := session_id
 	var id := sidecar.send_command("message.send", {"session": session_id, "text": text}, func(reply: Dictionary) -> void:
 		if reply.get("type") == "error":
+			_watching.erase(sent_to)
+			# Another session's chat opened meanwhile: neither the error nor
+			# the text belongs there. Returning, it says the message hasn't
+			# reached the session and gives the text back.
+			if _box_session != sent_to:
+				_not_picked_up[sent_to] = text
+				_given_back.erase(sent_to)
+				return
 			_send_error = "Couldn't send: %s" % reply.get("message", "")
 			# Give the text back, unless something new was typed meanwhile.
 			if _input.text.is_empty():
@@ -226,7 +280,59 @@ func send() -> void:
 		return
 	_send_error = ""
 	_input.text = ""
+	_not_picked_up.erase(session_id)
+	_given_back.erase(session_id)
+	_watch_pickup(session_id, text)
 	_refresh_status()
+
+
+# Watches a sent message until it shows up (S06). A provider may never pick
+# it up, e.g. a provider whose account can't be used may drop it unseen;
+# then the status says so and the text comes back. Only while the
+# orchestrator isn't busy: a busy one queues it for after its turn.
+func _watch_pickup(session: String, text: String) -> void:
+	var agent := store.orchestrator(session)
+	var busy: bool = agent.get("state") == "working" \
+			or (agent.get("state") == "waiting" and agent.get("reason") != "sign_in")
+	if busy:
+		_watching.erase(session)
+		return
+	_watch_count += 1
+	var token := _watch_count
+	_watching[session] = token
+	get_tree().create_timer(pickup_timeout).timeout.connect(func() -> void:
+		if _watching.get(session) != token:
+			return
+		_watching.erase(session)
+		_not_picked_up[session] = text
+		if session == session_id:
+			_give_back(session)
+			_refresh_status())
+
+
+# Puts a message that wasn't picked up back in the box, unless something
+# else was typed meanwhile; once only, so a box cleared stays clear. The
+# warning stays until it's picked up or something is sent.
+func _give_back(session: String) -> void:
+	if _input.text.is_empty() and _not_picked_up.has(session) and not _given_back.has(session):
+		_input.text = _not_picked_up[session]
+		_given_back[session] = true
+
+
+# Picked up after all, maybe after the warning: the warning goes, and so
+# does the text given back, if the box still holds just that (sending it
+# again would send it twice).
+func _picked_up(session: String) -> void:
+	_watching.erase(session)
+	var text: String = _not_picked_up.get(session, "")
+	var given := _given_back.erase(session)
+	if not _not_picked_up.erase(session):
+		return
+	# The box is kept while the chat is closed: clear it then too.
+	if given and _box_session == session and _input.text == text:
+		_input.text = ""
+	if session == session_id:
+		_refresh_status()
 
 
 # Enter sends; Shift+Enter is a new line.
@@ -471,6 +577,9 @@ func _refresh_status() -> void:
 	if not _send_error.is_empty():
 		_status.text = _send_error
 		return
+	if _not_picked_up.has(session_id):
+		_status.text = "Your message hasn't reached the session. Check its terminal, then send it again."
+		return
 	var agent := store.orchestrator(session_id)
 	match agent.get("state", ""):
 		"working":
@@ -483,10 +592,12 @@ func _refresh_status() -> void:
 					_status.text = "Waiting for an answer: answer the question above or in the terminal."
 				"plan":
 					_status.text = "Waiting for you to approve the plan: answer it above or in the terminal."
+				"sign_in":
+					_status.text = "Waiting for you to sign in, in the terminal."
 				_:
 					_status.text = "Waiting for you in the terminal."
 		"error":
-			_status.text = "Stopped."
+			_status.text = STOP_TEXT.get(agent.get("reason"), "Stopped.")
 		_:
 			_status.text = ""
 
