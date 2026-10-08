@@ -14,6 +14,23 @@ import { promptOptions, type PermissionUpdate, type PromptOption } from './promp
 /** The orchestrator's agent id. Subagents use Claude Code's agent_id. */
 export const MAIN = 'main'
 
+/**
+ * StopFailure's errors that only the user can sort out, in Claude Code's
+ * own terminal (NOTES.md -> S06): the account can't be used. We never
+ * handle a login; the notice says what to do there. Each maps to the
+ * notice's English text (the provider's words; Godot shows them as is).
+ */
+export const SIGN_IN_ERRORS: Readonly<Record<string, string>> = {
+  authentication_failed: 'Claude Code needs you to sign in again: run /login in its terminal.',
+  oauth_org_not_allowed: "Your organization doesn't allow this account in Claude Code: run /login in its terminal to sign in with another.",
+  cloud_credential_error: "Claude Code couldn't load your cloud provider's credentials: check its terminal.",
+  account_on_hold: "Your Claude account is on hold: check Claude Code's terminal.",
+  billing_error: 'Claude Code reports a billing problem with your account: check its terminal.',
+}
+
+/** The notice's code (generic: every tool has logins). */
+export const SIGN_IN_NEEDED = 'sign_in_needed'
+
 /** Hooks that only report: short, so a hung sidecar costs little. */
 const REPORT_TIMEOUT_S = 5
 /** MessageDisplay holds up the text on screen; answered instantly anyway. */
@@ -150,6 +167,9 @@ export class HookTranslator {
   /** Each subagent's Agent call, for its own calls' `within` (C04). */
   private readonly spawnedBy = new Map<Id, Id>()
 
+  /** Whether the sign_in_needed notice is up (S06). */
+  private signInNeeded = false
+
   constructor(cwd: string) {
     this.cwd = cwd
   }
@@ -188,7 +208,7 @@ export class HookTranslator {
     switch (p.hook_event_name) {
       case 'UserPromptSubmit': this.userPrompt(p, out); break
       case 'MessageDisplay': this.display(p, out); break
-      case 'PreToolUse': this.toolStarted(p, out); break
+      case 'PreToolUse': this.signedIn(out); this.toolStarted(p, out); break
       case 'PostToolUse': this.toolFinished(p, 'ok', out); break
       case 'PostToolUseFailure': this.toolFinished(p, 'error', out); break
       case 'SubagentStart': this.subagentStarted(p, out); break
@@ -202,15 +222,28 @@ export class HookTranslator {
       }
       case 'Notification': this.notification(p, out); break
       case 'Stop':
+        this.signedIn(out)
         this.finishMessages(out)
         this.dropPermissions(MAIN, out)
         this.setState(MAIN, 'idle', null, out)
         break
-      case 'StopFailure':
+      case 'StopFailure': {
         this.finishMessages(out)
         this.dropPermissions(MAIN, out)
-        this.setState(MAIN, 'error', str(p.error_type) ?? 'unknown', out)
+        // `error`, the error type (checked live on 2.1.294; dev log
+        // 2026-10-08-s06-sign-in). An account problem waits on the user in
+        // the terminal; anything else stops the turn with its reason.
+        const error = str(p.error) ?? 'unknown'
+        const signIn = Object.hasOwn(SIGN_IN_ERRORS, error) ? SIGN_IN_ERRORS[error] : undefined
+        if (signIn !== undefined) {
+          this.signInNeeded = true
+          out.push({ type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: signIn } })
+          this.setState(MAIN, 'waiting', 'sign_in', out)
+        } else {
+          this.setState(MAIN, 'error', error, out)
+        }
         break
+      }
     }
     return out
   }
@@ -300,6 +333,18 @@ export class HookTranslator {
     const id = str(p.agent_id)
     if (!id) return MAIN
     return this.states.has(id) ? id : null
+  }
+
+  /**
+   * The account works again: Claude Code says the user signed in, or an
+   * API call went through (a tool call, a turn ending well). The notice
+   * goes; an orchestrator still waiting to sign in is idle.
+   */
+  private signedIn(out: SessionEvent[]) {
+    if (!this.signInNeeded) return
+    this.signInNeeded = false
+    out.push({ type: 'session.notice_cleared', code: SIGN_IN_NEEDED })
+    if (this.states.get(MAIN) === 'waiting' && this.reasons.get(MAIN) === 'sign_in') this.setState(MAIN, 'idle', null, out)
   }
 
   private setState(agent: Id, state: State, reason: string | null, out: SessionEvent[]) {
@@ -698,6 +743,10 @@ export class HookTranslator {
     const agent = this.agentOf(p)
     if (!agent) return
     switch (p.notification_type) {
+      // Signed in again (/login in the terminal; from the docs, not yet seen live).
+      case 'auth_success':
+        this.signedIn(out)
+        break
       // Claude Code waits on the user in the terminal for something other
       // than a permission (one of the user's MCP servers asks, or an agent
       // needs input).
