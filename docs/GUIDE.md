@@ -101,9 +101,9 @@ On Add a session:
   choose the project folder you want to work in. Cancelling it takes you
   back to Add a session. While it's open, the menu waits with a note: if the
   picker ends up hidden behind the game (this can happen on Windows),
-  switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
-  get back to the game (here Esc leaves the menu rather than going back
-  a page); choosing a folder in it afterwards does nothing.
+  switch to it (Alt+Tab or the taskbar), press **Cancel** (or Tab) to
+  get back to the game, or Esc to go back to Add a session; choosing a
+  folder in it afterwards does nothing.
   If your system has no picker of its own, the game shows its own.
 - **▸ Resume a session…** lists your earlier Claude Code sessions, newest
   first, with their project and how long ago you last used them. The

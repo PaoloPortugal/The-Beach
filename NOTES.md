@@ -3106,11 +3106,11 @@ proper design later, like all UI.
   window, but the safety net is the same everywhere: while it is open
   the menu stays up with a note ("Choose the project folder in the
   window that opened. Can't see it? It may be behind the game: switch to
-  it, or press Cancel.") and a Cancel button; Cancel, Esc or Tab close
-  the menu and give the controls back, and whatever the lost picker
-  answers later is ignored, so nothing starts on its own. Esc does this
-  here rather than going back a page (kept when Esc became "back",
-  2026-10-09: it's the way out of a lost picker).
+  it, or press Cancel.") and a Cancel button; Cancel or Tab close
+  the menu and give the controls back, Esc stops waiting and shows Add a
+  session again (as cancelling the picker does; user's, 2026-10-09), and
+  whatever the lost picker answers later is ignored, so nothing starts
+  on its own.
 - **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
   and resumed sessions, one at a time). A notice at the top centre of
   the screen (it replaced the post's sign; my choice) says how it goes:
@@ -3573,7 +3573,8 @@ the big map; the sea floor's range, banks and mounds, its colour
 gradient, and islands' underwater faces in its colours), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
-cancelling, Esc while it is lost and its late answer ignored, a refused
+cancelling, Esc while it is lost going back to Add a session, its Cancel
+closing the menu, the late answers ignored, a refused
 folder; W10's biome selector, Random first and back to Random on
 opening), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, a new one rising and the teleport

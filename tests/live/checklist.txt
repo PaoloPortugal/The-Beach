@@ -31,9 +31,11 @@ Page Down / wheel scrolls this.
    the new name shows?
 7. + New session..., then hide
    the picker behind the game
-   (Alt+Tab): Esc gives you the
-   controls back (not a page
-   back)?
+   (Alt+Tab): Esc goes back to
+   Add a session? Again, then
+   Cancel: controls back? Pick a
+   folder in the hidden picker
+   afterwards: nothing starts?
 8. Start or resume one: works
    as before?
 
