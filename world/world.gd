@@ -139,7 +139,7 @@ func _setup_sky() -> void:
 		day_night.cycle = args[minutes + 1].to_float() * 60.0
 
 
-# The debug commands (C09), in debug builds only: "/" opens their line.
+# The debug commands (C09), in debug builds only: T opens their line.
 func _setup_debug() -> void:
 	if not OS.is_debug_build():
 		return

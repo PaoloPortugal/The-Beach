@@ -262,6 +262,8 @@ You see the world through your character's eyes.
 | Sessions menu: start, resume or go to a session or the platform | Tab (Tab or Esc closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
+| Ride a mountain's zipline, by its post | E |
+| Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
 (such as AZERTY) use the keys in the same place.

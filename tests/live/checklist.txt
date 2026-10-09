@@ -25,8 +25,8 @@ W10
    Look round while riding? Head
    clear of the cliff? E at the
    top takes you down?
-6. Night on the meadow (/time
-   set night): stargazing?
+6. Night on the meadow (T, then
+   /time set night): stargazing?
    Torches at the cliff's lip.
 7. A few on Random: kinds vary?
    M: islands coloured by kind?

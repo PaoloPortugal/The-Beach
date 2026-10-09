@@ -34,6 +34,7 @@ const NAMES := {
 ## - radius, wobble: the island's rough radius and how far the noise moves
 ##   its shoreline (IslandGenerator's radius and 0.45 if absent).
 ## - meadow: the flat middle's radius (7 m if absent).
+## - valley: the valleys' width (IslandGenerator's VALLEY_WIDTH if absent).
 ## - slope, shoulder: the rise per metre up from the beach and the
 ##   shoulder's width (IslandGenerator's SLOPE and SHOULDER if absent).
 ## - peaks: spires between the valleys (IslandGenerator._make_peaks):
@@ -63,7 +64,7 @@ const PROFILES := {
 	},
 	Kind.MOUNTAIN: {
 		"legacy": false, "edge": 18.0, "plateau": 20.0, "hills": 2.5,
-		"radius": 36.0, "wobble": 0.15, "meadow": 11.0, "slope": 3.0, "shoulder": 3.0,
+		"radius": 36.0, "wobble": 0.15, "meadow": 11.0, "slope": 3.0, "shoulder": 3.0, "valley": 6.0,
 		"peaks": {"each": [2, 3], "height": [28.0, 40.0], "tall": 2, "tall_height": [48.0, 54.0], "base": [7.0, 10.0]},
 		"zipline": true,
 		"wet": Color(0.74, 0.68, 0.56), "shore": Color(0.80, 0.75, 0.64),
