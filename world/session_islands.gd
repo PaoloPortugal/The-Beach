@@ -10,6 +10,8 @@ extends Node3D
 ## while the player is on it (or on one of its bridges), then sinks and is
 ## freed. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
 ## spawn platform once an island is up, and go when it starts sinking.
+## Each island is of a [Biome] (W10), chosen in the sessions menu or
+## rolled at random.
 ## Everything under it, agents and bridges that come later included, is
 ## hidden past [member draw_distance] ([DrawDistance]).
 
@@ -18,14 +20,17 @@ signal island_added(session_id: String, island: Island, orchestrator: Orchestrat
 signal island_risen(session_id: String)
 
 const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
-## Where an island starts rising from and sinks to: low enough that all of
-## it (its dunes reach about 3.2 m) is under the deepest sea floor (W08), so
-## it rises out of the seabed and sinks back into it.
+## Where a beach island starts rising from and sinks to: low enough that
+## all of it (its dunes reach about 3.2 m) is under the deepest sea floor
+## (W08), so it rises out of the seabed and sinks back into it. Higher
+## islands (W10) go deeper: see [method sunk_y].
 const SUNK_Y := Seabed.DEEPEST - 4.0
 ## The new-island beacon's colour: not A05's orange, which means waiting.
 const NEW_COLOUR := Color(0.35, 1.0, 0.55)
-## How high the beach is where a bridge meets it, metres above the water.
-const BRIDGE_END_HEIGHT := 0.5
+## Props are cleared this far either side of a bridge's landing, and this
+## far inward from it, metres (W10).
+const LANDING_CLEAR := 3.0
+const LANDING_RUN := 8.0
 
 var store: SessionStore
 ## Which cluster each session is in, and where its island goes.
@@ -35,6 +40,9 @@ var clusters := SessionClusters.new()
 var bridges := BridgeNetwork.new()
 ## Whoever has to leave an ended session's island before it sinks.
 var player: Node3D
+## The biome of an island nobody chose one for (a session already running,
+## or one started outside the menu): [constant Biome.RANDOM] or a kind.
+var default_biome := Biome.RANDOM
 ## Seconds to rise and to sink.
 var rise_time := 3.0
 var sink_time := 4.0
@@ -56,6 +64,7 @@ var _sinking := {} # Island → true, of those in _left
 var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
 var _far := {} # Island → true, for one in a far spot (no bridges)
+var _biome_choice := {} # session id → the biome chosen for its island
 
 
 func _ready() -> void:
@@ -120,6 +129,18 @@ func all_islands() -> Array[Island]:
 ## The cluster an island in the world belongs to, or "".
 func cluster_of(i: Island) -> String:
 	return _cluster.get(i, "")
+
+
+## Records the biome chosen for a session being started (a [enum
+## Biome.Kind] or [constant Biome.RANDOM]), before it comes up (W10).
+func choose_biome(session_id: String, choice: int) -> void:
+	_biome_choice[session_id] = choice
+
+
+## How deep [param i] starts rising from and sinks to: all of it under the
+## deepest sea floor.
+static func sunk_y(i: Island) -> float:
+	return minf(SUNK_Y, Seabed.DEEPEST - 0.8 - i.top())
 
 
 ## The live sessions with an island.
@@ -194,10 +215,12 @@ func _on_added(id: String, created: bool) -> void:
 	clusters.add(id, store.session(id))
 	var i := Island.new()
 	i.name = "Island"
+	i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
+	_biome_choice.erase(id)
 	i.position = clusters.island_position(id)
-	if created:
-		i.position.y = SUNK_Y
 	add_child(i, true) # generates the island
+	if created:
+		i.position.y = sunk_y(i)
 	var o: Orchestrator = ORCHESTRATOR.instantiate()
 	o.name = "Orchestrator"
 	o.session_id = id
@@ -254,7 +277,7 @@ func _sink(i: Island) -> void:
 	_sinking[i] = true
 	bridges.remove(region(i))
 	var tween := i.create_tween()
-	tween.tween_property(i, "position:y", SUNK_Y, sink_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween.tween_property(i, "position:y", sunk_y(i), sink_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween.finished.connect(func() -> void:
 		clusters.remove(_left[i])
 		_left.erase(i)
@@ -283,16 +306,23 @@ func _bridge(id: String) -> void:
 	var i: Island = _islands[id]
 	var reach := i.generator.radius * 1.45
 	bridges.add(region(i), clusters.cluster_of(id), i.global_position, reach, func(toward: Vector3) -> Vector3:
-		return _shore_point(i, toward))
+		var p := _shore_point(i, toward)
+		# The way in from the bridge is kept clear of props.
+		var local := p - i.global_position
+		var inward := Vector3(-local.x, 0.0, -local.z).normalized() * LANDING_RUN
+		i.props.clear_near(local, local + inward, LANDING_CLEAR)
+		return p)
 
 
-# Where a bridge heading for [param toward] meets the island's beach: the
-# outermost point that high, on the line from its middle.
+# Where a bridge heading for [param toward] meets the island: the
+# outermost point at its edge height (a beach's half metre, W10's
+# shoulders), on the line from its middle.
 static func _shore_point(i: Island, toward: Vector3) -> Vector3:
 	var c := i.global_position
 	var dir := Vector2(toward.x - c.x, toward.z - c.z).normalized()
 	var r := i.generator.shore_radius(dir.x, dir.y) * 1.2
-	while r > 0.0 and i.height_at(dir.x * r, dir.y * r) < BRIDGE_END_HEIGHT:
+	var edge := i.edge_height()
+	while r > 0.0 and i.height_at(dir.x * r, dir.y * r) < edge:
 		r -= 0.25
 	return c + Vector3(dir.x * r, i.height_at(dir.x * r, dir.y * r), dir.y * r)
 

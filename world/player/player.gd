@@ -43,6 +43,9 @@ var spawn_point := Vector3.ZERO
 var controls_enabled := true
 ## In the water and swimming, not walking.
 var swimming := false
+## Carried by something else (W10's zipline), which moves the player:
+## no walking, falling or swimming, but you can still look round.
+var riding := false
 
 var _jump := JumpAssist.new()
 # Swimming touched sloping ground on its last move (W08).
@@ -52,6 +55,7 @@ var _grounded := false
 
 
 func _ready() -> void:
+	add_to_group("player")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -69,6 +73,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if riding:
+		return
 	var depth := WATER_Y - global_position.y
 	if depth > swim_depth:
 		swimming = true

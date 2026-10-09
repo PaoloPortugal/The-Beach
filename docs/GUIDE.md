@@ -9,6 +9,7 @@ here; each section is labelled with its feature ID.
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
+- [Kinds of island (W10)](#kinds-of-island-w10)
 - [Clusters (W05)](#clusters-w05)
 - [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
@@ -53,6 +54,10 @@ or resume joins (see Clusters below). **Automatic (by repository)**, the
 choice each time the menu opens, puts it with the other sessions of its
 git repository. You can pick one of the running clusters instead, or
 **New cluster** to give it a cluster of its own.
+
+Under that, **Biome** says what kind of island it gets (see Kinds of
+island below): **Random**, the choice each time the menu opens, or a
+beach, forest, mountain, snowy or desert island.
 
 Sessions are named the way Claude Code names them. A new one shows as
 "New session" until your first message, which names it for now. If you
@@ -122,9 +127,10 @@ that from outside.
 
 ## The islands and the ocean (W01, W02, W04)
 
-Each session has its own small low-poly beach island: a flat spot in the
-middle where its orchestrator sits, dunes around it, and a sandy beach.
-Islands are made by the game, so no two look the same.
+Each session has its own small low-poly island: a flat spot in the
+middle where its orchestrator sits, and around it, on a beach island,
+dunes and a sandy beach. There are other kinds too (see Kinds of island
+below). Islands are made by the game, so no two look the same.
 
 When a session starts, its island rises out of the seabed, which takes a few
 seconds. A green light beam stands over a new session's island until
@@ -145,6 +151,40 @@ over deep water, so you can see the sea floor (see Swimming and the sea
 floor below). To keep the game smooth, islands and bridges lost in the
 haze aren't drawn at all, and the steep slopes under the water are
 plainer than the land.
+
+## Kinds of island (W10)
+
+An island is one of five kinds, picked in the sessions menu when you
+start or resume a session (**Biome**), or at random:
+
+- **Beach**: low and sandy, with dunes, palm trees and tropical plants,
+  and sand castles, starfish and shells by the water.
+- **Forest**: grassy and a little higher, with trees, pines and bushes.
+- **Mountain**: a meadow 20 m up among rocky spires 60-70 m high, snow
+  on their tops, and pines. Its beach is under a cliff: a **zipline**
+  takes you up. Stand by its post on the beach and press **E** to ride
+  up; at the top, E by the post takes you back down. You can look
+  round while you ride.
+- **Snowy**: snow, grey rock and snowy pines.
+- **Desert**: orange sand, cacti, dry shrubs and red rocks.
+
+Every kind keeps a flat middle for its orchestrator and a narrow beach
+round the edge, so you can always swim ashore; above the beach, the
+higher kinds rise to a ledge (the mountain's at the top of its cliff),
+and from it a few clear valleys lead up to the middle. Islands stand at different heights: a bridge meets each
+island at its ledge (a beach island's sand), so a bridge between a low
+island and a high one climbs, with steps where it's steep. Trees, palms, rocks
+and cacti are solid; bushes, plants, shrubs and the things on the sand
+you can walk through. Nothing
+grows where a bridge comes in. On the minimap and the big map, an
+island is coloured by its kind (an empty one stays grey). Like the rest of the world's look for
+now, the trees and rocks are simple placeholders.
+
+Which kind you get is up to you, or chance: it means nothing about the
+session, and it isn't remembered, so a resumed session gets the menu's
+choice again (Random unless you pick one), and sessions already
+running when the game starts, or started outside the game, are
+random.
 
 ## Clusters (W05)
 
@@ -267,7 +307,7 @@ the moon comes up opposite it.
 
 The night is moonlit, not dark: you can still find your way and swim by
 the blue moonlight, the stars come out, and the islands light up. Each
-island has a few torches along its beach and a lamp on the
+island has a few torches round its edge and a lamp on the
 orchestrator's desk, so you can see islands from afar and chat in a warm
 pool of light. Chat bubbles and the menus read just as well at night.
 

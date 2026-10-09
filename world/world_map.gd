@@ -256,7 +256,7 @@ func _draw_map() -> void:
 		if view.intersects(Rect2(to_map(Vector3(r.position.x, 0, r.position.y)), r.size * zoom).grow(MIN_HIT)):
 			shown.append(i)
 	for i in shown:
-		var colour := Minimap.EMPTY_LAND if i in left else Minimap.LAND
+		var colour := Minimap.EMPTY_LAND if i in left else Minimap.land_colour(i)
 		Minimap.draw_island(_map, i, to_map, colour)
 		# Far out, an island is a dot at least.
 		_map.draw_circle(to_map(i.global_position), 2.5, colour)

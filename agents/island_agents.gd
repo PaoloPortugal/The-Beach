@@ -11,6 +11,10 @@ extends Node3D
 ## Sits at the island's origin, where the orchestrator stands.
 
 const SUBAGENT := preload("res://agents/subagent/subagent.tscn")
+## A slot this close to a prop (W10) is skipped, metres, and one on ground
+## sloping more than SLOT_SLOPE between it and its PC.
+const PROP_CLEAR := 1.8
+const SLOT_SLOPE := 0.3
 
 ## How long an errored subagent stays at its PC, seconds.
 var error_linger := 10.0
@@ -98,7 +102,8 @@ func _spawn(agent_id: String) -> Subagent:
 
 
 ## [param wanted] if it is free, else the first free slot on land. Slots
-## in the sea are skipped until the rings are past any shore.
+## in the sea, on a prop (W10's trees and rocks) or on a steep hill (W10)
+## are skipped until the rings are past any shore.
 func _free_slot(wanted: int) -> int:
 	if wanted >= 0 and not _slots.has(wanted):
 		return wanted
@@ -106,10 +111,18 @@ func _free_slot(wanted: int) -> int:
 	while true:
 		if not _slots.has(slot):
 			var p := AgentPlacement.slot_position(slot)
-			if island.height_at(p.x, p.y) > 0.3 or p.length() > island.generator.radius * 1.5:
+			var past := p.length() > island.generator.radius * 1.5
+			if past or _fits(p):
 				return slot
 		slot += 1
 	return slot
+
+
+# Whether a slot at [param p] is on land, clear of props and level enough.
+func _fits(p: Vector2) -> bool:
+	var pc := p - p.normalized() * 0.45
+	var h := island.height_at(p.x, p.y)
+	return h > 0.3 and absf(h - island.height_at(pc.x, pc.y)) < SLOT_SLOPE and not island.props.is_near(p, PROP_CLEAR)
 
 
 ## Where a subagent walks its report to: its parent subagent if that one
