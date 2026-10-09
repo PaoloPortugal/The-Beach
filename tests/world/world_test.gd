@@ -1089,7 +1089,10 @@ func _sessions(world: Node3D, player: Player) -> void:
 	player.global_position = on_island
 	await _frames(10)
 	# A session started meanwhile: its island rises, and you're taken there
-	# once it's up.
+	# once it's up. A beach: a mountain starts about 100 m down (W10), so
+	# facing it from the platform, its aim point is on the 64x64 headless
+	# window's on-screen edge.
+	islands.choose_biome("h3", Biome.Kind.BEACH)
 	store.apply({"type": "session.created", "session": _snapshot("h3")})
 	var h3 := islands.island("h3")
 	_check(islands.is_rising("h3") and h3.position.y < -1.0, "a new session's island rises out of the sea")
