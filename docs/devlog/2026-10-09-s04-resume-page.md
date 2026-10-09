@@ -71,4 +71,7 @@ hook relays and permission requests waited behind them.
   menu, and the picker's late answers are ignored. With the fake: the
   menu and Add session ask nothing, Resume lists newest first, and a
   resumed session is under Running and not under Resume.
-- Not yet: a live look at the pages in a real window (headless only).
+- *Live check passed (2026-10-09)* with the user, in a real window, by
+  the live checklist (its S04 steps, since removed from it): the three
+  pages, Esc and Tab, Resume's listing and a rename showing, and the
+  picker hidden behind the game (Esc, Cancel, a late folder).

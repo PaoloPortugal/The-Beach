@@ -3789,18 +3789,18 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
-**Ready for the user's review (2026-10-09): S04's Resume on its own
-page** (branch s04-resume-submenu, stacked on menu-missing-folder-flaky;
-dev log 2026-10-09-s04-resume-page): "+ Add session…" asks new or
-resume, Esc goes back a page, and the sidecar keeps its stored-session
-listing. Live look in a real window still to do.
-**Ready for the user's review (2026-10-09): three flaky world-test
-checks** (branch menu-missing-folder-flaky, dev log
+**Merged to `main` (2026-10-09), approved by the user: S04's Resume on
+its own page** (dev log 2026-10-09-s04-resume-page): "+ Add session…"
+asks new or resume, Esc goes back a page (waiting for the folder picker
+too), and the sidecar keeps its stored-session listing. Live check
+passed.
+**Merged to `main` with it (2026-10-09): three flaky world-test
+checks** (dev log
 2026-10-09-world-test-waits): the missing-folder refusal queued behind
 the menu's session listings (Watch items → Listing stored sessions
 blocks the sidecar), the S06 "warning goes" check could read the turn
 just starting, and W04's "facing it" arrow check failed when h3 rolled a
-mountain (W10 starts one about 100 m down). S04's branch, stacked on it,
+mountain (W10 starts one about 100 m down). S04, merged with it,
 puts the missing-folder wait back to 5 s, since opening the menu no longer
 lists anything.
 **Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
