@@ -69,6 +69,7 @@ func _ready() -> void:
 	_islands.bridges.add_hub("platform", Vector3.ZERO, PLATFORM_HALF * sqrt(2.0), platform_edge)
 	_chat.setup(store, Sidecar)
 	_menu.setup(store, Sidecar, _islands.clusters)
+	_menu.launcher.islands = _islands
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
 	add_child(attention)
