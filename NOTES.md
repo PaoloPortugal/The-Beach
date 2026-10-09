@@ -3693,6 +3693,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Ready for the user's review (2026-10-09): C09's flaky console checks**
+(branch c09-console-check-flaky, dev log
+2026-10-09-c09-console-check-flaky): T and Esc in the world test waited
+two physics frames; they now wait on the console's state (`_until`).
 **Merged to `main` (2026-10-09), approved by the user: W10 island biomes
 and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
 2026-10-08-c09-commands): five kinds of island picked in the sessions
