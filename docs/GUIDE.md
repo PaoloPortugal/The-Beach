@@ -157,19 +157,25 @@ plainer than the land.
 An island is one of five kinds, picked in the sessions menu when you
 start or resume a session (**Biome**), or at random:
 
-- **Beach**: low and sandy, with dunes.
+- **Beach**: low and sandy, with dunes, palm trees and tropical plants,
+  and sand castles, starfish and shells by the water.
 - **Forest**: grassy and a little higher, with trees, pines and bushes.
-- **Mountain**: rocky peaks, snow on the highest, and pines.
+- **Mountain**: a meadow 20 m up among rocky spires 60-70 m high, snow
+  on their tops, and pines. Its beach is under a cliff: a **zipline**
+  takes you up. Stand by its post on the beach and press **E** to ride
+  up; at the top, E by the post takes you back down. You can look
+  round while you ride.
 - **Snowy**: snow, grey rock and snowy pines.
 - **Desert**: orange sand, cacti, dry shrubs and red rocks.
 
 Every kind keeps a flat middle for its orchestrator and a narrow beach
 round the edge, so you can always swim ashore; above the beach, the
-higher kinds rise to a ledge, and from it a few clear valleys lead up
-to the middle. Islands stand at different heights: a bridge meets each
+higher kinds rise to a ledge (the mountain's at the top of its cliff),
+and from it a few clear valleys lead up to the middle. Islands stand at different heights: a bridge meets each
 island at its ledge (a beach island's sand), so a bridge between a low
-island and a high one climbs, with steps where it's steep. Trees, rocks
-and cacti are solid; bushes and shrubs you can walk through. Nothing
+island and a high one climbs, with steps where it's steep. Trees, palms, rocks
+and cacti are solid; bushes, plants, shrubs and the things on the sand
+you can walk through. Nothing
 grows where a bridge comes in. On the minimap and the big map, an
 island is coloured by its kind (an empty one stays grey). Like the rest of the world's look for
 now, the trees and rocks are simple placeholders.

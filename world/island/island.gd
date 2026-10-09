@@ -1,13 +1,15 @@
 class_name Island
 extends StaticBody3D
 ## A generated island (W01) with its collision, of a [Biome] (W10) with
-## its props ([IslandProps]). See IslandGenerator. Torches along its edge
-## light up at night (W09).
+## its props ([IslandProps]) and, on a mountain, its [Zipline]. See
+## IslandGenerator. Torches along its edge light up at night (W09).
 
 ## How many torches, evenly round the island.
 const TORCHES := 4
 ## Props keep this far from a torch, metres.
 const TORCH_CLEAR := 1.5
+## Props keep this far from a zipline's cable, across the ground, metres.
+const ZIPLINE_CLEAR := 2.0
 
 ## 0 picks a new random island every run; any other value pins one.
 @export var island_seed := 0
@@ -15,7 +17,7 @@ const TORCH_CLEAR := 1.5
 @export var biome: int = Biome.Kind.BEACH
 
 var generator: IslandGenerator
-## Its trees, rocks and the like (none on a beach).
+## Its trees, rocks and the like.
 var props := IslandProps.new()
 
 
@@ -43,6 +45,10 @@ func _ready() -> void:
 	add_child(props)
 	props.setup(generator.prop_spots())
 	_add_torches()
+	var ends := generator.zipline_ends()
+	if not ends.is_empty():
+		add_child(Zipline.new(ends[0], ends[1]))
+		props.clear_near(ends[0], ends[1], ZIPLINE_CLEAR)
 
 
 func height_at(x: float, z: float) -> float:
@@ -57,6 +63,11 @@ func edge_height() -> float:
 ## The highest point of its ground, metres above its origin.
 func top() -> float:
 	return generator.top
+
+
+## The zipline up from its beach, or null (W10: mountains have one).
+func zipline() -> Zipline:
+	return get_node_or_null("Zipline") as Zipline
 
 
 ## The night lights on it (W09).

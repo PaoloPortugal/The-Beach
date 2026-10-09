@@ -98,7 +98,20 @@ func _island() -> void:
 func _biomes() -> void:
 	var beach := IslandGenerator.new(42)
 	var also := IslandGenerator.new(42, Biome.Kind.BEACH)
-	_check(beach.biome == Biome.Kind.BEACH and is_equal_approx(beach.height_at(12, 5), also.height_at(12, 5)) and beach.prop_spots().is_empty(), "biomes: the beach is the default, W01's shape, without props")
+	_check(beach.biome == Biome.Kind.BEACH and is_equal_approx(beach.height_at(12, 5), also.height_at(12, 5)), "biomes: the beach is the default, W01's shape")
+	# The beach's props (user's, 2026-10-09): palms and plants inland, sand
+	# castles, starfish and shells by the water.
+	var tropical := {}
+	var by_water := true
+	for seed in [1, 7, 42, 1234, 99999]:
+		for s in IslandGenerator.new(seed).prop_spots():
+			var kind: int = s["prop"]
+			tropical[kind] = tropical.get(kind, 0) + 1
+			var h: float = s["position"].y + 0.02
+			if kind in [IslandProps.Prop.SAND_CASTLE, IslandProps.Prop.STARFISH, IslandProps.Prop.SHELL]:
+				by_water = by_water and h > 0.05 and h < 0.6
+	var all_kinds := [IslandProps.Prop.PALM, IslandProps.Prop.TROPICAL_PLANT, IslandProps.Prop.SAND_CASTLE, IslandProps.Prop.STARFISH, IslandProps.Prop.SHELL].all(func(k: int) -> bool: return tropical.get(k, 0) > 0)
+	_check(all_kinds and tropical.size() == 5 and by_water, "biomes: the beach has palms, plants, sand castles, starfish and shells, the small ones by the water (%s)" % str(tropical))
 	var rolled := {}
 	for k in 200:
 		rolled[Biome.resolve(Biome.RANDOM)] = true
@@ -136,15 +149,40 @@ func _biomes() -> void:
 				some_props += 1
 				var p: Vector3 = s["position"]
 				props = props and Vector2(p.x, p.z).length() >= g.plateau_radius + IslandGenerator.PROP_CLEAR and p.y > IslandGenerator.BEACH_TOP
-			walk = walk and _walkable(g, landings)
+			# A mountain's beach is under a cliff: its zipline's top stands
+			# for it (user's, 2026-10-09).
+			var ends := g.zipline_ends()
+			if kind == Biome.Kind.MOUNTAIN:
+				landings.append(Vector2(ends[1].x, ends[1].z))
+			walk = walk and _walkable(g, landings, kind != Biome.Kind.MOUNTAIN)
 		_check(flat, "biomes: %s: the middle is flat" % name)
 		_check(sea, "biomes: %s: surrounded by sea" % name)
 		_check(shoulder, "biomes: %s: bridges land on a shoulder at its edge height (%.1f m)" % [name, Biome.profile(kind)["edge"]])
 		_check(props and some_props > 5, "biomes: %s: props, off the beach and the middle (%d)" % [name, some_props])
-		_check(walk, "biomes: %s: you can walk from the beach and from every landing up to the middle" % name)
-	var mountain := IslandGenerator.new(7, Biome.Kind.MOUNTAIN)
-	mountain.build()
-	_check(mountain.top > 10.0 and mountain.edge_height() > 4.0, "biomes: a mountain is high (%.1f m), and so is its edge" % mountain.top)
+		_check(walk, "biomes: %s: you can walk up to the middle from %s every landing" % [name, "the zipline's top and" if kind == Biome.Kind.MOUNTAIN else "the beach and"])
+	# The mountain (user's, 2026-10-09): spires at least three times as
+	# high as the first ones (15 m), some taller, a high meadow, and a
+	# zipline whose rider clears the cliff.
+	var tops: Array[float] = []
+	var meadow := true
+	var cable := true
+	var only_mountain := true
+	for seed in [1, 7, 42, 1234, 99999]:
+		var g := IslandGenerator.new(seed, Biome.Kind.MOUNTAIN)
+		g.build()
+		tops.append(g.top)
+		meadow = meadow and g.plateau_height >= 18.0 and g.edge_height() >= 15.0
+		var ends := g.zipline_ends()
+		var a := ends[0] + Vector3(0, Zipline.POST_HEIGHT, 0)
+		var b := ends[1] + Vector3(0, Zipline.POST_HEIGHT, 0)
+		cable = cable and ends[0].y < 1.0 and absf(ends[1].y - g.edge_height()) < 0.5
+		for i in 51:
+			var p := a.lerp(b, i / 50.0)
+			cable = cable and p.y - Zipline.HANG + 1.6 - g.height_at(p.x, p.z) > 0.5
+		only_mountain = only_mountain and IslandGenerator.new(seed, Biome.Kind.FOREST).zipline_ends().is_empty()
+	_check(tops.min() > 50.0 and tops.max() > 60.0, "biomes: mountains reach %.0f-%.0f m, some taller" % [tops.min(), tops.max()])
+	_check(meadow, "biomes: a mountain's middle is a meadow high up, its edge nearly as high")
+	_check(cable and only_mountain, "biomes: a mountain's zipline runs from its beach to its shoulder, your head clear of the cliff; only mountains have one")
 
 	# Props: their meshes face outward, they clear where asked, and the
 	# solid ones have collision.
@@ -157,6 +195,15 @@ func _biomes() -> void:
 			var mid := (verts[i] + verts[i + 1] + verts[i + 2]) / 3.0
 			if normals[i].dot(Vector3(mid.x, 0.0, mid.z)) >= -0.01 or normals[i].y > 0.3:
 				out += 1
+		# A leaning palm's trunk and flat leaves face every way, so for
+		# those the mesh's signed volume says it's wound outward: an
+		# inside-out part would take away from it.
+		if kind in [IslandProps.Prop.PALM, IslandProps.Prop.TROPICAL_PLANT, IslandProps.Prop.STARFISH]:
+			var volume := 0.0
+			for i in range(0, verts.size(), 3):
+				volume += verts[i].dot(verts[i + 2].cross(verts[i + 1])) / 6.0
+			_check(volume > 0.0, "props: %s is wound outward (%.3f m³)" % [IslandProps.Prop.keys()[kind], volume])
+			continue
 		# (A cactus's arms point sideways, so some faces turn in.)
 		_check(verts.size() > 0 and out * 10 >= verts.size() / 3 * 8, "props: %s faces outward (%d of %d)" % [IslandProps.Prop.keys()[kind], out, verts.size() / 3])
 	var props := IslandProps.new()
@@ -193,9 +240,9 @@ func _biomes() -> void:
 	bridge.free()
 
 
-# Whether, on a 1 m grid, the middle can be reached from the beach and from
-# every landing without a step steeper than 40°.
-func _walkable(g: IslandGenerator, landings: Array[Vector2]) -> bool:
+# Whether, on a 1 m grid, the middle can be reached from every landing
+# and, if [param beach], from the beach, without a step steeper than 40°.
+func _walkable(g: IslandGenerator, landings: Array[Vector2], beach := true) -> bool:
 	var reach := int(g.radius * 1.5)
 	var size := reach * 2 + 1
 	var h := PackedFloat32Array()
@@ -225,7 +272,7 @@ func _walkable(g: IslandGenerator, landings: Array[Vector2]) -> bool:
 	for p in landings:
 		ok = ok and seen[(int(round(p.x)) + reach) * size + int(round(p.y)) + reach] == 1
 	# The beach: a point just inland of the shore in 16 directions.
-	for k in 16:
+	for k in (16 if beach else 0):
 		var dir := Vector2.from_angle(k * TAU / 16.0)
 		var r := g.shore_radius(dir.x, dir.y) - 1.5
 		ok = ok and seen[(int(round(dir.x * r)) + reach) * size + int(round(dir.y * r)) + reach] == 1
@@ -701,6 +748,30 @@ func _biome_island(world: Node3D, player: Player) -> void:
 				clear = clear and not m.props.is_near(Vector2(e.x - m.global_position.x, e.z - m.global_position.z), SessionIslands.LANDING_CLEAR - 0.1)
 	_check(islands.bridges.links().any(func(l: Array) -> bool: return region in l) and not ends.is_empty(), "W10: it's bridged")
 	_check(ends.all(func(e: Vector3) -> bool: return absf(e.y - m.edge_height()) < 0.3) and clear, "W10: its bridges land at its edge height, clear of props")
+	# Its zipline: E by the bottom post rides you up, E at the top down.
+	var zip := m.zipline()
+	_check(zip != null and islands.island("m1") == m, "W10: a mountain has a zipline")
+	if zip:
+		player.global_position = zip.to_global(zip.low) + Vector3(0.5, 0.1, 0)
+		player.velocity = Vector3.ZERO
+		await physics_frame
+		await physics_frame
+		_press("interact")
+		await _until(func() -> bool: return zip.is_riding(), 1.0)
+		var started := zip.is_riding() and player.riding
+		await _until(func() -> bool: return not zip.is_riding(), 8.0)
+		var up := not player.riding and player.global_position.y > m.global_position.y + m.edge_height() - 0.5
+		_check(started and up, "W10: E by its bottom post rides you up to the shoulder (%.1f m)" % (player.global_position.y - m.global_position.y))
+		await physics_frame
+		await physics_frame
+		player.global_position = zip.to_global(zip.high) + Vector3(0, 0.1, 0)
+		await physics_frame
+		await physics_frame
+		_press("interact")
+		await _until(func() -> bool: return zip.is_riding(), 1.0)
+		await _until(func() -> bool: return not zip.is_riding(), 8.0)
+		_check(not player.riding and player.global_position.y < m.global_position.y + 2.0, "W10: and E at the top takes you down")
+		player.global_position = player.spawn_point
 	store.apply({"type": "session.ended", "session": "m1", "seq": 2, "reason": "exited"})
 	var gone := m.get_instance_id()
 	await _until(func() -> bool: return not is_instance_id_valid(gone), 8.0)

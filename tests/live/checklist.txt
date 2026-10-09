@@ -4,29 +4,30 @@ Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
 
-1. Tab: a "Biome:" row under
-   Cluster, on Random. Pick Forest,
-   New session... > a folder:
-   a forest island rises. Trees,
-   pines, bushes look OK?
-2. Walk its bridge in: no tree in
-   the way. Trees and rocks block
-   you, bushes don't?
-3. Same with Mountain: peaks, snow
-   on the tops. The bridge to it
-   climbs to its ledge. From the
-   landing, walk up to the middle
-   (a valley leads there)?
-4. Swim to a mountain's beach and
-   climb up to the middle?
-5. Snowy and Desert: look right?
-   Colours, cacti, rocks.
-6. A few on Random: kinds vary?
+1. Tab: Biome on Beach, New
+   session... > a folder: palms,
+   plants; sand castles, starfish,
+   shells by the water. Tropical
+   enough? Palms block you?
+2. Forest, Snowy, Desert: still
+   look right (unchanged)?
+3. Mountain: spires 60-70 m, snow
+   on top, tall enough from afar?
+4. Its bridge climbs as a stair
+   to the cliff top: walk it up.
+   A valley leads to the meadow?
+5. Swim to its beach: E by the
+   post rides the zipline up?
+   Look round while riding? Head
+   clear of the cliff? E at the
+   top takes you down?
+6. Night on the meadow (--hour
+   23): good for stargazing?
+   Torches at the cliff's lip.
+7. A few on Random: kinds vary?
    M: islands coloured by kind?
-7. Chat on a forest island so the
-   fake spawns subagents: none
-   inside a tree or on a slope?
-8. --hour 23: torches at the ledge
-   of a high island.
-9. Too many/few props? Mountains
-   high enough? Anything to tune.
+8. Chat on a mountain so the
+   fake spawns subagents: on the
+   meadow, none in a spire?
+9. Anything to tune: palm count,
+   spire heights, zipline speed.
