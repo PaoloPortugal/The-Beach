@@ -13,6 +13,7 @@ here; each section is labelled with its feature ID.
 - [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
 - [Swimming and the sea floor (W08)](#swimming-and-the-sea-floor-w08)
+- [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -255,6 +256,31 @@ can't climb or leap onto the platform or a bridge's railed sides from the
 water. To get back to
 the platform from anywhere, choose **⌂ Platform** in the sessions menu
 (Tab), or click the platform on the big map (M).
+
+## Day, night and the weather (W09)
+
+The sun crosses the sky: it rises in the east, climbs high in the south
+and sets in the west. A whole day and night takes 28 minutes, 14
+of daylight and 14 of night, and every time you start the game it's
+mid-morning. As the sun goes down the sky turns gold and orange, and
+the moon comes up opposite it.
+
+The night is moonlit, not dark: you can still find your way and swim by
+the blue moonlight, the stars come out, and the islands light up. Each
+island has a few torches along its beach and a lamp on the
+orchestrator's desk, so you can see islands from afar and chat in a warm
+pool of light. Chat bubbles and the menus read just as well at night.
+
+The weather changes on its own, slowly: mostly clear, now and then
+cloudy, rainy, windy (the waves run faster) or a thunderstorm, with
+heavy rain, wind and the odd flash of lightning far away. The lightning
+is soft and rare: a short brightening of the sky, never a white-out, at
+most one every 10 to 20 seconds. Rain makes rings on the water, and
+stops when you dive under. The weather is only for the look: it never
+means anything about your sessions.
+
+For now it's all silent; sounds come later. A switch to turn lightning
+off will be in the settings menu, once there is one.
 
 ## Talking to the orchestrator (C01)
 

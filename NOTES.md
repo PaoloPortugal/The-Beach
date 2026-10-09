@@ -87,7 +87,7 @@ v1 slice.
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
-| W09 | Day/night cycle and weather               | planned | n/a           | n/a       |
+| W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -103,6 +103,7 @@ v1 slice.
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
+| C09 | Debug commands                            | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -432,7 +433,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -479,6 +480,15 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   2-9 ms by view; the ocean 4-7 ms (measured before). Making an island
   stalled a frame for 140-170 ms before, about 54-64 ms of it generating
   the mesh, now 25 ms; loading the demo's 64 sessions took 9-11 s.
+
+  W09's share (2026-10-08, interleaved A/B pairs, median of 5): the
+  sky about 0 ms once its uniforms are set only when a change would
+  show (1.6-1.9 ms a frame when they were set every frame); clouds
+  0.2-1.6 ms by view; the night lights 0-1.6 ms, near an island; rain
+  about 0 (its rings drawn only within 60 m). Also measured then: the
+  ocean about 3 ms (W08's, unchanged), the sea floor 0.6-1.3 ms. The
+  platform view took 25.4 ms of GPU against 24.4 ms on `main`, within
+  the runs' spread (the user's Godot editor was open, sharing the GPU).
 - *How to measure:* a throwaway script (not in the repo) that loads
   `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
@@ -488,6 +498,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   (primitives, draw calls), 180 frames each after a warm-up. Close other
   Godot windows first. Measure each change between two fresh baselines;
   runs vary by 1-3 ms. Hiding one part at a time shows what it costs.
+  For a change smaller than that spread, alternate the two versions in
+  pairs (A, B, A, B...) in one run and take the median of 5 pairs.
 - **Rules.** Every generated mesh gets a far version or a visibility
   range tied to the fog:
   - *Nothing the fog hides fully is drawn.* `SessionIslands.draw_distance`
@@ -513,11 +525,17 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   - *In-world UI drawn through a SubViewport only redraws when it
     changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
     and hides once too far to read: the message bubble (C02).
+  - *The sky's uniforms are set only when a change would show:* setting
+    one redraws the sky's reflection map, so `DayNight._set_sky` skips a
+    change smaller than `SKY_STEP` (1/255) (W09).
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
   keeps 4 shadow splits; no resolution setting yet (later, in a graphics
   settings menu); no threaded island generation, mesh merging, or
   collision off far away (collision and per-frame scripts measured no
-  cost).
+  cost). The clouds (W09) have no draw distance: they wrap round an 800 m
+  square, so the far corners are past the fog. Tried and reverted (W09): drawing only the ocean's visible side
+  (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
+  +0.7 ms on another.
 
 ## Protocol
 
@@ -741,6 +759,7 @@ The water level is y = 0.
   triangle by height: under the water the sea floor's (`Seabed.colour`,
   W08), then wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
+- *Torches* (W09): four night lights round the beach (`Island.torches`).
 - *Coarse drop-off* (user's decision, 2026-10-07, for the seabed under
   the then opaque water; Architecture → Performance). The grid (about
   80 m out from the middle, to cover the drop-off) is cut into blocks of
@@ -781,9 +800,11 @@ world space (about ±0.35 m, 14 m long) and lights each triangle flat from
 screen-space derivatives; wave crests are lighter. The plane follows the
 camera in whole cells (`ocean.gd`), so the waves don't jump when it
 moves. Its edge is hidden by depth fog (`world/world.tscn`) that is
-complete at 390 m, in the same colour as the sky's horizon and ground,
-so the horizon is seamless. Since W08 the water is see-through, tinted
-by depth (see W08). Plain enough for the Compatibility renderer.
+complete at 390 m, in the same colour as the sky's horizon, so the
+horizon is seamless (since W09 that colour follows the hour and the
+weather). Since W08 the water is see-through, tinted by depth (see W08);
+since W09 wind makes the waves faster and a little higher, and rain
+draws rings on the water (see W09). Plain enough for the Compatibility renderer.
 
 ### W03 Player movement
 *Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
@@ -1248,7 +1269,8 @@ chosen as offered):*
 - *Under the water* (`Underwater`, `world/ocean/underwater.gd`, made by
   `world.gd`): while the camera is below the surface, the fog turns blue
   and ends at 70 m, covering the sky too; above it, the world's fog comes
-  back as it was.
+  back as it was (W09 changes it through `set_above`, and darkens the
+  underwater fog by night).
 - *Swimming* (`Player`, W03): with the feet more than 1.3 m under the
   water (`swim_depth`) the player swims: no gravity, and W A S D move
   toward where the camera looks (so looking down and pressing W dives),
@@ -1286,11 +1308,102 @@ colour to the floor's"; more depth variation). Live check passed
 (2026-10-08, the user: "looks good").
 
 ### W09 Day/night cycle and weather
-*Planned (user's request, 2026-10-01).* The sun moves through a day and
-night cycle, and the weather changes (e.g. clouds, rain, wind on the
-waves). Not a provider feature: world only. Undesigned: the day's length
-(real time or faster), whether weather is random or reacts to anything,
-and what night looks like (readable islands and bubbles, lights).
+*Built (2026-10-08). Scope: core (world only).* The sun
+moves through a day and night cycle, and the weather changes (user's
+request, 2026-10-01).
+
+*Decided (user's, 2026-10-08):*
+- *Day:* a 28-minute cycle, 14 minutes of day and 14 of night, with a
+  natural progression: the sun goes down and the moon comes up. Every
+  launch starts at mid-morning.
+- *Weather:* random and gentle, meaning nothing (so it can't be mistaken
+  for an agent's state, A03/A05): mostly clear, drifting now and then
+  into clouds, rain, wind on the waves (W02) or a thunderstorm, changing
+  smoothly.
+- *Thunderstorms:* a stronger rain with wind and lightning. Lightning is
+  soft and rare: a short, gentle brightening (never a white-out), at
+  most one every 10-20 s, with a bolt in the distance. The settings menu
+  (after W11) gets an off switch.
+- *Night:* moonlit and readable: blue moonlight to walk and swim by,
+  stars, and warm lights on each island (the orchestrator's desk lamp, a
+  few torches; placeholders until there's art), so islands read from
+  afar. Bubbles and UI stay as readable as by day.
+- *Sound:* silent for now; hooks so a CC0 or the user's own thunder and
+  rain sound drops in later (recorded in `assets/CREDITS.md`).
+
+**How it works** (colours, energies, counts and timings my picks). All
+of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
+- *Clock* (`DayNight`, `day_night.gd`): `time` runs 0 to 1 over `cycle`
+  seconds (`CYCLE`, 28 minutes): 0 sunrise, 0.25 noon, 0.5 sunset, 0.75
+  midnight, so the sun is up exactly half of it. Each launch starts at
+  `START` 0.12 (about 8:50 on a 24-hour clock, where sunrise is 6:00;
+  `set_hour` / `hour`). The sun (`sun_direction`) rises due east, crosses
+  the south at most 60° up and sets due west; the moon is exactly
+  opposite. `darkness` eases from 0 to 1 while the sun goes from 6° above
+  the horizon to 6° below (`current_darkness` keeps it for lights made
+  later).
+- *Light:* `world.tscn`'s one `DirectionalLight3D` (`Sun`) is the sun by
+  day and the moon by night (pale blue, `MOON_ENERGY` 0.12 against the
+  sun's 1.1), swapping at the horizon where both have faded to nothing;
+  the sun reddens toward the horizon. Clouds dim it (to 40 % at full
+  cover) and storms a little more. The ambient light is a colour set by
+  the hour (`AMBIENT_SOURCE_COLOR`, energy 0.6 by day, 0.35 by night), so
+  night stays readable mostly through it. Under the water at night
+  (`Underwater.active`) both drop to 40 %, so the sea floor doesn't glow
+  against the dark water's fog.
+- *Sky* (`sky.gdshader`): a gradient from horizon to top (eased:
+  `1 - exp(-6 * up)`, so sunset colours stay a band near the horizon),
+  the sun's disc and glow, the moon's disc opposite, and stars (hashed
+  direction cells, fading toward the horizon) by night. `DayNight` sets
+  every colour: day, a gold and orange horizon at dusk and dawn, night;
+  greyed by cloud (`OVERCAST`), darker in storms (`STORM_SKY`), lifted by
+  lightning. The fog's colour follows the horizon (through
+  `Underwater.set_above`, so W08's underwater fog still takes over), and
+  the underwater fog darkens by night (`Underwater.light`).
+- *Weather* (`Weather`, `weather.gd`): a kind (`Kind`: clear, cloudy,
+  rain, windy, storm) sets targets for four levels between 0 and 1,
+  `cover`, `rain`, `wind` and `storm` (`TARGETS`); the levels move toward
+  them at 1/60 a second, so a change takes about a minute. A kind lasts
+  3 to 8 minutes, then the next is drawn by `WEIGHTS` (clear 50 %, cloudy
+  20 %, rain and windy 12 % each, storm 6 %; the same kind can come
+  again). Nothing reads it but the look.
+- *Lightning:* with `storm` above 0.6 and `lightning_enabled` (for the
+  settings menu's switch), a strike every 10 to 20 s (`MIN_GAP`,
+  `MAX_GAP`): `flash` makes two soft pulses over 0.35 s, peaking at 0.6
+  (`FLASH_PEAK`), which lift the sky, the light and the ambient, never
+  to white; and a bolt (`LightningBolt`, `lightning_bolt.gd`), a jagged
+  ribbon from 110 m up to the sea, 180 to 320 m away in a random
+  direction, fading over 0.3 s. Its `lightning` signal is the hook for a
+  thunder sound.
+- *Clouds* (`Clouds`, `clouds.gd`): 40 low-poly clumps (flattened
+  six-sided blobs, about 80 to 170 m long) 80 to 120 m up, drifting with the
+  wind (2 to 12 m/s, one random direction per run) and wrapping round
+  an 800 m square around the camera. Cover sets how many show (cloud i
+  grows in as cover passes i/40); storms turn them grey.
+- *Rain* (`Rain`, `rain.gd`): up to 2,400 streaks (`GPUParticles3D`, as
+  many as `rain` says) falling in a 52 m box over the camera, slanting
+  with the wind, dimmer at night; none while the camera is under the
+  water. On the water, `ocean.gdshader` draws spreading rings in some of
+  its 1.2 m cells (as many as it rains), within 60 m of the camera.
+- *Wind on the waves* (`ocean.gd`): the waves' phase is kept in the
+  script (`wave_phase`), so a change of speed doesn't jump them; full
+  wind makes them 2.2 times faster but only 1.15 times higher, since the
+  floating eyes are about 0.45 m above still water (W08).
+- *Night lights* (`NightLight`, `night_light.gd`): warm `OmniLight3D`s
+  with an unshaded flame, placeholders until there's art: four torches
+  per island (`Island.torches`, where its beach is 0.5 m above the water,
+  on the diagonals) and a lamp on the orchestrator's desk. They come on
+  as `darkness` passes 0.3 to 0.8 (group `night_lights`, called by
+  `DayNight`) and fade out 60 to 90 m from the camera; no shadows.
+- *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
+  it: `changes` off) and `--day-minutes <n>`, after `--`. C09's debug
+  commands will replace them.
+- *Performance* (Architecture → Performance): the sky's uniforms are
+  only set when a change would show (a 1/255 step, about once a second;
+  each set redraws the sky's reflection map, which measured 1.6-1.9 ms a
+  frame when it happened every frame); rain rings only within 60 m;
+  clouds, rain and the bolt cast no shadows. Measured costs are in
+  Architecture → Performance.
 
 ### W10 Island biomes
 *Planned (user's request, 2026-10-07).* Islands of other kinds besides
@@ -1322,7 +1435,8 @@ solid collision box and a `ChatZone` (`Area3D`, radius 2.5 m) that signals
 when the player walks in or out (C01), and a `MessageAnchor` above its head
 where its message bubble floats (C02). It joins the `orchestrators` group.
 One is made per session, in the middle of its island, by `SessionIslands`
-(W01), with `session_id` set to the session it belongs to.
+(W01), with `session_id` set to the session it belongs to. A lamp on its
+desk lights up at night (W09).
 
 ### A02 Subagents
 *Placeholder built (v1, 2026-09-30). Scope: core* (only the generic agent
@@ -2092,6 +2206,22 @@ How it works:
   heavy turn (context ≥ 80%, 5-hour ≥ 85%); a resumed stored session
   comes back with its usage so far (1,840 output tokens on its first
   message); `clear` starts the counts over, keeping the limits.
+
+### C09 Debug commands
+*Planned (user's request, 2026-10-08), for the developer while
+debugging; not scheduled.* Typed commands in the style of Minecraft's,
+to change the world's state on the spot, e.g. `/weather <kind>` and
+`/time set <day, night, {seconds}s, {minutes}m>` (W09). A number with
+`s` or `m` jumps to that point of the 28-minute day, counted from
+midnight (user's, 2026-10-08): `0s` midnight, `7m` sunrise, `14m` noon,
+`21m` sunset (W09's 14 minutes of day and 14 of night). W09's launch
+time, mid-morning, is about `10m 22s`. Names and words
+are mine to pick (user's, 2026-10-08): the weather kinds will match
+W09's. Scope: core (world only). They'd take over from W09's dev flags
+(`--hour`, `--weather`, `--day-minutes`). Undesigned: where you type
+them (a console key, or the chat box with a leading `/`, which would
+clash with commands meant for the session), the full command list, and
+whether they ship in public builds or only in debug builds.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -3098,6 +3228,12 @@ godot --headless --path . --script res://tests/world/performance_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
 ```
 
+Dev flags for the day and the weather (W09), after `--` like the
+others: `--hour <0-24>` starts at that time (6 sunrise, 18 sunset),
+`--weather <clear|cloudy|rain|windy|storm>` fixes the weather, and
+`--day-minutes <n>` makes a whole day and night last n minutes, e.g.
+`godot --path . -- --hour 19 --weather storm --day-minutes 4`.
+
 The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
 
@@ -3140,7 +3276,16 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping), swimming (W08: floating at the surface, Space
+platform, walking, jumping), the day and the weather (W09: starting
+mid-morning, the sun's path and the moon opposite, half the cycle night,
+set_hour and --day-minutes, the sky not re-sent for a change too small
+to see, an island's torches and the desk lamp lit at night and out by
+day, without shadows and fading by 100 m, the weather's weights,
+easing and bounds, a storm's lightning 10-20 s apart with a flash no
+brighter than 0.6, none with lightning off or without a storm, the kind
+kept with changes off, clouds by cover, rain in a storm and none under
+the water, the bolt far off and gone in a moment, and no shadows from
+clouds, rain or the bolt), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
 below the platform's deck, back in), back by the menu's "Platform" and
@@ -3356,9 +3501,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W09 day/night cycle and weather, starting with its
-design questions; then W10 and W11, then a settings menu with graphics
-settings, in that order (user's, 2026-10-08).
+**Current focus:** W10 island biomes; then W11, then a settings menu
+with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
+that order (user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
+cycle and weather** (dev log 2026-10-08-w09-day-night): a 28-minute day
+with the sun and moon, random gentle weather with soft thunderstorms,
+moonlit nights with torches and desk lamps. Live check passed in both
+renderers at the start's mid-morning; the other hours and weathers wait
+for C09's `/time` and `/weather` (user's).
 **Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
 (dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
 sea floor's colours (now a smooth gradient by depth), a warped, spread
