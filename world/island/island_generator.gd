@@ -23,11 +23,17 @@ const COARSE := 4
 ## Off the beach biome (W10): the beach is BEACH_WIDTH metres wide, up to
 ## BEACH_TOP above the water; the slope above it climbs SLOPE (rise per
 ## metre, on average) to the edge height; the shoulder there is SHOULDER
-## metres wide. On a small island all three shrink to fit.
+## metres wide. On a small island the beach and the shoulder shrink first
+## (to BAND_MIN), the slope only if that isn't enough.
 const BEACH_WIDTH := 3.0
 const BEACH_TOP := 0.6
-const SLOPE := 0.6
+const SLOPE := 0.5
 const SHOULDER := 4.0
+const BAND_MIN := 1.5
+## Hills leave VALLEYS straight ways from the shoulder to the middle,
+## VALLEY_WIDTH metres wide, so you can always walk up (W10).
+const VALLEYS := 3
+const VALLEY_WIDTH := 4.0
 ## Triangles steeper than this (their normal's y below it) are rock.
 const STEEP := 0.8
 ## Props stay this far outside the flat middle, and off ground steeper
@@ -69,6 +75,7 @@ var _shore_noise := FastNoiseLite.new()
 var _dune_noise := FastNoiseLite.new()
 var _seed: int
 var _tint := RandomNumberGenerator.new()
+var _valley_turn := 0.0 # the first valley's angle
 
 
 func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
@@ -78,6 +85,9 @@ func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
 	plateau_height = profile["plateau"]
 	dune_height = profile["hills"]
 	_tint.seed = p_seed + 2
+	var turn := RandomNumberGenerator.new()
+	turn.seed = p_seed + 4
+	_valley_turn = turn.randf() * TAU
 	_shore_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 	_shore_noise.seed = p_seed
 	_shore_noise.frequency = 1.0
@@ -146,21 +156,36 @@ func _biome_height(x: float, z: float) -> float:
 		h = lerpf(edge, plateau_height, smoothstep(b + c + w, rise_end, d)) if rise_end > b + c + w else plateau_height
 	# Hills: none on the shoulder (bridges land there) or the flat middle.
 	var hills := smoothstep(b + c + w, b + c + w + 3.0, d) * smoothstep(plateau_radius + 1.0, plateau_radius + 5.0, r)
+	hills *= smoothstep(VALLEY_WIDTH / 2.0, VALLEY_WIDTH * 1.5, _valley_distance(x, z))
 	if hills > 0.0:
 		h += clampf(_dune_noise.get_noise_2d(x, z) * profile.get("hill_gain", 2.5), 0.0, 1.0) * dune_height * hills
 	return h
 
 
+# How far (x, z) is from the nearest valley's line, metres.
+func _valley_distance(x: float, z: float) -> float:
+	var step := TAU / VALLEYS
+	var off := fposmod(atan2(z, x) - _valley_turn + step / 2.0, step) - step / 2.0
+	return Vector2(x, z).length() * absf(sin(off))
+
+
 # The beach's, the slope's and the shoulder's widths for a shoreline
-# [param shore] metres out, shrunk to fit a small island.
+# [param shore] metres out, fitted to a small island: 3 m are kept for
+# the rise to the middle.
 func _bands(shore: float) -> Array[float]:
 	var edge: float = profile["edge"]
 	var b := BEACH_WIDTH
 	var c := maxf(0.0, edge - BEACH_TOP) / SLOPE
 	var w := SHOULDER
-	var room := shore - plateau_radius - 2.0
-	var k := clampf(room / (b + c + w), 0.2, 1.0)
-	return [b * k, c * k, w * k]
+	var room := shore - plateau_radius - 3.0
+	if b + c + w > room:
+		var k := clampf((room - c) / (b + w), BAND_MIN / BEACH_WIDTH, 1.0)
+		b *= k
+		w = maxf(BAND_MIN, w * k)
+	if b + c + w > room:
+		var k := clampf(room / (b + c + w), 0.3, 1.0)
+		return [b * k, c * k, w * k]
+	return [b, c, w]
 
 
 ## Where props stand (W10), from the seed: an Array of {"prop":

@@ -28,6 +28,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_island()
+	await _biomes()
 	_jump_assist()
 	_placement()
 	await _scene()
@@ -91,6 +92,144 @@ func _island() -> void:
 			if _close(colours[i], Seabed.colour(h), 1.0 / 255.0):
 				matched += 1
 	_check(under > 0 and matched == under, "under the water the island has the sea floor's colours (%d of %d)" % [matched, under])
+
+
+# W10: every biome's shape, its props, and that you can walk up it.
+func _biomes() -> void:
+	var beach := IslandGenerator.new(42)
+	var also := IslandGenerator.new(42, Biome.Kind.BEACH)
+	_check(beach.biome == Biome.Kind.BEACH and is_equal_approx(beach.height_at(12, 5), also.height_at(12, 5)) and beach.prop_spots().is_empty(), "biomes: the beach is the default, W01's shape, without props")
+	var rolled := {}
+	for k in 200:
+		rolled[Biome.resolve(Biome.RANDOM)] = true
+	_check(rolled.size() == Biome.Kind.size() and Biome.resolve(Biome.Kind.SNOWY) == Biome.Kind.SNOWY, "biomes: Random rolls every kind, a chosen one stays")
+	for kind: int in [Biome.Kind.FOREST, Biome.Kind.MOUNTAIN, Biome.Kind.SNOWY, Biome.Kind.DESERT]:
+		var name: String = Biome.NAMES[kind]
+		var flat := true
+		var sea := true
+		var shoulder := true
+		var props := true
+		var some_props := 0
+		var walk := true
+		for seed in [1, 7, 42, 1234, 99999]:
+			var g := IslandGenerator.new(seed, kind)
+			for r in [0.0, 3.0, 6.0]:
+				for k in 8:
+					var ang := k * TAU / 8.0
+					flat = flat and is_equal_approx(g.height_at(cos(ang) * r, sin(ang) * r), g.plateau_height)
+			var landings: Array[Vector2] = []
+			for k in 16:
+				var ang := k * TAU / 16.0
+				var dir := Vector2(cos(ang), sin(ang))
+				var r := g.shore_radius(dir.x, dir.y)
+				var on_shelf := r * (g.shelf_start + g.shelf_end) / 2.0
+				sea = sea and is_equal_approx(g.height_at(dir.x * on_shelf, dir.y * on_shelf), g.sea_floor)
+				# A bridge lands where the ground first reaches the edge
+				# height, on a shoulder about that high.
+				var at := r * 1.2
+				while at > 0.0 and g.height_at(dir.x * at, dir.y * at) < g.edge_height():
+					at -= 0.25
+				var inward := g.height_at(dir.x * (at - 1.0), dir.y * (at - 1.0))
+				shoulder = shoulder and at > g.plateau_radius and absf(inward - g.edge_height()) < 0.4
+				landings.append(dir * at)
+			for s in g.prop_spots():
+				some_props += 1
+				var p: Vector3 = s["position"]
+				props = props and Vector2(p.x, p.z).length() >= g.plateau_radius + IslandGenerator.PROP_CLEAR and p.y > IslandGenerator.BEACH_TOP
+			walk = walk and _walkable(g, landings)
+		_check(flat, "biomes: %s: the middle is flat" % name)
+		_check(sea, "biomes: %s: surrounded by sea" % name)
+		_check(shoulder, "biomes: %s: bridges land on a shoulder at its edge height (%.1f m)" % [name, Biome.profile(kind)["edge"]])
+		_check(props and some_props > 5, "biomes: %s: props, off the beach and the middle (%d)" % [name, some_props])
+		_check(walk, "biomes: %s: you can walk from the beach and from every landing up to the middle" % name)
+	var mountain := IslandGenerator.new(7, Biome.Kind.MOUNTAIN)
+	mountain.build()
+	_check(mountain.top > 10.0 and mountain.edge_height() > 4.0, "biomes: a mountain is high (%.1f m), and so is its edge" % mountain.top)
+
+	# Props: their meshes face outward, they clear where asked, and the
+	# solid ones have collision.
+	for kind: int in IslandProps.Prop.values():
+		var arrays := IslandProps.mesh(kind).surface_get_arrays(0)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var out := 0
+		for i in range(0, verts.size(), 3):
+			var mid := (verts[i] + verts[i + 1] + verts[i + 2]) / 3.0
+			if normals[i].dot(Vector3(mid.x, 0.0, mid.z)) >= -0.01 or normals[i].y > 0.3:
+				out += 1
+		# (A cactus's arms point sideways, so some faces turn in.)
+		_check(verts.size() > 0 and out * 10 >= verts.size() / 3 * 8, "props: %s faces outward (%d of %d)" % [IslandProps.Prop.keys()[kind], out, verts.size() / 3])
+	var props := IslandProps.new()
+	root.add_child(props)
+	var spots: Array[Dictionary] = []
+	spots.append({"prop": IslandProps.Prop.TREE, "position": Vector3(10, 1, 0), "yaw": 0.0, "scale": 1.0})
+	spots.append({"prop": IslandProps.Prop.BUSH, "position": Vector3(-10, 1, 0), "yaw": 0.0, "scale": 1.0})
+	spots.append({"prop": IslandProps.Prop.ROCK, "position": Vector3(0, 1, 10), "yaw": 0.0, "scale": 1.0})
+	props.setup(spots)
+	var shapes := props.find_children("*", "CollisionShape3D", false, false).size()
+	_check(shapes == 2 and props.is_near(Vector2(10.5, 0), 1.0) and not props.is_near(Vector2(5, 5), 1.0), "props: trees and rocks are solid, bushes aren't")
+	props.clear_near(Vector3(0, 0, 4), Vector3(0, 0, 14), 2.0)
+	_check(props.spots.size() == 2 and not props.is_near(Vector2(0, 10), 1.0), "props: cleared along a bridge's way in")
+	props.free()
+
+	# W10: a steep bridge gets level steps; its collision stays a ramp.
+	var bridge := Bridge.new(Vector3(0, 0.5, 0), Vector3(0, 6.0, -12.0))
+	root.add_child(bridge)
+	await process_frame # it builds in _ready
+	var level := 0
+	for seg in bridge.get_children():
+		if not seg.has_node("Near"):
+			continue
+		var a: Array = ((seg.get_node("Near") as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)
+		var n: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		for i in range(0, v.size(), 3):
+			if n[i].y > 0.999 and v[i].y > 1.5:
+				level += 1
+	var ramp := true
+	for s in [2.0, 6.0, 10.0]:
+		ramp = ramp and absf(bridge.deck_y(s) - lerpf(0.5, 6.0, s / 12.0)) < 0.01
+	_check(level > 20 and ramp, "bridges: a steep one has level steps (%d tops), on a smooth ramp" % level)
+	bridge.free()
+
+
+# Whether, on a 1 m grid, the middle can be reached from the beach and from
+# every landing without a step steeper than 40°.
+func _walkable(g: IslandGenerator, landings: Array[Vector2]) -> bool:
+	var reach := int(g.radius * 1.5)
+	var size := reach * 2 + 1
+	var h := PackedFloat32Array()
+	h.resize(size * size)
+	for i in size:
+		for j in size:
+			h[i * size + j] = g.height_at(i - reach, j - reach)
+	var seen := PackedByteArray()
+	seen.resize(size * size)
+	var todo: Array[int] = [reach * size + reach]
+	seen[todo[0]] = 1
+	var limit := tan(deg_to_rad(40.0))
+	while not todo.is_empty():
+		var at: int = todo.pop_back()
+		var i := at / size
+		var j := at % size
+		for step in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
+			var ni: int = i + step[0]
+			var nj: int = j + step[1]
+			if ni < 0 or nj < 0 or ni >= size or nj >= size:
+				continue
+			var next := ni * size + nj
+			if seen[next] == 0 and h[next] > 0.0 and absf(h[next] - h[at]) <= limit:
+				seen[next] = 1
+				todo.append(next)
+	var ok := true
+	for p in landings:
+		ok = ok and seen[(int(round(p.x)) + reach) * size + int(round(p.y)) + reach] == 1
+	# The beach: a point just inland of the shore in 16 directions.
+	for k in 16:
+		var dir := Vector2.from_angle(k * TAU / 16.0)
+		var r := g.shore_radius(dir.x, dir.y) - 1.5
+		ok = ok and seen[(int(round(dir.x * r)) + reach) * size + int(round(dir.y * r)) + reach] == 1
+	return ok
 
 
 func _jump_assist() -> void:
