@@ -1602,9 +1602,30 @@ from screenshots).
 ### W11 Crouch and slide
 *Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
 slide when crouching at a run, extending W03's movement towards parkour.
-Not a provider feature: world only. Likely on Ctrl, which sinks you in
-the water (W08). Undesigned: crouch speed and height, the slide's speed,
-length and slopes, and whether you can jump out of a slide.
+Not a provider feature: world only. Scope: core.
+
+*Decided (user's, 2026-10-09; my recommendations, all taken):*
+- **Key: hold Ctrl.** Ctrl already swims down in the water (W08), which
+  never overlaps with standing on ground, so one key does both (rejected:
+  toggling Ctrl, slower for quick slides; hold C, less standard and easy
+  to miss mid-sprint).
+- **Crouch: 1.1 m, 2.5 m/s.** The body goes from 1.8 m to 1.1 m and the
+  eyes from 1.6 m to about 0.95 m, eased over about 0.15 s; crouch-walking
+  is half walking speed; you can't stand up under something low
+  (rejected: 1.3 m at 3 m/s, a smaller change; 0.9 m at 2 m/s, close to
+  crawling).
+- **Slide: momentum, slopes matter** (like Apex). Crouching at a sprint
+  gives a burst (about 11 m/s) that fades to crouch speed in about 1 s
+  on flat ground; downhill you keep or gain speed, uphill you stop
+  sooner; you can steer a little (rejected: a fixed short slide, about
+  1 s and 6 m with slopes ignored, which can't grow into parkour; a long,
+  slippery slide, easy to slide off a beach into the sea).
+- **Slide jump: yes, keeping speed.** A jump mid-slide keeps the slide's
+  speed, a long fast jump; a short wait (about 0.5 s) before the next
+  slide stops endless chaining (rejected: a normal jump ending the slide
+  at sprint speed; no jumping until the slide ends).
+
+Not built yet.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -3754,7 +3775,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W11 crouch and slide (not designed yet), then a
+**Current focus:** W11 crouch and slide, designed (user's, 2026-10-09;
+W11) and being built on `w11-crouch-slide`, then a
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
