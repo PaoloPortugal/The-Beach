@@ -3753,14 +3753,17 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W05/W06 unbounded clusters, built on
-`w05-unbounded-clusters` and waiting for the user's review (dev log
-2026-10-09-w05-unbounded-clusters): 8 near wedges growing without limit,
-a 9th and later cluster far, bridged within but not to the platform.
-Then W11 crouch and slide (not designed yet), then a
+**Current focus:** W11 crouch and slide (not designed yet), then a
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
+clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
+growing without limit, a 9th and later cluster far, bridged within but
+not to the platform; the bridges test's crowd (178 sessions on CI, 311
+with `-- --crowd`). Its live check (`tests/live/checklist.txt`, with the
+layout demo) and my two far-cluster picks are still for the user to
+confirm.
 **Merged to `main` (2026-10-09), approved by the user: W10 island biomes
 and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
 2026-10-08-c09-commands): five kinds of island picked in the sessions
