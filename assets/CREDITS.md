@@ -23,9 +23,10 @@ Every new one Claude writes or rewrites gets a row.
 | `world/sky/sky.gdshader` | Claude (Claude Code) | Shader. The sky (W09, 2026-10-08): gradient, sun and moon discs, stars. |
 | `world/sky/clouds.gd`, `world/sky/rain.gd`, `world/sky/lightning_bolt.gd` | Claude (Claude Code) | Generated weather (W09, 2026-10-08): low-poly clouds from flattened blobs, rain streaks (particles), a lightning bolt ribbon. |
 | `world/sky/night_light.gd` | Claude (Claude Code) | Placeholder night lights (W09, 2026-10-08): torches and a desk lamp from primitives, with a warm light. |
-| `world/island/island_generator.gd`, `world/island/island.gd` | Claude (Claude Code) | Generated islands (W01, 2026-09-30): height field, flat-shaded triangles, colours by height. Shelf and drop-off added for W08; underwater colours from the sea floor's (2026-10-08). |
+| `world/island/island_generator.gd`, `world/island/island.gd`, `world/island/biome.gd` | Claude (Claude Code) | Generated islands (W01, 2026-09-30): height field, flat-shaded triangles, colours by height. Shelf and drop-off added for W08; underwater colours from the sea floor's (2026-10-08). Biomes (W10, 2026-10-08): forest, mountain, snowy and desert shapes and palettes, rock on steep slopes. |
+| `world/island/island_props.gd` | Claude (Claude Code) | Placeholder props (W10, 2026-10-08): trees, pines, snowy pines, bushes, rocks, cacti and shrubs from Godot's primitive meshes, flat-shaded with vertex colours. |
 | `world/seabed/seabed.gd` | Claude (Claude Code) | Generated sea floor (W08, 2026-10-08). Warped noise, mounds and a colour gradient by depth added the same day (W08 follow-ups). |
-| `world/bridges/bridge.gd` | Claude (Claude Code) | Placeholder bridges (W06, 2026-10-07): planks, posts and rails from boxes and quads. |
+| `world/bridges/bridge.gd` | Claude (Claude Code) | Placeholder bridges (W06, 2026-10-07): planks, posts and rails from boxes and quads. Steps on steep bridges (W10, 2026-10-08). |
 | `world/platform/spawn_platform.tscn` | Claude (Claude Code) | Placeholder spawn platform: one wooden-coloured box. |
 | `world/ocean/ocean.tscn` | Claude (Claude Code) | The ocean's plane mesh, for the shader above. |
 | `agents/orchestrator/orchestrator.tscn` | Claude (Claude Code) | Placeholder orchestrator (A01, 2026-09-30): boxes, capsules and spheres. |
