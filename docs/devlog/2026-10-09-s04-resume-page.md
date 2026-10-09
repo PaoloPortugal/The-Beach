@@ -37,11 +37,14 @@ hook relays and permission requests waited behind them.
   selectors show on Add and Resume, keeping their choices between the
   two. They're reset only when the menu opens, as before. The A05 sound
   toggle stays on the first page.
-- **Kept, deliberately:** while the system's folder picker is open, Esc
-  still closes the menu and gives the controls back, as Cancel does. It's
-  the user's 2026-10-01 way out of a picker lost behind the game, so it
-  stays the exception to Esc going back. Cancelling either picker returns
-  to Add a session.
+- **Esc while the system's folder picker is open** first stayed the
+  exception (it closed the menu, as Cancel does: the user's 2026-10-01
+  way out of a picker lost behind the game). The user asked for it to go
+  back a page too, if the safety net stays: Esc now stops waiting and
+  shows Add a session again, like cancelling the picker; Cancel and Tab
+  still close the menu and give the controls back, and the lost picker's
+  late answer is ignored either way (world test checks both).
+  Cancelling either picker returns to Add a session.
 - The sidecar's `StoredCache` (`providers/claude/store.ts`), held by the
   Claude provider, keeps each transcript's description while its size
   and modification time stay the same. It forgets files no longer there.
@@ -55,14 +58,17 @@ hook relays and permission requests waited behind them.
 
 ## Checked
 
-- Sidecar: two new store tests, the same list with and without the
-  cache (unchanged, renamed, deleted, new files), and the provider
-  keeping it between calls with a change showing.
+- Sidecar: three new store tests, the same list with and without the
+  cache (unchanged, renamed, deleted, new files), a file whose read
+  failed not kept and listed on the next call, and the provider keeping
+  it between calls with a change showing.
 - World test: the first page offers Add session and the platform, with
   no selectors and no listing asked for. Add a session shows New and
   Resume with the selectors. Resume asks once and keeps the choices. Esc
   goes back a page each time and closes from the first page. Tab closes
-  from any page. The menu opens on its first page. With the fake: the
+  from any page. The menu opens on its first page. Waiting for the
+  system's picker, Esc goes back to Add a session and Cancel closes the
+  menu, and the picker's late answers are ignored. With the fake: the
   menu and Add session ask nothing, Resume lists newest first, and a
   resumed session is under Running and not under Resume.
 - Not yet: a live look at the pages in a real window (headless only).
