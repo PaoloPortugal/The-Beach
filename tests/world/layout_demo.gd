@@ -15,6 +15,10 @@ extends Node3D
 ## the rest far (d42-d64).
 const SIZES := [16, 6, 5, 4, 3, 3, 2, 2, 6, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1]
 
+## The sizes used: [constant SIZES] unless set before the demo enters the
+## tree (the bridges test's crowd).
+var sizes: Array = SIZES
+
 var world: Node3D
 var _above := Camera3D.new()
 var _fog := true
@@ -27,9 +31,9 @@ func _ready() -> void:
 	add_child(world)
 	var store: SessionStore = world.store
 	var n := 0
-	for c in SIZES.size():
+	for c in sizes.size():
 		var repo := "/demo/repo-%02d" % (c + 1)
-		for k in SIZES[c]:
+		for k in sizes[c]:
 			n += 1
 			store.apply({"type": "session.snapshot", "session": session("d%02d" % n, repo, "task %d" % (k + 1))})
 	_above.projection = Camera3D.PROJECTION_ORTHOGONAL
