@@ -1,3 +1,42 @@
+LIVE CHECK: S04 Resume on
+its own page
+  godot --path . -- --checklist
+  (add --sidecar-dev-fake to
+  try it without claude)
+Page Down / wheel scrolls this.
+
+1. Tab: "Sessions", with
+   + Add session..., Platform
+   and Running. No Cluster or
+   Biome rows, no Resume list?
+2. + Add session...: "Add a
+   session", Cluster and Biome,
+   + New session... and
+   > Resume a session...
+3. Pick a biome, then Resume:
+   your earlier sessions,
+   newest first; the biome
+   kept? The first time may
+   say Loading... for a second.
+4. Esc: back to Add a session.
+   Esc: back to Sessions. Esc:
+   closed. Tab closes from any
+   page?
+5. Resume again (same game):
+   the list comes at once?
+6. In a terminal: claude
+   --resume, pick an old
+   session, /rename it, /exit.
+   Back in the game, Resume:
+   the new name shows?
+7. + New session..., then hide
+   the picker behind the game
+   (Alt+Tab): Esc gives you the
+   controls back (not a page
+   back)?
+8. Start or resume one: works
+   as before?
+
 LIVE CHECK: W05/W06 clusters
 that grow without limit
   godot --path .

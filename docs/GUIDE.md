@@ -45,16 +45,22 @@ without the sun's shadows.
 This is a quick first version, a placeholder: the menu will be designed
 properly later.
 
-Press **Tab** anywhere (except while chatting) to open the sessions menu;
-**Tab** or **Esc** closes it. While no session is running, "Press Tab for
-sessions" reminds you at the bottom of the screen. Type in the search box
-at the top to filter the lists by title, project or cluster.
+Press **Tab** anywhere (except while chatting) to open the sessions menu.
+It opens on its first page, **Sessions**, with the sessions running now.
+**+ Add session…** takes you to **Add a session**, where you choose to
+start a new session or resume an earlier one. **Esc** goes back a page,
+and closes the menu from the first page; **Tab** closes it from any
+page. While no session is running, "Press Tab for sessions" reminds you
+at the bottom of the screen. Type in the search box at the top to filter
+the running sessions by title, project or cluster, or, on the Resume
+page, your earlier sessions by title or project.
 
-Under the search box, **Cluster** says which cluster a session you start
-or resume joins (see Clusters below). **Automatic (by repository)**, the
-choice each time the menu opens, puts it with the other sessions of its
-git repository. You can pick one of the running clusters instead, or
-**New cluster** to give it a cluster of its own.
+On **Add a session** (and on the Resume page after it), **Cluster** says
+which cluster a session you start or resume joins (see Clusters below).
+**Automatic (by repository)**, the choice each time the menu opens, puts
+it with the other sessions of its git repository. You can pick one of
+the running clusters instead, or **New cluster** to give it a cluster of
+its own.
 
 Under that, **Biome** says what kind of island it gets (see Kinds of
 island below): **Random**, the choice each time the menu opens, or a
@@ -69,14 +75,9 @@ chatting with in the game keeps its first message as its name. If you rename it 
 is used instead, everywhere in the game. The Resume list uses the same
 names as Claude Code's own `/resume` list.
 
-- **+ New session…** opens your system's own folder picker (File
-  Explorer on Windows, the usual open panel on macOS and Linux) to
-  choose the project folder you want to work in. Cancelling it takes you
-  back to the menu. While it's open, the menu waits with a note: if the
-  picker ends up hidden behind the game (this can happen on Windows),
-  switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
-  get back to the game; choosing a folder in it afterwards does nothing.
-  If your system has no picker of its own, the game shows its own.
+On the first page:
+
+- **+ Add session…** takes you to Add a session (below).
 - **⌂ Platform** takes you back to the spawn platform, wherever you are,
   in the water too.
 - **Running** lists the sessions running now, grouped under their
@@ -88,8 +89,22 @@ names as Claude Code's own `/resume` list.
   you always find a session in the same place: clusters in the order
   of their places around the platform, and each cluster's sessions in
   the order of their islands.
-- **Resume** lists your earlier Claude Code sessions, newest first, with
-  their project and how long ago you last used them. Click one to pick it
+
+On Add a session:
+
+- **+ New session…** opens your system's own folder picker (File
+  Explorer on Windows, the usual open panel on macOS and Linux) to
+  choose the project folder you want to work in. Cancelling it takes you
+  back to Add a session. While it's open, the menu waits with a note: if the
+  picker ends up hidden behind the game (this can happen on Windows),
+  switch to it (Alt+Tab or the taskbar), or press **Cancel** (or Esc) to
+  get back to the game (here Esc leaves the menu rather than going back
+  a page); choosing a folder in it afterwards does nothing.
+  If your system has no picker of its own, the game shows its own.
+- **▸ Resume a session…** lists your earlier Claude Code sessions, newest
+  first, with their project and how long ago you last used them. The
+  first time after the game starts this can take a second ("Loading…");
+  after that it's quick. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions
   started in a terminal are listed (not ones from the VS Code extension
   or the Claude desktop app), and only as far back as Claude Code keeps
@@ -269,7 +284,7 @@ You see the world through your character's eyes.
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
 | Free the mouse pointer | Esc (click in the game to take it back) |
-| Sessions menu: start, resume or go to a session or the platform | Tab (Tab or Esc closes it) |
+| Sessions menu: start, resume or go to a session or the platform | Tab (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 | Ride a mountain's zipline, by its post | E |

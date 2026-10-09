@@ -1007,10 +1007,11 @@ and sessions in the same repository are grouped automatically.
   An island's land reaches at most about 44 m from its centre, its sea
   floor 68 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
-- *Sessions menu* (S03): a "Cluster:" row under the search box with
-  "Automatic (by repository)", each running cluster and "New cluster";
-  back to Automatic each time the menu opens, hidden with the lists while
-  the folder picker is open, and used by both New session and Resume.
+- *Sessions menu* (S03): a "Cluster:" row on the Add session and Resume
+  pages with "Automatic (by repository)", each running cluster and "New
+  cluster"; back to Automatic each time the menu opens, hidden with the
+  lists while the folder picker is open, and used by both New session and
+  Resume.
   The Running list (W07) shows "▸ <cluster>" headings with their
   sessions under them, and the search also matches cluster names.
 
@@ -1364,7 +1365,7 @@ chosen as offered):*
   walk out up a beach. The platform's and bridges' sides are walls.
 - *The way back* (`world.gd` → `go_to_platform`, which also drops a
   teleport waiting for an island to rise): "⌂ Platform" under
-  "+ New session…" in the sessions menu, and a click on the platform on
+  "+ Add session…" in the sessions menu, and a click on the platform on
   the big map (W06).
 - *Live check passed (2026-10-08)* with the user and the fake provider.
 
@@ -1579,7 +1580,8 @@ from screenshots).
   starts and ends deeper, all of it under the deepest sea floor
   (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
   so it rises faster in the same time.
-- *Picking* (sessions menu): a "Biome:" row under the cluster's, with
+- *Picking* (sessions menu): a "Biome:" row under the cluster's (Add
+  session and Resume pages), with
   Random and each kind, back to Random each time the menu opens, used by
   New session (either picker) and Resume. The launcher passes it to
   `SessionIslands.choose_biome` with the session id when the reply
@@ -3064,14 +3066,26 @@ proper design later, like all UI.
 `SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`):
 - **Opening.** Tab (input action `sessions_menu`, the physical Tab key)
   opens it anywhere while you have the controls, so not while chatting.
-  It frees the mouse and pauses the player. Tab or Esc closes it. While
-  no session runs and nothing is starting, "Press Tab for sessions"
-  shows at the bottom of the screen.
-- **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), the cluster selector (W05), the biome selector (W10), then "+ New session…", "⌂ Platform"
-  (back to the spawn platform; W08), "Running" (W07) and "Resume" (S04).
-  The search filters Running and Resume by title and project, like
-  Claude Code's own `/resume` list (user's choice).
+  It frees the mouse and pauses the player, and always opens on its
+  first page. Esc goes back a page and closes it from the first; Tab
+  closes it from any page (user's, 2026-10-09). While no session runs
+  and nothing is starting, "Press Tab for sessions" shows at the bottom
+  of the screen.
+- **Layout.** A centred panel in three pages (user's, 2026-10-09: adding
+  a session asks "new or resumed?", which fits the menu's future design;
+  dev log 2026-10-09-s04-resume-page):
+  - *Sessions*: a search box (focused), "+ Add session…", "⌂ Platform"
+    (back to the spawn platform; W08) and "Running" (W07). The search
+    filters Running by title, project and cluster.
+  - *Add a session*: the cluster selector (W05) and the biome selector
+    (W10), then "+ New session…" and "▸ Resume a session…".
+  - *Resume a session*: the same two selectors (their choices kept), a
+    search box and the stored sessions (S04), filtered by title and
+    project like Claude Code's own `/resume` list (user's choice). Only
+    this page asks the sidecar for them, each time it opens.
+  The header says the page ("Sessions", "Add a session", "Resume a
+  session") and the keys ("Tab or Esc to close", or "Esc to go back, Tab
+  to close").
 - **New session…** opens the **system's folder picker** on every
   platform (user's decision, 2026-10-01, reversing M1's choice of
   Godot's own): File Explorer's on Windows, the open panel on macOS, the
@@ -3080,7 +3094,7 @@ proper design later, like all UI.
   the home folder, then the last folder chosen. Where the system has
   none (`FEATURE_NATIVE_DIALOG_FILE` off, e.g. Linux without the desktop
   portal, or headless), Godot's own `FileDialog`, drawn inside the game
-  window, is used instead. Cancelling either returns to the menu. The
+  window, is used instead. Cancelling either returns to Add a session. The
   chosen folder goes to `session.create` with the first provider from
   `hello` (only one exists; choosing one is for S03 proper).
 - **A picker hidden behind the game can't trap you** (user's decision).
@@ -3092,7 +3106,9 @@ proper design later, like all UI.
   window that opened. Can't see it? It may be behind the game: switch to
   it, or press Cancel.") and a Cancel button; Cancel, Esc or Tab close
   the menu and give the controls back, and whatever the lost picker
-  answers later is ignored, so nothing starts on its own.
+  answers later is ignored, so nothing starts on its own. Esc does this
+  here rather than going back a page (kept when Esc became "back",
+  2026-10-09: it's the way out of a lost picker).
 - **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
   and resumed sessions, one at a time). A notice at the top centre of
   the screen (it replaced the post's sign; my choice) says how it goes:
@@ -3108,7 +3124,7 @@ proper design later, like all UI.
   sessions, W04) and the player is taken there once it's up.
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
   starting, the menu shows "✕ Stop waiting for the session starting"
-  under "+ New session…". It frees the launcher for another start ("Stopped
+  under "⌂ Platform". It frees the launcher for another start ("Stopped
   waiting. If that session starts later, it's listed under Running.");
   the sidecar isn't told, so a session that does come up later is an
   ordinary running session: its island rises, nobody is taken there.
@@ -3152,8 +3168,10 @@ The world side is the sessions menu's "Resume" list (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
 newest first, as "title · project · how long ago" (titles in Claude Code's
 own order, S02 → Titles; "Untitled session" without one, which only another
-provider could list), asked for each time the menu opens, filtered by the
-search box. A click resumes it through the same launcher and notices as a
+provider could list), on its own page under Add session (Sessions → Add
+session… → Resume a session…; user's, 2026-10-09), asked for each time
+that page opens, filtered by its search box. A click resumes it through
+the same launcher and notices as a
 new session; once up, you're taken to its island and its chat holds the
 conversation so far. A **placeholder**, like the rest of the menu.
 *Live check passed (2026-10-01)* with the user and the real `claude`:
@@ -3167,7 +3185,15 @@ The sidecar side, built with S02: `providers/claude/store.ts` lists
 from `cwd`, title from `pickTitle` (S02 → Titles: the newest
 `custom-title`, else the newest `ai-title`, else the first user
 message's line; a transcript with none of them isn't listed),
-`updated_at` from the file time.
+`updated_at` from the file time. The reads are synchronous, so nothing
+else is handled meanwhile: 0.8-0.95 s for 181 transcripts on a dev
+machine (2026-10-09). The provider keeps each file's description
+(`StoredCache`) while its size and modification time stay the same, and
+forgets files that are gone, so listing again only reads the folders and
+the files' times (about 50 ms for the same 181). A file that couldn't be
+read isn't kept, so it's tried again. Tested with a temporary store:
+the same list with and without the cache, nothing read again unchanged,
+a rename read again, a deleted file forgotten, a new one listed.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
 for now (user's decision, 2026-09-29); VS Code and desktop sessions are
@@ -3757,6 +3783,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Ready for the user's review (2026-10-09): S04's Resume on its own
+page** (branch s04-resume-submenu, stacked on menu-missing-folder-flaky;
+dev log 2026-10-09-s04-resume-page): "+ Add session…" asks new or
+resume, Esc goes back a page, and the sidecar keeps its stored-session
+listing. Live look in a real window still to do.
 **Ready for the user's review (2026-10-09): three flaky world-test
 checks** (branch menu-missing-folder-flaky, dev log
 2026-10-09-world-test-waits): the missing-folder refusal queued behind
@@ -4084,14 +4115,14 @@ exists.
 ### Watch items
 
 - **Listing stored sessions blocks the sidecar** (S04; found
-  2026-10-09, not decided yet). `session.list_stored` reads the newest
-  200 transcripts synchronously, 64 KiB from each end: 0.8-0.95 s for 181
-  of them on a dev machine. The menu asks each time it opens, so opening
-  and closing it fast queues one listing per open, and meanwhile nothing
-  else is handled: replies, hook relays, permission requests. Seen as a
-  3 s wait in the world test (dev log 2026-10-09-world-test-waits). Could
-  be fixed by caching each transcript's listing by its size and mtime, or
-  by reading with `fs.promises`.
+  2026-10-09). `session.list_stored` reads the newest 200 transcripts
+  synchronously, 64 KiB from each end: 0.8-0.95 s for 181 of them on a
+  dev machine, and meanwhile nothing else is handled (replies, hook
+  relays, permission requests). Seen as a 3 s wait in the world test
+  (dev log 2026-10-09-world-test-waits). Since 2026-10-09 (user's) only
+  the menu's Resume page asks, and the provider keeps the listing
+  (S04 → `StoredCache`), so only a sidecar's first listing reads every
+  file. If that first second matters, read with `fs.promises`.
 
 - **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
   Nothing stops a near cluster's wedge growing into the far clusters'
