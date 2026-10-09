@@ -1,8 +1,8 @@
 extends SceneTree
 ## Headless test for W05's cluster model (SessionClusters): grouping by
 ## repository and worktree, folders outside git, manual choices, names,
-## freeing, holding an ended session's island spot (W04), and the layout
-## in wedges with its far spots (W06).
+## freeing, holding an ended session's island spot (W04), and the layout:
+## 8 near wedges growing without limit, then far clusters (W06).
 ##
 ##   godot --headless --path . --script res://tests/world/clusters_test.gd
 
@@ -71,66 +71,90 @@ func _initialize() -> void:
 	quit(0 if passed else 1)
 
 
-# W06: every spot of 16 wedges well apart, inside its wedge, growing
-# outward; corridors between inner wedges clear for outer bridges.
+# W06: the 8 near wedges' spots well apart, inside their wedges, growing
+# outward without limit; far clusters' spots well apart, round their
+# first islands, away from the platform, never reaching another's.
 func _layout() -> void:
 	var all: Array[Vector3] = []
 	var outward := true
 	var inside := true
-	for slot in 16:
+	for slot in 8:
 		var last := 0.0
-		for index in (SessionClusters.INNER_ISLANDS if slot < 8 else 14):
+		for index in 120:
 			var p := SessionClusters.spot(slot, index)
-			outward = outward and p.length() >= last - 60.0
-			last = p.length()
-			var axis := (slot % 8 + (0.5 if slot >= 8 else 0.0)) * TAU / 8.0
-			var off := absf(angle_difference(axis, atan2(p.z, p.x)))
+			# How far along the wedge's middle: rows fill outward.
+			var along := p.dot(Vector3(cos(slot * TAU / 8.0), 0.0, sin(slot * TAU / 8.0)))
+			outward = outward and along >= last - 0.01
+			last = along
+			var off := absf(angle_difference(slot * TAU / 8.0, atan2(p.z, p.x)))
 			inside = inside and p.length() * sin(TAU / 16.0 - off) >= SessionClusters.EDGE_MARGIN - 0.01
 			all.append(p)
-	var closest := INF
-	for i in all.size():
-		for j in i:
-			closest = minf(closest, all[i].distance_to(all[j]))
-	_check(closest >= SessionClusters.ISLAND_SPACING - 0.01, "layout: island spots at least 100 m apart in all 16 wedges (closest %.1f m)" % closest)
+	var closest := _closest(all)
+	_check(closest >= SessionClusters.ISLAND_SPACING - 0.01, "layout: 120 islands in each of the 8 wedges, at least 100 m apart (closest %.1f m)" % closest)
 	_check(inside, "layout: every spot inside its wedge, clear of its edges")
 	_check(outward, "layout: a cluster fills its wedge nearest the platform first")
+	_check(SessionClusters.spot(0, 119).length() > 1500.0, "layout: and keeps growing outward (the 120th %.0f m out)" % SessionClusters.spot(0, 119).length())
 	var first := SessionClusters.cluster_position(0).length()
-	_check(first > 100.0 and first < 150.0, "layout: an inner cluster's first island %.0f m out" % first)
-	_check(SessionClusters.cluster_position(8).length() >= SessionClusters.OUTER_START - 0.01, "layout: outer wedges start further out")
-	var corridor := true
-	for slot in 8:
-		for index in SessionClusters.INNER_ISLANDS:
-			var p := SessionClusters.spot(slot, index)
-			for k in 8:
-				var a := (k + 0.5) * TAU / 8.0
-				# Distance from the corridor's line (through the platform).
-				corridor = corridor and absf(-p.x * sin(a) + p.z * cos(a)) >= SessionClusters.EDGE_MARGIN - 0.01
-	_check(corridor, "layout: the corridors to outer wedges are clear of inner islands")
+	_check(first > 100.0 and first < 150.0, "layout: a near cluster's first island %.0f m out" % first)
+	# Far clusters: the first 26 (two rings), 60 islands each.
+	var around := true
+	var away := true
+	var nearest_first := true
+	for k in 26:
+		var start := SessionClusters.far_spot(k)
+		var out := start.normalized()
+		var last := 0.0
+		for index in 60:
+			var p := SessionClusters.spot(8 + k, index)
+			var d := p.distance_to(start)
+			nearest_first = nearest_first and d >= last - 0.01
+			last = d
+			away = away and (p - start).dot(out) >= -0.01
+			around = around and d < 600.0
+			all.append(p)
+	_check(SessionClusters.cluster_position(8).length() >= SessionClusters.FAR_RADIUS - 0.01, "layout: far clusters start far out")
+	_check(nearest_first and around, "layout: a far cluster's islands round its first one, nearest first")
+	_check(away, "layout: fanning away from the platform")
+	closest = _closest(all)
+	_check(closest >= SessionClusters.ISLAND_SPACING - 0.01, "layout: far clusters' 60 islands each and the near wedges' 120 never closer than 100 m (closest %.1f m)" % closest)
 
 
-# A 17th cluster, and an inner cluster's 11th island: far spots, no bridges.
+# The 9th cluster goes far; a near cluster keeps growing in its wedge.
 func _overflow() -> void:
 	var c := SessionClusters.new()
-	for k in 17:
+	for k in 9:
 		c.add("s%d" % k, _s("/c%d" % k, "c%d" % k))
-	_check(c.is_bridged("s15") and not c.is_bridged("s16"), "overflow: 16 clusters in wedges, the 17th in a far spot")
-	_check(c.island_position("s16").length() >= SessionClusters.FAR_RADIUS - 0.01, "far out")
-	for k in 11:
+	_check(not c.is_far(c.cluster_of("s7")) and c.is_far(c.cluster_of("s8")), "overflow: 8 near clusters, the 9th far")
+	_check(c.island_position("s8").is_equal_approx(SessionClusters.far_spot(0)), "its first island at the first far cluster's place")
+	for k in 30:
 		c.add("t%d" % k, _s("/c0", "c0"))
-	_check(c.is_bridged("t8") and not c.is_bridged("t9"), "an inner cluster's 11th island goes to a far spot")
-	_check(c.island_position("t9").distance_to(c.island_position("s16")) > 150.0, "not on another's far spot")
-	var held := c.hold("t9")
-	_check(not c.is_bridged(held) and c.island_position(held).length() >= SessionClusters.FAR_RADIUS - 0.01, "a held far island keeps its spot")
-	c.add("u", _s("/c0", "c0"))
-	_check(c.island_position("u") != c.island_position(held), "and nobody else gets it")
+	_check(c.cluster_of("t29") == c.cluster_of("s0") and c.island_position("t29").is_equal_approx(SessionClusters.spot(0, 30)), "a near cluster's 31st island is still in its wedge")
+	for k in 3:
+		c.add("f%d" % k, _s("/c8", "c8"))
+	var far := c.cluster_of("s8")
+	_check(c.cluster_of("f2") == far and c.island_position("f2").is_equal_approx(SessionClusters.spot(8, 3)), "a far cluster grows round its first island")
+	var held := c.hold("f0")
+	c.add("u", _s("/c8", "c8"))
+	_check(c.island_position(held).is_equal_approx(SessionClusters.spot(8, 1)) and c.island_position("u").is_equal_approx(SessionClusters.spot(8, 4)), "a held far island keeps its spot")
+	for id in ["s8", "f1", "f2", "u"]:
+		c.remove(id)
+	_check(c.cluster_name(far) != "", "a far cluster with only a held island keeps its spot")
+	_check(c.is_far(c.add("w", _s("/c9", "c9"))) and not c.island_position("w").is_equal_approx(SessionClusters.far_spot(0)), "so a new far cluster takes the next one")
 	c.remove(held)
-	c.remove("s16")
 	c.add("v", _s("/new", "new"))
-	_check(c.island_position("v") == SessionClusters.far_spot(0), "freed far spots are reused")
+	_check(c.island_position("v").is_equal_approx(SessionClusters.far_spot(0)), "a freed far cluster's place is reused")
 	var spots := {}
-	for k in 300:
+	for k in 100:
 		spots[SessionClusters.far_spot(k)] = true
-	_check(spots.size() == 300, "far spots don't repeat")
+	_check(spots.size() == 100, "far clusters' places don't repeat")
+
+
+func _closest(points: Array[Vector3]) -> float:
+	var closest := INF
+	for i in points.size():
+		for j in i:
+			closest = minf(closest, points[i].distance_to(points[j]))
+	return closest
 
 
 func _s(path: String, project_name: String, repo := "") -> Dictionary:

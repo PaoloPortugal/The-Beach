@@ -460,7 +460,8 @@ removing a provider means deleting its folders.
 2026-10-08-perf-pass). Scope: core. The game is **GPU-bound**: the CPU's share of a
 frame is about 1 ms, physics 0.3-0.5 ms.
 - *Budget, measured* with the layout demo (W06: 64 sessions in 20
-  clusters, 56 bridges) at 1920x1080 with vsync off, on an integrated
+  clusters, 56 bridges; 52 since W05's unbounded layout, 2026-10-09, not
+  measured again) at 1920x1080 with vsync off, on an integrated
   AMD Radeon, other programs sharing it (so absolute numbers are
   pessimistic; compare changes). Median GPU time per frame over 180
   frames at four fixed viewpoints (the platform looking out two ways, an
@@ -496,7 +497,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   before the beach's props and the tall mountains (2026-10-09), not
   measured since; the performance test still passes.
 - *How to measure:* a throwaway script (not in the repo) that loads
-  `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
+  `tests/world/layout_demo.tscn` (or its 311-session crowd, `--crowd`)
+  in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
   drop it in the sea) at fixed viewpoints, and reads
   `RenderingServer.viewport_set_measure_render_time` /
@@ -787,8 +789,9 @@ each live session gets a new random island with an orchestrator (A01)
 bound to it; when the session ends, the orchestrator and agents go and
 the island sinks (W04). An island only comes once its session is up
 (`session.snapshot` or `session.created`), never while it is still
-starting. Islands are placed by cluster (W05), each cluster in its own
-wedge from the spawn platform, joined by bridges (W06). A session you started or resumed
+starting. Islands are placed by cluster (W05), the first 8 clusters
+each in its own wedge from the spawn platform and later ones far out,
+joined by bridges (W06). A session you started or resumed
 from the sessions menu (S03, S04) takes you to its island once it has
 risen, 6 m in front of the orchestrator (`world.gd` → `teleport`), and
 so does choosing a running one there (W07); sessions already running
@@ -945,6 +948,30 @@ and sessions in the same repository are grouped automatically.
 - **Layout until bridges (W06):** each cluster takes a spot on rings
   around the spawn platform; its islands sit close together around it.
   *Replaced by W06's wedges (2026-10-07).*
+- **Clusters grow without limit** (user's, 2026-10-09: "a cluster [should]
+  be able to expand outwards basically infinitely, with its cone
+  expanding more and more outwards ... Once the maximum amount of
+  clusters near the main island are reached, only then is the new
+  cluster sent far off"). Replaces W06's 16 wedges and far spots:
+  - **8 near clusters**, each in its 45° wedge from the platform, now
+    with no limit on islands. The outer ring of 8 wedges is dropped, so
+    near clusters go from 16 to 8 ("most users won't be running more
+    than 8 repos at a time"). Rejected: keeping the outer ring, which is
+    what capped the inner wedges at 10 islands.
+  - **A 9th and later cluster goes far**: it starts with a single island
+    far away and grows by bridging out from that one, a real cluster
+    with bridges within itself but no bridge to the platform (teleport
+    by the sessions menu or the big map, as before). Rejected: W06's lone
+    far spots with no bridges, for a 17th cluster or an inner cluster's
+    11th island.
+  - **A near wedge growing into a far cluster's area** is left alone for
+    now and the near future: it takes a huge number of sessions (W06 →
+    Known limits; Watch items).
+  - *Mine (2026-10-09), for the user to confirm:* a far cluster's first
+    island goes on rings from 2000 m, about 1200 m apart, so far
+    clusters' areas only touch at about 70 islands each; its later
+    islands take the nearest free spots of a grid 100 m apart round its
+    first one, on the side away from the platform.
 - The **sidecar** works out the repository and sends it in the protocol
   (`project.repo`); the game doesn't read `.git`.
 - **Shown** by name: a cluster is named after its repository's folder (a
@@ -975,7 +1002,8 @@ and sessions in the same repository are grouped automatically.
   island has sunk (W04). The choice reaches it through
   `SessionLauncher.create` / `resume`, which call `clusters.choose` with
   the session id when the reply comes (before `session.created`).
-- *Layout:* since W06, clusters in wedges from the platform (see W06).
+- *Layout:* since W06, clusters in wedges from the platform; since
+  2026-10-09, 8 near wedges without limit, then far clusters (see W06).
   An island's land reaches at most about 44 m from its centre, its sea
   floor 68 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
@@ -987,8 +1015,11 @@ and sessions in the same repository are grouped automatically.
   sessions under them, and the search also matches cluster names.
 
 *Known limits.* Nothing in the world shows a cluster's name yet. (The
-rings' limit, a big cluster reaching its neighbours, went with W06's
-wedges.)
+rings' limit, a big cluster reaching its neighbouring clusters, went
+with W06's wedges: a wedge never grows into the next wedge.) A near cluster's wedge reaches the far clusters' first ring at
+about 160 islands (about 1970 m out), and two far clusters' areas touch
+at about 70 islands each; nothing stops either yet (user's, 2026-10-09;
+W06 → Known limits; Watch items).
 
 *Live check passed (2026-10-02)* with the user and the real `claude`: a
 repository and its worktree in one cluster, close together; a folder
@@ -1000,7 +1031,8 @@ with its last session, and a new one taking a free spot.
 ### W06 Bridges
 *Built (2026-10-07); the bridges' look and the maps are placeholders.
 Scope: core (world only).* Walkable bridges connect islands within a
-cluster, and each cluster to the spawn platform, for physical movement
+cluster, and each near cluster to the spawn platform (since 2026-10-09,
+not a far one: W05), for physical movement
 and the feel of the world. Built as a general "connect regions" system,
 not beach-specific, so that future biomes (W10: forests, mountains, at
 different heights) plug into it. With it, a minimap for travel on foot
@@ -1037,7 +1069,7 @@ and the real layout (user's, 2026-10-02; W07).
   through it). M opens it, M or Esc closes it. It fills the window and
   opens centred on you, fitted to your cluster; drag with the mouse or
   use WASD or the arrow keys to move it, the mouse wheel zooms (toward
-  the pointer). It shows the whole world: islands (far ones too),
+  the pointer). It shows the whole world: islands (far clusters too),
   bridges, the platform, you, each cluster's name, and, zoomed in
   enough, each island's session title and state. Clicking a session's
   island takes you there, like the sessions menu's Running list (W07),
@@ -1050,6 +1082,8 @@ and the real layout (user's, 2026-10-02; W07).
 - **A bridge from the spawn platform** out to each cluster. The platform
   is part of each cluster's tree, so its bridge goes to the cluster's
   first island (the nearest when it comes) and re-links like any other.
+  *Since 2026-10-09 (user's), a near cluster's only:* a far cluster's
+  tree leaves the platform out (W05 → Clusters grow without limit).
 - **Layout: clusters in wedges** (the user's idea, replacing W05's rings
   360 m out): each cluster owns a 45° wedge from the platform; its first
   island is the wedge's spot nearest the platform, later ones fill spots
@@ -1061,27 +1095,36 @@ and the real layout (user's, 2026-10-02; W07).
   cluster's 11th island) the island goes to a far spot with no bridge,
   reached by teleport only: a known limit (rejected: 24 with bridges
   that bend at junction decks; 8 inner wedges only).
+  *Changed (user's, 2026-10-09; W05 → Clusters grow without limit):*
+  the 8 inner wedges only, each growing without limit; a 9th and later
+  cluster is a far cluster, bridged within but not to the platform. No
+  far spots any more.
 - **A demo** (user's request): a dev scene filling the world with 64
   fake sessions in many clusters, to see how it all looks.
 - An empty island (W04) counts as "on it" while you're on one of its
   bridges.
 
 **How it works** (sizes and timings my picks).
-- *Layout* (`SessionClusters`, `world/session_clusters.gd`). A cluster's
-  spot (`slot`) is its wedge: slots 0-7 the inner wedges (slot 0 along
-  +x), 8-15 the outer ones, turned half a wedge. Island spots in a wedge
-  are worked out once (`_wedge_spots`, the same for every wedge, turned):
+- *Layout* (`SessionClusters`, `world/session_clusters.gd`; unbounded
+  since 2026-10-09). A cluster's spot (`slot`) is the lowest free
+  number: 0-7 the near wedges (slot 0 along +x; `WEDGES`), 8 and up far
+  clusters (`is_far`). Island spots in a wedge are worked out once and
+  extended as needed (`_wedge_spots`, the same for every wedge, turned):
   scanning outward in rows 2 m apart, then from the middle sideways, each
   spot is the first point at least 100 m (`ISLAND_SPACING`) from the
   earlier ones and 50 m (`EDGE_MARGIN`) inside the wedge's edges, which
-  keeps the land (at most about 44 m) and a bridge along a corridor clear.
-  An inner wedge's first island is 133 m out and its tenth (the last,
-  `INNER_ISLANDS`) about 520 m; an outer wedge starts at 650 m
-  (`OUTER_START`). `spot(slot, index)` gives a spot; an island takes its
-  cluster's lowest free index, as before. Islands the wedges have no room
-  for get far spots (`far_spot`: rings from 2000 m, 200 m apart, the
-  lowest free number), with no bridges (`is_bridged`; held islands keep
-  theirs).
+  keeps the land (at most about 44 m) clear of the next wedge's. A
+  wedge's first island is 133 m out, its 10th about 530 m, its 50th
+  about 1120 m and its 100th about 1560 m. A far cluster's first island
+  is `far_spot(slot - 8)`: on rings from 2000 m (`FAR_RADIUS`), 1200 m
+  apart (`FAR_SPACING`), as many on a ring as fit about 1200 m apart (10
+  on the first, 16 on the second). Its later islands (`_far_spots`, the
+  same for every far cluster, turned) are the points of a triangular
+  grid 100 m apart through its first island, on the side away from the
+  platform, nearest first (then the furthest out, then one side before
+  the other). `spot(slot, index)` gives a spot; an island takes its
+  cluster's lowest free index, as before, and a held island (W04) keeps
+  its index, so its spot.
 - *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
   from one point to another, each the deck's top at that end (since W10,
   level steps where it's steeper than 0.2 m a metre; see W10). The deck is
@@ -1112,13 +1155,14 @@ and the real layout (user's, 2026-10-02; W07).
   under `SessionIslands`): regions are keys with a centre, a reach and an
   edge (a Callable giving where a bridge heading for a point meets the
   region), in groups (clusters). Hubs (the platform, `add_hub`) are in
-  every group's tree. `add` bridges a new region to its group's nearest
+  every group's tree but a hubless one's (a far cluster's: `add` with
+  `with_hubs` false; its first region gets no bridge). `add` bridges a new region to its group's nearest
   one, preferring a line that keeps clear of every other region's reach
   (`is_clear`); `remove` frees its bridges and, while the group is in
   pieces, adds the shortest clear bridge between two pieces.
 - *Islands* (`SessionIslands`): an island joins its cluster's tree once
-  it has risen (at once for a snapshot), unless it's in a far spot
-  (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
+  it has risen (at once for a snapshot), a far cluster's without the
+  platform (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
   times the generator's radius; a bridge meets it at the outermost point
   at its edge height (0.5 m on a beach; W10's `Island.edge_height`) on
   the line from its middle toward the other end. An empty island doesn't sink while you're on one
@@ -1131,8 +1175,8 @@ and the real layout (user's, 2026-10-02; W07).
   It shows the cluster of the island nearest you
   (`SessionIslands.nearest_cluster`): its islands in their wedges (empty
   ones greyed), its bridges, the platform when in view and you as a white
-  arrow, fitted to them and you with 30 m of sea around. Near an island
-  in a far spot it shows just that one. It hides while the chat, the
+  arrow, fitted to them and you with 30 m of sea around; a far cluster
+  the same way (its islands and bridges). It hides while the chat, the
   sessions menu or the big map is open, or with no islands.
 - *Big map* (`WorldMap`, `world/world_map.gd`, a `CanvasLayer` made by
   `world.gd`, over the rest of the UI; sizes my picks). M (action
@@ -1159,18 +1203,33 @@ and the real layout (user's, 2026-10-02; W07).
   platform (its square, at least 16 px across) closes the map
   and puts you on it (`go_to_platform`; W08).
 - *Demo* (`tests/world/layout_demo.tscn`, a dev tool): the world with 64
-  made-up sessions in 20 clusters (one of 13 islands, four past 16), the
+  made-up sessions in 20 clusters (8 near, one of them of 16 islands;
+  12 far, one of 6), the
   sidecar stopped so nothing real shows. B switches to a view from above
   with the fog off, and so with no draw distance (Architecture →
   Performance; mouse wheel zooms). `godot --path .
   res://tests/world/layout_demo.tscn`. `tests/world/bridges_test.gd`
-  checks the same scene: every island in a wedge joined to the platform,
-  no bridge over another island's land or across another bridge, before
-  and after islands in the middle of trees sink.
+  checks the same scene: every near island joined to the platform, every
+  far cluster's islands joined to each other and to nothing else, no
+  bridge over another island's land or across another bridge, before and
+  after islands in the middle of trees (one of them far) sink. It does the
+  same with a crowd (user's request, 2026-10-09): the demo with clusters
+  of varied sizes (`LayoutDemo.sizes`), no two islands closer than 100 m,
+  nine islands sinking, near and far. On CI the trimmed crowd
+  (`CROWD_TRIMMED`, 178 sessions: near clusters of 45, 40, 25, 8, 3, 2, 1
+  and 1, far ones of 26, 20, 5 and 2); with `-- --crowd`, locally, the
+  full one (`CROWD`, 311: near 52, 45, 40, 38, 33, 25, 8 and 3, far 26,
+  20, 14, 5 and 2), too slow for every push (user's, 2026-10-09). The
+  demo itself opens the full crowd with `-- --crowd`, to look at or to
+  measure performance with.
 
-*Known limits.* At most 16 clusters, and 10 islands in an inner cluster,
-have bridges; the rest are in far spots, reached by teleport only. The
-ocean plane is 800 m wide around the camera, so the demo's view from
+*Known limits.* A far cluster (a 9th or later) has no bridge to the
+platform: it's reached by teleport only (user's, 2026-10-09). Growth
+isn't checked against other clusters: a near wedge reaches the far
+clusters' first ring at about 160 islands (about 1970 m out), and two
+far clusters' areas touch at about 70 islands each. Left for now and the
+near future, as it takes a huge number of sessions (user's, 2026-10-09;
+Watch items). The ocean plane is 800 m wide around the camera, so the demo's view from
 above shows its edge.
 
 ### W07 Teleport menu
@@ -3403,7 +3462,11 @@ While it runs (debug builds), T opens C09's debug commands: `/time
 set noon`, `/weather storm`, `/lightning`, `/help`.
 
 The layout demo (W06), 64 made-up sessions with no sidecar:
-`godot --path . res://tests/world/layout_demo.tscn`.
+`godot --path . res://tests/world/layout_demo.tscn`. Add `-- --crowd`
+for the crowd (W05: 311 sessions in clusters of varied sizes). The
+bridges test with the full crowd, local only (CI runs a trimmed one):
+`godot --headless --path . --script res://tests/world/bridges_test.gd --
+--crowd`.
 
 The performance test (Architecture → Performance) checks that the coarse
 drop-off has no gaps, overlaps or cracks and far fewer triangles while the
@@ -3434,7 +3497,8 @@ one that needs to would first have to teach the watch to expect it.
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
 holding an ended session's spot until its island has sunk (W04) and the
-layout. The session store test (with the fake) also checks C08's figures:
+layout: 8 near wedges of 120 islands each and 26 far clusters of 60,
+never closer than 100 m, the 9th cluster far. The session store test (with the fake) also checks C08's figures:
 usage null until counted, each turn's tokens on its user message from
 the history and live, a resync, the plan's limits per provider and id
 (the latest window, the highest use in it, a window that's over left
@@ -3693,6 +3757,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
+clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
+growing without limit, a 9th and later cluster far, bridged within but
+not to the platform; the bridges test's crowd (178 sessions on CI, 311
+with `-- --crowd`). Its live check (`tests/live/checklist.txt`, with the
+layout demo) and my two far-cluster picks are still for the user to
+confirm.
 **Merged to `main` (2026-10-09), approved by the user: W10 island biomes
 and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
 2026-10-08-c09-commands): five kinds of island picked in the sessions
@@ -4004,6 +4075,13 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
+  Nothing stops a near cluster's wedge growing into the far clusters'
+  first ring (about 160 islands) or two far clusters' areas meeting
+  (about 70 islands each). Left for now and the near future: it takes a
+  huge number of sessions. If it ever matters, push the far rings out as
+  the near wedges grow, or move a far cluster's area.
 
 - **Mountain bugs to debug later** (W10; seen by the user, 2026-10-09).
   - *Ziplines through bridges:* a zipline's cable sometimes runs through
