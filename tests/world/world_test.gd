@@ -539,15 +539,17 @@ func _commands(world: Node3D, player: Player) -> void:
 	_check(is_equal_approx(day.hour(), 18.0) and reply.contains("21m 00s"), "C09: /time add moves on (%s)" % reply)
 	_check(c.run("/time query").begins_with("It's 21m 00s") and c.run("/time set day").contains("10m 22s"), "C09: /time query, and day is the launch's mid-morning")
 	_check(c.run("/time set later").begins_with("Not a time"), "C09: a bad time is refused")
-	c.run("/time speed 2m")
+	reply = c.run("/time speed 2")
 	var fast := day.cycle
-	c.run("/time speed default")
-	_check(fast == 120.0 and day.cycle == DayNight.CYCLE, "C09: /time speed and back to default")
+	var refused := c.run("/time speed 0").begins_with("Not a speed") and c.run("/time speed 2m").begins_with("Not a speed")
+	c.run("/time speed 1")
+	_check(fast == DayNight.CYCLE / 2.0 and reply == "Speed 2: a day now takes 14m." and refused and day.cycle == DayNight.CYCLE, "C09: /time speed 2 makes a day 14m, 1 puts it back (%s)" % reply)
+	var changing := weather.changes
+	weather.changes = true
 	reply = c.run("/weather storm")
-	_check(weather.kind == Weather.Kind.STORM and weather.storm == 1.0 and not weather.changes and reply.contains("held"), "C09: /weather sets it now and holds it")
-	_check(c.run("/weather query") == "The weather is storm, held." and c.run("/weather fog").begins_with("Unknown weather"), "C09: /weather query, and an unknown kind is refused")
-	c.run("/weather auto")
-	_check(weather.changes, "C09: /weather auto lets it change again")
+	_check(weather.kind == Weather.Kind.STORM and weather.storm == 1.0 and weather.changes and reply == "Weather set to storm.", "C09: /weather sets it now, and it still changes by itself")
+	_check(c.run("/weather query") == "The weather is storm." and c.run("/weather fog").begins_with("Unknown weather") and c.run("/weather auto").begins_with("Unknown weather"), "C09: /weather query, and an unknown kind is refused")
+	weather.changes = changing
 	c.run("/weather clear")
 	c.run("/lightning")
 	await _frames(3)

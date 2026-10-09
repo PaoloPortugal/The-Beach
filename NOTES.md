@@ -2353,11 +2353,16 @@ like Minecraft's chat, not the chat box, whose slash commands
 are the session's); the command list below; debug builds only
 (`OS.is_debug_build()`: the editor, tests and debug exports, not
 release exports); the dev flags stay for now (they set the state
-before the first frame, which tests and screenshots use); `/weather` jumps at once and holds the kind; `day` is the
+before the first frame, which tests and screenshots use); `/weather` jumps at once; `day` is the
 launch's mid-morning and `night` halfway from sunset to midnight.
-The key was `/` at first; it didn't open the console on the user's
-keyboard, so it's T for now (user's, 2026-10-09). The command syntax
-waits for the user's live check.
+
+*Changed by the user (2026-10-09), after a first look:* the key was `/`
+at first; it didn't open the console on their keyboard, so it's T for
+now. `/weather <kind>` no longer holds the kind until a `/weather auto`
+(dropped): like Minecraft's, it sets the weather now and the weather
+goes on changing by itself. `/time speed` takes a multiplier, not a
+day's length: 2 makes days go twice as fast (14m), 1 is normal (28m).
+The rest of the syntax waits for the user's live check.
 
 **How it works.**
 - *Commands* (`DebugCommands`, `world/debug/debug_commands.gd`, given
@@ -2367,12 +2372,13 @@ waits for the user's live check.
     `sunrise` (7m), `day` (10m 22s), `noon` (14m), `sunset` (21m),
     `night` (24m 30s). Counted on W09's 28-minute day, as a point of it,
     so they still fit after `/time speed`.
-  - `/time query` says the time, day or night, and the day's length;
-    `/time speed <t>` sets how long a whole day lasts, `default` back
-    to 28m.
-  - `/weather <clear|cloudy|rain|windy|storm>` sets it at once and
-    holds it (`changes` off); `/weather auto` lets it change again;
-    `/weather query`.
+  - `/time query` says the time, day or night, the day's length and
+    its speed; `/time speed <n>` (a number above 0, "2" or "2x") makes
+    the day go n times as fast (`DayNight.cycle` = 28m / n); 1 is
+    normal.
+  - `/weather <clear|cloudy|rain|windy|storm>` sets it at once
+    (`Weather.set_kind`, which starts a new spell, 3-8 minutes, after
+    which it changes by itself as usual); `/weather query`.
   - `/lightning` strikes now, storm or not, even with lightning off
     (`Weather.strike`, which the storm's own strikes use too).
   - `/help`; anything else gets "Unknown command" and the list.
@@ -3460,8 +3466,9 @@ kept with changes off, clouds by cover, rain in a storm and none under
 the water, the bolt far off and gone in a moment, and no shadows from
 clouds, rain or the bolt), the debug commands (C09: times as 7m, 30s,
 10m22s or a name and nothing else, /time set counting from midnight,
-add, query and speed, /weather setting and holding a kind, query, auto
-and an unknown kind refused, /lightning in clear weather, unknown
+add, query and speed as a multiplier (0 and "2m" refused), /weather
+setting a kind that still changes by itself, query, and an unknown kind
+(and "auto") refused, /lightning in clear weather, unknown
 commands and /help; the console opened by its key (T), closed by Esc, a line
 run from it closing it and showing the reply), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
@@ -3994,6 +4001,17 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **Mountain bugs to debug later** (W10; seen by the user, 2026-10-09).
+  - *Ziplines through bridges:* a zipline's cable sometimes runs through
+    a bridge. Likely cause: the zipline stands at the first valley's
+    mouth, chosen with the island, and a bridge lands wherever its
+    neighbour lies, with nothing keeping the two apart.
+  - *Torches in the air:* a mountain's torches sometimes float. Likely
+    cause: they stand at `IslandGenerator.height_at` on the cliff's lip,
+    but the mesh is a jittered 2 m grid, which on an 18 m cliff can lie
+    well below the function there.
+  Not fixed yet; the user asked for notes only.
 
 - **A login expiring on its own** (S06; user's, 2026-10-08). Not yet
   seen live: the live check could only simulate a failed account with

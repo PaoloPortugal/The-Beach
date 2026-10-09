@@ -6,8 +6,8 @@ extends RefCounted
 ## debugging; only in debug builds.
 ##
 ##   /time set <day|noon|sunset|night|midnight|sunrise|<n>m<n>s>
-##   /time add <n>m<n>s      /time query      /time speed <n>m|default
-##   /weather <clear|cloudy|rain|windy|storm|auto|query>
+##   /time add <n>m<n>s      /time query      /time speed <multiplier>
+##   /weather <clear|cloudy|rain|windy|storm|query>
 ##   /lightning              /help
 ##
 ## Times count from midnight over W09's day: 0s is midnight, 7m sunrise,
@@ -25,7 +25,7 @@ const NAMED := {
 }
 ## The day's length the times above are counted in, seconds (W09's).
 const DAY := DayNight.CYCLE
-const HELP := "Commands: /time set|add|query|speed, /weather <kind>|auto|query, /lightning, /help"
+const HELP := "Commands: /time set|add|query|speed, /weather <kind>|query, /lightning, /help"
 
 var day_night: DayNight
 var weather: Weather
@@ -84,12 +84,12 @@ static func parse_time(text: String) -> float:
 
 
 func _time(args: PackedStringArray) -> String:
-	var usage := "Usage: /time set <day|noon|sunset|night|midnight|sunrise|7m|10m22s>, /time add <time>, /time query, /time speed <minutes>m|default"
+	var usage := "Usage: /time set <day|noon|sunset|night|midnight|sunrise|7m|10m22s>, /time add <time>, /time query, /time speed <multiplier, 1 normal>"
 	if args.is_empty():
 		return usage
 	match args[0]:
 		"query":
-			return "It's %s (%s); a day takes %s." % [clock(now()), _part(), _length(day_night.cycle)]
+			return "It's %s (%s); a day takes %s (speed %s)." % [clock(now()), _part(), _length(day_night.cycle), _speed()]
 		"set", "add":
 			if args.size() < 2:
 				return usage
@@ -101,14 +101,13 @@ func _time(args: PackedStringArray) -> String:
 		"speed":
 			if args.size() < 2:
 				return usage
-			if args[1] == "default":
-				day_night.cycle = DayNight.CYCLE
-			else:
-				var minutes := parse_time(args[1]) / 60.0
-				if minutes <= 0.0:
-					return "Not a length: %s. %s" % [args[1], usage]
-				day_night.cycle = minutes * 60.0
-			return "A day now takes %s." % _length(day_night.cycle)
+			# A multiplier (user's, 2026-10-09): 2 makes days go twice as
+			# fast (14m), 1 is normal (28m).
+			var x := args[1].trim_suffix("x")
+			if not x.is_valid_float() or x.to_float() <= 0.0:
+				return "Not a speed: %s. %s" % [args[1], usage]
+			day_night.cycle = DayNight.CYCLE / x.to_float()
+			return "Speed %s: a day now takes %s." % [_speed(), _length(day_night.cycle)]
 	return usage
 
 
@@ -116,6 +115,11 @@ func _time(args: PackedStringArray) -> String:
 static func _length(seconds: float) -> String:
 	var s := int(round(seconds))
 	return "%dm" % (s / 60) if s % 60 == 0 else "%dm %02ds" % [s / 60, s % 60]
+
+
+# The day's speed as a multiplier: "2" for a 14-minute day.
+func _speed() -> String:
+	return ("%.2f" % (DayNight.CYCLE / day_night.cycle)).rstrip("0").rstrip(".")
 
 
 # What part of the day it is now.
@@ -127,17 +131,15 @@ func _part() -> String:
 
 
 func _weather(args: PackedStringArray) -> String:
-	var usage := "Usage: /weather <%s>, /weather auto, /weather query" % "|".join(Weather.NAMES)
+	var usage := "Usage: /weather <%s>, /weather query" % "|".join(Weather.NAMES)
 	if args.is_empty():
 		return usage
 	if args[0] == "query":
 		return "The weather is %s%s." % [Weather.NAMES[weather.kind], "" if weather.changes else ", held"]
-	if args[0] == "auto":
-		weather.changes = true
-		return "The weather changes by itself again."
 	var kind := Weather.kind_named(args[0])
 	if kind < 0:
 		return "Unknown weather %s. %s" % [args[0], usage]
+	# Like Minecraft's (user's, 2026-10-09): it's that weather now, and
+	# changes by itself again after a spell, as ever.
 	weather.set_kind(kind as Weather.Kind, true)
-	weather.changes = false
-	return "Weather set to %s, held until /weather auto." % args[0]
+	return "Weather set to %s." % args[0]
