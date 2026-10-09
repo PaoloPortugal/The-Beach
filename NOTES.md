@@ -25,7 +25,7 @@ session rises out of the ocean and an ended one sinks. Islands from the same
 repository form a **cluster** joined by walkable bridges, and unrelated
 projects get their own stretch of ocean. Bridges are for
 exploration and feel; a **teleport menu** is for getting work done quickly.
-Other biomes (hills, mountains) come later, so region connection is a
+Other biomes (forests, mountains and more, W10) were planned from the start, so region connection is a
 general system, not a beach-specific one.
 
 **Agents.** The **orchestrator** sits at the centre of its island (a bigger
@@ -88,7 +88,7 @@ v1 slice.
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
-| W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/` |
+| W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd` |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
@@ -433,7 +433,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -875,7 +875,8 @@ session makes its island sink, and the island is then removed.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
 - *Rise.* An island for `session.created` starts at y = -34 m (`SUNK_Y`,
-  4 m under the deepest sea floor, so all of it is under the seabed, W08)
+  4 m under the deepest sea floor, so all of it is under the seabed, W08;
+  deeper for an island whose top is higher, W10's `sunk_y`)
   and rises to 0 in 3 s
   (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
   says so, and `island_risen` fires when it's up (at once for a
@@ -885,7 +886,7 @@ session makes its island sink, and the island is then removed.
   freed (the chat forgets the orchestrator as it leaves the tree) and the
   island moves to the left islands (`left_islands`). Each frame, one the
   player isn't over (within twice its shoreline radius, as in
-  `session_at`), nor on one of its bridges (W06), sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
+  `session_at`), nor on one of its bridges (W06), sinks to the same depth (`sunk_y`) in 4 s (`sink_time`, cubic ease-in) and
   is freed. You leave by swimming away (W08), by going to another
   session or to the platform, or over a bridge (W06). A session ending mid-rise sinks from where
   it got to (nobody can be on it yet). A sinking island can't be stood on
@@ -1080,7 +1081,8 @@ and the real layout (user's, 2026-10-02; W07).
   lowest free number), with no bridges (`is_bridged`; held islands keep
   theirs).
 - *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
-  from one point to another, each the deck's top at that end. The deck is
+  from one point to another, each the deck's top at that end (since W10,
+  level steps where it's steeper than 0.2 m a metre; see W10). The deck is
   2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand, or
   up to the platform's edge); away from its ends it stays 1.2 m above the water
   (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
@@ -1418,7 +1420,7 @@ heights, joined by W06's bridges (user's request, 2026-10-07).
 *Decided (user's, 2026-10-08):*
 - *Biomes:* beach (today's), forest, mountain, snowy, desert/savanna
   (rejected: a smaller first set).
-- *Picked per island in the sessions menu:* a biome row next to the
+- *Picked per island in the sessions menu:* a biome row under the
   cluster selector, used by New session and Resume; its default,
   "Random", rolls one for each island, so clusters mix (rejected: one
   biome per cluster; a default from the repository's name or the beach).
@@ -1445,7 +1447,7 @@ from screenshots).
   shelf and drop-off. Inland, off the beach biome: a 3 m beach up to
   0.6 m, a slope rising 0.5 m a metre on average up to the edge height,
   a 4 m shoulder there (no hills: bridges land on it), then up to the
-  flat middle (7 m across, as W01) with hills between (Perlin, clipped to
+  flat middle (radius 7 m, as W01) with hills between (Perlin, clipped to
   0-1 and scaled by `hills`; a lower `hill_gain` makes the mountain's
   peaks pointed instead of flat-topped). On a small island the beach and
   the shoulder shrink first (to 1.5 m), the slope only if that isn't
@@ -1473,8 +1475,9 @@ from screenshots).
   planks are level steps (`Bridge.STEPS_FROM`), each deep enough to meet
   the next; its collision stays the smooth ramp. Bridges between islands
   are about 50 m long, so most stay gentle ramps.
-- *Rising and sinking* (W04): a high island starts and ends deeper, all
-  of it under the deepest sea floor (`SessionIslands.sunk_y`).
+- *Rising and sinking* (W04): an island taller than a beach's 3.2 m
+  starts and ends deeper, all of it under the deepest sea floor
+  (`SessionIslands.sunk_y`).
 - *Picking* (sessions menu): a "Biome:" row under the cluster's, with
   Random and each kind, back to Random each time the menu opens, used by
   New session (either picker) and Resume. The launcher passes it to
@@ -2920,7 +2923,7 @@ proper design later, like all UI.
   no session runs and nothing is starting, "Press Tab for sessions"
   shows at the bottom of the screen.
 - **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), the cluster selector (W05), then "+ New session…", "⌂ Platform"
+  opening), the cluster selector (W05), the biome selector (W10), then "+ New session…", "⌂ Platform"
   (back to the spawn platform; W08), "Running" (W07) and "Resume" (S04).
   The search filters Running and Resume by title and project, like
   Claude Code's own `/resume` list (user's choice).
@@ -3866,7 +3869,7 @@ exists.
     clicked. This is the route to "unlimited" agents.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
-- **Other biomes:** now a planned feature, W10.
+- **Other biomes:** built as W10.
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
 - **Commands from the world** (probably a capability). Skills and custom
