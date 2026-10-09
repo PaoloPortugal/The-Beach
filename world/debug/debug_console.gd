@@ -1,6 +1,6 @@
 class_name DebugConsole
 extends CanvasLayer
-## Where the debug commands (C09) are typed: "/" opens a line at the bottom
+## Where the debug commands (C09) are typed: T opens a line at the bottom
 ## left with the "/" already in it, Enter runs it ([DebugCommands]) and
 ## closes, Esc closes. Up and Down go through what you ran before. The
 ## reply stays above it for a few seconds. Separate from the chat box, so
@@ -97,7 +97,7 @@ func _process(delta: float) -> void:
 			_reply.visible = false
 
 
-# _input, not _unhandled_input, so the "/" that opens it isn't typed again,
+# _input, not _unhandled_input, so the T that opens it isn't typed in,
 # and Esc closes it before the player frees the mouse.
 func _input(event: InputEvent) -> void:
 	if is_open():

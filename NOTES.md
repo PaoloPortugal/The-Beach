@@ -2223,12 +2223,15 @@ They do while the game runs what W09's dev flags (`--hour`,
 *Decided by me while the user was away (2026-10-08), for the user to
 confirm* (they asked me to build it overnight and take the open
 decisions myself): where you type them (a console of its own, opened
-with `/` like Minecraft's chat, not the chat box, whose slash commands
+like Minecraft's chat, not the chat box, whose slash commands
 are the session's); the command list below; debug builds only
 (`OS.is_debug_build()`: the editor, tests and debug exports, not
 release exports); the dev flags stay for now (they set the state
 before the first frame, which tests and screenshots use); `/weather` jumps at once and holds the kind; `day` is the
 launch's mid-morning and `night` halfway from sunset to midnight.
+The key was `/` at first; it didn't open the console on the user's
+keyboard, so it's T for now (user's, 2026-10-09). The command syntax
+waits for the user's live check.
 
 **How it works.**
 - *Commands* (`DebugCommands`, `world/debug/debug_commands.gd`, given
@@ -2248,8 +2251,8 @@ launch's mid-morning and `night` halfway from sunset to midnight.
     (`Weather.strike`, which the storm's own strikes use too).
   - `/help`; anything else gets "Unknown command" and the list.
 - *Console* (`DebugConsole`, `debug_console.gd`, a `CanvasLayer` made
-  by `world.gd` in debug builds): the `debug_console` action (`/`) opens
-  a line at the bottom left with "/" in it while you can move; Enter
+  by `world.gd` in debug builds): the `debug_console` action (the T
+  key, by place on the keyboard) opens a line at the bottom left with "/" in it while you can move; Enter
   runs it and closes, Esc closes; Up and Down go through what you ran.
   While open you don't move. The reply shows above it for 6 s.
   Placeholder UI, like all UI.
@@ -3264,7 +3267,7 @@ others: `--hour <0-24>` starts at that time (6 sunrise, 18 sunset),
 `--weather <clear|cloudy|rain|windy|storm>` fixes the weather, and
 `--day-minutes <n>` makes a whole day and night last n minutes, e.g.
 `godot --path . -- --hour 19 --weather storm --day-minutes 4`.
-While it runs (debug builds), `/` opens C09's debug commands: `/time
+While it runs (debug builds), T opens C09's debug commands: `/time
 set noon`, `/weather storm`, `/lightning`, `/help`.
 
 The layout demo (W06), 64 made-up sessions with no sidecar:
