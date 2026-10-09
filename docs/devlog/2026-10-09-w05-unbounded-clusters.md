@@ -77,10 +77,10 @@ each other at 70 islands each.
 
 - clusters test: 120 islands in each of the 8 wedges and 60 in each of
   26 far clusters, never closer than 100 m. Wedge spots stay inside
-  their wedges and fill outward. Far spots fill nearest first and away
-  from the platform. The 9th cluster goes far, a near cluster's 31st
+  their wedges and fill outward. A far cluster's islands fill nearest
+  its first one first, and away from the platform. The 9th cluster goes far, a near cluster's 31st
   island stays in its wedge, a held far island keeps its spot, and
-  freed far spots are reused.
+  a freed far cluster's place is reused.
 - bridges test: a hubless group in the tree test. In the demo, every
   near island is joined to the platform and no far one is, and every
   far cluster's islands are joined to each other only. That still holds

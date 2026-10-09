@@ -1,72 +1,46 @@
-LIVE CHECK: W10 kinds of island,
-C09 debug commands, W09's
-leftover steps
-  godot --path . -- --sidecar-dev-fake --checklist
-Check both renderers if you can:
-add --rendering-method
-gl_compatibility for the second.
+LIVE CHECK: W05/W06 clusters
+that grow without limit
+  godot --path .
+  res://tests/world/layout_demo.tscn
+  -- --checklist
 Page Down / wheel scrolls this.
 
-W10
-1. Tab: Biome on Beach, New
-   session... > a folder: palms,
-   plants; sand castles, starfish,
-   shells by the water. Tropical
-   enough? Palms block you?
-2. Forest, Snowy, Desert: still
-   look right (unchanged)?
-3. Mountain: spires 60-70 m, snow
-   on top, tall enough from afar?
-4. Its bridge climbs as a stair
-   to the cliff top: walk it up.
-   A valley leads to the meadow?
-5. Swim to its beach: E by the
-   post rides the zipline up?
-   Look round while riding? Head
-   clear of the cliff? E at the
-   top takes you down?
-6. Night on the meadow (T, then
-   /time set night): stargazing?
-   Torches at the cliff's lip.
-7. A few on Random: kinds vary?
-   M: islands coloured by kind?
-8. Chat on a mountain so the
-   fake spawns subagents: on the
-   meadow, none in a spire?
-9. Anything to tune: palm count,
-   spire heights, zipline speed.
+The demo: 20 clusters, 64
+islands. The first 8 round the
+platform; 12 far out at sea.
 
-C09 and W09
-10. Press T: a line,
-   "/" in it. Esc closes.
-   /help lists the commands?
-11. Tab > New session... > a folder,
-   so there's an island.
-12. /time speed 14 (a 2-minute
-   day): dawn and dusk smooth,
-   no jump when the sun and
-   moon swap? Then /time speed 1.
-13. /time set sunset, face west:
-   sunset look right?
-14. /time set night: moonlit, stars.
-   Torches and desk lamp lit?
-   Island readable from afar?
-   Bubbles and chat panel read OK?
-   Swim under: dark, floor dim?
-15. /time set noon. /weather cloudy,
-   rain, windy, storm in turn:
-   clouds, rain and rings? Windy:
-   floating, eyes above the waves?
-   Dive in the rain: none below?
-16. Storm: lightning 10-20 s apart,
-   soft (no white-out, not too
-   faint)? A far bolt? Also at
-   night (/time set night).
-   Frame rate OK, like main?
-17. /lightning in clear weather:
-   a flash and a bolt?
-18. Look out from high up: clouds
-   at the fog's corners look OK?
-19. Up/Down bring
-   back commands? Chat box: "/"
-   still types into your message?
+1. B (view from above), zoom
+   out: 8 slices round the
+   platform, one cluster of 16
+   islands reaching about 640 m.
+   Bridges from the platform to
+   all 8, none crossing?
+2. M (big map), zoom out: the
+   12 far clusters about 2 km
+   out, none joined to the
+   platform. Names readable?
+3. Click a far island (the one
+   of 6, repo-09): you're there.
+   Walk its bridges to the
+   others in its cluster.
+4. The minimap there: its
+   islands and bridges, no
+   platform?
+5. Tab, go to a far island
+   from the Running list: same.
+6. Back at the platform (Tab >
+   Platform): walk the long
+   bridge to the 16-island
+   cluster; it feels right that
+   far out?
+7. Real sessions (optional):
+   start 9 in 9 folders; the
+   9th rises far out, alone;
+   a 10th in that folder rises
+   beside it, bridged to it.
+8. My picks to confirm: far
+   clusters about 2 km out and
+   about 1.2 km apart; a far
+   cluster's islands round its
+   first, away from the
+   platform. OK?
