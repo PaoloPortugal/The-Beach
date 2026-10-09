@@ -3,7 +3,7 @@ extends CanvasLayer
 ## W06: the big map (user's, 2026-10-07). M opens it over the whole
 ## window, north-up, centred on you at the minimap's scale; drag it or use
 ## WASD and the arrow keys to look around, the wheel zooms. It shows every
-## island (far ones too), bridge, the platform, you, each cluster's name
+## island (far clusters' too), bridge, the platform, you, each cluster's name
 ## and, zoomed in, each session's title and state. Clicking a session's
 ## island takes you there, and so does clicking the platform (W08). The world doesn't pause; you just don't move,
 ## and the mouse is free. M or Esc closes it. Placeholder UI, like all UI.
@@ -295,17 +295,12 @@ func _draw_titles(shown: Array[Island]) -> void:
 		_map.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TITLE_COLOUR)
 
 
-# Each cluster's name, over the middle of its islands in its wedge (or
-# its far ones, with none there), above the top one.
+# Each cluster's name, over the middle of its islands, above the top one.
 func _draw_cluster_names() -> void:
 	var font := ThemeDB.fallback_font
 	var of := {} # cluster id → its islands
-	var far := {} # cluster id → its islands in far spots
 	for i in islands.all_islands():
-		(far if islands.is_far(i) else of).get_or_add(islands.cluster_of(i), []).append(i)
-	for cluster: String in far:
-		if not of.has(cluster):
-			of[cluster] = far[cluster]
+		of.get_or_add(islands.cluster_of(i), []).append(i)
 	for cluster: String in of:
 		if cluster.is_empty():
 			continue

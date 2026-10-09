@@ -2,16 +2,35 @@ extends Node3D
 ## Dev tool (W06, user's request): the world with 64 made-up sessions in
 ## 20 clusters, to see how the layout and bridges look. The sidecar is
 ## stopped as soon as the demo starts, so none of your real sessions show.
-## Clusters past 16 and a 13-island cluster show the far spots.
+## A 16-island cluster shows a near wedge growing outward; the 12 past the
+## 8th are far clusters (W05), bridged within but not to the platform.
 ##
 ##   godot --path . res://tests/world/layout_demo.tscn
+##
+## With [code]-- --crowd[/code], the crowd instead (W05: 311 sessions,
+## [constant CROWD]), to see big clusters or measure performance with them.
 ##
 ## B switches to a view from above (fog off, so no draw distance; mouse
 ## wheel zooms); Tab's Running list goes to any island; M opens the big
 ## map.
 
-## Islands per cluster: 64 in 20 clusters.
-const SIZES := [13, 7, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2]
+## Islands per cluster: 64 in 20 clusters, the first 8 near (d01-d41),
+## the rest far (d42-d64).
+const SIZES := [16, 6, 5, 4, 3, 3, 2, 2, 6, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1]
+
+## The crowd (W05, user's request, 2026-10-09): near clusters of about 40
+## and far ones of about 20, some more, some fewer, some very few. 311
+## sessions in 13 clusters. The bridges test runs [constant CROWD_TRIMMED]
+## on CI, and this one with [code]-- --crowd[/code].
+const CROWD := [52, 45, 40, 38, 33, 25, 8, 3, 26, 20, 14, 5, 2]
+## A smaller crowd for CI: two big neighbouring wedges, two big
+## neighbouring far clusters and some very small ones. 178 sessions.
+const CROWD_TRIMMED := [45, 40, 25, 8, 3, 2, 1, 1, 26, 20, 5, 2]
+
+## The sizes used: [constant SIZES], [constant CROWD] when the demo is run
+## with [code]-- --crowd[/code], or what a test sets before it enters the
+## tree.
+var sizes: Array = SIZES
 
 var world: Node3D
 var _above := Camera3D.new()
@@ -21,13 +40,16 @@ var _fog := true
 func _ready() -> void:
 	# By path: a --script test can't name the autoload.
 	get_node("/root/Sidecar").stop()
+	# Run as the main scene, not by a test.
+	if "--crowd" in OS.get_cmdline_user_args() and get_tree().current_scene == self:
+		sizes = CROWD
 	world = load("res://world/world.tscn").instantiate()
 	add_child(world)
 	var store: SessionStore = world.store
 	var n := 0
-	for c in SIZES.size():
+	for c in sizes.size():
 		var repo := "/demo/repo-%02d" % (c + 1)
-		for k in SIZES[c]:
+		for k in sizes[c]:
 			n += 1
 			store.apply({"type": "session.snapshot", "session": session("d%02d" % n, repo, "task %d" % (k + 1))})
 	_above.projection = Camera3D.PROJECTION_ORTHOGONAL

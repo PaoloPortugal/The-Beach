@@ -144,8 +144,8 @@ disappear at once. If you're standing on its island, or on
 one of its bridges, the empty island stays until you leave it (walk
 away over a bridge, swim away, or go to another session or the
 platform); then it sinks back into the seabed and is gone. Islands of the same project sit
-together in a cluster (below), and bridges join them to each other and
-to the platform (W06); the sessions menu (Tab) takes you straight to
+together in a cluster (below), and bridges join them to each other and,
+for the 8 clusters nearest it, to the platform (W06); the sessions menu (Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the
 horizon. The water is clear over the shallows and deepens to dark blue
 over deep water, so you can see the sea floor (see Swimming and the sea
@@ -190,10 +190,15 @@ random.
 ## Clusters (W05)
 
 Sessions working on the same project share a **cluster**: their islands
-sit close together, about 100 m apart. Each cluster has its own slice of
-sea fanning out from the platform, like a slice of cake: its first
-island is the closest to the platform, and later ones fill the slice
-outward, so a cluster never grows into another.
+sit close together, about 100 m apart. The first 8 clusters each have
+their own slice of sea fanning out from the platform, like a slice of
+cake: a cluster's first island is the closest to the platform, and
+later ones fill the slice outward, as many as you start, never into a
+neighbouring slice.
+
+A 9th cluster, and any after it, is put far out at sea, 2 km or more from
+the platform. It starts with one island, and later ones gather round
+that one, spreading away from the platform.
 
 A session joins its project's cluster on its own. "Same project" means
 the same git repository, including its worktrees (for example a
@@ -216,7 +221,8 @@ they're in yet.
 ## Bridges and the maps (W06)
 
 Wooden bridges join the islands of a cluster, and a long bridge runs
-from the platform out to each cluster, so you can walk everywhere. A
+from the platform out to each of the 8 clusters nearest it, so you can
+walk to all of them. A
 cluster's bridges make a single path between its islands: each new
 island gets a bridge to the nearest one. A bridge appears once its
 island has risen and goes as soon as the island starts sinking. If that
@@ -226,9 +232,13 @@ run or jump off them. Seen from about 70 m away, a bridge is drawn more
 simply, with a smooth deck and one rail a side instead of every plank;
 up close it has all its planks again.
 
-There's room for 16 clusters with bridges, and for 10 islands in each
-of the 8 clusters nearest the platform. Beyond that, an island is put
-far out at sea with no bridge; go there with the sessions menu (Tab).
+A cluster far out at sea (the 9th and later) has bridges between its
+own islands but none back to the platform: go there with the sessions
+menu (Tab) or by clicking it on the big map.
+
+A cluster with a huge number of islands (about 160 for one of the 8
+near clusters, about 70 for a far one) can start to reach into another
+cluster's sea; nothing stops it yet.
 
 The **minimap** in the top left shows the cluster you're in or nearest
 to: its islands (an empty one is grey), its bridges, the platform when

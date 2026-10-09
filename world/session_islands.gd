@@ -63,7 +63,6 @@ var _left := {} # Island of an ended session → its cluster hold
 var _sinking := {} # Island → true, of those in _left
 var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
-var _far := {} # Island → true, for one in a far spot (no bridges)
 var _biome_choice := {} # session id → the biome chosen for its island
 
 
@@ -161,10 +160,10 @@ func nearest_cluster(point: Vector3) -> String:
 	return found
 
 
-## Whether an island is in a far spot, with no bridges (W06: past 16
-## clusters, or an inner cluster's 11th island).
+## Whether an island is in a far cluster (W05: a 9th or later), bridged
+## to its cluster's other islands but not to the platform.
 func is_far(i: Island) -> bool:
-	return _far.has(i)
+	return clusters.is_far(_cluster.get(i, ""))
 
 
 ## The key of an island's region in [member bridges].
@@ -232,8 +231,6 @@ func _on_added(id: String, created: bool) -> void:
 	agents.setup(store, id, i, o)
 	_islands[id] = i
 	_cluster[i] = clusters.cluster_of(id)
-	if not clusters.is_bridged(id):
-		_far[i] = true
 	island_added.emit(id, i, o)
 	if not created:
 		_bridge(id)
@@ -283,7 +280,6 @@ func _sink(i: Island) -> void:
 		_left.erase(i)
 		_sinking.erase(i)
 		_cluster.erase(i)
-		_far.erase(i)
 		i.queue_free())
 
 
@@ -299,19 +295,19 @@ func _limit(node: Variant) -> void:
 		DrawDistance.limit(node, draw_distance)
 
 
-# A risen island joins its cluster's bridges, unless it's in a far spot.
+# A risen island joins its cluster's bridges; a far cluster's leave the
+# platform out.
 func _bridge(id: String) -> void:
-	if not clusters.is_bridged(id):
-		return
 	var i: Island = _islands[id]
 	var reach := i.generator.radius * 1.45
-	bridges.add(region(i), clusters.cluster_of(id), i.global_position, reach, func(toward: Vector3) -> Vector3:
+	var cluster := clusters.cluster_of(id)
+	bridges.add(region(i), cluster, i.global_position, reach, func(toward: Vector3) -> Vector3:
 		var p := _shore_point(i, toward)
 		# The way in from the bridge is kept clear of props.
 		var local := p - i.global_position
 		var inward := Vector3(-local.x, 0.0, -local.z).normalized() * LANDING_RUN
 		i.props.clear_near(local, local + inward, LANDING_CLEAR)
-		return p)
+		return p, not clusters.is_far(cluster))
 
 
 # Where a bridge heading for [param toward] meets the island: the

@@ -68,7 +68,8 @@ func _ready() -> void:
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
 	fit_draw_distance()
-	# The platform is in every cluster's bridge tree (W06).
+	# The platform is in every near cluster's bridge tree (W06; a far
+	# cluster's leaves it out, W05).
 	_islands.bridges.add_hub("platform", Vector3.ZERO, PLATFORM_HALF * sqrt(2.0), platform_edge)
 	_chat.setup(store, Sidecar)
 	_menu.setup(store, Sidecar, _islands.clusters)
