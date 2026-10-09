@@ -311,6 +311,7 @@ func _scene() -> void:
 	await _menu(world, player)
 	await _sessions(world, player)
 	await _agents(world)
+	await _biome_island(world, player)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live(world, player)
 
@@ -601,6 +602,12 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return menu.is_open(), 2.0)
 	_check(menu.is_open() and not player.controls_enabled and not menu.hint_visible(), "Tab opens the sessions menu and pauses the player")
 	_check(menu.entries()[0] == "+ New session…" and "Resume" in menu.entries(), "with New session and a list to resume")
+	var kinds: Array[String] = ["Random"]
+	for k: int in Biome.NAMES:
+		kinds.append(Biome.NAMES[k])
+	_check(menu.biome_choices() == kinds and menu.biome_choice() == Biome.RANDOM, "W10: the biome selector offers Random and each biome, Random first")
+	menu.choose_biome("Mountain")
+	_check(menu.biome_choice() == Biome.Kind.MOUNTAIN, "W10: and picks one")
 	menu.choose("+ New session")
 	await _frames(2)
 	_check(menu.picker().visible, "New session opens the folder picker, in the game window")
@@ -612,6 +619,7 @@ func _menu(world: Node3D, player: Player) -> void:
 	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "Esc closes the menu")
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
+	_check(menu.biome_choice() == Biome.RANDOM, "W10: the biome selector is back to Random each time")
 	_press("sessions_menu")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and player.controls_enabled, "and so does Tab")
@@ -669,6 +677,34 @@ func _menu(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(started[0] == 0, "and nobody waits for it any more")
+
+
+# W10: an island of a chosen biome rises from deep enough, is bridged at
+# its edge height with its way in clear of props, and sinks again.
+func _biome_island(world: Node3D, player: Player) -> void:
+	var store: SessionStore = world.store
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	player.global_position = player.spawn_point
+	islands.choose_biome("m1", Biome.Kind.MOUNTAIN)
+	store.apply({"type": "session.created", "session": _snapshot("m1")})
+	var m := islands.island("m1")
+	_check(m.biome == Biome.Kind.MOUNTAIN and m.edge_height() > 4.0, "W10: the chosen biome is the island's")
+	_check(m.position.y + m.top() < Seabed.DEEPEST, "W10: a high island rises from all under the sea floor (top %.1f m)" % (m.position.y + m.top()))
+	await _until(func() -> bool: return not islands.is_rising("m1"), 6.0)
+	var region := SessionIslands.region(m)
+	var ends: Array[Vector3] = []
+	var clear := true
+	for b in islands.bridges.all_bridges():
+		for e: Vector3 in [b.from, b.to]:
+			if Vector2(e.x - m.global_position.x, e.z - m.global_position.z).length() < m.generator.radius * 1.5:
+				ends.append(e)
+				clear = clear and not m.props.is_near(Vector2(e.x - m.global_position.x, e.z - m.global_position.z), SessionIslands.LANDING_CLEAR - 0.1)
+	_check(islands.bridges.links().any(func(l: Array) -> bool: return region in l) and not ends.is_empty(), "W10: it's bridged")
+	_check(ends.all(func(e: Vector3) -> bool: return absf(e.y - m.edge_height()) < 0.3) and clear, "W10: its bridges land at its edge height, clear of props")
+	store.apply({"type": "session.ended", "session": "m1", "seq": 2, "reason": "exited"})
+	var gone := m.get_instance_id()
+	await _until(func() -> bool: return not is_instance_id_valid(gone), 8.0)
+	_check(not is_instance_id_valid(gone), "W10: and sinks when its session ends")
 
 
 func _snapshot(id: String) -> Dictionary:
