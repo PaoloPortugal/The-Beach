@@ -371,7 +371,7 @@ func _commands(world: Node3D, player: Player) -> void:
 	_check(console != null, "C09: the console is there in a debug build")
 	_press("debug_console")
 	await _frames(2)
-	_check(console.is_open() and not player.controls_enabled, "C09: / opens the console and stops the player")
+	_check(console.is_open() and not player.controls_enabled, "C09: T opens the console and stops the player")
 	_press("ui_cancel")
 	await _frames(2)
 	_check(not console.is_open() and player.controls_enabled, "C09: Esc closes it")

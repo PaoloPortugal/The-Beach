@@ -607,8 +607,7 @@ warning.)
 
 For trying things out while developing, in builds made for debugging
 (running from the Godot editor or a debug export; not in a release).
-Press **/** while walking around (the key left of the right Shift,
-whatever your keyboard prints on it): a line opens at the bottom left with
+Press **T** while walking around: a line opens at the bottom left with
 the "/" already typed. Type the rest and press **Enter** to run it, or
 **Esc** to close it. **Up** and **Down** bring back what you ran before.
 The answer shows above the line for a few seconds.

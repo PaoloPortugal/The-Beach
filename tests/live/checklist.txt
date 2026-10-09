@@ -5,8 +5,8 @@ Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
 
-1. Press / (left of right Shift):
-   a line, "/" in it. Esc closes.
+1. Press T: a line,
+   "/" in it. Esc closes.
    /help lists the commands?
 2. Tab > New session... > a folder,
    so there's an island.
