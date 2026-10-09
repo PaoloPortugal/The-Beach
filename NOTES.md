@@ -1014,8 +1014,8 @@ and sessions in the same repository are grouped automatically.
   sessions under them, and the search also matches cluster names.
 
 *Known limits.* Nothing in the world shows a cluster's name yet. (The
-rings' limit, a big cluster reaching its neighbours, went with W06's
-wedges.) A near cluster's wedge reaches the far clusters' first ring at
+rings' limit, a big cluster reaching its neighbouring clusters, went
+with W06's wedges: a wedge never grows into the next wedge.) A near cluster's wedge reaches the far clusters' first ring at
 about 160 islands (about 1970 m out), and two far clusters' areas touch
 at about 70 islands each; nothing stops either yet (user's, 2026-10-09;
 W06 → Known limits; Watch items).
@@ -1030,7 +1030,8 @@ with its last session, and a new one taking a free spot.
 ### W06 Bridges
 *Built (2026-10-07); the bridges' look and the maps are placeholders.
 Scope: core (world only).* Walkable bridges connect islands within a
-cluster, and each cluster to the spawn platform, for physical movement
+cluster, and each near cluster to the spawn platform (since 2026-10-09,
+not a far one: W05), for physical movement
 and the feel of the world. Built as a general "connect regions" system,
 not beach-specific, so that future biomes (W10: forests, mountains, at
 different heights) plug into it. With it, a minimap for travel on foot

@@ -144,8 +144,8 @@ disappear at once. If you're standing on its island, or on
 one of its bridges, the empty island stays until you leave it (walk
 away over a bridge, swim away, or go to another session or the
 platform); then it sinks back into the seabed and is gone. Islands of the same project sit
-together in a cluster (below), and bridges join them to each other and
-to the platform (W06); the sessions menu (Tab) takes you straight to
+together in a cluster (below), and bridges join them to each other and,
+for the 8 clusters nearest it, to the platform (W06); the sessions menu (Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the
 horizon. The water is clear over the shallows and deepens to dark blue
 over deep water, so you can see the sea floor (see Swimming and the sea
@@ -193,10 +193,10 @@ Sessions working on the same project share a **cluster**: their islands
 sit close together, about 100 m apart. The first 8 clusters each have
 their own slice of sea fanning out from the platform, like a slice of
 cake: a cluster's first island is the closest to the platform, and
-later ones fill the slice outward, as many as you start, so a cluster
-never grows into another.
+later ones fill the slice outward, as many as you start, never into a
+neighbouring slice.
 
-A 9th cluster, and any after it, is put far out at sea, about 2 km from
+A 9th cluster, and any after it, is put far out at sea, 2 km or more from
 the platform. It starts with one island, and later ones gather round
 that one, spreading away from the platform.
 
