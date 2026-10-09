@@ -1,15 +1,17 @@
 class_name SessionsMenu
 extends CanvasLayer
 ## The sessions menu (S03, S04, a first W07): Tab opens it anywhere you're
-## not chatting. "New session…" picks a project folder; "Platform" takes
-## you back to the spawn platform (W08); the sessions
-## running now are listed by cluster (W05) to jump to their island; stored
-## ones, newest first, to resume. A search box filters both, and the
-## cluster selector says where a new or resumed session goes (by its
-## repository unless changed), the biome selector what kind of island it
-## gets (W10, Random unless changed). A PLACEHOLDER, like all UI
-## for now (user's, 2026-10-01): it only has to work, and gets a proper
-## design later.
+## not chatting. Its first page lists the sessions running now by cluster
+## (W05) to jump to their island, with "Platform" back to the spawn
+## platform (W08) and "Add session…". That page asks where a session goes:
+## the cluster selector (by its repository unless changed) and the biome
+## selector (W10, Random unless changed), then "New session…" picks a
+## project folder and "Resume a session…" lists the stored ones, newest
+## first. Only that last page asks the sidecar for them (user's,
+## 2026-10-09): listing reads the transcripts. Esc goes back a page, Tab
+## closes it. A search box filters the running or the stored list. A
+## PLACEHOLDER, like all UI for now (user's, 2026-10-01): it only has to
+## work, and gets a proper design later.
 ##
 ## The folder picker is the system's own (File Explorer on Windows; user's
 ## decision, 2026-10-01), or Godot's, drawn in the game window, where the
@@ -28,6 +30,12 @@ signal native_picker_shown(directory: String)
 
 const HEADING_COLOUR := Color(1, 1, 1, 0.55)
 
+## The menu's pages: the running sessions, adding one, the stored ones.
+enum Page { MAIN, ADD, RESUME }
+
+const TITLES := {Page.MAIN: "Sessions", Page.ADD: "Add a session", Page.RESUME: "Resume a session"}
+const CLOSE_HINTS := {Page.MAIN: "Tab or Esc to close", Page.ADD: "Esc to go back, Tab to close", Page.RESUME: "Esc to go back, Tab to close"}
+
 @export var player: Player
 
 ## Use the system's folder picker. Off where the system has none, and in
@@ -43,13 +51,18 @@ var clusters: SessionClusters
 var launcher := SessionLauncher.new()
 ## The attention cue (A05), for its sound toggle; the toggle hides without it.
 var attention: Attention
+## How many times the stored sessions were asked for (tests watch this).
+var listings_asked := 0
 
 ## Stored sessions from every provider, newest first.
 var _stored: Array = []
 ## "" once listed; else what to say instead of the list.
 var _stored_status := ""
-## Bumped on each open so a late reply from an earlier one is ignored.
+## Bumped on each page shown and on closing, so a late reply from an
+## earlier listing is ignored.
 var _listing := 0
+## The page showing.
+var _page := Page.MAIN
 ## Open, with the panel or the folder picker showing. Its own flag: the
 ## picker hides itself before it says which folder was chosen, so by then
 ## neither shows, and close() must still give the controls back.
@@ -62,6 +75,8 @@ var _asking_folder := 0
 var _last_dir := ""
 
 @onready var _panel: Control = $Panel
+@onready var _title: Label = $Panel/Layout/Header/Title
+@onready var _close_hint: Label = $Panel/Layout/Header/Close
 @onready var _search: LineEdit = $Panel/Layout/Search
 @onready var _list: VBoxContainer = $Panel/Layout/Scroll/List
 @onready var _hint: Label = $Hint
@@ -73,7 +88,7 @@ var _last_dir := ""
 @onready var _biome_row := HBoxContainer.new()
 @onready var _biome := OptionButton.new()
 @onready var _sound := CheckButton.new()
-@onready var _lists: Array[Control] = [$Panel/Layout/Search, _cluster_row, _biome_row, $Panel/Layout/Scroll]
+@onready var _scroll: Control = $Panel/Layout/Scroll
 
 
 func _ready() -> void:
@@ -117,8 +132,7 @@ func _ready() -> void:
 		close()
 		launcher.create(path, cluster, biome))
 	_dialog.canceled.connect(func() -> void:
-		_panel.visible = true
-		_search.grab_focus())
+		_panel.visible = true)
 	# Start in the user's home folder; afterwards it remembers the last one.
 	var home := OS.get_environment("USERPROFILE" if OS.get_name() == "Windows" else "HOME")
 	if not home.is_empty() and DirAccess.dir_exists_absolute(home):
@@ -162,16 +176,12 @@ func open() -> void:
 	_panel.visible = true
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_search.text = ""
-	_search.grab_focus()
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
 	_biome.select(0) # and to Random
-	_sound.visible = attention != null
 	if attention:
 		_sound.set_pressed_no_signal(attention.sound_on)
-	_list_stored()
-	_fill()
+	_show(Page.MAIN)
 	_refresh_hint()
 
 
@@ -180,6 +190,7 @@ func close() -> void:
 		return
 	_open = false
 	_stop_waiting()
+	_listing += 1
 	_panel.visible = false
 	_dialog.hide()
 	player.controls_enabled = true
@@ -189,6 +200,28 @@ func close() -> void:
 
 func picker() -> FileDialog:
 	return _dialog
+
+
+## The page showing.
+func page() -> Page:
+	return _page
+
+
+## Whether the cluster and biome selectors show (adding a session).
+func pickers_visible() -> bool:
+	return _cluster_row.visible and _biome_row.visible
+
+
+## Back a page, as Esc does: from the stored sessions to adding one, from
+## there to the running ones, and from those closed.
+func back() -> void:
+	match _page:
+		Page.RESUME:
+			_show(Page.ADD)
+		Page.ADD:
+			_show(Page.MAIN)
+		_:
+			close()
 
 
 ## Whether the menu is waiting for the system's folder picker.
@@ -215,7 +248,7 @@ func search(text: String) -> void:
 	_fill()
 
 
-## The list's entries as shown, top to bottom: headings and buttons.
+## The page's entries as shown, top to bottom: headings and buttons.
 func entries() -> Array[String]:
 	var out: Array[String] = []
 	for child in _list.get_children():
@@ -278,13 +311,33 @@ func choose(text: String) -> void:
 func _input(event: InputEvent) -> void:
 	if _dialog.visible:
 		return # the picker handles its own keys
-	if event.is_action_pressed("sessions_menu") or _panel.visible and event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("sessions_menu"):
 		if _panel.visible:
 			get_viewport().set_input_as_handled()
 			close()
 		elif player.controls_enabled:
 			get_viewport().set_input_as_handled()
 			open()
+	elif _panel.visible and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		# Waiting for a system picker that may be lost behind the game,
+		# Esc gives the controls back, like Cancel (user's, 2026-10-01).
+		if _waiting:
+			close()
+		else:
+			back()
+
+
+func _show(page: Page) -> void:
+	_page = page
+	_listing += 1
+	_title.text = TITLES[page]
+	_close_hint.text = CLOSE_HINTS[page]
+	_search.text = ""
+	if page == Page.RESUME:
+		_list_stored()
+	_set_waiting(false)
+	_fill()
 
 
 func _list_stored() -> void:
@@ -293,6 +346,7 @@ func _list_stored() -> void:
 	_stored = []
 	_stored_status = "Loading…"
 	var providers: Array = sidecar.providers
+	listings_asked += 1
 	if providers.is_empty():
 		_stored_status = "Not connected to the sidecar yet."
 		return
@@ -310,8 +364,7 @@ func _list_stored() -> void:
 			if left[0] == 0:
 				_stored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["updated_at"] > b["updated_at"])
 				_stored_status = "" if failed.is_empty() else "Couldn't list stored sessions: %s" % "; ".join(failed)
-				if _panel.visible:
-					_fill())
+				_fill())
 		if id.is_empty():
 			_stored_status = "Not connected to the sidecar."
 			return
@@ -320,8 +373,19 @@ func _list_stored() -> void:
 func _fill() -> void:
 	for child in _list.get_children():
 		child.queue_free()
+	match _page:
+		Page.MAIN:
+			_fill_running()
+		Page.ADD:
+			_add_button("+ New session…", _pick_folder)
+			_add_button("▸ Resume a session…", func() -> void: _show(Page.RESUME))
+		Page.RESUME:
+			_fill_stored()
+
+
+func _fill_running() -> void:
 	var query := _search.text.strip_edges().to_lower()
-	_add_button("+ New session…", _pick_folder)
+	_add_button("+ Add session…", func() -> void: _show(Page.ADD))
 	_add_button("⌂ Platform", func() -> void:
 		close()
 		go_to_platform.emit())
@@ -349,11 +413,15 @@ func _fill() -> void:
 				_add_button(r[0], func() -> void:
 					close()
 					go_to.emit(r[1]))
+	elif not query.is_empty():
+		_add_heading("No match.")
 
-	_add_heading("Resume")
+
+func _fill_stored() -> void:
 	if not _stored_status.is_empty():
 		_add_heading(_stored_status)
 		return
+	var query := _search.text.strip_edges().to_lower()
 	var shown := 0
 	for st in _stored:
 		var label := row(display_title(st.get("title"), "Untitled session"), project_name(st["project"]), _ago(st["updated_at"]))
@@ -395,8 +463,7 @@ func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
 		return # cancelled from the menu meanwhile, or the menu closed
 	_set_waiting(false)
 	if not ok or paths.is_empty():
-		_search.grab_focus() # cancelled in the picker: back to the menu
-		return
+		return # cancelled in the picker: back to the menu
 	_last_dir = paths[0]
 	var cluster := cluster_choice()
 	var biome := biome_choice()
@@ -410,11 +477,17 @@ func _stop_waiting() -> void:
 		_set_waiting(false)
 
 
+# Shows the page's parts, or only the note while waiting for the picker.
 func _set_waiting(on: bool) -> void:
 	_waiting = on
 	_wait_note.visible = on
-	for c in _lists:
-		c.visible = not on
+	_search.visible = not on and _page != Page.ADD
+	_cluster_row.visible = not on and _page != Page.MAIN
+	_biome_row.visible = not on and _page != Page.MAIN
+	_scroll.visible = not on
+	_sound.visible = not on and _page == Page.MAIN and attention != null
+	if _search.visible:
+		_search.grab_focus()
 
 
 ## The cluster selector: automatic, each running cluster, a new one. Keeps
