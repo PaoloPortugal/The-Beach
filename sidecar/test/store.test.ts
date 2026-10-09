@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, hasReply, listStored, readHistory, findStored } from '../src/providers/claude/store.ts'
+import { describe, describeAs, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
@@ -74,6 +74,60 @@ test('list: terminal sessions, newest first, titled by name or first message; fi
   assert.equal(findStored(ID(3), s.dir), null, 'desktop sessions are not resumed here')
   assert.equal(findStored('../../etc/passwd', s.dir), null)
   assert.equal(describe(path.join(s.dir, 'b', 'not-a-session.jsonl')), null)
+})
+
+test('list with a cache: the same list; files read again only once they change, gone ones forgotten', () => {
+  const s = store()
+  const cache = new StoredCache()
+  const plain = listStored({ dir: s.dir })
+  assert.deepEqual(listStored({ dir: s.dir, cache }), plain)
+  const firstReads = cache.reads
+  assert.ok(firstReads >= plain.length)
+  assert.deepEqual(listStored({ dir: s.dir, cache }), plain, 'listed again, the same')
+  assert.equal(cache.reads, firstReads, 'and nothing read again')
+  // Renamed in the terminal: the file grows, and its new title shows.
+  fs.appendFileSync(path.join(s.dir, 'b', `${ID(2)}.jsonl`), jsonl({ type: 'custom-title', customTitle: 'login fix' }))
+  const after = listStored({ dir: s.dir, cache })
+  assert.equal(after.find((x) => x.native_id === ID(2))!.title, 'login fix')
+  assert.equal(after[0]!.native_id, ID(2), 'and it is the newest now')
+  assert.equal(cache.reads, firstReads + 1, 'only that one is read again')
+  assert.deepEqual(after, listStored({ dir: s.dir }), 'the same as without the cache')
+  // Deleted (Claude Code's cleanup): gone from the list and the cache.
+  const before = cache.size
+  fs.rmSync(path.join(s.dir, 'a', `${ID(6)}.jsonl`))
+  assert.ok(!listStored({ dir: s.dir, cache }).some((x) => x.native_id === ID(6)))
+  assert.equal(cache.size, before - 1)
+  // A new one is read and listed.
+  fs.writeFileSync(path.join(s.dir, 'b', `${ID(9)}.jsonl`), jsonl({ type: 'user', message: { content: 'brand new' }, cwd: s.projB, entrypoint: 'cli' }))
+  assert.equal(listStored({ dir: s.dir, cache })[0]!.title, 'brand new')
+})
+
+test('a transcript whose read fails is not kept, and is listed on the next call', () => {
+  const s = store()
+  const failing = path.join(s.dir, 'b', `${ID(2)}.jsonl`)
+  let fail = true
+  const cache = new StoredCache((file, st) => {
+    if (file === failing && fail) return undefined // e.g. locked mid-write
+    return describeAs(file, st)
+  })
+  assert.ok(!listStored({ dir: s.dir, cache }).some((x) => x.native_id === ID(2)), 'left out while it can\'t be read')
+  fail = false
+  const reads = cache.reads
+  const next = listStored({ dir: s.dir, cache })
+  assert.equal(next.find((x) => x.native_id === ID(2))?.title, 'fix the login bug', 'read again, and listed')
+  assert.equal(cache.reads, reads + 1, 'only that one is read again')
+  assert.deepEqual(next, listStored({ dir: s.dir }), 'the same as without the cache')
+})
+
+test('the provider keeps its listing between calls, and shows what changed', async () => {
+  const s = store()
+  const provider = new ClaudeProvider({ projectsDir: s.dir })
+  const first = await provider.listStored()
+  fs.appendFileSync(path.join(s.dir, 'a', `${ID(1)}.jsonl`), jsonl({ type: 'custom-title', customTitle: 'renamed' }))
+  const second = await provider.listStored()
+  assert.equal(first.find((x) => x.native_id === ID(1))!.title, 'cp1-project')
+  assert.equal(second.find((x) => x.native_id === ID(1))!.title, 'renamed', 'a change since shows')
+  assert.deepEqual(await provider.listStored(s.projB), second.filter((x) => x.project.path === s.projB), 'and one project\'s')
 })
 
 test('history: what the user said (typed or from the world) and Claude\'s text, nothing else', () => {
