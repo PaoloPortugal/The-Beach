@@ -480,6 +480,15 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   2-9 ms by view; the ocean 4-7 ms (measured before). Making an island
   stalled a frame for 140-170 ms before, about 54-64 ms of it generating
   the mesh, now 25 ms; loading the demo's 64 sessions took 9-11 s.
+
+  W09's share (2026-10-08, interleaved A/B pairs, median of 5): the
+  sky about 0 ms once its uniforms are set only when a change would
+  show (1.6-1.9 ms a frame when they were set every frame); clouds
+  0.2-1.6 ms by view; the night lights 0-1.6 ms, near an island; rain
+  about 0 (its rings drawn only within 60 m). Also measured then: the
+  ocean about 3 ms (W08's, unchanged), the sea floor 0.6-1.3 ms. The
+  platform view took 25.4 ms of GPU against 24.4 ms on `main`, within
+  the runs' spread (the user's Godot editor was open, sharing the GPU).
 - *How to measure:* a throwaway script (not in the repo) that loads
   `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
@@ -489,6 +498,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   (primitives, draw calls), 180 frames each after a warm-up. Close other
   Godot windows first. Measure each change between two fresh baselines;
   runs vary by 1-3 ms. Hiding one part at a time shows what it costs.
+  For a change smaller than that spread, alternate the two versions in
+  pairs (A, B, A, B...) in one run and take the median of 5 pairs.
 - **Rules.** Every generated mesh gets a far version or a visibility
   range tied to the fog:
   - *Nothing the fog hides fully is drawn.* `SessionIslands.draw_distance`
@@ -514,11 +525,16 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   - *In-world UI drawn through a SubViewport only redraws when it
     changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
     and hides once too far to read: the message bubble (C02).
+  - *The sky's uniforms are set only when a change would show:* setting
+    one redraws the sky's reflection map, so `DayNight._set_sky` skips a
+    change smaller than `SKY_STEP` (1/255) (W09).
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
   keeps 4 shadow splits; no resolution setting yet (later, in a graphics
   settings menu); no threaded island generation, mesh merging, or
   collision off far away (collision and per-frame scripts measured no
-  cost).
+  cost). Tried and reverted (W09): drawing only the ocean's visible side
+  (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
+  +0.7 ms on another.
 
 ## Protocol
 
@@ -3479,9 +3495,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W09 day/night cycle and weather (designed, being built
-on `w09-day-night`); then W10 and W11, then a settings menu with graphics
-settings, in that order (user's, 2026-10-08).
+**Current focus:** W09 day/night cycle and weather, built on
+`w09-day-night` and waiting for the user's live check (dev log
+2026-10-08-w09-day-night); then W10 and W11, then a settings menu with
+graphics settings (it gets `Weather.lightning_enabled`'s switch), in that
+order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
 (dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
 sea floor's colours (now a smooth gradient by depth), a warped, spread
