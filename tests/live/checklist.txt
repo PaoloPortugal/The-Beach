@@ -1,44 +1,72 @@
-LIVE CHECK: W09 day, night, weather
+LIVE CHECK: W10 kinds of island,
+C09 debug commands, W09's
+leftover steps
   godot --path . -- --sidecar-dev-fake --checklist
-Add flags as each step says, e.g.
-  ... --checklist --hour 17.5
 Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
+Page Down / wheel scrolls this.
 
-1. No flags: mid-morning, sun up in
-   the south-east, a clear sky.
-   Same look as before W09?
-2. --hour 17.3, face west (the sun):
-   sky gold/orange at the horizon,
-   blue above. Sunset look right?
-   Watch a few minutes: the sun
-   sets, the moon rises opposite.
-3. --hour 23: moonlit night, stars.
-   Can you walk and see well
-   enough? Too dark, too bright?
-4. Tab > New session... > a folder,
-   at night (--hour 23): torches on
-   its beach, a lamp on the desk.
+W10
+1. Tab: Biome on Beach, New
+   session... > a folder: palms,
+   plants; sand castles, starfish,
+   shells by the water. Tropical
+   enough? Palms block you?
+2. Forest, Snowy, Desert: still
+   look right (unchanged)?
+3. Mountain: spires 60-70 m, snow
+   on top, tall enough from afar?
+4. Its bridge climbs as a stair
+   to the cliff top: walk it up.
+   A valley leads to the meadow?
+5. Swim to its beach: E by the
+   post rides the zipline up?
+   Look round while riding? Head
+   clear of the cliff? E at the
+   top takes you down?
+6. Night on the meadow (T, then
+   /time set night): stargazing?
+   Torches at the cliff's lip.
+7. A few on Random: kinds vary?
+   M: islands coloured by kind?
+8. Chat on a mountain so the
+   fake spawns subagents: on the
+   meadow, none in a spire?
+9. Anything to tune: palm count,
+   spire heights, zipline speed.
+
+C09 and W09
+10. Press T: a line,
+   "/" in it. Esc closes.
+   /help lists the commands?
+11. Tab > New session... > a folder,
+   so there's an island.
+12. /time speed 14 (a 2-minute
+   day): dawn and dusk smooth,
+   no jump when the sun and
+   moon swap? Then /time speed 1.
+13. /time set sunset, face west:
+   sunset look right?
+14. /time set night: moonlit, stars.
+   Torches and desk lamp lit?
    Island readable from afar?
-   Chat bubble and chat panel read
-   as well as by day?
-5. Swim under at night: dark blue,
-   the floor dim, not glowing.
-6. --weather cloudy, then rain:
-   clouds, rain streaks, rings on
-   the water. Dive: no rain below.
-7. --weather windy: waves faster,
-   but your eyes stay above them
-   when floating?
-8. --weather storm: dark grey sky,
-   heavy rain, a soft flash with a
-   distant bolt every 10-20 s.
-   Never a white-out? Too faint?
-   Try it at night too (--hour 23).
-9. --day-minutes 2: a whole day in
-   2 minutes. Dawn and dusk smooth,
-   no jumps when the sun and moon
-   swap at the horizon?
-10. Smooth? Compare frame rate with
-   main, by day and in a storm.
+   Bubbles and chat panel read OK?
+   Swim under: dark, floor dim?
+15. /time set noon. /weather cloudy,
+   rain, windy, storm in turn:
+   clouds, rain and rings? Windy:
+   floating, eyes above the waves?
+   Dive in the rain: none below?
+16. Storm: lightning 10-20 s apart,
+   soft (no white-out, not too
+   faint)? A far bolt? Also at
+   night (/time set night).
+   Frame rate OK, like main?
+17. /lightning in clear weather:
+   a flash and a bolt?
+18. Look out from high up: clouds
+   at the fog's corners look OK?
+19. Up/Down bring
+   back commands? Chat box: "/"
+   still types into your message?

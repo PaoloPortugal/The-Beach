@@ -23,6 +23,8 @@ const THICKNESS := 0.1
 ## it gets there (rise per metre).
 const CLEARANCE := 1.2
 const RAMP := 0.15
+## Steeper than this (rise per metre), the planks are level steps (W10).
+const STEPS_FROM := 0.2
 ## Posts (both sides) at most this far apart; their rails' top. The rails
 ## stop this far from each end, so you can step on from the side.
 const POST_SPACING := 4.0
@@ -157,7 +159,15 @@ func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]
 		var y1: float = y.call(s1) + rng.randf_range(-0.015, 0.015)
 		var shade := WOOD.lightened(rng.randf_range(-0.08, 0.12))
 		var w := half + rng.randf_range(-0.06, 0.06)
-		_slab(segment_at.call(s), Vector3(-w, y0, -s), Vector3(w, y0, -s), Vector3(w, y1, -s1), Vector3(-w, y1, -s1), THICKNESS, shade)
+		var thick := THICKNESS
+		# Steep: a level step at the slope's middle, deep enough to meet
+		# the next (W10). The collision stays a smooth ramp.
+		if absf(y1 - y0) > STEPS_FROM * (s1 - s):
+			var mid: float = y.call((s + s1) / 2.0)
+			thick += absf(y1 - y0) + PLANK_GAP
+			y0 = mid
+			y1 = mid
+		_slab(segment_at.call(s), Vector3(-w, y0, -s), Vector3(w, y0, -s), Vector3(w, y1, -s1), Vector3(-w, y1, -s1), thick, shade)
 		s = s1 + PLANK_GAP
 
 	var posts := _posts(length)

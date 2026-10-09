@@ -79,3 +79,5 @@ reading; look things up by feature ID.
 | 2026-10-08 | [W08: swimming and the seabed](2026-10-08-w08-swimming.md) | W08, W01, W02, W03, W04, W06, W07 |
 | 2026-10-08 | [W08 follow-ups: dolphin jump, shelf colours, sea floor](2026-10-08-w08-tuning.md) | W08, W01, W03 |
 | 2026-10-08 | [W09: day, night and the weather](2026-10-08-w09-day-night.md) | W09, W02, W08, W01, A01 |
+| 2026-10-08 | [W10: kinds of island](2026-10-08-w10-biomes.md) | W10, W01, W03, W06, W04, W09, A04, S03 |
+| 2026-10-08 | [C09: debug commands](2026-10-08-c09-commands.md) | C09, W09 |

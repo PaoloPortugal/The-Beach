@@ -88,9 +88,7 @@ func step(delta: float) -> void:
 	# Lightning, once the storm is well under way.
 	_until_lightning -= delta
 	if storm > 0.6 and lightning_enabled and _until_lightning <= 0.0:
-		_until_lightning = rng.randf_range(MIN_GAP, MAX_GAP)
-		_flash_age = 0.0
-		lightning.emit(Vector2.from_angle(rng.randf() * TAU))
+		strike()
 	if _flash_age >= 0.0:
 		_flash_age += delta
 		# Two soft pulses, the second smaller, then gone.
@@ -99,6 +97,14 @@ func step(delta: float) -> void:
 		if a >= 1.0:
 			flash = 0.0
 			_flash_age = -1.0
+
+
+## A lightning strike now, storm or not (also C09's /lightning): the
+## flash, and the bolt through [signal lightning].
+func strike() -> void:
+	_until_lightning = rng.randf_range(MIN_GAP, MAX_GAP)
+	_flash_age = 0.0
+	lightning.emit(Vector2.from_angle(rng.randf() * TAU))
 
 
 ## Changes to [param p_kind]. With [param now], the levels jump to it
