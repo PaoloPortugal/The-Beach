@@ -80,6 +80,8 @@ On the first page:
 - **+ Add session…** takes you to Add a session (below).
 - **⌂ Platform** takes you back to the spawn platform, wherever you are,
   in the water too.
+- **✕ Stop waiting for the session starting** shows while a session is
+  starting, so you can start another.
 - **Running** lists the sessions running now, grouped under their
   cluster's name, with what each is doing
   (working, waiting for you, stopped, idle). A session counts as working
@@ -89,6 +91,8 @@ On the first page:
   you always find a session in the same place: clusters in the order
   of their places around the platform, and each cluster's sessions in
   the order of their islands.
+- **Sound when waiting**, at the bottom, turns the attention chime on
+  or off (see When something waits for you (A05)).
 
 On Add a session:
 

@@ -1,6 +1,6 @@
 # S04: Resume on its own page, and a kept listing
 
-Features: S04, S03, W07, W05, W10
+Features: S04, S03, W07, W05, W08, W10
 
 ## Why
 
@@ -50,7 +50,7 @@ hook relays and permission requests waited behind them.
   Timed on the dev machine's 181 transcripts: 784 ms the first time,
   47-56 ms after (182 file stats, nothing read). The protocol is
   unchanged.
-- Since the menu's opens no longer list anything, the world test's
+- Since opening the menu no longer lists anything, the world test's
   missing-folder wait is back to 5 s.
 
 ## Checked
