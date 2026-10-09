@@ -3689,13 +3689,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W10 island biomes (with the user's 2026-10-09 beach
-and mountain changes) and C09 debug commands (the console on T),
-merged together on `w10-c09-merge` for the user's live check and review
-(dev logs 2026-10-08-w10-biomes and 2026-10-08-c09-commands); then W11,
-then a settings menu with graphics settings (it gets
-`Weather.lightning_enabled`'s switch), in
-that order (user's, 2026-10-08).
+**Current focus:** W11 crouch and slide (not designed yet), then a
+settings menu with graphics settings (it gets
+`Weather.lightning_enabled`'s switch), in that order (user's,
+2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-09), approved by the user: W10 island biomes
+and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
+2026-10-08-c09-commands): five kinds of island picked in the sessions
+menu, the beach tropical, the mountain a high meadow among 60-70 m
+spires with a zipline (E); debug commands on T (`/time`, `/weather`,
+`/lightning`, `/help`).
 **Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
 cycle and weather** (dev log 2026-10-08-w09-day-night): a 28-minute day
 with the sun and moon, random gentle weather with soft thunderstorms,
