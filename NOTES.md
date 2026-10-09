@@ -3075,8 +3075,10 @@ proper design later, like all UI.
   a session asks "new or resumed?", which fits the menu's future design;
   dev log 2026-10-09-s04-resume-page):
   - *Sessions*: a search box (focused), "+ Add session…", "⌂ Platform"
-    (back to the spawn platform; W08) and "Running" (W07). The search
-    filters Running by title, project and cluster.
+    (back to the spawn platform; W08), "✕ Stop waiting for the session
+    starting" while one is starting (below), "Running" (W07) and, at the
+    bottom, A05's sound toggle. The search filters Running by title,
+    project and cluster.
   - *Add a session*: the cluster selector (W05) and the biome selector
     (W10), then "+ New session…" and "▸ Resume a session…".
   - *Resume a session*: the same two selectors (their choices kept), a
@@ -3164,7 +3166,7 @@ transcripts are off), and Claude Code deletes transcripts after
 `cleanupPeriodDays` (30 by default), so the list only reaches that far
 back.
 
-The world side is the sessions menu's "Resume" list (S03; user's decisions,
+The world side is the sessions menu's "Resume a session" page (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
 newest first, as "title · project · how long ago" (titles in Claude Code's
 own order, S02 → Titles; "Untitled session" without one, which only another
@@ -3191,9 +3193,12 @@ machine (2026-10-09). The provider keeps each file's description
 (`StoredCache`) while its size and modification time stay the same, and
 forgets files that are gone, so listing again only reads the folders and
 the files' times (about 50 ms for the same 181). A file that couldn't be
-read isn't kept, so it's tried again. Tested with a temporary store:
+read isn't kept, so it's tried again. The cache holds only the listing
+fields (title, from the first message's line if untitled; project path;
+time), in memory, for the sidecar's lifetime. Tested with a temporary store:
 the same list with and without the cache, nothing read again unchanged,
-a rename read again, a deleted file forgotten, a new one listed.
+a rename read again, a deleted file forgotten, a new one listed, and a
+file whose read failed listed on the next call.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
 for now (user's decision, 2026-09-29); VS Code and desktop sessions are
@@ -3794,7 +3799,9 @@ checks** (branch menu-missing-folder-flaky, dev log
 the menu's session listings (Watch items → Listing stored sessions
 blocks the sidecar), the S06 "warning goes" check could read the turn
 just starting, and W04's "facing it" arrow check failed when h3 rolled a
-mountain (W10 starts one about 100 m down).
+mountain (W10 starts one about 100 m down). S04's branch, stacked on it,
+puts the missing-folder wait back to 5 s, since opening the menu no longer
+lists anything.
 **Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
@@ -4115,8 +4122,8 @@ exists.
 ### Watch items
 
 - **Listing stored sessions blocks the sidecar** (S04; found
-  2026-10-09). `session.list_stored` reads the newest 200 transcripts
-  synchronously, 64 KiB from each end: 0.8-0.95 s for 181 of them on a
+  2026-10-09). `session.list_stored` reads transcripts newest first
+  until 200 are listed, synchronously, 64 KiB from each end: 0.8-0.95 s for 181 of them on a
   dev machine, and meanwhile nothing else is handled (replies, hook
   relays, permission requests). Seen as a 3 s wait in the world test
   (dev log 2026-10-09-world-test-waits). Since 2026-10-09 (user's) only
