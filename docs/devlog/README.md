@@ -78,3 +78,4 @@ reading; look things up by feature ID.
 | 2026-10-08 | [C08 token usage, built](2026-10-08-c08-usage.md) | C08, S02 |
 | 2026-10-08 | [W08: swimming and the seabed](2026-10-08-w08-swimming.md) | W08, W01, W02, W03, W04, W06, W07 |
 | 2026-10-08 | [W08 follow-ups: dolphin jump, shelf colours, sea floor](2026-10-08-w08-tuning.md) | W08, W01, W03 |
+| 2026-10-08 | [W09: day, night and the weather](2026-10-08-w09-day-night.md) | W09, W02, W08, W01, A01 |
