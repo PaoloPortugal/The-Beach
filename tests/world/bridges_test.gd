@@ -5,7 +5,9 @@ extends SceneTree
 ## without moving other bridges, a hubless group), and the layout demo's
 ## 64 sessions: every near cluster joined to the platform, every far one
 ## joined within but not to it, no bridge over another island's land or
-## across another bridge, and still so after islands sink.
+## across another bridge, and still so after islands sink; and a crowd of
+## 311 sessions (near clusters of 3 to 52, far ones of 2 to 26), the
+## same.
 ##
 ##   godot --headless --path . --script res://tests/world/bridges_test.gd
 
@@ -25,6 +27,7 @@ func _run() -> void:
 	_tree()
 	await _walk()
 	await _demo()
+	await _crowd()
 	if not _failed and _errors.ok():
 		print("PASS bridges_test")
 		quit(0)
@@ -176,6 +179,54 @@ func _demo() -> void:
 	await _frames(2)
 
 
+# The layout demo crowded: near clusters of about 40 sessions and far
+# ones of about 20, some more, some fewer, some very few. Still well
+# apart, bridged as it should be, and patched after islands sink, near
+# and far.
+func _crowd() -> void:
+	var demo: Node3D = LayoutDemo.new()
+	var near := [52, 45, 40, 38, 33, 25, 8, 3]
+	var far_sizes := [26, 20, 14, 5, 2]
+	demo.sizes = near + far_sizes
+	var started := Time.get_ticks_msec()
+	root.add_child(demo)
+	await _frames(5)
+	var world: Node3D = demo.world
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	var clusters := islands.clusters
+	var total: int = (near + far_sizes).reduce(func(a: int, b: int) -> int: return a + b, 0)
+	var ids := clusters.ids()
+	_check(world.store.sessions.size() == total and ids.size() == 13, "crowd: %d sessions in 13 clusters (%.0f s to build)" % [total, (Time.get_ticks_msec() - started) / 1000.0])
+	_check(ids.slice(0, 8).all(func(id: String) -> bool: return not clusters.is_far(id)) and ids.slice(8).all(func(id: String) -> bool: return clusters.is_far(id)), "crowd: the 5 past the 8th are far")
+	var all := islands.all_islands()
+	var closest := INF
+	var furthest := 0.0
+	for a in all.size():
+		furthest = maxf(furthest, all[a].global_position.length())
+		for b in a:
+			closest = minf(closest, all[a].global_position.distance_to(all[b].global_position))
+	_check(closest >= SessionClusters.ISLAND_SPACING - 0.01, "crowd: no two islands closer than 100 m (closest %.1f m, furthest out %.0f m)" % [closest, furthest])
+	# A near cluster's tree has a bridge per island (one to the platform),
+	# a far one's one fewer.
+	_check(islands.bridges.links().size() == total - far_sizes.size(), "crowd: a tree per cluster (%d bridges)" % islands.bridges.links().size())
+	_layout_ok(islands, "crowd")
+	# Islands sink, in the middle and at the ends of trees, near and far.
+	world.get_node("Player").global_position = Vector3(0, 1.1, 0)
+	var before := islands.bridges.links().size()
+	# [cluster, island]: the biggest's first, 5th and last, others'
+	# middles, the 3-island one's middle, far ones' first and middles.
+	var gone := []
+	for at in [[0, 0], [0, 4], [0, 51], [3, 19], [7, 1], [8, 0], [8, 13], [10, 7], [12, 1]]:
+		gone.append(clusters.sessions(ids[at[0]])[at[1]])
+	for id in gone:
+		world.store.apply({"type": "session.ended", "session": id, "seq": 2, "reason": "exited"})
+	await _until(func() -> bool: return islands.left_islands().all(func(i: Island) -> bool: return not islands.bridges.has(SessionIslands.region(i))), 3.0)
+	_check(islands.bridges.links().size() == before - gone.size(), "crowd: one bridge fewer per sunk island")
+	_layout_ok(islands, "crowd after sinking")
+	demo.queue_free()
+	await _frames(2)
+
+
 # Every near cluster joined to the platform, every far one joined within
 # but not to it; no bridge over other land or across another bridge.
 func _layout_ok(islands: SessionIslands, what: String) -> void:
@@ -205,8 +256,12 @@ func _layout_ok(islands: SessionIslands, what: String) -> void:
 	for c in islands.clusters.ids():
 		bridges.append_array(net.bridges_in(c))
 	for b in bridges:
+		var middle := (b.from + b.to) / 2.0
+		var half := b.from.distance_to(b.to) / 2.0
 		for i: Island in regions.values():
 			var c := i.global_position
+			if Vector2(c.x - middle.x, c.z - middle.z).length() > half + 80.0:
+				continue # too far to reach it
 			if Vector2(b.from.x - c.x, b.from.z - c.z).length() < 50.0 or Vector2(b.to.x - c.x, b.to.z - c.z).length() < 50.0:
 				continue # one of its own ends
 			for k in 41:
