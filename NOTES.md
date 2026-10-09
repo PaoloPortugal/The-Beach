@@ -2336,7 +2336,10 @@ How it works:
   command line.
   Asked once per folder per run; it blocks the sidecar while it runs
   (under a second, at most 10 s), and if that delays a session's hooks
-  they time out to the terminal's own prompts (fail safe). The answer
+  they time out to the terminal's own prompts (fail safe). Past 10 s
+  (Windows PowerShell can start that slowly on a loaded machine; seen
+  on CI) there is no answer, kept for the run like any other (Watch
+  items → A slow short-name answer is kept for the run). The answer
   is accepted only if it is the same file, on the same drive, and every
   component is safe. A volume without short names, or a short name that
   is still unsafe (`$(NEW-~1`), means no status line. Tested by running
@@ -2346,7 +2349,10 @@ How it works:
   relay gets exactly its 3 arguments and nothing else runs; and by
   asking Windows about folders named `$(New-Item PWNED)`, `` `ni
   PWNED` `` and `a';ni PWNED;'b`: nothing runs, and each answer is that
-  very folder (`sidecar/test/usage.test.ts`).
+  very folder (`sidecar/test/usage.test.ts`). These tests ask the real
+  Windows with up to 30 s per answer, not 10 s, so a slow runner isn't
+  read as a volume without short names; the checks are the same (dev
+  log 2026-10-09-c08-askwindows-flaky).
 - **Spotting the user's own status line:** read (never written) the
   user's settings (`~/.claude/settings.json`, under `CLAUDE_CONFIG_DIR`
   when set) and the project's `.claude/settings.json` and
@@ -3637,7 +3643,10 @@ changing `GODOT_VERSION` only. The actions are pinned to major versions
 annotations say their Node runtime is deprecated. Results can be read
 with `gh run list` and `gh run view <id> --log-failed`. Timing checks
 time the code itself, not a spawned process (Node's startup stretches
-by seconds on a loaded runner). In the Godot suites, a check after an
+by seconds on a loaded runner), and a test waiting on a real process
+the code bounds gives it more time than the code does (`askWindows`:
+30 s in its tests, 10 s in the sidecar; dev log
+2026-10-09-c08-askwindows-flaky). In the Godot suites, a check after an
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
@@ -3789,6 +3798,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Ready for review (2026-10-09): C08's flaky short-name tests** (dev
+log 2026-10-09-c08-askwindows-flaky, branch `c08-askwindows-flaky`):
+on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
+`usage.test.ts` tests read "no answer"; they now wait up to 30 s, with
+the same checks. The sidecar keeps 10 s (Watch items → A slow
+short-name answer is kept for the run).
 **Merged to `main` (2026-10-09), approved by the user: S04's Resume on
 its own page** (dev log 2026-10-09-s04-resume-page): "+ Add session…"
 asks new or resume, Esc goes back a page (waiting for the folder picker
@@ -4121,6 +4136,17 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **A slow short-name answer is kept for the run** (C08; found
+  2026-10-09). `askWindows` gives Windows PowerShell 10 s; on CI's
+  loaded Windows runner its start passed that (dev log
+  2026-10-09-c08-askwindows-flaky), where it usually takes 1-3 s
+  (0.8 s idle, up to 5 s under full CPU load on a dev machine). The
+  missing answer is kept like any other (`askWindowsOnce`), so if it
+  was for a folder every session's relay path shares, no session gets a
+  status line until the sidecar restarts (transcript only; logged). Not
+  seen outside CI. If it is: don't keep a timed-out answer, or ask in
+  the background so nothing blocks.
 
 - **Listing stored sessions blocks the sidecar** (S04; found
   2026-10-09). `session.list_stored` reads transcripts newest first

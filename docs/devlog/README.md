@@ -84,3 +84,4 @@ reading; look things up by feature ID.
 | 2026-10-09 | [Three flaky world-test checks: the missing folder, the S06 warning, W04's arrow](2026-10-09-world-test-waits.md) | tooling |
 | 2026-10-09 | [W05/W06: clusters that grow without limit](2026-10-09-w05-unbounded-clusters.md) | W05, W06 |
 | 2026-10-09 | [S04: Resume on its own page, and a kept listing](2026-10-09-s04-resume-page.md) | S04, S03, W07, W05, W08, W10 |
+| 2026-10-09 | [C08: the short-name tests on a slow Windows runner](2026-10-09-c08-askwindows-flaky.md) | C08, tooling |
