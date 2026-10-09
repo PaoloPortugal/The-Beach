@@ -116,7 +116,7 @@ func _draw_map() -> void:
 	draw_platform(_map, to_map)
 	var left := islands.left_islands()
 	for i in _drawn:
-		draw_island(_map, i, to_map, EMPTY_LAND if i in left else LAND)
+		draw_island(_map, i, to_map, EMPTY_LAND if i in left else land_colour(i))
 	for b in islands.bridges.bridges_in(_shown):
 		if is_instance_valid(b):
 			_map.draw_line(to_map(b.from), to_map(b.to), BRIDGE, 3.0)
@@ -147,6 +147,12 @@ static func shoreline(i: Island, to_map: Callable) -> PackedVector2Array:
 		var r := i.generator.shore_radius(cos(a), sin(a))
 		outline.append(to_map.call(i.global_position + Vector3(cos(a) * r, 0.0, sin(a) * r)))
 	return outline
+
+
+## An island's colour on the maps: a beach's sand, else its biome's
+## ground (W10).
+static func land_colour(i: Island) -> Color:
+	return LAND if i.biome == Biome.Kind.BEACH else Biome.profile(i.biome)["ground"]
 
 
 static func draw_island(canvas: CanvasItem, i: Island, to_map: Callable, colour: Color) -> void:
