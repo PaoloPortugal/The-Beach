@@ -25,7 +25,7 @@ session rises out of the ocean and an ended one sinks. Islands from the same
 repository form a **cluster** joined by walkable bridges, and unrelated
 projects get their own stretch of ocean. Bridges are for
 exploration and feel; a **teleport menu** is for getting work done quickly.
-Other biomes (hills, mountains) come later, so region connection is a
+Other biomes (forests, mountains and more, W10) were planned from the start, so region connection is a
 general system, not a beach-specific one.
 
 **Agents.** The **orchestrator** sits at the centre of its island (a bigger
@@ -88,7 +88,7 @@ v1 slice.
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
-| W10 | Island biomes                             | planned | n/a           | n/a       |
+| W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd` |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
@@ -433,7 +433,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -489,6 +489,10 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   ocean about 3 ms (W08's, unchanged), the sea floor 0.6-1.3 ms. The
   platform view took 25.4 ms of GPU against 24.4 ms on `main`, within
   the runs' spread (the user's Godot editor was open, sharing the GPU).
+
+  W10's props (2026-10-08, the same way, hiding them all; the demo's 64
+  islands of random biomes): 0.25 ms looking out from the platform,
+  0.5 ms looking back over it, 1.1 ms standing in a forest.
 - *How to measure:* a throwaway script (not in the repo) that loads
   `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
@@ -739,7 +743,8 @@ the sea and sinking back (W04).
 
 *Decided (user's, 2026-09-30):* a low-poly mesh generated in code, with
 an element of randomness so islands differ. Props (Kenney kits) are
-decided later.
+decided later. *Since W10* this is the beach biome, one of five, and
+props are made in code (W10).
 
 **How it works.** `IslandGenerator` (`world/island/island_generator.gd`)
 turns a seed into a height field; `Island` (`island.gd`, a
@@ -870,7 +875,8 @@ session makes its island sink, and the island is then removed.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
 - *Rise.* An island for `session.created` starts at y = -34 m (`SUNK_Y`,
-  4 m under the deepest sea floor, so all of it is under the seabed, W08)
+  4 m under the deepest sea floor, so all of it is under the seabed, W08;
+  deeper for an island whose top is higher, W10's `sunk_y`)
   and rises to 0 in 3 s
   (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
   says so, and `island_risen` fires when it's up (at once for a
@@ -880,7 +886,7 @@ session makes its island sink, and the island is then removed.
   freed (the chat forgets the orchestrator as it leaves the tree) and the
   island moves to the left islands (`left_islands`). Each frame, one the
   player isn't over (within twice its shoreline radius, as in
-  `session_at`), nor on one of its bridges (W06), sinks to `SUNK_Y` in 4 s (`sink_time`, cubic ease-in) and
+  `session_at`), nor on one of its bridges (W06), sinks to the same depth (`sunk_y`) in 4 s (`sink_time`, cubic ease-in) and
   is freed. You leave by swimming away (W08), by going to another
   session or to the platform, or over a bridge (W06). A session ending mid-rise sinks from where
   it got to (nobody can be on it yet). A sinking island can't be stood on
@@ -1075,7 +1081,8 @@ and the real layout (user's, 2026-10-02; W07).
   lowest free number), with no bridges (`is_bridged`; held islands keep
   theirs).
 - *Bridges* (`Bridge`, `world/bridges/bridge.gd`, a `StaticBody3D`):
-  from one point to another, each the deck's top at that end. The deck is
+  from one point to another, each the deck's top at that end (since W10,
+  level steps where it's steeper than 0.2 m a metre; see W10). The deck is
   2.4 m wide and runs on 1.5 m past each end (`OVERRUN`, into the sand, or
   up to the platform's edge); away from its ends it stays 1.2 m above the water
   (`CLEARANCE`), ramping up at most 0.15 m per metre (`RAMP`), and ends
@@ -1111,8 +1118,8 @@ and the real layout (user's, 2026-10-02; W07).
   it has risen (at once for a snapshot), unless it's in a far spot
   (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
   times the generator's radius; a bridge meets it at the outermost point
-  0.5 m above the water (`BRIDGE_END_HEIGHT`) on the line from its middle
-  toward the other end. An empty island doesn't sink while you're on one
+  at its edge height (0.5 m on a beach; W10's `Island.edge_height`) on
+  the line from its middle toward the other end. An empty island doesn't sink while you're on one
   of its bridges (`on_bridge_of`, from `Bridge.carries`).
 - *The platform* (`world.gd`): the hub `platform`, reach 8.5 m; a bridge
   leaves from the deck's edge toward its island (`platform_edge`).
@@ -1391,8 +1398,8 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   floating eyes are about 0.45 m above still water (W08).
 - *Night lights* (`NightLight`, `night_light.gd`): warm `OmniLight3D`s
   with an unshaded flame, placeholders until there's art: four torches
-  per island (`Island.torches`, where its beach is 0.5 m above the water,
-  on the diagonals) and a lamp on the orchestrator's desk. They come on
+  per island (`Island.torches`, where the ground reaches its edge
+  height, 0.5 m on a beach (W10), on the diagonals) and a lamp on the orchestrator's desk. They come on
   as `darkness` passes 0.3 to 0.8 (group `night_lights`, called by
   `DayNight`) and fade out 60 to 90 m from the camera; no shadows.
 - *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
@@ -1406,13 +1413,126 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   Architecture → Performance.
 
 ### W10 Island biomes
-*Planned (user's request, 2026-10-07).* Islands of other kinds besides
-today's beach (W01): forests, mountains and more. Some stand at
-different heights, so connecting islands of different heights has to be
-worked out with bridges (W06, built as a general "connect regions"
-system for this). Not a provider feature: world only. Undesigned: which
-biomes, what picks an island's biome (random, the project, the
-cluster), and whether a cluster mixes them.
+*Built (2026-10-08). Scope: core (world only).*
+Islands of other kinds besides today's beach (W01), some at different
+heights, joined by W06's bridges (user's request, 2026-10-07).
+
+*Decided (user's, 2026-10-08):*
+- *Biomes:* beach (today's), forest, mountain, snowy, desert/savanna
+  (rejected: a smaller first set).
+- *Picked per island in the sessions menu:* a biome row under the
+  cluster selector, used by New session and Resume; its default,
+  "Random", rolls one for each island, so clusters mix (rejected: one
+  biome per cluster; a default from the repository's name or the beach).
+  Nothing is remembered, like clusters (W05).
+- *Heights:* a bridge meets each island at that island's own edge
+  height, so islands of different heights meet across their bridges;
+  gentle differences stay ramps, and past the ramp's limit the bridge
+  gets steps, still railed (rejected: every island keeping a low beach
+  for its bridges; steeper ramps only).
+- *Props:* trees, pines, rocks and the like are made in code, low-poly
+  placeholders like the islands and bridges, until there's art
+  (rejected: Kenney's Nature Kit).
+
+*Decided (user's, 2026-10-09, after a first look):*
+- *The beach* feels tropical: palm trees, sand castles and the like,
+  placeholders.
+- *Mountains* are very tall, fit for stargazing: at least three times
+  the first ones' 15 m, some peaks taller, the peaks off the walking
+  paths. The middle is a high meadow (about 20 m) among them; bridges
+  arrive up there (with steps), and a zipline (E) carries you between
+  the beach and the top, as a 20 m climb doesn't fit on the island
+  (rejected: a low bowl with a zipline to one summit; bigger islands).
+
+**How it works** (heights, colours, counts and densities my picks, tuned
+from screenshots).
+- *Biomes* (`Biome`, `world/island/biome.gd`): `Kind` is beach, forest,
+  mountain, snowy or desert; `PROFILES` gives each its edge height (where
+  bridges land), its middle's height, its hills, its colours and its
+  props, and optionally its size, slope, shoulder, spires and zipline.
+  The beach keeps W01's shape exactly. Edge and middle: beach 0.5 and
+  2 m, desert 0.8 and 2.5, forest 2 and 3, snowy 3 and 4.5, mountain 18
+  and 20.
+- *The mountain* (2026-10-09): a bigger island (radius 36 m, shoreline
+  moved by up to 15 % instead of 45 %, so none is too small for a cliff
+  and spires), a beach, a cliff (3 m rise a metre) up to a 3 m shoulder
+  at 18 m, and a flat meadow 11 m across at 20 m. Between the shoulder
+  and the meadow, 2-3 spires a side between each two valleys (6 m
+  wide), 28-40 m over the meadow, two of them 48-54 m: tops measured
+  62-71 m above the water. Rock where steep, snow above 46 m. Its
+  valleys and spires are this section's valleys and hills, with the
+  spires on top (`IslandGenerator._make_peaks`).
+- *Shape* (`IslandGenerator`, from a seed and a kind): W01's shoreline,
+  shelf and drop-off. Inland, off the beach biome: a 3 m beach up to
+  0.6 m, a slope rising 0.5 m a metre on average up to the edge height,
+  a 4 m shoulder there (no hills: bridges land on it), then up to the
+  flat middle (radius 7 m, as W01; the mountain's 11 m) with hills between (Perlin, clipped to
+  0-1 and scaled by `hills`; a lower `hill_gain` makes the mountain's
+  peaks pointed instead of flat-topped). On a small island the beach and
+  the shoulder shrink first (to 1.5 m), the slope only if that isn't
+  enough. Three hill-free valleys, 4 m wide (the mountain's 6 m) and
+  turned at random, run
+  from the shoulder to the middle, so you can always walk up. Colours
+  by height (wet sand, shore, ground, higher ground, peaks) and
+  steepness (a triangle steeper than about 37° is rock), each triangle
+  up to 5 % lighter or darker.
+- *Props* (`IslandProps`, `island_props.gd`, a `StaticBody3D` "Props"
+  under the island): tree, pine, snowy pine, bush, rock, red rock,
+  cactus, dry shrub, and the beach's palm (a leaning trunk, drooping
+  fronds, coconuts), tropical plant, sand castle, starfish and shell,
+  each made once from Godot's primitive meshes
+  (flat-shaded, vertex colours; crowns and rocks jittered) and drawn as
+  one `MultiMesh` per kind per island. `IslandGenerator.prop_spots`
+  places them on a jittered grid by the biome's density (per 100 m²:
+  forest 2.4, beach 1.3, snowy 1.2, mountain 0.8, desert 0.6), picking
+  kinds by weight; none on the beach's sand (below 0.9 m), within 2.5 m
+  of the middle or on ground steeper than 0.7 m a metre. The beach's
+  shore props (sand castles, starfish, shells; 1 per 100 m²) stand
+  instead on the sand by the water, 0.05-0.6 m up. Trees, pines, palms,
+  rocks and cacti have an upright cylinder of collision; the rest have
+  none. Props are
+  cleared within 1.5 m of a torch and along each bridge's way in: 3 m
+  either side, 8 m inward from its landing (`SessionIslands`
+  `LANDING_CLEAR`, `LANDING_RUN`).
+- *Zipline* (`Zipline`, `world/island/zipline.gd`, made by `Island` where
+  the biome has one: the mountain): a post on the beach and one on the
+  shoulder just past the cliff's lip, at the first valley's mouth
+  (`IslandGenerator.zipline_ends`), the cable 4 m over each. Within 2 m
+  of a post, "E: zipline up" (or down) floats over it; E (`interact`)
+  rides you to the other post at 7 m/s, easing in and out, hanging
+  2.2 m under the cable, your head clear of the cliff. While riding,
+  `Player.riding` stops walking, falling and swimming, but you can look
+  round. At the top you're let off 1.5 m further in. Props keep 2 m off
+  the cable. If the island goes mid-ride, you're let go. The player
+  joins the `player` group so the zipline can find you.
+- *Bridges* (W06): a bridge lands at the island's edge height
+  (`Island.edge_height`), at the outermost point that high on the line
+  from its middle. Where a bridge is steeper than 0.2 m a metre its
+  planks are level steps (`Bridge.STEPS_FROM`), each deep enough to meet
+  the next; its collision stays the smooth ramp. Bridges between islands
+  are about 50 m long, so most stay gentle ramps; one up to a
+  mountain's 18 m is a stair.
+- *Rising and sinking* (W04): an island taller than a beach's 3.2 m
+  starts and ends deeper, all of it under the deepest sea floor
+  (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
+  so it rises faster in the same time.
+- *Picking* (sessions menu): a "Biome:" row under the cluster's, with
+  Random and each kind, back to Random each time the menu opens, used by
+  New session (either picker) and Resume. The launcher passes it to
+  `SessionIslands.choose_biome` with the session id when the reply
+  comes, like the cluster. Any other session (already running, or
+  started outside the menu) gets `default_biome`: Random.
+- *Subagents* (A04): a slot within 1.8 m of a prop, or whose ground
+  differs from its PC's by 0.3 m or more, is skipped like one in the
+  sea. On a mountain the first ring (20 slots, 10 m out) is on the
+  meadow; later ones fall in the valleys, on the shoulder or on the
+  beach below the cliff.
+- *Torches* (W09) stand at the island's edge height (the mountain's at
+  the cliff's lip).
+- *Maps* (W06): an island is drawn in its biome's ground colour (a
+  beach's sand).
+- *Performance* (Architecture → Performance): props cost 0.25-1.1 ms of
+  GPU by view; they follow the islands' draw distance.
 
 ### W11 Crouch and slide
 *Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
@@ -1509,7 +1629,8 @@ has radius 10 + 3*k* m and ⌊2π·r / 3⌋ slots (20, 27, 33, ...), every other
 ring turned half a step. Each slot is moved up to 0.4 m in each direction
 by a random number seeded from the slot, so a slot is always in the same
 place. `IslandAgents` gives a new subagent the first free slot on land
-(ground above 0.3 m); slots in the sea are skipped until the rings are past
+(ground above 0.3 m); slots in the sea, and since W10 those on a prop or
+a steep slope, are skipped until the rings are past
 any shore (1.5 × the island's radius), so there is still no maximum. A
 subagent stands at the lower of the ground heights under it and under its
 PC, so on a dune it sinks in a little rather than float.
@@ -2843,7 +2964,7 @@ proper design later, like all UI.
   no session runs and nothing is starting, "Press Tab for sessions"
   shows at the bottom of the screen.
 - **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), the cluster selector (W05), then "+ New session…", "⌂ Platform"
+  opening), the cluster selector (W05), the biome selector (W10), then "+ New session…", "⌂ Platform"
   (back to the spawn platform; W08), "Running" (W07) and "Resume" (S04).
   The search filters Running and Resume by title and project, like
   Claude Code's own `/resume` list (user's choice).
@@ -3276,7 +3397,18 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping), the day and the weather (W09: starting
+platform, walking, jumping), the biomes (W10: the beach as W01, with
+its palms and plants and, by the water, its sand castles, starfish and
+shells; Random rolling every kind; for each other biome over five seeds
+the flat middle, the sea around, a shoulder at its edge height where
+bridges land, props off the beach and the middle, and a walk on a 1 m
+grid, no step steeper than 40°, from the beach (a mountain's zipline
+top instead) and every landing up to the middle; a mountain's spires
+over 50 m and some over 60, its high meadow and its zipline's cable
+clear of the cliff, on mountains only; every prop mesh facing outward
+(a palm's, a plant's and a starfish's by signed volume), solid
+props colliding and clearing along a bridge's way in; a steep bridge's
+level steps on a smooth ramp), the day and the weather (W09: starting
 mid-morning, the sun's path and the moon opposite, half the cycle night,
 set_hour and --day-minutes, the sky not re-sent for a change too small
 to see, an island's torches and the desk lamp lit at night and out by
@@ -3294,10 +3426,13 @@ gradient, and islands' underwater faces in its colours), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost and its late answer ignored, a refused
-folder), islands for sessions applied to the store by hand (one
+folder; W10's biome selector, Random first and back to Random on
+opening), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, a new one rising and the teleport
 waiting for it, an ended one staying while you're on it and sinking once
-you leave, one ending mid-rise, the new-island beacon and edge arrow
+you leave, one ending mid-rise, a chosen mountain island rising from
+under the sea floor, bridged at its edge height clear of props, its
+zipline riding you up with E and back down, and sinking (W10), the new-island beacon and edge arrow
 (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
@@ -3501,7 +3636,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W10 island biomes; then W11, then a settings menu
+**Current focus:** W10 island biomes, built on `w10-island-biomes` and
+waiting for the user's live check and their word on my picks (dev log
+2026-10-08-w10-biomes); then C09's debug commands (user's, 2026-10-08:
+next after W10), then W11, then a settings menu
 with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
 that order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
@@ -3776,7 +3914,7 @@ exists.
     clicked. This is the route to "unlimited" agents.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
-- **Other biomes:** now a planned feature, W10.
+- **Other biomes:** built as W10.
 - **Minigames and parkour** for downtime. Which ones, where they are and how
   they unlock are all undecided on purpose.
 - **Commands from the world** (probably a capability). Skills and custom
