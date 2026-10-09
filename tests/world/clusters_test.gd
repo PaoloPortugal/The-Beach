@@ -125,7 +125,7 @@ func _overflow() -> void:
 	for k in 9:
 		c.add("s%d" % k, _s("/c%d" % k, "c%d" % k))
 	_check(not c.is_far(c.cluster_of("s7")) and c.is_far(c.cluster_of("s8")), "overflow: 8 near clusters, the 9th far")
-	_check(c.island_position("s8").is_equal_approx(SessionClusters.far_spot(0)), "its first island in the first far spot")
+	_check(c.island_position("s8").is_equal_approx(SessionClusters.far_spot(0)), "its first island at the first far cluster's place")
 	for k in 30:
 		c.add("t%d" % k, _s("/c0", "c0"))
 	_check(c.cluster_of("t29") == c.cluster_of("s0") and c.island_position("t29").is_equal_approx(SessionClusters.spot(0, 30)), "a near cluster's 31st island is still in its wedge")
@@ -142,11 +142,11 @@ func _overflow() -> void:
 	_check(c.is_far(c.add("w", _s("/c9", "c9"))) and not c.island_position("w").is_equal_approx(SessionClusters.far_spot(0)), "so a new far cluster takes the next one")
 	c.remove(held)
 	c.add("v", _s("/new", "new"))
-	_check(c.island_position("v").is_equal_approx(SessionClusters.far_spot(0)), "freed far spots are reused")
+	_check(c.island_position("v").is_equal_approx(SessionClusters.far_spot(0)), "a freed far cluster's place is reused")
 	var spots := {}
 	for k in 100:
 		spots[SessionClusters.far_spot(k)] = true
-	_check(spots.size() == 100, "far spots don't repeat")
+	_check(spots.size() == 100, "far clusters' places don't repeat")
 
 
 func _closest(points: Array[Vector3]) -> float:
