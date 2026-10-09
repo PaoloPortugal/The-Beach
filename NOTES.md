@@ -1211,7 +1211,11 @@ and the real layout (user's, 2026-10-02; W07).
   checks the same scene: every near island joined to the platform, every
   far cluster's islands joined to each other and to nothing else, no
   bridge over another island's land or across another bridge, before and
-  after islands in the middle of trees (one of them far) sink.
+  after islands in the middle of trees (one of them far) sink. It does the
+  same with a crowd (user's request, 2026-10-09): the demo with 311
+  sessions, near clusters of 52, 45, 40, 38, 33, 25, 8 and 3 and far ones
+  of 26, 20, 14, 5 and 2 (`LayoutDemo.sizes`), no two islands closer than
+  100 m, nine islands sinking, near and far. About 30 s to build headless.
 
 *Known limits.* A far cluster (a 9th or later) has no bridge to the
 platform: it's reached by teleport only (user's, 2026-10-09). Growth

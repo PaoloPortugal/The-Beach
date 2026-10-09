@@ -86,6 +86,12 @@ each other at 70 islands each.
   far cluster's islands are joined to each other only. That still holds
   after islands sink, one of them far. The minimap shows a far cluster's
   islands.
+- A crowd in the bridges test (user's request, after reviewing): 311
+  sessions, near clusters of about 40 and far ones of about 20, some
+  more, some fewer, some very few (52 down to 3 near, 26 down to 2 far).
+  The same checks pass, plus no two islands closer than 100 m; it takes
+  the suite from about 24 s to about 57 s. The over-land check now skips
+  islands too far from a bridge to reach it, so it stays quick.
 
 ## Bugs on the way
 
