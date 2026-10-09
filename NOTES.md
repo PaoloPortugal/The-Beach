@@ -3757,6 +3757,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Ready for the user's review (2026-10-09): two flaky world-test waits**
+(branch menu-missing-folder-flaky, dev log 2026-10-09-world-test-waits):
+the missing-folder refusal queued behind the menu's session listings
+(Watch items → Listing stored sessions blocks the sidecar), and the
+S06 "warning goes" check could read the turn just starting.
 **Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
@@ -4075,6 +4080,16 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **Listing stored sessions blocks the sidecar** (S04; found
+  2026-10-09, not decided yet). `session.list_stored` reads the newest
+  200 transcripts synchronously, 64 KiB from each end: 0.8-0.95 s for 181
+  of them on a dev machine. The menu asks each time it opens, so opening
+  and closing it fast queues one listing per open, and meanwhile nothing
+  else is handled: replies, hook relays, permission requests. Seen as a
+  3 s wait in the world test (dev log 2026-10-09-world-test-waits). Could
+  be fixed by caching each transcript's listing by its size and mtime, or
+  by reading with `fs.promises`.
 
 - **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
   Nothing stops a near cluster's wedge growing into the far clusters'
