@@ -3588,8 +3588,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W10 island biomes (designed, being built on
-`w10-island-biomes`); then W11, then a settings menu
+**Current focus:** W10 island biomes, built on `w10-island-biomes` and
+waiting for the user's live check and their word on my picks (dev log
+2026-10-08-w10-biomes); then C09's debug commands (user's, 2026-10-08:
+next after W10), then W11, then a settings menu
 with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
 that order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
