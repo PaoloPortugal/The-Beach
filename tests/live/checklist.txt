@@ -1,24 +1,40 @@
 LIVE CHECK: C09 debug commands,
 and W09's leftover steps
   godot --path . -- --sidecar-dev-fake --checklist
+Check both renderers if you can:
+add --rendering-method
+gl_compatibility for the second.
 
-1. Press /: a line at the bottom
-   left with "/" in it. Esc closes.
-2. /help: lists the commands?
-3. /time set sunset, face west:
-   sunset look right? /time set
-   night: moonlit, stars, torches
-   and desk lamps lit?
-4. /time speed 2m: a whole day in
-   2 minutes. /time speed default.
-5. /weather cloudy, rain, windy,
-   storm in turn: clouds, rain and
-   rings, faster waves, lightning
-   10-20 s apart? Dive in the rain:
-   none under water?
-6. /lightning in clear weather:
-   a soft flash and a far bolt?
-7. /weather auto, /weather query.
-8. Up/Down bring back commands?
-9. Chat box: "/" still types
-   into your message?
+1. Press / (left of right Shift):
+   a line, "/" in it. Esc closes.
+   /help lists the commands?
+2. Tab > New session... > a folder,
+   so there's an island.
+3. /time speed 2m: dawn and dusk
+   smooth, no jump when the sun
+   and moon swap? Then
+   /time speed default.
+4. /time set sunset, face west:
+   sunset look right?
+5. /time set night: moonlit, stars.
+   Torches and desk lamp lit?
+   Island readable from afar?
+   Bubbles and chat panel read OK?
+   Swim under: dark, floor dim?
+6. /time set noon. /weather cloudy,
+   rain, windy, storm in turn:
+   clouds, rain and rings? Windy:
+   floating, eyes above the waves?
+   Dive in the rain: none below?
+7. Storm: lightning 10-20 s apart,
+   soft (no white-out, not too
+   faint)? A far bolt? Also at
+   night (/time set night).
+   Frame rate OK, like main?
+8. /lightning in clear weather:
+   a flash and a bolt?
+9. Look out from high up: clouds
+   at the fog's corners look OK?
+10. /weather auto; Up/Down bring
+   back commands? Chat box: "/"
+   still types into your message?

@@ -433,7 +433,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -2216,9 +2216,9 @@ to change the world's state on the spot, e.g. `/weather <kind>` and
 midnight (user's, 2026-10-08): `0s` midnight, `7m` sunrise, `14m` noon,
 `21m` sunset (W09's 14 minutes of day and 14 of night). W09's launch
 time, mid-morning, is about `10m 22s`. Names and words
-are mine to pick (user's, 2026-10-08): the weather kinds will match
-W09's. Scope: core (world only). They'd take over from W09's dev flags
-(`--hour`, `--weather`, `--day-minutes`).
+are mine to pick (user's, 2026-10-08): the weather kinds match W09's.
+They do while the game runs what W09's dev flags (`--hour`,
+`--weather`, `--day-minutes`) do at launch.
 
 *Decided by me while the user was away (2026-10-08), for the user to
 confirm* (they asked me to build it overnight and take the open
@@ -2226,8 +2226,8 @@ decisions myself): where you type them (a console of its own, opened
 with `/` like Minecraft's chat, not the chat box, whose slash commands
 are the session's); the command list below; debug builds only
 (`OS.is_debug_build()`: the editor, tests and debug exports, not
-release exports); the dev flags stay for now (the live checklists use
-them); `/weather` jumps at once and holds the kind; `day` is the
+release exports); the dev flags stay for now (they set the state
+before the first frame, which tests and screenshots use); `/weather` jumps at once and holds the kind; `day` is the
 launch's mid-morning and `night` halfway from sunset to midnight.
 
 **How it works.**
@@ -3322,8 +3322,8 @@ clouds, rain or the bolt), the debug commands (C09: times as 7m, 30s,
 10m22s or a name and nothing else, /time set counting from midnight,
 add, query and speed, /weather setting and holding a kind, query, auto
 and an unknown kind refused, /lightning in clear weather, unknown
-commands and /help; the console opened by /, closed by Esc, Enter
-running a line and showing the reply), swimming (W08: floating at the surface, Space
+commands and /help; the console opened by /, closed by Esc, a line
+run from it closing it and showing the reply), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
 below the platform's deck, back in), back by the menu's "Platform" and

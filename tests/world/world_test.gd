@@ -331,8 +331,6 @@ func _sky(world: Node3D, player: Player) -> void:
 	await _frames(30)
 
 
-# W08: swimming, the seabed, the view under the water, and the ways back to
-# the platform.
 # C09: the debug commands and their console.
 func _commands(world: Node3D, player: Player) -> void:
 	var day: DayNight = world.day_night
@@ -387,6 +385,8 @@ func _commands(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return not world.lightning_bolt.visible, 2.0)
 
 
+# W08: swimming, the seabed, the view under the water, and the ways back to
+# the platform.
 func _swimming(world: Node3D, player: Player) -> void:
 	var head: Node3D = player.get_node("Head")
 	var env: Environment = (world.get_node("WorldEnvironment") as WorldEnvironment).environment
