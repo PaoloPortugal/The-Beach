@@ -2335,7 +2335,8 @@ How it works:
   Windows runner), and the path in `SIDECAR_SHORT_PATH`, never on a
   command line.
   Asked once per folder per run; it blocks the sidecar while it runs
-  (under a second, at most 10 s), and if that delays a session's hooks
+  (about a second, a few under load, at most 10 s; never unbounded),
+  and if that delays a session's hooks
   they time out to the terminal's own prompts (fail safe). Past 10 s
   (Windows PowerShell can start that slowly on a loaded machine; seen
   on CI) there is no answer, kept for the run like any other (Watch
@@ -4141,9 +4142,9 @@ exists.
   2026-10-09). `askWindows` gives Windows PowerShell 10 s; on CI's
   loaded Windows runner its start passed that (dev log
   2026-10-09-c08-askwindows-flaky), where it usually takes 1-3 s
-  (0.8 s idle, up to 5 s under full CPU load on a dev machine). The
-  missing answer is kept like any other (`askWindowsOnce`), so if it
-  was for a folder every session's relay path shares, no session gets a
+  (0.7-1.3 s idle, 1.9-4.9 s with every core busy on a dev machine).
+  The missing answer is kept like any other (`askWindowsOnce`), so if
+  it was for a folder in every session's relay path, no session gets a
   status line until the sidecar restarts (transcript only; logged). Not
   seen outside CI. If it is: don't keep a timed-out answer, or ask in
   the background so nothing blocks.

@@ -29,8 +29,12 @@ PowerShell starting, plus the COM object, sometimes passing 10 s.
 
 ## The fix: the tests wait longer, the checks stay
 
-`askWindows` takes a `timeout` (default `ASK_TIMEOUT_MS`, still 10 s,
-which the unit test now checks is passed). The tests that ask the real
+`askWindows` takes a `timeout` (default `ASK_TIMEOUT_MS`, still 10 s).
+A timeout of 0 or less means the default, since `spawnSync` reads 0 as
+no limit and a hung PowerShell would then freeze the sidecar; the unit
+test checks the default is passed and is between 0 and 10 s, and that 0
+and -1 fall back to it (the security review's note: comparing the
+timeout with its own constant alone would have passed at 0). The tests that ask the real
 Windows give it 30 s: the hostile-name test directly, the short-names
 probe and the shell test through a `shortPath` that asks with 30 s
 (`shellCommand`'s `shortPath` option). The same code runs, the same
@@ -48,6 +52,11 @@ answer is kept for the run like any other, so a shared folder's timeout
 would mean no status line for every session until the sidecar restarts.
 
 ## Checked
+
+The branch's first CI run failed on Linux: the new unit-test line asked
+without the test's `env`, so with no `SystemRoot` `askWindows` returned
+before running anything. It passes the `env` now, and passed locally
+with `SystemRoot` unset.
 
 `npm run typecheck` and `npm test` in `sidecar/` on Windows; the two
 tests passed with every core busy too.
