@@ -3501,11 +3501,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W09 day/night cycle and weather, built on
-`w09-day-night` and waiting for the user's live check (dev log
-2026-10-08-w09-day-night); then W10 and W11, then a settings menu with
-graphics settings (it gets `Weather.lightning_enabled`'s switch), in that
-order (user's, 2026-10-08).
+**Current focus:** W10 island biomes; then W11, then a settings menu
+with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
+that order (user's, 2026-10-08).
+**Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
+cycle and weather** (dev log 2026-10-08-w09-day-night): a 28-minute day
+with the sun and moon, random gentle weather with soft thunderstorms,
+moonlit nights with torches and desk lamps. Live check passed in both
+renderers at the start's mid-morning; the other hours and weathers wait
+for C09's `/time` and `/weather` (user's).
 **Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
 (dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
 sea floor's colours (now a smooth gradient by depth), a warped, spread
