@@ -3757,11 +3757,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
-**Ready for the user's review (2026-10-09): two flaky world-test waits**
-(branch menu-missing-folder-flaky, dev log 2026-10-09-world-test-waits):
-the missing-folder refusal queued behind the menu's session listings
-(Watch items → Listing stored sessions blocks the sidecar), and the
-S06 "warning goes" check could read the turn just starting.
+**Ready for the user's review (2026-10-09): three flaky world-test
+checks** (branch menu-missing-folder-flaky, dev log
+2026-10-09-world-test-waits): the missing-folder refusal queued behind
+the menu's session listings (Watch items → Listing stored sessions
+blocks the sidecar), the S06 "warning goes" check could read the turn
+just starting, and W04's "facing it" arrow check failed when h3 rolled a
+mountain (W10 starts one about 100 m down).
 **Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
