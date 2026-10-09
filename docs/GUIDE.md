@@ -171,13 +171,14 @@ island at its ledge (a beach island's sand), so a bridge between a low
 island and a high one climbs, with steps where it's steep. Trees, rocks
 and cacti are solid; bushes and shrubs you can walk through. Nothing
 grows where a bridge comes in. On the minimap and the big map, an
-island is coloured by its kind. Like the rest of the world's look for
+island is coloured by its kind (an empty one stays grey). Like the rest of the world's look for
 now, the trees and rocks are simple placeholders.
 
 Which kind you get is up to you, or chance: it means nothing about the
 session, and it isn't remembered, so a resumed session gets the menu's
 choice again (Random unless you pick one), and sessions already
-running when the game starts are random.
+running when the game starts, or started outside the game, are
+random.
 
 ## Clusters (W05)
 
@@ -300,7 +301,7 @@ the moon comes up opposite it.
 
 The night is moonlit, not dark: you can still find your way and swim by
 the blue moonlight, the stars come out, and the islands light up. Each
-island has a few torches along its beach and a lamp on the
+island has a few torches round its edge and a lamp on the
 orchestrator's desk, so you can see islands from afar and chat in a warm
 pool of light. Chat bubbles and the menus read just as well at night.
 
