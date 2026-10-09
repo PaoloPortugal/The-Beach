@@ -141,13 +141,53 @@ function userText(e: Record<string, unknown>): string | null {
 
 /** Describes one transcript, or null if it isn't a listable session. */
 export function describe(file: string): StoredInfo | null {
-  const id = path.basename(file, '.jsonl')
-  if (!UUID.test(id)) return null
   let st: fs.Stats
   try { st = fs.statSync(file) } catch { return null }
+  return describeAs(file, st) ?? null
+}
+
+/**
+ * Listings kept between calls (NOTES.md -> S04): each transcript's
+ * description, reused while its size and modification time stay the same,
+ * so listing again only reads the folders and the files' times. Listing
+ * reads synchronously, and the menu asks each time its Resume page opens.
+ */
+export class StoredCache {
+  private readonly entries = new Map<string, { size: number; mtimeMs: number; info: StoredInfo | null }>()
+  /** Files described by reading them, since this cache was made (for tests). */
+  reads = 0
+
+  private readonly read: (file: string, st: fs.Stats) => StoredInfo | null | undefined
+
+  /** [read] describes one file; undefined if it couldn't be read (tests stand in a failing one). */
+  constructor(read = describeAs) { this.read = read }
+
+  get size(): number { return this.entries.size }
+
+  describe(file: string, st: fs.Stats): StoredInfo | null {
+    const kept = this.entries.get(file)
+    if (kept && kept.size === st.size && kept.mtimeMs === st.mtimeMs) return kept.info
+    this.reads++
+    const info = this.read(file, st)
+    // A file that couldn't be read (e.g. locked mid-write) is tried again next time.
+    if (info === undefined) this.entries.delete(file)
+    else this.entries.set(file, { size: st.size, mtimeMs: st.mtimeMs, info })
+    return info ?? null
+  }
+
+  /** Forgets the files not in [files]: deleted since, or no longer listed. */
+  keepOnly(files: Set<string>): void {
+    for (const file of this.entries.keys()) if (!files.has(file)) this.entries.delete(file)
+  }
+}
+
+/** [describe] with the file's stats; undefined if it couldn't be read. */
+export function describeAs(file: string, st: fs.Stats): StoredInfo | null | undefined {
+  const id = path.basename(file, '.jsonl')
+  if (!UUID.test(id)) return null
   if (!st.isFile() || st.size === 0) return null
   let head: string, tail: string
-  try { ({ head, tail } = peek(file, st.size)) } catch { return null }
+  try { ({ head, tail } = peek(file, st.size)) } catch { return undefined }
   const first = lines(head, false)
   const last = tail ? lines(tail, true) : []
   let cwd: string | null = null
@@ -170,31 +210,37 @@ function samePath(a: string, b: string): boolean {
   return process.platform === 'win32' ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b)
 }
 
-/** Resumable sessions, newest first, optionally only one project's. */
-export function listStored(opts: { dir?: string; project?: string; exclude?: Set<string> } = {}): StoredInfo[] {
+/**
+ * Resumable sessions, newest first, optionally only one project's. With
+ * [cache], files unchanged since an earlier listing aren't read again.
+ */
+export function listStored(opts: { dir?: string; project?: string; exclude?: Set<string>; cache?: StoredCache } = {}): StoredInfo[] {
   const dir = opts.dir ?? projectsDir()
   let slugs: string[]
   try { slugs = fs.readdirSync(dir) } catch { return [] }
   // Newest files first, so only the ones that will be listed are read.
-  const files: { file: string; mtime: number }[] = []
+  const files: { file: string; st: fs.Stats }[] = []
   for (const slug of slugs) {
     let names: string[]
     try { names = fs.readdirSync(path.join(dir, slug)) } catch { continue }
     for (const name of names) {
       if (!name.endsWith('.jsonl') || opts.exclude?.has(name.slice(0, -6))) continue
       const file = path.join(dir, slug, name)
-      const mtime = fs.statSync(file, { throwIfNoEntry: false })?.mtimeMs
-      if (mtime !== undefined) files.push({ file, mtime })
+      const st = fs.statSync(file, { throwIfNoEntry: false })
+      if (st !== undefined) files.push({ file, st })
     }
   }
-  files.sort((a, b) => b.mtime - a.mtime)
+  files.sort((a, b) => b.st.mtimeMs - a.st.mtimeMs)
   const out: StoredInfo[] = []
-  for (const { file } of files) {
-    const info = describe(file)
+  const seen = new Set<string>()
+  for (const { file, st } of files) {
+    seen.add(file)
+    const info = opts.cache ? opts.cache.describe(file, st) : describeAs(file, st) ?? null
     if (!info || (opts.project && !samePath(info.project.path, opts.project))) continue
     out.push(info)
     if (out.length >= LIST_MAX) break
   }
+  opts.cache?.keepOnly(seen)
   return out
 }
 
