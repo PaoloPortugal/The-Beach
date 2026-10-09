@@ -1,44 +1,32 @@
-LIVE CHECK: W09 day, night, weather
+LIVE CHECK: W10 kinds of island
   godot --path . -- --sidecar-dev-fake --checklist
-Add flags as each step says, e.g.
-  ... --checklist --hour 17.5
 Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
 
-1. No flags: mid-morning, sun up in
-   the south-east, a clear sky.
-   Same look as before W09?
-2. --hour 17.3, face west (the sun):
-   sky gold/orange at the horizon,
-   blue above. Sunset look right?
-   Watch a few minutes: the sun
-   sets, the moon rises opposite.
-3. --hour 23: moonlit night, stars.
-   Can you walk and see well
-   enough? Too dark, too bright?
-4. Tab > New session... > a folder,
-   at night (--hour 23): torches on
-   its beach, a lamp on the desk.
-   Island readable from afar?
-   Chat bubble and chat panel read
-   as well as by day?
-5. Swim under at night: dark blue,
-   the floor dim, not glowing.
-6. --weather cloudy, then rain:
-   clouds, rain streaks, rings on
-   the water. Dive: no rain below.
-7. --weather windy: waves faster,
-   but your eyes stay above them
-   when floating?
-8. --weather storm: dark grey sky,
-   heavy rain, a soft flash with a
-   distant bolt every 10-20 s.
-   Never a white-out? Too faint?
-   Try it at night too (--hour 23).
-9. --day-minutes 2: a whole day in
-   2 minutes. Dawn and dusk smooth,
-   no jumps when the sun and moon
-   swap at the horizon?
-10. Smooth? Compare frame rate with
-   main, by day and in a storm.
+1. Tab: a "Biome:" row under
+   Cluster, on Random. Pick Forest,
+   New session... > a folder:
+   a forest island rises. Trees,
+   pines, bushes look OK?
+2. Walk its bridge in: no tree in
+   the way. Trees and rocks block
+   you, bushes don't?
+3. Same with Mountain: peaks, snow
+   on the tops. The bridge to it
+   climbs to its ledge. From the
+   landing, walk up to the middle
+   (a valley leads there)?
+4. Swim to a mountain's beach and
+   climb up to the middle?
+5. Snowy and Desert: look right?
+   Colours, cacti, rocks.
+6. A few on Random: kinds vary?
+   M: islands coloured by kind?
+7. Chat on a forest island so the
+   fake spawns subagents: none
+   inside a tree or on a slope?
+8. --hour 23: torches at the ledge
+   of a high island.
+9. Too many/few props? Mountains
+   high enough? Anything to tune.
