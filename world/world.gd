@@ -32,6 +32,8 @@ var weather := Weather.new()
 var clouds := Clouds.new()
 var rain := Rain.new()
 var lightning_bolt := LightningBolt.new()
+## Where the debug commands (C09) are typed; null outside debug builds.
+var debug_console: DebugConsole
 
 ## The spawn platform's deck: half its width and its top (world.tscn).
 const PLATFORM_HALF := 6.0
@@ -60,6 +62,7 @@ func _ready() -> void:
 	add_child(underwater)
 	underwater.setup($WorldEnvironment.environment)
 	_setup_sky()
+	_setup_debug()
 
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
@@ -134,6 +137,17 @@ func _setup_sky() -> void:
 	var minutes := args.find("--day-minutes")
 	if minutes >= 0 and minutes + 1 < args.size() and args[minutes + 1].to_float() > 0.0:
 		day_night.cycle = args[minutes + 1].to_float() * 60.0
+
+
+# The debug commands (C09), in debug builds only: "/" opens their line.
+func _setup_debug() -> void:
+	if not OS.is_debug_build():
+		return
+	debug_console = DebugConsole.new()
+	debug_console.name = "DebugConsole"
+	debug_console.commands = DebugCommands.new(day_night, weather)
+	debug_console.player = _player
+	add_child(debug_console)
 
 
 ## Puts the player back on the spawn platform (W08: the sea no longer

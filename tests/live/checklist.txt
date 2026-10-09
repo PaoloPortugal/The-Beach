@@ -1,9 +1,13 @@
-LIVE CHECK: W10 kinds of island
+LIVE CHECK: W10 kinds of island,
+C09 debug commands, W09's
+leftover steps
   godot --path . -- --sidecar-dev-fake --checklist
 Check both renderers if you can:
 add --rendering-method
 gl_compatibility for the second.
+Page Down / wheel scrolls this.
 
+W10
 1. Tab: Biome on Beach, New
    session... > a folder: palms,
    plants; sand castles, starfish,
@@ -21,8 +25,8 @@ gl_compatibility for the second.
    Look round while riding? Head
    clear of the cliff? E at the
    top takes you down?
-6. Night on the meadow (--hour
-   23): good for stargazing?
+6. Night on the meadow (/time
+   set night): stargazing?
    Torches at the cliff's lip.
 7. A few on Random: kinds vary?
    M: islands coloured by kind?
@@ -31,3 +35,38 @@ gl_compatibility for the second.
    meadow, none in a spire?
 9. Anything to tune: palm count,
    spire heights, zipline speed.
+
+C09 and W09
+10. Press T: a line,
+   "/" in it. Esc closes.
+   /help lists the commands?
+11. Tab > New session... > a folder,
+   so there's an island.
+12. /time speed 2m: dawn and dusk
+   smooth, no jump when the sun
+   and moon swap? Then
+   /time speed default.
+13. /time set sunset, face west:
+   sunset look right?
+14. /time set night: moonlit, stars.
+   Torches and desk lamp lit?
+   Island readable from afar?
+   Bubbles and chat panel read OK?
+   Swim under: dark, floor dim?
+15. /time set noon. /weather cloudy,
+   rain, windy, storm in turn:
+   clouds, rain and rings? Windy:
+   floating, eyes above the waves?
+   Dive in the rain: none below?
+16. Storm: lightning 10-20 s apart,
+   soft (no white-out, not too
+   faint)? A far bolt? Also at
+   night (/time set night).
+   Frame rate OK, like main?
+17. /lightning in clear weather:
+   a flash and a bolt?
+18. Look out from high up: clouds
+   at the fog's corners look OK?
+19. /weather auto; Up/Down bring
+   back commands? Chat box: "/"
+   still types into your message?
