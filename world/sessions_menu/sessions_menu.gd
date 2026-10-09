@@ -6,7 +6,8 @@ extends CanvasLayer
 ## running now are listed by cluster (W05) to jump to their island; stored
 ## ones, newest first, to resume. A search box filters both, and the
 ## cluster selector says where a new or resumed session goes (by its
-## repository unless changed). A PLACEHOLDER, like all UI
+## repository unless changed), the biome selector what kind of island it
+## gets (W10, Random unless changed). A PLACEHOLDER, like all UI
 ## for now (user's, 2026-10-01): it only has to work, and gets a proper
 ## design later.
 ##
@@ -69,8 +70,10 @@ var _last_dir := ""
 @onready var _wait_note: Control = $Panel/Layout/Waiting
 @onready var _cluster_row := HBoxContainer.new()
 @onready var _cluster := OptionButton.new()
+@onready var _biome_row := HBoxContainer.new()
+@onready var _biome := OptionButton.new()
 @onready var _sound := CheckButton.new()
-@onready var _lists: Array[Control] = [$Panel/Layout/Search, _cluster_row, $Panel/Layout/Scroll]
+@onready var _lists: Array[Control] = [$Panel/Layout/Search, _cluster_row, _biome_row, $Panel/Layout/Scroll]
 
 
 func _ready() -> void:
@@ -85,6 +88,20 @@ func _ready() -> void:
 	_cluster_row.add_child(_cluster)
 	$Panel/Layout.add_child(_cluster_row)
 	$Panel/Layout.move_child(_cluster_row, _search.get_index() + 1)
+	# The biome selector (W10), under the cluster's.
+	var biome_label := Label.new()
+	biome_label.text = "Biome:"
+	_biome_row.add_child(biome_label)
+	_biome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_biome.focus_mode = Control.FOCUS_NONE
+	_biome.add_item("Random")
+	_biome.set_item_metadata(0, Biome.RANDOM)
+	for kind: int in Biome.NAMES:
+		_biome.add_item(Biome.NAMES[kind])
+		_biome.set_item_metadata(_biome.item_count - 1, kind)
+	_biome_row.add_child(_biome)
+	$Panel/Layout.add_child(_biome_row)
+	$Panel/Layout.move_child(_biome_row, _cluster_row.get_index() + 1)
 	# A05's chime, at the bottom (no settings screen yet).
 	_sound.text = "Sound when waiting (while you're in another window)"
 	_sound.focus_mode = Control.FOCUS_NONE
@@ -96,8 +113,9 @@ func _ready() -> void:
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
 		var cluster := cluster_choice()
+		var biome := biome_choice()
 		close()
-		launcher.create(path, cluster))
+		launcher.create(path, cluster, biome))
 	_dialog.canceled.connect(func() -> void:
 		_panel.visible = true
 		_search.grab_focus())
@@ -148,6 +166,7 @@ func open() -> void:
 	_search.grab_focus()
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
+	_biome.select(0) # and to Random
 	_sound.visible = attention != null
 	if attention:
 		_sound.set_pressed_no_signal(attention.sound_on)
@@ -218,6 +237,27 @@ func choose_cluster(text: String) -> void:
 	for i in _cluster.item_count:
 		if _cluster.get_item_text(i) == text:
 			_cluster.select(i)
+
+
+## The biome selector's choices as shown, top to bottom (W10).
+func biome_choices() -> Array[String]:
+	var out: Array[String] = []
+	for i in _biome.item_count:
+		out.append(_biome.get_item_text(i))
+	return out
+
+
+## Picks the biome selector's choice shown as [param text].
+func choose_biome(text: String) -> void:
+	for i in _biome.item_count:
+		if _biome.get_item_text(i) == text:
+			_biome.select(i)
+
+
+## What the biome selector says: a [enum Biome.Kind] or
+## [constant Biome.RANDOM].
+func biome_choice() -> int:
+	return int(_biome.get_item_metadata(_biome.selected)) if _biome.selected >= 0 else Biome.RANDOM
 
 
 ## What the cluster selector says: a [SessionClusters] choice.
@@ -322,8 +362,9 @@ func _fill() -> void:
 		shown += 1
 		_add_button(label, func() -> void:
 			var cluster := cluster_choice()
+			var biome := biome_choice()
 			close()
-			launcher.resume(st["provider"], st["native_id"], cluster))
+			launcher.resume(st["provider"], st["native_id"], cluster, biome))
 	if shown == 0:
 		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
 
@@ -358,8 +399,9 @@ func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
 		return
 	_last_dir = paths[0]
 	var cluster := cluster_choice()
+	var biome := biome_choice()
 	close()
-	launcher.create(paths[0], cluster)
+	launcher.create(paths[0], cluster, biome)
 
 
 func _stop_waiting() -> void:

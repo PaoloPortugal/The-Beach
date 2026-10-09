@@ -22,6 +22,8 @@ var store: SessionStore
 var sidecar: SidecarClient
 ## Told which cluster a started session should join (W05).
 var clusters: SessionClusters
+## Told which biome a started session's island should be (W10).
+var islands: SessionIslands
 ## The session being started, or "".
 var pending := ""
 ## What [signal status_changed] last said.
@@ -67,23 +69,24 @@ func stop_waiting() -> void:
 
 
 ## Asks for a new session in the folder [param path], to join
-## [param cluster] (a [SessionClusters] choice).
-func create(path: String, cluster := SessionClusters.AUTOMATIC) -> void:
+## [param cluster] (a [SessionClusters] choice), on an island of
+## [param biome] (a [enum Biome.Kind] or [constant Biome.RANDOM]).
+func create(path: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM) -> void:
 	if sidecar.providers.is_empty():
 		_say("Not connected to the sidecar yet.")
 		return
 	# Only one provider exists for now; choosing one is for S03 proper.
 	var provider: String = sidecar.providers[0]["provider"]
-	_start("session.create", {"provider": provider, "project": {"path": path}}, "Couldn't start a session: %s", cluster)
+	_start("session.create", {"provider": provider, "project": {"path": path}}, "Couldn't start a session: %s", cluster, biome)
 
 
 ## Asks to resume the stored session [param native_id] of [param provider],
-## to join [param cluster].
-func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC) -> void:
-	_start("session.resume", {"provider": provider, "native_id": native_id}, "Couldn't resume the session: %s", cluster)
+## to join [param cluster], on an island of [param biome].
+func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM) -> void:
+	_start("session.resume", {"provider": provider, "native_id": native_id}, "Couldn't resume the session: %s", cluster, biome)
 
 
-func _start(command: String, fields: Dictionary, refused: String, cluster: String) -> void:
+func _start(command: String, fields: Dictionary, refused: String, cluster: String, biome: int) -> void:
 	if busy():
 		_say("A session is already starting.")
 		return
@@ -96,6 +99,8 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 		pending = result.get("session", "")
 		if clusters != null and not pending.is_empty():
 			clusters.choose(pending, cluster)
+		if islands != null and not pending.is_empty():
+			islands.choose_biome(pending, biome)
 		_asked_at = Time.get_ticks_msec() / 1000.0
 		_still_said = false
 		var notice: Dictionary = result.get("notice", {})
