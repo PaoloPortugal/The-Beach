@@ -7,7 +7,7 @@ extends StaticBody3D
 ## [method IslandGenerator.prop_spots]; [method clear_near] takes them off
 ## a bridge's landing or a torch's spot.
 
-enum Prop { TREE, PINE, SNOW_PINE, BUSH, ROCK, RED_ROCK, CACTUS, DRY_SHRUB }
+enum Prop { TREE, PINE, SNOW_PINE, BUSH, ROCK, RED_ROCK, CACTUS, DRY_SHRUB, PALM, TROPICAL_PLANT, SAND_CASTLE, STARFISH, SHELL }
 
 const TRUNK := Color(0.42, 0.29, 0.18)
 const LEAVES := Color(0.30, 0.54, 0.24)
@@ -19,6 +19,13 @@ const RED_STONE := Color(0.70, 0.47, 0.33)
 const CACTUS_GREEN := Color(0.33, 0.52, 0.30)
 const DRY := Color(0.62, 0.56, 0.32)
 const BUSH_GREEN := Color(0.30, 0.50, 0.24)
+const PALM_TRUNK := Color(0.58, 0.45, 0.30)
+const FROND := Color(0.28, 0.60, 0.22)
+const COCONUT := Color(0.36, 0.25, 0.14)
+const TROPICAL := Color(0.22, 0.58, 0.30)
+const CASTLE_SAND := Color(0.86, 0.74, 0.50)
+const STARFISH_ORANGE := Color(0.93, 0.45, 0.28)
+const SHELL_PINK := Color(0.97, 0.86, 0.80)
 
 ## How solid each kind is: [radius, height] of an upright cylinder at a
 ## scale of 1, or absent for none.
@@ -29,6 +36,7 @@ const SOLID := {
 	Prop.ROCK: [0.85, 1.0],
 	Prop.RED_ROCK: [0.85, 1.0],
 	Prop.CACTUS: [0.3, 2.4],
+	Prop.PALM: [0.22, 4.5],
 }
 
 static var _meshes := {} # Prop → ArrayMesh, made once
@@ -152,6 +160,45 @@ static func _make(kind: int) -> ArrayMesh:
 			_add(st, _cylinder(0.13, 0.14, 0.7, 5), Vector3(-0.5, 1.8, 0), Vector3.ONE, CACTUS_GREEN.lightened(0.05), rng, 0.0)
 		Prop.DRY_SHRUB:
 			_add(st, _sphere(0.55, 0.7, 6, 3), Vector3(0, 0.25, 0), Vector3.ONE, DRY, rng, 0.12)
+		Prop.PALM:
+			# A trunk of five pieces leaning more as it climbs, fronds
+			# drooping from its top, coconuts under them.
+			var at := Vector3.ZERO
+			for k in 5:
+				var lean := 0.05 + 0.07 * k
+				var up := Vector3(sin(lean), cos(lean), 0.0)
+				_add(st, _cylinder(0.17 - 0.015 * (k + 1), 0.17 - 0.015 * k, 1.0, 6), at + up * 0.5, Vector3.ONE, PALM_TRUNK.lightened(0.04 * (k % 2)), rng, 0.0, -lean)
+				at += up * 0.95
+			for k in 7:
+				var yaw := TAU * k / 7.0 + 0.3
+				var droop := 0.35 + 0.15 * (k % 2)
+				var out := Basis(Vector3.UP, yaw) * Vector3(cos(droop), -sin(droop), 0.0)
+				_add(st, _box(Vector3(1.9, 0.05, 0.42)), at + out * 0.95, Vector3.ONE, FROND.lightened(0.05 * (k % 2)), rng, 0.0, -droop, yaw)
+			for k in 3:
+				var where := Basis(Vector3.UP, TAU * k / 3.0) * Vector3(0.18, -0.2, 0.0)
+				_add(st, _sphere(0.12, 0.24, 5, 3), at + where, Vector3.ONE, COCONUT, rng, 0.0)
+		Prop.TROPICAL_PLANT:
+			# Broad leaves fanning up and out from the ground.
+			for k in 6:
+				var yaw := TAU * k / 6.0
+				var tilt := 0.7 + 0.2 * (k % 2)
+				var out := Basis(Vector3.UP, yaw) * Vector3(cos(tilt), sin(tilt), 0.0)
+				_add(st, _box(Vector3(1.0, 0.04, 0.32)), out * 0.5, Vector3.ONE, TROPICAL.lightened(0.06 * (k % 2)), rng, 0.0, tilt, yaw)
+		Prop.SAND_CASTLE:
+			# A walled square with a tower at each corner and a keep.
+			_add(st, _box(Vector3(0.9, 0.3, 0.9)), Vector3(0, 0.15, 0), Vector3.ONE, CASTLE_SAND, rng, 0.0)
+			for k in 4:
+				var corner := Basis(Vector3.UP, TAU * k / 4.0 + PI / 4.0) * Vector3(0.64, 0.0, 0.0)
+				_add(st, _cylinder(0.13, 0.15, 0.5, 6), corner + Vector3(0, 0.25, 0), Vector3.ONE, CASTLE_SAND.lightened(0.04), rng, 0.0)
+				_add(st, _cylinder(0.0, 0.15, 0.2, 6), corner + Vector3(0, 0.6, 0), Vector3.ONE, CASTLE_SAND.darkened(0.04), rng, 0.0)
+			_add(st, _cylinder(0.2, 0.24, 0.45, 6), Vector3(0, 0.52, 0), Vector3.ONE, CASTLE_SAND.lightened(0.02), rng, 0.0)
+			_add(st, _cylinder(0.0, 0.24, 0.3, 6), Vector3(0, 0.9, 0), Vector3.ONE, CASTLE_SAND.darkened(0.04), rng, 0.0)
+		Prop.STARFISH:
+			for k in 5:
+				var yaw := TAU * k / 5.0
+				_add(st, _box(Vector3(0.22, 0.04, 0.08)), Basis(Vector3.UP, yaw) * Vector3(0.11, 0.02, 0.0), Vector3.ONE, STARFISH_ORANGE, rng, 0.0, 0.0, yaw)
+		Prop.SHELL:
+			_add(st, _sphere(0.1, 0.1, 6, 3), Vector3(0, 0.02, 0), Vector3(1.0, 0.8, 0.8), SHELL_PINK, rng, 0.0)
 	return st.commit()
 
 
@@ -165,6 +212,12 @@ static func _cylinder(top: float, bottom: float, height: float, sides: int) -> C
 	return m
 
 
+static func _box(size: Vector3) -> BoxMesh:
+	var m := BoxMesh.new()
+	m.size = size
+	return m
+
+
 static func _sphere(radius: float, height: float, sides: int, rings: int) -> SphereMesh:
 	var m := SphereMesh.new()
 	m.radius = radius
@@ -175,14 +228,14 @@ static func _sphere(radius: float, height: float, sides: int, rings: int) -> Sph
 
 
 # Adds [param primitive]'s triangles, scaled by [param size], turned
-# [param roll] about z and moved to [param at], in one colour with flat
+# [param roll] about z, then [param yaw] about y, and moved to [param at], in one colour with flat
 # normals. [param jitter] moves its vertices up to that much, the same for
 # vertices in the same place, so it stays closed.
-static func _add(st: SurfaceTool, primitive: PrimitiveMesh, at: Vector3, size: Vector3, colour: Color, rng: RandomNumberGenerator, jitter: float, roll := 0.0) -> void:
+static func _add(st: SurfaceTool, primitive: PrimitiveMesh, at: Vector3, size: Vector3, colour: Color, rng: RandomNumberGenerator, jitter: float, roll := 0.0, yaw := 0.0) -> void:
 	var arrays := primitive.get_mesh_arrays()
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	var xform := Transform3D(Basis(Vector3.BACK, roll).scaled(size), at)
+	var xform := Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, roll).scaled(size), at)
 	var moved := {}
 	var place := func(v: Vector3) -> Vector3:
 		var key := v.snapped(Vector3.ONE * 0.001)

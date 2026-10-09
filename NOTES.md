@@ -1434,50 +1434,88 @@ heights, joined by W06's bridges (user's request, 2026-10-07).
   placeholders like the islands and bridges, until there's art
   (rejected: Kenney's Nature Kit).
 
+*Decided (user's, 2026-10-09, after a first look):*
+- *The beach* feels tropical: palm trees, sand castles and the like,
+  placeholders.
+- *Mountains* are very tall, fit for stargazing: at least three times
+  the first ones' 15 m, some peaks taller, the peaks off the walking
+  paths. The middle is a high meadow (about 20 m) among them; bridges
+  arrive up there (with steps), and a zipline (E) carries you between
+  the beach and the top, as a 20 m climb doesn't fit on the island
+  (rejected: a low bowl with a zipline to one summit; bigger islands).
+
 **How it works** (heights, colours, counts and densities my picks, tuned
 from screenshots).
 - *Biomes* (`Biome`, `world/island/biome.gd`): `Kind` is beach, forest,
   mountain, snowy or desert; `PROFILES` gives each its edge height (where
   bridges land), its middle's height, its hills, its colours and its
-  props. The beach keeps W01's shape exactly and has no props. Edge and
-  middle: beach 0.5 and 2 m, desert 0.8 and 2.5, forest 2 and 3, snowy
-  3 and 4.5, mountain 4.5 and 6.5, with hills up to 16 m (pointed peaks,
-  snow above 12.5 m).
+  props, and optionally its size, slope, shoulder, spires and zipline.
+  The beach keeps W01's shape exactly. Edge and middle: beach 0.5 and
+  2 m, desert 0.8 and 2.5, forest 2 and 3, snowy 3 and 4.5, mountain 18
+  and 20.
+- *The mountain* (2026-10-09): a bigger island (radius 36 m, shoreline
+  moved by up to 15 % instead of 45 %, so none is too small for a cliff
+  and spires), a beach, a cliff (3 m rise a metre) up to a 3 m shoulder
+  at 18 m, and a flat meadow 11 m across at 20 m. Between the shoulder
+  and the meadow, 2-3 spires a side between each two valleys (6 m
+  wide), 28-40 m over the meadow, two of them 48-54 m: tops measured
+  62-71 m above the water. Rock where steep, snow above 46 m. Its
+  valleys and spires are this section's valleys and hills, with the
+  spires on top (`IslandGenerator._make_peaks`).
 - *Shape* (`IslandGenerator`, from a seed and a kind): W01's shoreline,
   shelf and drop-off. Inland, off the beach biome: a 3 m beach up to
   0.6 m, a slope rising 0.5 m a metre on average up to the edge height,
   a 4 m shoulder there (no hills: bridges land on it), then up to the
-  flat middle (radius 7 m, as W01) with hills between (Perlin, clipped to
+  flat middle (radius 7 m, as W01; the mountain's 11 m) with hills between (Perlin, clipped to
   0-1 and scaled by `hills`; a lower `hill_gain` makes the mountain's
   peaks pointed instead of flat-topped). On a small island the beach and
   the shoulder shrink first (to 1.5 m), the slope only if that isn't
-  enough. Three hill-free valleys, 4 m wide and turned at random, run
+  enough. Three hill-free valleys, 4 m wide (the mountain's 6 m) and
+  turned at random, run
   from the shoulder to the middle, so you can always walk up. Colours
   by height (wet sand, shore, ground, higher ground, peaks) and
   steepness (a triangle steeper than about 37° is rock), each triangle
   up to 5 % lighter or darker.
 - *Props* (`IslandProps`, `island_props.gd`, a `StaticBody3D` "Props"
   under the island): tree, pine, snowy pine, bush, rock, red rock,
-  cactus and dry shrub, each made once from Godot's primitive meshes
+  cactus, dry shrub, and the beach's palm (a leaning trunk, drooping
+  fronds, coconuts), tropical plant, sand castle, starfish and shell,
+  each made once from Godot's primitive meshes
   (flat-shaded, vertex colours; crowns and rocks jittered) and drawn as
   one `MultiMesh` per kind per island. `IslandGenerator.prop_spots`
   places them on a jittered grid by the biome's density (per 100 m²:
-  forest 2.4, snowy 1.2, mountain 0.8, desert 0.6), picking kinds by
-  weight; none on the beach, within 2.5 m of the middle or on ground
-  steeper than 0.7 m a metre. Trees, pines, rocks and cacti have an
-  upright cylinder of collision; bushes and shrubs have none. Props are
+  forest 2.4, beach 1.3, snowy 1.2, mountain 0.8, desert 0.6), picking
+  kinds by weight; none on the beach's sand (below 0.9 m), within 2.5 m
+  of the middle or on ground steeper than 0.7 m a metre. The beach's
+  shore props (sand castles, starfish, shells; 1 per 100 m²) stand
+  instead on the sand by the water, 0.05-0.6 m up. Trees, pines, palms,
+  rocks and cacti have an upright cylinder of collision; the rest have
+  none. Props are
   cleared within 1.5 m of a torch and along each bridge's way in: 3 m
   either side, 8 m inward from its landing (`SessionIslands`
   `LANDING_CLEAR`, `LANDING_RUN`).
+- *Zipline* (`Zipline`, `world/island/zipline.gd`, made by `Island` where
+  the biome has one: the mountain): a post on the beach and one on the
+  shoulder just past the cliff's lip, at the first valley's mouth
+  (`IslandGenerator.zipline_ends`), the cable 4 m over each. Within 2 m
+  of a post, "E: zipline up" (or down) floats over it; E (`interact`)
+  rides you to the other post at 7 m/s, easing in and out, hanging
+  2.2 m under the cable, your head clear of the cliff. While riding,
+  `Player.riding` stops walking, falling and swimming, but you can look
+  round. At the top you're let off 1.5 m further in. Props keep 2 m off
+  the cable. If the island goes mid-ride, you're let go. The player
+  joins the `player` group so the zipline can find you.
 - *Bridges* (W06): a bridge lands at the island's edge height
   (`Island.edge_height`), at the outermost point that high on the line
   from its middle. Where a bridge is steeper than 0.2 m a metre its
   planks are level steps (`Bridge.STEPS_FROM`), each deep enough to meet
   the next; its collision stays the smooth ramp. Bridges between islands
-  are about 50 m long, so most stay gentle ramps.
+  are about 50 m long, so most stay gentle ramps; one up to a
+  mountain's 18 m is a stair.
 - *Rising and sinking* (W04): an island taller than a beach's 3.2 m
   starts and ends deeper, all of it under the deepest sea floor
-  (`SessionIslands.sunk_y`).
+  (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
+  so it rises faster in the same time.
 - *Picking* (sessions menu): a "Biome:" row under the cluster's, with
   Random and each kind, back to Random each time the menu opens, used by
   New session (either picker) and Resume. The launcher passes it to
@@ -1486,8 +1524,11 @@ from screenshots).
   started outside the menu) gets `default_biome`: Random.
 - *Subagents* (A04): a slot within 1.8 m of a prop, or whose ground
   differs from its PC's by 0.3 m or more, is skipped like one in the
-  sea.
-- *Torches* (W09) stand at the island's edge height.
+  sea. On a mountain the first ring (20 slots, 10 m out) is on the
+  meadow; later ones fall in the valleys, on the shoulder or on the
+  beach below the cliff.
+- *Torches* (W09) stand at the island's edge height (the mountain's at
+  the cliff's lip).
 - *Maps* (W06): an island is drawn in its biome's ground colour (a
   beach's sand).
 - *Performance* (Architecture → Performance): props cost 0.25-1.1 ms of
@@ -3356,12 +3397,16 @@ emphasis, blocks and lists, and that streaming a sample line by line
 ends like a full render.
 
 The world test checks the island generator and jump assist, then runs the world scene with real physics (landing on the
-platform, walking, jumping), the biomes (W10: the beach as W01 without
-props, Random rolling every kind; for each other biome over five seeds
+platform, walking, jumping), the biomes (W10: the beach as W01, with
+its palms and plants and, by the water, its sand castles, starfish and
+shells; Random rolling every kind; for each other biome over five seeds
 the flat middle, the sea around, a shoulder at its edge height where
 bridges land, props off the beach and the middle, and a walk on a 1 m
-grid, no step steeper than 40°, from the beach and every landing up to
-the middle; a mountain's height; every prop mesh facing outward, solid
+grid, no step steeper than 40°, from the beach (a mountain's zipline
+top instead) and every landing up to the middle; a mountain's spires
+over 50 m and some over 60, its high meadow and its zipline's cable
+clear of the cliff, on mountains only; every prop mesh facing outward
+(a palm's, a plant's and a starfish's by signed volume), solid
 props colliding and clearing along a bridge's way in; a steep bridge's
 level steps on a smooth ramp), the day and the weather (W09: starting
 mid-morning, the sun's path and the moon opposite, half the cycle night,
@@ -3386,8 +3431,8 @@ opening), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, a new one rising and the teleport
 waiting for it, an ended one staying while you're on it and sinking once
 you leave, one ending mid-rise, a chosen mountain island rising from
-under the sea floor, bridged at its edge height clear of props and
-sinking (W10), the new-island beacon and edge arrow
+under the sea floor, bridged at its edge height clear of props, its
+zipline riding you up with E and back down, and sinking (W10), the new-island beacon and edge arrow
 (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),

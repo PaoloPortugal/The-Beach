@@ -10,8 +10,10 @@ extends RefCounted
 ##
 ## Other biomes than the beach (W10) climb from a narrow beach up a slope
 ## to a shoulder at their edge height, where bridges meet them, then over
-## hills up to the middle. Where props stand comes from here too
-## ([method prop_spots]).
+## hills up to the middle. The mountain's is a cliff up to a high meadow
+## among spires (user's, 2026-10-09). Where props stand comes from here
+## too ([method prop_spots]), and the mountain's zipline ([method
+## zipline_ends]).
 
 const WET_SAND := Color(0.82, 0.72, 0.52)
 const SAND := Color(0.94, 0.85, 0.63)
@@ -68,6 +70,11 @@ var coarse_below := -5.0
 ## entry.
 var biome: int
 var profile: Dictionary
+## How far the noise moves the shoreline, as a share of [member radius].
+var wobble := 0.45
+## The rise per metre up from the beach, and the shoulder's width (W10).
+var slope := SLOPE
+var shoulder := SHOULDER
 ## The highest point of the last [method build], metres.
 var top := 0.0
 
@@ -76,6 +83,7 @@ var _dune_noise := FastNoiseLite.new()
 var _seed: int
 var _tint := RandomNumberGenerator.new()
 var _valley_turn := 0.0 # the first valley's angle
+var _peaks: Array[Vector4] = [] # spires: x, z, height over the middle, base radius
 
 
 func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
@@ -84,6 +92,11 @@ func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
 	profile = Biome.profile(biome)
 	plateau_height = profile["plateau"]
 	dune_height = profile["hills"]
+	radius = profile.get("radius", radius)
+	wobble = profile.get("wobble", wobble)
+	plateau_radius = profile.get("meadow", plateau_radius)
+	slope = profile.get("slope", slope)
+	shoulder = profile.get("shoulder", shoulder)
 	_tint.seed = p_seed + 2
 	var turn := RandomNumberGenerator.new()
 	turn.seed = p_seed + 4
@@ -97,13 +110,15 @@ func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
 	_dune_noise.fractal_octaves = 3
 	if not profile["legacy"]:
 		_dune_noise.frequency = 0.05
+	if profile.has("peaks"):
+		_make_peaks(profile["peaks"])
 
 
 ## Distance from the centre to the shoreline in the direction of (x, z).
 ## Sampled around a circle so the outline closes on itself.
 func shore_radius(x: float, z: float) -> float:
 	var a := atan2(z, x)
-	return radius * (1.0 + 0.45 * _shore_noise.get_noise_2d(cos(a) * 1.5, sin(a) * 1.5))
+	return radius * (1.0 + wobble * _shore_noise.get_noise_2d(cos(a) * 1.5, sin(a) * 1.5))
 
 
 ## How high the island is where bridges meet it (W06, W10): the beach's
@@ -156,10 +171,74 @@ func _biome_height(x: float, z: float) -> float:
 		h = lerpf(edge, plateau_height, smoothstep(b + c + w, rise_end, d)) if rise_end > b + c + w else plateau_height
 	# Hills: none on the shoulder (bridges land there) or the flat middle.
 	var hills := smoothstep(b + c + w, b + c + w + 3.0, d) * smoothstep(plateau_radius + 1.0, plateau_radius + 5.0, r)
-	hills *= smoothstep(VALLEY_WIDTH / 2.0, VALLEY_WIDTH * 1.5, _valley_distance(x, z))
+	hills *= smoothstep(_valley_width() / 2.0, _valley_width() * 1.5, _valley_distance(x, z))
 	if hills > 0.0:
 		h += clampf(_dune_noise.get_noise_2d(x, z) * profile.get("hill_gain", 2.5), 0.0, 1.0) * dune_height * hills
+	if not _peaks.is_empty():
+		h += _peak_height(x, z, r, d, b + c + w)
 	return h
+
+
+# The mountain's spires (user's, 2026-10-09): [code]each[/code] per side
+# between two valleys, a few of them taller, set in the ring between the
+# shoulder and the meadow. They rise as steep as they like: nobody walks
+# up them, the valleys lead past.
+func _make_peaks(spec: Dictionary) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _seed + 5
+	var step := TAU / VALLEYS
+	for side in VALLEYS:
+		for k in rng.randi_range(spec["each"][0], spec["each"][1]):
+			var ang := _valley_turn + step * (side + rng.randf_range(0.2, 0.8))
+			var dir := Vector2.from_angle(ang)
+			var shore := shore_radius(dir.x, dir.y)
+			var bands := _bands(shore)
+			var outer := shore - bands[0] - bands[1] - bands[2]
+			var at := rng.randf_range(plateau_radius + 3.0, maxf(plateau_radius + 3.0, outer - 1.0))
+			var tall: float = rng.randf_range(spec["height"][0], spec["height"][1])
+			var base: float = rng.randf_range(spec["base"][0], spec["base"][1])
+			_peaks.append(Vector4(dir.x * at, dir.y * at, tall, base))
+	# The tallest few, by turns round the island.
+	for k in mini(spec["tall"], _peaks.size()):
+		var i: int = (k * _peaks.size()) / spec["tall"]
+		_peaks[i].z = rng.randf_range(spec["tall_height"][0], spec["tall_height"][1])
+
+
+# How high the spires stand over the ground at (x, z), [param r] from the
+# middle and [param d] in from the shore; [param inner] is where the
+# shoulder ends, counted like d. None on the shoulder, the meadow or a
+# valley.
+func _peak_height(x: float, z: float, r: float, d: float, inner: float) -> float:
+	var mask := smoothstep(inner, inner + 2.0, d) * smoothstep(plateau_radius + 0.5, plateau_radius + 2.5, r)
+	mask *= smoothstep(_valley_width() / 2.0, _valley_width() / 2.0 + 2.0, _valley_distance(x, z))
+	if mask <= 0.0:
+		return 0.0
+	var h := 0.0
+	for p in _peaks:
+		var k := 1.0 - Vector2(x - p.x, z - p.y).length() / p.w
+		if k > 0.0:
+			h = maxf(h, p.z * pow(k, 1.5))
+	return h * mask
+
+
+func _valley_width() -> float:
+	return profile.get("valley", VALLEY_WIDTH)
+
+
+## Where the zipline's two ends stand (W10, the mountain's): on the beach
+## and on the shoulder just past the cliff's lip (so the cable clears the
+## cliff), at the first valley's mouth, local. Empty for an island without
+## one.
+func zipline_ends() -> Array[Vector3]:
+	if not profile.get("zipline", false):
+		return []
+	var dir := Vector2.from_angle(_valley_turn)
+	var shore := shore_radius(dir.x, dir.y)
+	var bands := _bands(shore)
+	var low := shore - bands[0] * 0.5
+	var high := shore - bands[0] - bands[1] - minf(0.8, bands[2] * 0.5)
+	return [Vector3(dir.x * low, height_at(dir.x * low, dir.y * low), dir.y * low),
+		Vector3(dir.x * high, height_at(dir.x * high, dir.y * high), dir.y * high)]
 
 
 # How far (x, z) is from the nearest valley's line, metres.
@@ -175,8 +254,8 @@ func _valley_distance(x: float, z: float) -> float:
 func _bands(shore: float) -> Array[float]:
 	var edge: float = profile["edge"]
 	var b := BEACH_WIDTH
-	var c := maxf(0.0, edge - BEACH_TOP) / SLOPE
-	var w := SHOULDER
+	var c := maxf(0.0, edge - BEACH_TOP) / slope
+	var w := shoulder
 	var room := shore - plateau_radius - 3.0
 	if b + c + w > room:
 		var k := clampf((room - c) / (b + w), BAND_MIN / BEACH_WIDTH, 1.0)
@@ -188,21 +267,30 @@ func _bands(shore: float) -> Array[float]:
 	return [b, c, w]
 
 
-## Where props stand (W10), from the seed: an Array of {"prop":
-## [enum IslandProps.Prop], "position": Vector3 (local), "yaw": float,
-## "scale": float}, on jittered grid cells sized by the biome's density;
-## not on the beach, the flat middle or steep ground.
+## Where props stand (W10): an Array of {"prop": [enum IslandProps.Prop],
+## "position": Vector3 (local), "yaw": float, "scale": float}, on jittered
+## grid cells sized by the biome's density; not on the beach, the flat
+## middle or steep ground. The shore's props (the beach's sand castles and
+## shells) stand on the sand by the water instead.
 func prop_spots() -> Array[Dictionary]:
+	var out := _scatter(profile["props"], profile["density"], 3, 0.15, func(h: float) -> bool: return h >= BEACH_TOP + 0.3)
+	out.append_array(_scatter(profile.get("shore_props", []), profile.get("shore_density", 0.0), 6, 0.02, func(h: float) -> bool: return h > 0.05 and h < 0.6))
+	return out
+
+
+# Props of [param kinds] ([IslandProps.Prop, weight] pairs), [param density]
+# per 100 m², where [param ground] accepts the height, sunk [param sink]
+# metres so one on a slope doesn't float; never on the flat middle or
+# steep ground.
+func _scatter(kinds: Array, density: float, seed_offset: int, sink: float, ground: Callable) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	var kinds: Array = profile["props"]
-	var density: float = profile["density"]
 	if kinds.is_empty() or density <= 0.0:
 		return out
 	var total := 0.0
 	for k in kinds:
 		total += k[1]
 	var rng := RandomNumberGenerator.new()
-	rng.seed = _seed + 3
+	rng.seed = _seed + seed_offset
 	var spacing := sqrt(100.0 / density)
 	var n := int(ceil(radius * 1.45 / spacing))
 	for i in range(-n, n + 1):
@@ -217,7 +305,7 @@ func prop_spots() -> Array[Dictionary]:
 			if Vector2(x, z).length() < plateau_radius + PROP_CLEAR:
 				continue
 			var h := height_at(x, z)
-			if h < BEACH_TOP + 0.3:
+			if not ground.call(h):
 				continue
 			var gx := absf(height_at(x + 1.0, z) - height_at(x - 1.0, z)) / 2.0
 			var gz := absf(height_at(x, z + 1.0) - height_at(x, z - 1.0)) / 2.0
@@ -229,8 +317,7 @@ func prop_spots() -> Array[Dictionary]:
 				if roll <= 0.0:
 					prop = k[0]
 					break
-			# Sunk a little, so a prop on a slope doesn't float.
-			out.append({"prop": prop, "position": Vector3(x, h - 0.15, z), "yaw": yaw, "scale": size})
+			out.append({"prop": prop, "position": Vector3(x, h - sink, z), "yaw": yaw, "scale": size})
 	return out
 
 

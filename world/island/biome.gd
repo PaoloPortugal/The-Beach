@@ -29,6 +29,18 @@ const NAMES := {
 ##   sand, the beach, the ground, the ground higher up (from high_from
 ##   metres), steep slopes, and the tops (from peak_from metres; 0 none).
 ## - props: [IslandProps.Prop, weight] pairs; density: props per 100 m².
+## - shore_props, shore_density: the same for the sand by the water.
+## Optional, for the mountain's high meadow (user's, 2026-10-09):
+## - radius, wobble: the island's rough radius and how far the noise moves
+##   its shoreline (IslandGenerator's radius and 0.45 if absent).
+## - meadow: the flat middle's radius (7 m if absent).
+## - slope, shoulder: the rise per metre up from the beach and the
+##   shoulder's width (IslandGenerator's SLOPE and SHOULDER if absent).
+## - peaks: spires between the valleys (IslandGenerator._make_peaks):
+##   "each" peaks per side between two valleys, "height" and, for "tall"
+##   of them, "tall_height", in metres over the middle; "base" their
+##   footprint's radius.
+## - zipline: a zipline from the beach up to the shoulder (Zipline).
 ## The beach keeps W01's shape exactly (legacy).
 const PROFILES := {
 	Kind.BEACH: {
@@ -36,7 +48,10 @@ const PROFILES := {
 		"wet": Color(0.82, 0.72, 0.52), "shore": Color(0.94, 0.85, 0.63),
 		"ground": Color(0.94, 0.85, 0.63), "high": Color(0.48, 0.68, 0.34), "high_from": 2.4,
 		"rock": Color(0.94, 0.85, 0.63), "peak": Color(0.48, 0.68, 0.34), "peak_from": 0.0,
-		"props": [], "density": 0.0,
+		"props": [[IslandProps.Prop.PALM, 6], [IslandProps.Prop.TROPICAL_PLANT, 3]],
+		"density": 1.3,
+		"shore_props": [[IslandProps.Prop.SAND_CASTLE, 3], [IslandProps.Prop.STARFISH, 2], [IslandProps.Prop.SHELL, 2]],
+		"shore_density": 1.0,
 	},
 	Kind.FOREST: {
 		"legacy": false, "edge": 2.0, "plateau": 3.0, "hills": 2.0,
@@ -47,10 +62,13 @@ const PROFILES := {
 		"density": 2.4,
 	},
 	Kind.MOUNTAIN: {
-		"legacy": false, "edge": 4.5, "plateau": 6.5, "hills": 16.0, "hill_gain": 1.5,
+		"legacy": false, "edge": 18.0, "plateau": 20.0, "hills": 2.5,
+		"radius": 36.0, "wobble": 0.15, "meadow": 11.0, "slope": 3.0, "shoulder": 3.0,
+		"peaks": {"each": [2, 3], "height": [28.0, 40.0], "tall": 2, "tall_height": [48.0, 54.0], "base": [7.0, 10.0]},
+		"zipline": true,
 		"wet": Color(0.74, 0.68, 0.56), "shore": Color(0.80, 0.75, 0.64),
-		"ground": Color(0.47, 0.60, 0.34), "high": Color(0.56, 0.54, 0.50), "high_from": 9.0,
-		"rock": Color(0.52, 0.50, 0.47), "peak": Color(0.93, 0.94, 0.96), "peak_from": 12.5,
+		"ground": Color(0.47, 0.60, 0.34), "high": Color(0.56, 0.54, 0.50), "high_from": 26.0,
+		"rock": Color(0.52, 0.50, 0.47), "peak": Color(0.93, 0.94, 0.96), "peak_from": 46.0,
 		"props": [[IslandProps.Prop.PINE, 4], [IslandProps.Prop.ROCK, 3]],
 		"density": 0.8,
 	},
