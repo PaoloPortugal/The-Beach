@@ -89,9 +89,16 @@ each other at 70 islands each.
 - A crowd in the bridges test (user's request, after reviewing): 311
   sessions, near clusters of about 40 and far ones of about 20, some
   more, some fewer, some very few (52 down to 3 near, 26 down to 2 far).
-  The same checks pass, plus no two islands closer than 100 m; it takes
+  The same checks pass, plus no two islands closer than 100 m; it took
   the suite from about 24 s to about 57 s. The over-land check now skips
   islands too far from a bridge to reach it, so it stays quick.
+- Asked whether it was worth that, I said yes for what it guards (real
+  bridges in big neighbouring clusters, which nothing else builds) but
+  that it was bigger than needed, as the cost is building islands. The
+  user had it trimmed for CI to 178 sessions (two big neighbouring
+  wedges, two big neighbouring far clusters, some very small ones), and
+  kept the full 311 for running locally and for performance passes: the
+  bridges test with `-- --crowd`, and the layout demo with `-- --crowd`.
 
 ## Bugs on the way
 

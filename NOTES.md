@@ -497,7 +497,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   before the beach's props and the tall mountains (2026-10-09), not
   measured since; the performance test still passes.
 - *How to measure:* a throwaway script (not in the repo) that loads
-  `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
+  `tests/world/layout_demo.tscn` (or its 311-session crowd, `--crowd`)
+  in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
   drop it in the sea) at fixed viewpoints, and reads
   `RenderingServer.viewport_set_measure_render_time` /
@@ -1212,10 +1213,15 @@ and the real layout (user's, 2026-10-02; W07).
   far cluster's islands joined to each other and to nothing else, no
   bridge over another island's land or across another bridge, before and
   after islands in the middle of trees (one of them far) sink. It does the
-  same with a crowd (user's request, 2026-10-09): the demo with 311
-  sessions, near clusters of 52, 45, 40, 38, 33, 25, 8 and 3 and far ones
-  of 26, 20, 14, 5 and 2 (`LayoutDemo.sizes`), no two islands closer than
-  100 m, nine islands sinking, near and far. About 30 s to build headless.
+  same with a crowd (user's request, 2026-10-09): the demo with clusters
+  of varied sizes (`LayoutDemo.sizes`), no two islands closer than 100 m,
+  nine islands sinking, near and far. On CI the trimmed crowd
+  (`CROWD_TRIMMED`, 178 sessions: near clusters of 45, 40, 25, 8, 3, 2, 1
+  and 1, far ones of 26, 20, 5 and 2); with `-- --crowd`, locally, the
+  full one (`CROWD`, 311: near 52, 45, 40, 38, 33, 25, 8 and 3, far 26,
+  20, 14, 5 and 2), too slow for every push (user's, 2026-10-09). The
+  demo itself opens the full crowd with `-- --crowd`, to look at or to
+  measure performance with.
 
 *Known limits.* A far cluster (a 9th or later) has no bridge to the
 platform: it's reached by teleport only (user's, 2026-10-09). Growth
@@ -3456,7 +3462,11 @@ While it runs (debug builds), T opens C09's debug commands: `/time
 set noon`, `/weather storm`, `/lightning`, `/help`.
 
 The layout demo (W06), 64 made-up sessions with no sidecar:
-`godot --path . res://tests/world/layout_demo.tscn`.
+`godot --path . res://tests/world/layout_demo.tscn`. Add `-- --crowd`
+for the crowd (W05: 311 sessions in clusters of varied sizes). The
+bridges test with the full crowd, local only (CI runs a trimmed one):
+`godot --headless --path . --script res://tests/world/bridges_test.gd --
+--crowd`.
 
 The performance test (Architecture → Performance) checks that the coarse
 drop-off has no gaps, overlaps or cracks and far fewer triangles while the
