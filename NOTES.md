@@ -3799,8 +3799,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
-**Ready for review (2026-10-09): C08's flaky short-name tests** (dev
-log 2026-10-09-c08-askwindows-flaky, branch `c08-askwindows-flaky`):
+**Merged to `main` (2026-10-09), approved by the user: C08's flaky
+short-name tests** (dev log 2026-10-09-c08-askwindows-flaky):
 on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
 `usage.test.ts` tests read "no answer"; they now wait up to 30 s, with
 the same checks. The sidecar keeps 10 s (Watch items → A slow
