@@ -81,7 +81,7 @@ export interface AskOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
   run?: typeof spawnSync
-  /** How long to wait, in ms (default ASK_TIMEOUT_MS); tests on a loaded runner wait longer. */
+  /** How long to wait, in ms (default ASK_TIMEOUT_MS); tests on a loaded runner wait longer. Never unbounded: 0 or less means the default. */
   timeout?: number
 }
 
@@ -109,7 +109,7 @@ export function askWindows(p: string, opts: AskOptions = {}): string | null {
   try {
     const r = (opts.run ?? spawnSync)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
       cwd: opts.cwd ?? os.tmpdir(), env: { ...cleanEnv(env, { names: STORE_CLIENT_VARIABLES }, 'win32'), SIDECAR_SHORT_PATH: p },
-      encoding: 'utf8', shell: false, timeout: opts.timeout ?? ASK_TIMEOUT_MS, windowsHide: true,
+      encoding: 'utf8', shell: false, timeout: opts.timeout !== undefined && opts.timeout > 0 ? opts.timeout : ASK_TIMEOUT_MS, windowsHide: true,
     })
     if (r.status === 0 && typeof r.stdout === 'string' && r.stdout) return r.stdout.trim()
   } catch { /* no PowerShell: no answer */ }
