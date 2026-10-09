@@ -259,8 +259,8 @@ the platform from anywhere, choose **⌂ Platform** in the sessions menu
 
 ## Day, night and the weather (W09)
 
-The sun crosses the sky: it rises in the east, passes overhead to the
-south and sets in the west. A whole day and night takes 28 minutes, 14
+The sun crosses the sky: it rises in the east, climbs high in the south
+and sets in the west. A whole day and night takes 28 minutes, 14
 of daylight and 14 of night, and every time you start the game it's
 mid-morning. As the sun goes down the sky turns gold and orange, and
 the moon comes up opposite it.
