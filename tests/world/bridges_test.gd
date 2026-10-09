@@ -6,10 +6,11 @@ extends SceneTree
 ## 64 sessions: every near cluster joined to the platform, every far one
 ## joined within but not to it, no bridge over another island's land or
 ## across another bridge, and still so after islands sink; and a crowd of
-## 311 sessions (near clusters of 3 to 52, far ones of 2 to 26), the
-## same.
+## clusters of varied sizes, the same: 178 sessions, or with -- --crowd
+## the full 311 (too slow to run on every push).
 ##
 ##   godot --headless --path . --script res://tests/world/bridges_test.gd
+##   godot --headless --path . --script res://tests/world/bridges_test.gd -- --crowd
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
 const LayoutDemo := preload("res://tests/world/layout_demo.gd")
@@ -179,25 +180,24 @@ func _demo() -> void:
 	await _frames(2)
 
 
-# The layout demo crowded: near clusters of about 40 sessions and far
-# ones of about 20, some more, some fewer, some very few. Still well
-# apart, bridged as it should be, and patched after islands sink, near
-# and far.
+# The layout demo crowded (LayoutDemo.CROWD_TRIMMED, or CROWD with
+# -- --crowd): clusters of varied sizes, near and far. Still well apart,
+# bridged as it should be, and patched after islands sink, near and far.
 func _crowd() -> void:
 	var demo: Node3D = LayoutDemo.new()
-	var near := [52, 45, 40, 38, 33, 25, 8, 3]
-	var far_sizes := [26, 20, 14, 5, 2]
-	demo.sizes = near + far_sizes
+	var full := "--crowd" in OS.get_cmdline_user_args()
+	demo.sizes = LayoutDemo.CROWD if full else LayoutDemo.CROWD_TRIMMED
+	var far_count: int = demo.sizes.size() - SessionClusters.WEDGES
 	var started := Time.get_ticks_msec()
 	root.add_child(demo)
 	await _frames(5)
 	var world: Node3D = demo.world
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var clusters := islands.clusters
-	var total: int = (near + far_sizes).reduce(func(a: int, b: int) -> int: return a + b, 0)
+	var total: int = demo.sizes.reduce(func(a: int, b: int) -> int: return a + b, 0)
 	var ids := clusters.ids()
-	_check(world.store.sessions.size() == total and ids.size() == 13, "crowd: %d sessions in 13 clusters (%.0f s to build)" % [total, (Time.get_ticks_msec() - started) / 1000.0])
-	_check(ids.slice(0, 8).all(func(id: String) -> bool: return not clusters.is_far(id)) and ids.slice(8).all(func(id: String) -> bool: return clusters.is_far(id)), "crowd: the 5 past the 8th are far")
+	_check(world.store.sessions.size() == total and ids.size() == demo.sizes.size(), "crowd%s: %d sessions in %d clusters (%.0f s to build)" % [" (full)" if full else "", total, ids.size(), (Time.get_ticks_msec() - started) / 1000.0])
+	_check(ids.slice(0, 8).all(func(id: String) -> bool: return not clusters.is_far(id)) and ids.slice(8).all(func(id: String) -> bool: return clusters.is_far(id)), "crowd: the %d past the 8th are far" % far_count)
 	var all := islands.all_islands()
 	var closest := INF
 	var furthest := 0.0
@@ -208,15 +208,16 @@ func _crowd() -> void:
 	_check(closest >= SessionClusters.ISLAND_SPACING - 0.01, "crowd: no two islands closer than 100 m (closest %.1f m, furthest out %.0f m)" % [closest, furthest])
 	# A near cluster's tree has a bridge per island (one to the platform),
 	# a far one's one fewer.
-	_check(islands.bridges.links().size() == total - far_sizes.size(), "crowd: a tree per cluster (%d bridges)" % islands.bridges.links().size())
+	_check(islands.bridges.links().size() == total - far_count, "crowd: a tree per cluster (%d bridges)" % islands.bridges.links().size())
 	_layout_ok(islands, "crowd")
 	# Islands sink, in the middle and at the ends of trees, near and far.
 	world.get_node("Player").global_position = Vector3(0, 1.1, 0)
 	var before := islands.bridges.links().size()
-	# [cluster, island]: the biggest's first, 5th and last, others'
-	# middles, the 3-island one's middle, far ones' first and middles.
+	# [cluster, island], in both crowds: the biggest's first, 5th and
+	# last, middles of others (in the trimmed crowd, a 3-island one), and
+	# far ones' first and middles.
 	var gone := []
-	for at in [[0, 0], [0, 4], [0, 51], [3, 19], [7, 1], [8, 0], [8, 13], [10, 7], [12, 1]]:
+	for at in [[0, 0], [0, 4], [0, -1], [3, 4], [4, 1], [8, 0], [8, 13], [9, 7], [11, 1]]:
 		gone.append(clusters.sessions(ids[at[0]])[at[1]])
 	for id in gone:
 		world.store.apply({"type": "session.ended", "session": id, "seq": 2, "reason": "exited"})
