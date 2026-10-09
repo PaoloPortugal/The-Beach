@@ -659,11 +659,11 @@ The answer shows above the line for a few seconds.
   minutes and seconds from midnight on the 28-minute day, like `7m`
   (sunrise), `21m` (sunset) or `10m22s`.
 - **/time add 2m** moves the time on; **/time query** says what time it
-  is; **/time speed 4m** makes a whole day last 4 minutes, and
-  **/time speed default** puts it back to 28.
+  is; **/time speed 2** makes days go twice as fast (14 minutes), and
+  **/time speed 1** puts them back to normal (28).
 - **/weather storm** changes the weather at once (`clear`, `cloudy`,
-  `rain`, `windy`, `storm`) and keeps it that way; **/weather auto** lets
-  it change by itself again; **/weather query** says what it is.
+  `rain`, `windy`, `storm`); after that it goes on changing by itself
+  as usual, a few minutes later. **/weather query** says what it is.
 - **/lightning** makes lightning strike now, whatever the weather.
 - **/help** lists them.
 
