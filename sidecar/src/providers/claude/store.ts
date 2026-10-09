@@ -157,13 +157,18 @@ export class StoredCache {
   /** Files described by reading them, since this cache was made (for tests). */
   reads = 0
 
+  private readonly read: (file: string, st: fs.Stats) => StoredInfo | null | undefined
+
+  /** [read] describes one file; undefined if it couldn't be read (tests stand in a failing one). */
+  constructor(read = describeAs) { this.read = read }
+
   get size(): number { return this.entries.size }
 
   describe(file: string, st: fs.Stats): StoredInfo | null {
     const kept = this.entries.get(file)
     if (kept && kept.size === st.size && kept.mtimeMs === st.mtimeMs) return kept.info
     this.reads++
-    const info = describeAs(file, st)
+    const info = this.read(file, st)
     // A file that couldn't be read (e.g. locked mid-write) is tried again next time.
     if (info === undefined) this.entries.delete(file)
     else this.entries.set(file, { size: st.size, mtimeMs: st.mtimeMs, info })
@@ -177,7 +182,7 @@ export class StoredCache {
 }
 
 /** [describe] with the file's stats; undefined if it couldn't be read. */
-function describeAs(file: string, st: fs.Stats): StoredInfo | null | undefined {
+export function describeAs(file: string, st: fs.Stats): StoredInfo | null | undefined {
   const id = path.basename(file, '.jsonl')
   if (!UUID.test(id)) return null
   if (!st.isFile() || st.size === 0) return null

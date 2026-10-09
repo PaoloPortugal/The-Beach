@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
+import { describe, describeAs, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
@@ -100,6 +100,23 @@ test('list with a cache: the same list; files read again only once they change, 
   // A new one is read and listed.
   fs.writeFileSync(path.join(s.dir, 'b', `${ID(9)}.jsonl`), jsonl({ type: 'user', message: { content: 'brand new' }, cwd: s.projB, entrypoint: 'cli' }))
   assert.equal(listStored({ dir: s.dir, cache })[0]!.title, 'brand new')
+})
+
+test('a transcript whose read fails is not kept, and is listed on the next call', () => {
+  const s = store()
+  const failing = path.join(s.dir, 'b', `${ID(2)}.jsonl`)
+  let fail = true
+  const cache = new StoredCache((file, st) => {
+    if (file === failing && fail) return undefined // e.g. locked mid-write
+    return describeAs(file, st)
+  })
+  assert.ok(!listStored({ dir: s.dir, cache }).some((x) => x.native_id === ID(2)), 'left out while it can\'t be read')
+  fail = false
+  const reads = cache.reads
+  const next = listStored({ dir: s.dir, cache })
+  assert.equal(next.find((x) => x.native_id === ID(2))?.title, 'fix the login bug', 'read again, and listed')
+  assert.equal(cache.reads, reads + 1, 'only that one is read again')
+  assert.deepEqual(next, listStored({ dir: s.dir }), 'the same as without the cache')
 })
 
 test('the provider keeps its listing between calls, and shows what changed', async () => {
