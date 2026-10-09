@@ -88,7 +88,7 @@ v1 slice.
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
-| W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd` |
+| W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
@@ -103,7 +103,7 @@ v1 slice.
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
-| C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd` |
+| C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd`, `world/world.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -492,7 +492,9 @@ frame is about 1 ms, physics 0.3-0.5 ms.
 
   W10's props (2026-10-08, the same way, hiding them all; the demo's 64
   islands of random biomes): 0.25 ms looking out from the platform,
-  0.5 ms looking back over it, 1.1 ms standing in a forest.
+  0.5 ms looking back over it, 1.1 ms standing in a forest. Measured
+  before the beach's props and the tall mountains (2026-10-09), not
+  measured since; the performance test still passes.
 - *How to measure:* a throwaway script (not in the repo) that loads
   `tests/world/layout_demo.tscn` in a 1920x1080 window with vsync off,
   freezes the player (`set_physics_process(false)`: hiding collision would
@@ -1456,7 +1458,7 @@ from screenshots).
 - *The mountain* (2026-10-09): a bigger island (radius 36 m, shoreline
   moved by up to 15 % instead of 45 %, so none is too small for a cliff
   and spires), a beach, a cliff (3 m rise a metre) up to a 3 m shoulder
-  at 18 m, and a flat meadow 11 m across at 20 m. Between the shoulder
+  at 18 m, and a flat meadow 11 m in radius at 20 m. Between the shoulder
   and the meadow, 2-3 spires a side between each two valleys (6 m
   wide), 28-40 m over the meadow, two of them 48-54 m: tops measured
   62-71 m above the water. Rock where steep, snow above 46 m. Its
@@ -1467,8 +1469,8 @@ from screenshots).
   0.6 m, a slope rising 0.5 m a metre on average up to the edge height,
   a 4 m shoulder there (no hills: bridges land on it), then up to the
   flat middle (radius 7 m, as W01; the mountain's 11 m) with hills between (Perlin, clipped to
-  0-1 and scaled by `hills`; a lower `hill_gain` makes the mountain's
-  peaks pointed instead of flat-topped). On a small island the beach and
+  0-1 and scaled by `hills`; an optional lower `hill_gain` would make
+  them pointed instead of flat-topped; none uses it now). On a small island the beach and
   the shoulder shrink first (to 1.5 m), the slope only if that isn't
   enough. Three hill-free valleys, 4 m wide (the mountain's 6 m) and
   turned at random, run
@@ -1499,7 +1501,8 @@ from screenshots).
   shoulder just past the cliff's lip, at the first valley's mouth
   (`IslandGenerator.zipline_ends`), the cable 4 m over each. Within 2 m
   of a post, "E: zipline up" (or down) floats over it; E (`interact`)
-  rides you to the other post at 7 m/s, easing in and out, hanging
+  rides you to the other post (its length over 7 m/s, eased in and
+  out, so about 10 m/s at its fastest), hanging
   2.2 m under the cable, your head clear of the cliff. While riding,
   `Player.riding` stops walking, falling and swimming, but you can look
   round. At the top you're let off 1.5 m further in. Props keep 2 m off
@@ -1511,7 +1514,8 @@ from screenshots).
   planks are level steps (`Bridge.STEPS_FROM`), each deep enough to meet
   the next; its collision stays the smooth ramp. Bridges between islands
   are about 50 m long, so most stay gentle ramps; one up to a
-  mountain's 18 m is a stair.
+  mountain's 18 m is a stair. On a mountain they land on the shoulder
+  at the cliff's top, 2 m below the meadow, and a valley leads up.
 - *Rising and sinking* (W04): an island taller than a beach's 3.2 m
   starts and ends deeper, all of it under the deepest sea floor
   (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
@@ -1532,7 +1536,8 @@ from screenshots).
 - *Maps* (W06): an island is drawn in its biome's ground colour (a
   beach's sand).
 - *Performance* (Architecture → Performance): props cost 0.25-1.1 ms of
-  GPU by view; they follow the islands' draw distance.
+  GPU by view (before the 2026-10-09 round); they follow the islands'
+  draw distance.
 
 ### W11 Crouch and slide
 *Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
@@ -3457,7 +3462,7 @@ clouds, rain or the bolt), the debug commands (C09: times as 7m, 30s,
 10m22s or a name and nothing else, /time set counting from midnight,
 add, query and speed, /weather setting and holding a kind, query, auto
 and an unknown kind refused, /lightning in clear weather, unknown
-commands and /help; the console opened by /, closed by Esc, a line
+commands and /help; the console opened by its key (T), closed by Esc, a line
 run from it closing it and showing the reply), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
