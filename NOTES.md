@@ -3789,6 +3789,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-09), approved by the user: C09's flaky
+console checks** (dev log 2026-10-09-c09-console-check-flaky): T and Esc
+in the world test waited two physics frames; they now wait on the
+console's state (`_until`).
 **Merged to `main` (2026-10-09), approved by the user: S04's Resume on
 its own page** (dev log 2026-10-09-s04-resume-page): "+ Add session…"
 asks new or resume, Esc goes back a page (waiting for the folder picker
