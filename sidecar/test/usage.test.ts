@@ -14,7 +14,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callUsageIn, statusFiguresIn, UsageCounter } from '../src/providers/claude/usage.ts'
 import { readConversation } from '../src/providers/claude/store.ts'
-import { askWindows, shellCommand, shortNameGuesses, shortPath, windowsPowerShell } from '../src/launch/shell-command.ts'
+import { ASK_TIMEOUT_MS, askWindows, shellCommand, shortNameGuesses, shortPath, windowsPowerShell } from '../src/launch/shell-command.ts'
 import { ourStatusLine, statusLineSettingsFiles, userStatusLine } from '../src/providers/claude/statusline.ts'
 import { HookServer, STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { writeRelayFile } from '../src/launch/relay.ts'
@@ -223,6 +223,7 @@ test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, 
   assert.ok(!calls[0]!.args.some((a) => a.includes('a b')), 'the path is never in the arguments')
   assert.equal(calls[0]!.opts.cwd, 'C:\\fixed')
   assert.equal(calls[0]!.opts.shell, false)
+  assert.equal((calls[0]!.opts as { timeout?: unknown }).timeout, ASK_TIMEOUT_MS, 'a bounded wait')
   assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SIDECAR_SHORT_PATH: 'C:\\a b' },
     'the user\'s environment, cleaned (a store client\'s variables dropped), and our path')
   assert.equal(askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
@@ -230,10 +231,21 @@ test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, 
   assert.equal(windowsPowerShell({}), null)
   assert.equal(windowsPowerShell({ SystemRoot: 'Windows' }), null, 'a relative SystemRoot')
   assert.equal(windowsPowerShell({ SystemRoot: tmp('no-ps-') }), null, 'not there')
-  assert.equal(calls.length, 1)
+  askWindows('C:\\a b', { program: 'C:\\ps.exe', timeout: 1234, run })
+  assert.equal((calls[1]!.opts as { timeout?: unknown }).timeout, 1234)
+  assert.equal(calls.length, 2)
 })
 
-test('askWindows, for real: a hostile folder name runs nothing, and any answer is that very folder', { skip: process.platform !== 'win32' }, () => {
+/**
+ * On a loaded CI runner Windows PowerShell can take more than askWindows'
+ * 10 s to start (dev log 2026-10-09-c08-askwindows-flaky), and no answer
+ * would read as "no short names". The tests that ask the real Windows
+ * wait longer; every check stays the same.
+ */
+const PATIENT_ASK_MS = 30_000
+const patientShortPath = (p: string) => shortPath(p, undefined, (q) => askWindows(q, { timeout: PATIENT_ASK_MS }))
+
+test('askWindows, for real: a hostile folder name runs nothing, and any answer is that very folder', { skip: process.platform !== 'win32' }, (t) => {
   const exe = windowsPowerShell()
   assert.ok(exe, 'Windows PowerShell is under SystemRoot')
   assert.match(exe, /^[A-Za-z]:\\.+\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i)
@@ -246,8 +258,11 @@ test('askWindows, for real: a hostile folder name runs nothing, and any answer i
   for (const name of ['$(New-Item PWNED)', '`ni PWNED`', "a';ni PWNED;'b"]) {
     const dir = path.join(base, name)
     fs.mkdirSync(dir)
-    const answer = askWindows(dir, { cwd, run })
-    if (shortNames) assert.ok(answer, `${name}: Windows answers on a volume with short names`)
+    const started = Date.now()
+    const answer = askWindows(dir, { cwd, run, timeout: PATIENT_ASK_MS })
+    const took = Date.now() - started
+    t.diagnostic(`${name}: ${took} ms`)
+    if (shortNames) assert.ok(answer, `${name}: Windows answers on a volume with short names (none after ${took} ms)`)
     if (answer !== null) assert.equal(fileId(answer), fileId(dir), `${name}: the same folder`)
     for (const d of [cwd, base, dir, process.cwd()]) assert.ok(!fs.existsSync(path.join(d, 'PWNED')), `${name}: nothing ran (${d})`)
   }
@@ -305,7 +320,7 @@ const fileId = (p: string) => { const s = fs.statSync(p, { bigint: true }); retu
 function makesShortNames(dir: string): boolean {
   const probe = path.join(dir, 'probe with space')
   fs.mkdirSync(probe)
-  return shortPath(probe) !== null
+  return patientShortPath(probe) !== null
 }
 
 /**
@@ -322,7 +337,7 @@ function runInShells(t: { diagnostic: (m: string) => void }, parts: string[]): s
   const record = path.join(base, 'argv.json')
   fs.writeFileSync(script, `require('fs').writeFileSync(process.env.RECORD_TO, JSON.stringify(process.argv.slice(1)))\n`)
   fs.writeFileSync(relay, '{}')
-  const command = shellCommand([process.execPath, script, 'statusline', relay])
+  const command = shellCommand([process.execPath, script, 'statusline', relay], { shortPath: patientShortPath })
   if (command === null) return null
   const cwd = tmp('cmd-cwd-')
   for (const sh of shells()) {
@@ -340,7 +355,7 @@ function runInShells(t: { diagnostic: (m: string) => void }, parts: string[]): s
   return command
 }
 
-test('the command string, run by the real shells, reaches us as exactly our three arguments, whatever the paths', { timeout: 120_000 }, async (t) => {
+test('the command string, run by the real shells, reaches us as exactly our three arguments, whatever the paths', { timeout: 600_000 }, async (t) => {
   t.diagnostic(`shells: ${shells().map((s) => s.name).join(', ')}`)
   if (process.platform !== 'win32') {
     // POSIX: single quotes keep every one of these whole.

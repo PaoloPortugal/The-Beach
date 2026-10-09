@@ -81,7 +81,12 @@ export interface AskOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
   run?: typeof spawnSync
+  /** How long to wait, in ms (default ASK_TIMEOUT_MS); tests on a loaded runner wait longer. */
+  timeout?: number
 }
+
+/** How long askWindows blocks at most: it's usually under a second, but PowerShell starts slowly on a loaded machine. */
+export const ASK_TIMEOUT_MS = 10_000
 
 const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject; $p = $env:SIDECAR_SHORT_PATH; ' +
   'if ($f.FileExists($p)) { [Console]::Out.Write($f.GetFile($p).ShortPath) } ' +
@@ -95,7 +100,7 @@ const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject
  * (Security rules -> Clean child environments; with only SystemRoot,
  * PowerShell hung on CI's Windows runner), and the path (in a variable,
  * never on a command line). Blocks for up to
- * 10 s. Only the answer's file identity is trusted (shortPath checks it).
+ * ASK_TIMEOUT_MS (10 s); past that, no answer. Only the answer's file identity is trusted (shortPath checks it).
  */
 export function askWindows(p: string, opts: AskOptions = {}): string | null {
   const env = opts.env ?? process.env
@@ -104,7 +109,7 @@ export function askWindows(p: string, opts: AskOptions = {}): string | null {
   try {
     const r = (opts.run ?? spawnSync)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
       cwd: opts.cwd ?? os.tmpdir(), env: { ...cleanEnv(env, { names: STORE_CLIENT_VARIABLES }, 'win32'), SIDECAR_SHORT_PATH: p },
-      encoding: 'utf8', shell: false, timeout: 10_000, windowsHide: true,
+      encoding: 'utf8', shell: false, timeout: opts.timeout ?? ASK_TIMEOUT_MS, windowsHide: true,
     })
     if (r.status === 0 && typeof r.stdout === 'string' && r.stdout) return r.stdout.trim()
   } catch { /* no PowerShell: no answer */ }
