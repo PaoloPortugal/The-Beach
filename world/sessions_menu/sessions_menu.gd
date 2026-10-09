@@ -18,8 +18,10 @@ extends CanvasLayer
 ## system has none (e.g. Linux without the desktop portal). The system's
 ## is a separate window that alt-tab can hide behind the game (seen on
 ## Windows, M1), and Godot can't bring it back or close it, so while it's
-## open the menu says so and offers Cancel (or Esc): that gives the
+## open the menu says so and offers Cancel (or Tab): that gives the
 ## controls back, and whatever the lost picker answers later is ignored.
+## Esc stops waiting too, back on Add a session, as cancelling the picker
+## does (user's, 2026-10-09).
 
 ## The player asked to go to a running session's island.
 signal go_to(session_id: String)
@@ -320,10 +322,11 @@ func _input(event: InputEvent) -> void:
 			open()
 	elif _panel.visible and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		# Waiting for a system picker that may be lost behind the game,
-		# Esc gives the controls back, like Cancel (user's, 2026-10-01).
+		# Waiting for a system picker that may be lost behind the game, Esc
+		# stops waiting (its late answer is ignored) and shows Add a session
+		# again, like cancelling the picker (user's, 2026-10-09).
 		if _waiting:
-			close()
+			_stop_waiting()
 		else:
 			back()
 
