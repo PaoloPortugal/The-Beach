@@ -31,7 +31,7 @@ var _map := Control.new()
 # The cluster shown and the world rectangle (x, z) it fits, for tests.
 var _shown := ""
 var _area := Rect2()
-# The islands drawn: the cluster's bridged ones, or the far one you're at.
+# The islands drawn: the cluster's.
 var _drawn: Array[Island] = []
 
 
@@ -65,14 +65,14 @@ func map_rect() -> Rect2:
 
 
 ## The square of the world (x, z) the minimap fits: the islands of the
-## cluster nearest you (or the far one you're at) and you, with
+## cluster nearest you (near or far) and you, with
 ## [constant PADDING] of sea around. Empty with no islands. The big map
 ## opens at this scale.
 func fit_area() -> Rect2:
 	_shown = islands.nearest_cluster(player.global_position) if islands and player else ""
 	if _shown.is_empty():
 		return Rect2()
-	_drawn = _islands_shown()
+	_drawn = islands.cluster_islands(_shown)
 	var area := Rect2(Vector2(player.global_position.x, player.global_position.z), Vector2.ZERO)
 	for i in _drawn:
 		area = area.merge(reach_rect(i))
@@ -91,24 +91,6 @@ func _process(_delta: float) -> void:
 	_map.position = Vector2(GAP, top)
 	_map.size = Vector2(side, side)
 	_map.queue_redraw()
-
-
-# The cluster's islands joined by bridges, or, near one in a far spot
-# (no bridges, W06), just that one.
-func _islands_shown() -> Array[Island]:
-	var all := islands.cluster_islands(_shown)
-	var nearest: Island = null
-	for i in all:
-		if nearest == null or i.global_position.distance_to(player.global_position) < nearest.global_position.distance_to(player.global_position):
-			nearest = i
-	if nearest == null or islands.is_far(nearest):
-		var just: Array[Island] = []
-		if nearest:
-			just.append(nearest)
-		return just
-	var out: Array[Island] = []
-	out.assign(all.filter(func(i: Island) -> bool: return not islands.is_far(i)))
-	return out
 
 
 func _draw_map() -> void:

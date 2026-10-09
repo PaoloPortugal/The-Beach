@@ -3,7 +3,8 @@ extends Node3D
 ## Connects regions with bridges (W06): a general system, not
 ## beach-specific, so other biomes (W10) plug in. Each group of regions
 ## (a cluster's islands) is one tree, just enough bridges to connect it;
-## hubs (the spawn platform) belong to every group's tree. A region that
+## hubs (the spawn platform) belong to every group's tree but a hubless
+## one's (a far cluster). A region that
 ## comes is bridged to its group's nearest one. When one goes, its bridges
 ## go with it and the cut pieces are patched: every other bridge stays,
 ## and the shortest new ones join the pieces (user's, 2026-10-07).
@@ -18,17 +19,24 @@ extends Node3D
 var _regions := {}
 ## Bridges in the order they were made: {"a", "b", "group", "bridge"}.
 var _links: Array[Dictionary] = []
+## Groups whose trees leave the hubs out → true.
+var _hubless := {}
 
 
-## Adds a hub: in every group's tree, never bridged by itself.
+## Adds a hub: in every group's tree (but hubless ones), never bridged by
+## itself.
 func add_hub(key: String, centre: Vector3, reach: float, edge: Callable) -> void:
 	_regions[key] = {"group": "", "centre": centre, "reach": reach, "edge": edge, "hub": true}
 
 
 ## Adds a region to [param group]'s tree, bridged to the nearest one there.
-func add(key: String, group: String, centre: Vector3, reach: float, edge: Callable) -> void:
+## Without [param with_hubs], the group's tree leaves the hubs out (its
+## first region has no bridge).
+func add(key: String, group: String, centre: Vector3, reach: float, edge: Callable, with_hubs := true) -> void:
 	if _regions.has(key):
 		return
+	if not with_hubs:
+		_hubless[group] = true
 	_regions[key] = {"group": group, "centre": centre, "reach": reach, "edge": edge, "hub": false}
 	var best := _best_link([key], _members(group).filter(func(k: String) -> bool: return k != key))
 	if not best.is_empty():
@@ -46,6 +54,8 @@ func remove(key: String) -> void:
 	_regions.erase(key)
 	if group == "":
 		return
+	if not _regions.values().any(func(r: Dictionary) -> bool: return r["group"] == group):
+		_hubless.erase(group)
 	var pieces := _pieces(group)
 	while pieces.size() > 1:
 		var best := []
@@ -120,9 +130,10 @@ func is_clear(a: String, b: String) -> bool:
 	return true
 
 
-# The group's regions and the hubs.
+# The group's regions and, unless it's hubless, the hubs.
 func _members(group: String) -> Array:
-	return _regions.keys().filter(func(k: String) -> bool: return _regions[k]["hub"] or _regions[k]["group"] == group)
+	var hubs := not _hubless.has(group)
+	return _regions.keys().filter(func(k: String) -> bool: return (hubs and _regions[k]["hub"]) or _regions[k]["group"] == group)
 
 
 # The shortest clear link between two sets of regions, else the shortest:
@@ -140,7 +151,7 @@ func _best_link(these: Array, those: Array) -> Array:
 	return best
 
 
-# The group's regions and the hubs, in pieces connected by its bridges.
+# The group's regions and (unless it's hubless) the hubs, in pieces connected by its bridges.
 func _pieces(group: String) -> Array:
 	var members := _members(group)
 	var root := {}

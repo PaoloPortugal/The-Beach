@@ -2,9 +2,10 @@ extends SceneTree
 ## Headless test for W06's bridges: a bridge's shape (clearance, ramps,
 ## any slope), walking across one and not getting past its rails (real
 ## physics), the bridge tree (each region to its nearest, patching a cut
-## without moving other bridges), and the layout demo's 64 sessions: every
-## cluster joined to the platform, no bridge over another island's land
-## or across another bridge, and still so after islands sink.
+## without moving other bridges, a hubless group), and the layout demo's
+## 64 sessions: every near cluster joined to the platform, every far one
+## joined within but not to it, no bridge over another island's land or
+## across another bridge, and still so after islands sink.
 ##
 ##   godot --headless --path . --script res://tests/world/bridges_test.gd
 
@@ -62,6 +63,13 @@ func _tree() -> void:
 	_check(not net.is_clear("hub", "r2"), "a line across another region's land isn't clear")
 	net.remove("r0")
 	_check(_pairs(net) == ["hub-other", "hub-r2", "r2-r3"], "losing the hub's bridge: the hub links again")
+	# A hubless group (a far cluster): bridged within, never to the hub.
+	for k in 3:
+		var c := Vector3(-130.0 - 100.0 * k, 0.0, 0.0)
+		net.add("f%d" % k, "far", c, 40.0, edge.call(c), false)
+	_check(_pairs(net) == ["f0-f1", "f1-f2", "hub-other", "hub-r2", "r2-r3"], "a hubless group: its first region has no bridge, the next ones join it")
+	net.remove("f1")
+	_check(net.bridge("f0", "f2") != null and net.bridge("hub", "f0") == null and net.bridge("hub", "f2") == null, "a cut is patched within it, not through the hub")
 	net.free()
 
 
@@ -120,9 +128,10 @@ func _demo() -> void:
 	_layout_ok(islands, "demo")
 	var far := 0
 	for id in world.store.sessions:
-		far += 0 if clusters.is_bridged(id) else 1
-	_check(far == 3 + 5, "demo: the 13-island cluster's last 3 and the 4 clusters past 16 (5 islands) are in far spots")
-	# The minimap: a cluster's bridged islands, not its far ones.
+		far += 1 if clusters.is_far(clusters.cluster_of(id)) else 0
+	_check(far == 23 and clusters.is_far(clusters.cluster_of("d42")) and not clusters.is_far(clusters.cluster_of("d41")), "demo: the 12 clusters past the 8th (23 islands) are far")
+	_check(islands.island("d16").global_position.distance_to(islands.island("d01").global_position) > 500.0 and not islands.is_far(islands.island("d16")), "demo: the 16-island cluster still in its wedge, reaching %.0f m out" % islands.island("d16").global_position.length())
+	# The minimap: the cluster you're at, near or far.
 	var player: Player = world.get_node("Player")
 	var minimap: Minimap = world.minimap
 	player.global_position = islands.island("d02").global_position + Vector3(0, 3, 0)
@@ -130,12 +139,11 @@ func _demo() -> void:
 	await _settle()
 	var size := minimap.map_rect().size
 	var on_map := func(id: String) -> bool: return Rect2(Vector2.ZERO, size).has_point(minimap.to_map(islands.island(id).global_position))
-	_check(minimap.shown_cluster() == clusters.cluster_of("d02") and on_map.call("d01") and on_map.call("d10"), "minimap: the cluster's islands in its wedge")
-	_check(not on_map.call("d11") and not clusters.is_bridged("d11"), "but not its far ones")
-	player.global_position = islands.island("d11").global_position + Vector3(0, 3, 0)
+	_check(minimap.shown_cluster() == clusters.cluster_of("d02") and on_map.call("d01") and on_map.call("d16"), "minimap: the cluster's islands in its wedge")
+	player.global_position = islands.island("d43").global_position + Vector3(0, 3, 0)
 	await _frames(5)
 	await _settle()
-	_check(on_map.call("d11") and not on_map.call("d01"), "near a far island, just that one")
+	_check(minimap.shown_cluster() == clusters.cluster_of("d42") and on_map.call("d42") and on_map.call("d47") and not on_map.call("d01"), "near a far cluster, its islands")
 	# The big map (W06): zoomed right out, the whole world fits.
 	var big: WorldMap = world.world_map
 	big.open()
@@ -147,14 +155,14 @@ func _demo() -> void:
 	big.zoom_by(-100.0, big.map_rect().size / 2.0)
 	var view := Rect2(Vector2.ZERO, big.map_rect().size)
 	_check(islands.all_islands().size() == 64 and islands.all_islands().all(func(i: Island) -> bool: return view.has_point(big.to_map(i.global_position))), "big map: zoomed out, all 64 islands fit, far ones too")
-	big.centre = Vector2(islands.island("d11").global_position.x, islands.island("d11").global_position.z)
-	_check(big.session_at(view.size / 2.0) == "d11", "big map: a far island can be picked")
+	big.centre = Vector2(islands.island("d64").global_position.x, islands.island("d64").global_position.z)
+	_check(big.session_at(view.size / 2.0) == "d64", "big map: a far island can be picked")
 	big.close()
 	# Islands in the middle of trees sink: what's left is patched.
 	player.global_position = Vector3(0, 1.1, 0)
 	var before := islands.bridges.links().size()
 	var keep: Array = islands.bridges.links()
-	var gone := ["d01", "d02", "d15", "d14"]
+	var gone := ["d01", "d02", "d15", "d14", "d43"]
 	for id in gone:
 		world.store.apply({"type": "session.ended", "session": id, "seq": 2, "reason": "exited"})
 	await _until(func() -> bool: return islands.left_islands().all(func(i: Island) -> bool: return not islands.bridges.has(SessionIslands.region(i))), 3.0)
@@ -168,8 +176,8 @@ func _demo() -> void:
 	await _frames(2)
 
 
-# Every cluster joined to the platform; no bridge over other land or
-# across another bridge.
+# Every near cluster joined to the platform, every far one joined within
+# but not to it; no bridge over other land or across another bridge.
 func _layout_ok(islands: SessionIslands, what: String) -> void:
 	var net := islands.bridges
 	var regions := {}
@@ -177,17 +185,21 @@ func _layout_ok(islands: SessionIslands, what: String) -> void:
 		for i in islands.cluster_islands(id):
 			if net.has(SessionIslands.region(i)):
 				regions[SessionIslands.region(i)] = i
-	# Joined: from the platform, every bridged island is reachable.
-	var reach := {"platform": true}
-	var grew := true
-	while grew:
-		grew = false
-		for l: Array in net.links():
-			if reach.has(l[0]) != reach.has(l[1]):
-				reach[l[0]] = true
-				reach[l[1]] = true
-				grew = true
-	_check(regions.keys().all(func(k: String) -> bool: return reach.has(k)), "%s: every island in a wedge is joined to the platform" % what)
+	# Joined: from the platform, every near island is reachable; from a far
+	# cluster's island, its cluster's and nothing else.
+	var near := regions.keys().filter(func(k: String) -> bool: return not islands.is_far(regions[k]))
+	var reach := _reached(net, "platform")
+	_check(near.all(func(k: String) -> bool: return reach.has(k)) and reach.size() == near.size() + 1, "%s: every near island is joined to the platform, and no far one" % what)
+	var within := true
+	for id in islands.clusters.ids():
+		if not islands.clusters.is_far(id):
+			continue
+		var mine := islands.cluster_islands(id).filter(func(i: Island) -> bool: return net.has(SessionIslands.region(i))).map(func(i: Island) -> String: return SessionIslands.region(i))
+		if mine.is_empty():
+			continue
+		var got := _reached(net, mine[0])
+		within = within and got.size() == mine.size() and mine.all(func(k: String) -> bool: return got.has(k))
+	_check(within, "%s: every far cluster's islands are joined to each other, and to nothing else" % what)
 	var over_land := 0
 	var bridges: Array[Bridge] = []
 	for c in islands.clusters.ids():
@@ -212,6 +224,20 @@ func _layout_ok(islands: SessionIslands, what: String) -> void:
 			if Geometry2D.segment_intersects_segment(Vector2(a.from.x, a.from.z), Vector2(a.to.x, a.to.z), Vector2(b.from.x, b.from.z), Vector2(b.to.x, b.to.z)) != null:
 				crossing += 1
 	_check(crossing == 0, "%s: no bridge across another (%d)" % [what, crossing])
+
+
+# The regions joined to [param from] by bridges, it included.
+func _reached(net: BridgeNetwork, from: String) -> Dictionary:
+	var reach := {from: true}
+	var grew := true
+	while grew:
+		grew = false
+		for l: Array in net.links():
+			if reach.has(l[0]) != reach.has(l[1]):
+				reach[l[0]] = true
+				reach[l[1]] = true
+				grew = true
+	return reach
 
 
 # The bridges as "a-b", sorted, each pair in order.

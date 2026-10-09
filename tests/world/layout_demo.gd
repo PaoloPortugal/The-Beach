@@ -2,7 +2,8 @@ extends Node3D
 ## Dev tool (W06, user's request): the world with 64 made-up sessions in
 ## 20 clusters, to see how the layout and bridges look. The sidecar is
 ## stopped as soon as the demo starts, so none of your real sessions show.
-## Clusters past 16 and a 13-island cluster show the far spots.
+## A 16-island cluster shows a near wedge growing outward; the 12 past the
+## 8th are far clusters (W05), bridged within but not to the platform.
 ##
 ##   godot --path . res://tests/world/layout_demo.tscn
 ##
@@ -10,8 +11,9 @@ extends Node3D
 ## wheel zooms); Tab's Running list goes to any island; M opens the big
 ## map.
 
-## Islands per cluster: 64 in 20 clusters.
-const SIZES := [13, 7, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2]
+## Islands per cluster: 64 in 20 clusters, the first 8 near (d01-d41),
+## the rest far (d42-d64).
+const SIZES := [16, 6, 5, 4, 3, 3, 2, 2, 6, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1]
 
 var world: Node3D
 var _above := Camera3D.new()
