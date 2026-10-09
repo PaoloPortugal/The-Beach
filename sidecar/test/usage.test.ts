@@ -223,7 +223,8 @@ test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, 
   assert.ok(!calls[0]!.args.some((a) => a.includes('a b')), 'the path is never in the arguments')
   assert.equal(calls[0]!.opts.cwd, 'C:\\fixed')
   assert.equal(calls[0]!.opts.shell, false)
-  assert.equal((calls[0]!.opts as { timeout?: unknown }).timeout, ASK_TIMEOUT_MS, 'a bounded wait')
+  assert.equal((calls[0]!.opts as { timeout?: unknown }).timeout, ASK_TIMEOUT_MS)
+  assert.ok(ASK_TIMEOUT_MS > 0 && ASK_TIMEOUT_MS <= 10_000, 'a bounded wait (spawnSync reads 0 as none)')
   assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SIDECAR_SHORT_PATH: 'C:\\a b' },
     'the user\'s environment, cleaned (a store client\'s variables dropped), and our path')
   assert.equal(askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
@@ -231,9 +232,11 @@ test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, 
   assert.equal(windowsPowerShell({}), null)
   assert.equal(windowsPowerShell({ SystemRoot: 'Windows' }), null, 'a relative SystemRoot')
   assert.equal(windowsPowerShell({ SystemRoot: tmp('no-ps-') }), null, 'not there')
-  askWindows('C:\\a b', { program: 'C:\\ps.exe', timeout: 1234, run })
+  askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout: 1234, run })
   assert.equal((calls[1]!.opts as { timeout?: unknown }).timeout, 1234)
-  assert.equal(calls.length, 2)
+  for (const timeout of [0, -1]) askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout, run })
+  assert.deepEqual(calls.slice(2).map((c) => (c.opts as { timeout?: unknown }).timeout), [ASK_TIMEOUT_MS, ASK_TIMEOUT_MS], 'never unbounded')
+  assert.equal(calls.length, 4)
 })
 
 /**
