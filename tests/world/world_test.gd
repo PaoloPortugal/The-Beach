@@ -764,7 +764,10 @@ func _menu(world: Node3D, player: Player) -> void:
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir().path_join("no-such-folder")]), 0)
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and player.controls_enabled, "system picker: choosing a folder closes the menu and gives the controls back")
-	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
+	# The real provider lists the user's stored sessions each time the menu
+	# opens, blocking the sidecar meanwhile (0.8 s for 181 on a dev machine),
+	# so the refusal can queue behind several listings.
+	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 20.0)
 	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
 	menu.native_picker = false
 
@@ -1840,8 +1843,11 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.status_text().begins_with("Your message hasn't reached") and panel.draft() == "lost", "live: one never picked up says so, its text back in the box")
 	panel.set_draft("hello again")
 	panel.send()
-	await _until(func() -> bool: return panel.shown_messages()[-1].contains("hello again") and world.store.orchestrator(id).get("state") == "idle", 8.0)
-	await _frames(40)
+	# Your own message arrives before the turn starts: wait for the reply's
+	# end, then past the pickup timeout, so a warning would be back by now.
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("> hello again") and panel.shown_messages()[-1].contains("(This is the fake provider.)") and world.store.orchestrator(id).get("state") == "idle", 8.0)
+	await create_timer(panel.pickup_timeout + 0.2).timeout
+	await _settle()
 	_check(panel.status_text() == "" and panel.shown_messages()[-1].contains("hello again"), "live: the next one arrives, and the warning goes")
 	# Busy (here, waiting on a permission), the provider queues a message for
 	# after its turn: not watched.
