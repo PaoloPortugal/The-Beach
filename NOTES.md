@@ -87,7 +87,7 @@ v1 slice.
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
-| W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
+| W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | planned | n/a           | n/a       |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
@@ -433,7 +433,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -532,7 +532,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   keeps 4 shadow splits; no resolution setting yet (later, in a graphics
   settings menu); no threaded island generation, mesh merging, or
   collision off far away (collision and per-frame scripts measured no
-  cost). Tried and reverted (W09): drawing only the ocean's visible side
+  cost). The clouds (W09) have no draw distance: they wrap round an 800 m
+  square, so the far corners are past the fog. Tried and reverted (W09): drawing only the ocean's visible side
   (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
   +0.7 ms on another.
 
@@ -758,6 +759,7 @@ The water level is y = 0.
   triangle by height: under the water the sea floor's (`Seabed.colour`,
   W08), then wet sand, sand, grass on dune tops. The
   colours are sRGB (`vertex_color_is_srgb`).
+- *Torches* (W09): four night lights round the beach (`Island.torches`).
 - *Coarse drop-off* (user's decision, 2026-10-07, for the seabed under
   the then opaque water; Architecture → Performance). The grid (about
   80 m out from the middle, to cover the drop-off) is cut into blocks of
@@ -798,9 +800,11 @@ world space (about ±0.35 m, 14 m long) and lights each triangle flat from
 screen-space derivatives; wave crests are lighter. The plane follows the
 camera in whole cells (`ocean.gd`), so the waves don't jump when it
 moves. Its edge is hidden by depth fog (`world/world.tscn`) that is
-complete at 390 m, in the same colour as the sky's horizon and ground,
-so the horizon is seamless. Since W08 the water is see-through, tinted
-by depth (see W08). Plain enough for the Compatibility renderer.
+complete at 390 m, in the same colour as the sky's horizon, so the
+horizon is seamless (since W09 that colour follows the hour and the
+weather). Since W08 the water is see-through, tinted by depth (see W08);
+since W09 wind makes the waves faster and a little higher, and rain
+draws rings on the water (see W09). Plain enough for the Compatibility renderer.
 
 ### W03 Player movement
 *Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
@@ -1265,7 +1269,8 @@ chosen as offered):*
 - *Under the water* (`Underwater`, `world/ocean/underwater.gd`, made by
   `world.gd`): while the camera is below the surface, the fog turns blue
   and ends at 70 m, covering the sky too; above it, the world's fog comes
-  back as it was.
+  back as it was (W09 changes it through `set_above`, and darkens the
+  underwater fog by night).
 - *Swimming* (`Player`, W03): with the feet more than 1.3 m under the
   water (`swim_depth`) the player swims: no gravity, and W A S D move
   toward where the camera looks (so looking down and pressing W dives),
@@ -1371,7 +1376,7 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   direction, fading over 0.3 s. Its `lightning` signal is the hook for a
   thunder sound.
 - *Clouds* (`Clouds`, `clouds.gd`): 40 low-poly clumps (flattened
-  six-sided blobs, 60 to 130 m long) 80 to 120 m up, drifting with the
+  six-sided blobs, about 80 to 170 m long) 80 to 120 m up, drifting with the
   wind (2 to 12 m/s, one random direction per run) and wrapping round
   an 800 m square around the camera. Cover sets how many show (cloud i
   grows in as cover passes i/40); storms turn them grey.
@@ -1430,7 +1435,8 @@ solid collision box and a `ChatZone` (`Area3D`, radius 2.5 m) that signals
 when the player walks in or out (C01), and a `MessageAnchor` above its head
 where its message bubble floats (C02). It joins the `orchestrators` group.
 One is made per session, in the middle of its island, by `SessionIslands`
-(W01), with `session_id` set to the session it belongs to.
+(W01), with `session_id` set to the session it belongs to. A lamp on its
+desk lights up at night (W09).
 
 ### A02 Subagents
 *Placeholder built (v1, 2026-09-30). Scope: core* (only the generic agent
