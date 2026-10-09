@@ -88,7 +88,7 @@ v1 slice.
 | W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
-| W10 | Island biomes                             | planned | n/a           | n/a       |
+| W10 | Island biomes                             | designed | n/a           | n/a       |
 | W11 | Crouch and slide                          | planned | n/a           | n/a       |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
@@ -1406,13 +1406,26 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   Architecture → Performance.
 
 ### W10 Island biomes
-*Planned (user's request, 2026-10-07).* Islands of other kinds besides
-today's beach (W01): forests, mountains and more. Some stand at
-different heights, so connecting islands of different heights has to be
-worked out with bridges (W06, built as a general "connect regions"
-system for this). Not a provider feature: world only. Undesigned: which
-biomes, what picks an island's biome (random, the project, the
-cluster), and whether a cluster mixes them.
+*Designed (2026-10-08), being built. Scope: core (world only).*
+Islands of other kinds besides today's beach (W01), some at different
+heights, joined by W06's bridges (user's request, 2026-10-07).
+
+*Decided (user's, 2026-10-08):*
+- *Biomes:* beach (today's), forest, mountain, snowy, desert/savanna
+  (rejected: a smaller first set).
+- *Picked per island in the sessions menu:* a biome row next to the
+  cluster selector, used by New session and Resume; its default,
+  "Random", rolls one for each island, so clusters mix (rejected: one
+  biome per cluster; a default from the repository's name or the beach).
+  Nothing is remembered, like clusters (W05).
+- *Heights:* a bridge meets each island at that island's own edge
+  height, so islands of different heights meet across their bridges;
+  gentle differences stay ramps, and past the ramp's limit the bridge
+  gets steps, still railed (rejected: every island keeping a low beach
+  for its bridges; steeper ramps only).
+- *Props:* trees, pines, rocks and the like are made in code, low-poly
+  placeholders like the islands and bridges, until there's art
+  (rejected: Kenney's Nature Kit).
 
 ### W11 Crouch and slide
 *Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
@@ -3501,7 +3514,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W10 island biomes; then W11, then a settings menu
+**Current focus:** W10 island biomes (designed, being built on
+`w10-island-biomes`); then W11, then a settings menu
 with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
 that order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
