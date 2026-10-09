@@ -1,44 +1,24 @@
-LIVE CHECK: W09 day, night, weather
+LIVE CHECK: C09 debug commands,
+and W09's leftover steps
   godot --path . -- --sidecar-dev-fake --checklist
-Add flags as each step says, e.g.
-  ... --checklist --hour 17.5
-Check both renderers if you can:
-add --rendering-method
-gl_compatibility for the second.
 
-1. No flags: mid-morning, sun up in
-   the south-east, a clear sky.
-   Same look as before W09?
-2. --hour 17.3, face west (the sun):
-   sky gold/orange at the horizon,
-   blue above. Sunset look right?
-   Watch a few minutes: the sun
-   sets, the moon rises opposite.
-3. --hour 23: moonlit night, stars.
-   Can you walk and see well
-   enough? Too dark, too bright?
-4. Tab > New session... > a folder,
-   at night (--hour 23): torches on
-   its beach, a lamp on the desk.
-   Island readable from afar?
-   Chat bubble and chat panel read
-   as well as by day?
-5. Swim under at night: dark blue,
-   the floor dim, not glowing.
-6. --weather cloudy, then rain:
-   clouds, rain streaks, rings on
-   the water. Dive: no rain below.
-7. --weather windy: waves faster,
-   but your eyes stay above them
-   when floating?
-8. --weather storm: dark grey sky,
-   heavy rain, a soft flash with a
-   distant bolt every 10-20 s.
-   Never a white-out? Too faint?
-   Try it at night too (--hour 23).
-9. --day-minutes 2: a whole day in
-   2 minutes. Dawn and dusk smooth,
-   no jumps when the sun and moon
-   swap at the horizon?
-10. Smooth? Compare frame rate with
-   main, by day and in a storm.
+1. Press /: a line at the bottom
+   left with "/" in it. Esc closes.
+2. /help: lists the commands?
+3. /time set sunset, face west:
+   sunset look right? /time set
+   night: moonlit, stars, torches
+   and desk lamps lit?
+4. /time speed 2m: a whole day in
+   2 minutes. /time speed default.
+5. /weather cloudy, rain, windy,
+   storm in turn: clouds, rain and
+   rings, faster waves, lightning
+   10-20 s apart? Dive in the rain:
+   none under water?
+6. /lightning in clear weather:
+   a soft flash and a far bolt?
+7. /weather auto, /weather query.
+8. Up/Down bring back commands?
+9. Chat box: "/" still types
+   into your message?

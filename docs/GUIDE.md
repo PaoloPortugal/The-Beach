@@ -24,6 +24,7 @@ here; each section is labelled with its feature ID.
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [When you need to sign in again (S06)](#when-you-need-to-sign-in-again-s06)
+- [Debug commands (C09)](#debug-commands-c09)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
 
@@ -601,6 +602,31 @@ you type in the terminal counts too: after it, the text put back goes,
 so copy it first if you still want to send it. (Messages you send while
 Claude is busy wait for its turn to end, so they don't get this
 warning.)
+
+## Debug commands (C09)
+
+For trying things out while developing, in builds made for debugging
+(running from the Godot editor or a debug export; not in a release).
+Press **/** while walking around: a line opens at the bottom left with
+the "/" already typed. Type the rest and press **Enter** to run it, or
+**Esc** to close it. **Up** and **Down** bring back what you ran before.
+The answer shows above the line for a few seconds.
+
+- **/time set noon** jumps to a time of day: `midnight`, `sunrise`,
+  `day` (the mid-morning you start at), `noon`, `sunset`, `night`, or
+  minutes and seconds from midnight on the 28-minute day, like `7m`
+  (sunrise), `21m` (sunset) or `10m22s`.
+- **/time add 2m** moves the time on; **/time query** says what time it
+  is; **/time speed 4m** makes a whole day last 4 minutes, and
+  **/time speed default** puts it back to 28.
+- **/weather storm** changes the weather at once (`clear`, `cloudy`,
+  `rain`, `windy`, `storm`) and keeps it that way; **/weather auto** lets
+  it change by itself again; **/weather query** says what it is.
+- **/lightning** makes lightning strike now, whatever the weather.
+- **/help** lists them.
+
+These are separate from the chat: a "/" you type in the chat box is
+part of your message to the session, as before.
 
 ## The sidecar (S01)
 
