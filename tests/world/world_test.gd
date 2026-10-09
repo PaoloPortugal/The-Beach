@@ -9,7 +9,8 @@ extends SceneTree
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
-## attention cue (A05); the day and night and the weather (W09).
+## attention cue (A05); the day and night and the weather (W09); the
+## debug commands (C09).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -354,6 +355,7 @@ func _scene() -> void:
 	_check(player.global_position.y > start_y + 0.8, "jumps")
 
 	await _sky(world, player)
+	await _commands(world, player)
 	await _swimming(world, player)
 	await _menu(world, player)
 	await _sessions(world, player)
@@ -514,6 +516,60 @@ func _sky(world: Node3D, player: Player) -> void:
 	player.global_position = player.spawn_point
 	player.velocity = Vector3.ZERO
 	await _frames(30)
+
+
+# C09: the debug commands and their console.
+func _commands(world: Node3D, player: Player) -> void:
+	var day: DayNight = world.day_night
+	var weather: Weather = world.weather
+	var was_time := day.time
+	var was_kind := weather.kind
+	var was_changes := weather.changes
+	_check(DebugCommands.parse_time("7m") == 420.0 and DebugCommands.parse_time("30s") == 30.0 and DebugCommands.parse_time("10m22s") == 622.0 and DebugCommands.parse_time("noon") == 840.0, "C09: times as 7m, 30s, 10m22s or a name")
+	_check(DebugCommands.parse_time("x") < 0.0 and DebugCommands.parse_time("") < 0.0 and DebugCommands.parse_time("7") < 0.0, "C09: anything else isn't a time")
+	var c := DebugCommands.new(day, weather)
+	var hours := {"0s": 0.0, "7m": 6.0, "noon": 12.0, "21m": 18.0, "midnight": 0.0}
+	var ok := true
+	for t in hours:
+		c.run("/time set " + t)
+		ok = ok and is_equal_approx(fposmod(day.hour() + 0.001, 24.0), hours[t] + 0.001)
+	_check(ok, "C09: /time set counts from midnight: 7m sunrise, 14m noon, 21m sunset")
+	c.run("/time set noon")
+	var reply := c.run("/time add 7m")
+	_check(is_equal_approx(day.hour(), 18.0) and reply.contains("21m 00s"), "C09: /time add moves on (%s)" % reply)
+	_check(c.run("/time query").begins_with("It's 21m 00s") and c.run("/time set day").contains("10m 22s"), "C09: /time query, and day is the launch's mid-morning")
+	_check(c.run("/time set later").begins_with("Not a time"), "C09: a bad time is refused")
+	c.run("/time speed 2m")
+	var fast := day.cycle
+	c.run("/time speed default")
+	_check(fast == 120.0 and day.cycle == DayNight.CYCLE, "C09: /time speed and back to default")
+	reply = c.run("/weather storm")
+	_check(weather.kind == Weather.Kind.STORM and weather.storm == 1.0 and not weather.changes and reply.contains("held"), "C09: /weather sets it now and holds it")
+	_check(c.run("/weather query") == "The weather is storm, held." and c.run("/weather fog").begins_with("Unknown weather"), "C09: /weather query, and an unknown kind is refused")
+	c.run("/weather auto")
+	_check(weather.changes, "C09: /weather auto lets it change again")
+	c.run("/weather clear")
+	c.run("/lightning")
+	await _frames(3)
+	_check(weather.flash > 0.0 and world.lightning_bolt.visible, "C09: /lightning strikes, even in clear weather")
+	_check(c.run("/fly").begins_with("Unknown command") and c.run("/help").begins_with("Commands:"), "C09: unknown commands, and /help")
+
+	var console: DebugConsole = world.debug_console
+	_check(console != null, "C09: the console is there in a debug build")
+	_press("debug_console")
+	await _frames(2)
+	_check(console.is_open() and not player.controls_enabled, "C09: T opens the console and stops the player")
+	_press("ui_cancel")
+	await _frames(2)
+	_check(not console.is_open() and player.controls_enabled, "C09: Esc closes it")
+	console.open()
+	console.submit("/time set noon")
+	_check(not console.is_open() and player.controls_enabled and console.reply_text().begins_with("Time set to 14m 00s"), "C09: Enter runs the line, closes and shows the reply")
+	day.time = was_time
+	day.apply()
+	weather.set_kind(was_kind, true)
+	weather.changes = was_changes
+	await _until(func() -> bool: return not world.lightning_bolt.visible, 2.0)
 
 
 # W08: swimming, the seabed, the view under the water, and the ways back to
