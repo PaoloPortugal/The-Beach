@@ -967,8 +967,9 @@ and sessions in the same repository are grouped automatically.
   - **A near wedge growing into a far cluster's area** is left alone for
     now and the near future: it takes a huge number of sessions (W06 →
     Known limits; Watch items).
-  - *Mine (2026-10-09), for the user to confirm:* a far cluster's first
-    island goes on rings from 2000 m, about 1200 m apart, so far
+  - *Mine (2026-10-09), confirmed by the user the same day:* a far
+    cluster's first island goes on rings from 2000 m, about 1200 m
+    apart, so far
     clusters' areas only touch at about 70 islands each; its later
     islands take the nearest free spots of a grid 100 m apart round its
     first one, on the side away from the platform.
@@ -3761,9 +3762,8 @@ settings menu with graphics settings (it gets
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
 not to the platform; the bridges test's crowd (178 sessions on CI, 311
-with `-- --crowd`). Its live check (`tests/live/checklist.txt`, with the
-layout demo) and my two far-cluster picks are still for the user to
-confirm.
+with `-- --crowd`). The user confirmed my two far-cluster picks; its live
+check (`tests/live/checklist.txt`, with the layout demo) is still to do.
 **Merged to `main` (2026-10-09), approved by the user: W10 island biomes
 and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
 2026-10-08-c09-commands): five kinds of island picked in the sessions
