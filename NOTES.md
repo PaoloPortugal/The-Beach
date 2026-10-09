@@ -103,7 +103,7 @@ v1 slice.
 | C06 | Permission mode control                   | built   | C06, C07      | `chat/permission_modes.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/hooks.ts` |
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
-| C09 | Debug commands                            | planned | n/a           | n/a       |
+| C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -1397,7 +1397,7 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   `DayNight`) and fade out 60 to 90 m from the camera; no shadows.
 - *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
   it: `changes` off) and `--day-minutes <n>`, after `--`. C09's debug
-  commands will replace them.
+  commands do the same while the game runs.
 - *Performance* (Architecture → Performance): the sky's uniforms are
   only set when a change would show (a 1/255 step, about once a second;
   each set redraws the sky's reflection map, which measured 1.6-1.9 ms a
@@ -2208,8 +2208,8 @@ How it works:
   message); `clear` starts the counts over, keeping the limits.
 
 ### C09 Debug commands
-*Planned (user's request, 2026-10-08), for the developer while
-debugging; not scheduled.* Typed commands in the style of Minecraft's,
+*Built (2026-10-08). Scope: core (world only).* For the developer while
+debugging (user's request, 2026-10-08). Typed commands in the style of Minecraft's,
 to change the world's state on the spot, e.g. `/weather <kind>` and
 `/time set <day, night, {seconds}s, {minutes}m>` (W09). A number with
 `s` or `m` jumps to that point of the 28-minute day, counted from
@@ -2218,10 +2218,41 @@ midnight (user's, 2026-10-08): `0s` midnight, `7m` sunrise, `14m` noon,
 time, mid-morning, is about `10m 22s`. Names and words
 are mine to pick (user's, 2026-10-08): the weather kinds will match
 W09's. Scope: core (world only). They'd take over from W09's dev flags
-(`--hour`, `--weather`, `--day-minutes`). Undesigned: where you type
-them (a console key, or the chat box with a leading `/`, which would
-clash with commands meant for the session), the full command list, and
-whether they ship in public builds or only in debug builds.
+(`--hour`, `--weather`, `--day-minutes`).
+
+*Decided by me while the user was away (2026-10-08), for the user to
+confirm* (they asked me to build it overnight and take the open
+decisions myself): where you type them (a console of its own, opened
+with `/` like Minecraft's chat, not the chat box, whose slash commands
+are the session's); the command list below; debug builds only
+(`OS.is_debug_build()`: the editor, tests and debug exports, not
+release exports); the dev flags stay for now (the live checklists use
+them); `/weather` jumps at once and holds the kind; `day` is the
+launch's mid-morning and `night` halfway from sunset to midnight.
+
+**How it works.**
+- *Commands* (`DebugCommands`, `world/debug/debug_commands.gd`, given
+  `DayNight` and `Weather`): `run(line)` returns the reply.
+  - `/time set <t>` jumps to a point of the day, `/time add <t>` moves
+    on; `<t>` is `7m`, `30s`, `10m22s` or a name: `midnight` (0s),
+    `sunrise` (7m), `day` (10m 22s), `noon` (14m), `sunset` (21m),
+    `night` (24m 30s). Counted on W09's 28-minute day, as a point of it,
+    so they still fit after `/time speed`.
+  - `/time query` says the time, day or night, and the day's length;
+    `/time speed <t>` sets how long a whole day lasts, `default` back
+    to 28m.
+  - `/weather <clear|cloudy|rain|windy|storm>` sets it at once and
+    holds it (`changes` off); `/weather auto` lets it change again;
+    `/weather query`.
+  - `/lightning` strikes now, storm or not, even with lightning off
+    (`Weather.strike`, which the storm's own strikes use too).
+  - `/help`; anything else gets "Unknown command" and the list.
+- *Console* (`DebugConsole`, `debug_console.gd`, a `CanvasLayer` made
+  by `world.gd` in debug builds): the `debug_console` action (`/`) opens
+  a line at the bottom left with "/" in it while you can move; Enter
+  runs it and closes, Esc closes; Up and Down go through what you ran.
+  While open you don't move. The reply shows above it for 6 s.
+  Placeholder UI, like all UI.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -3233,6 +3264,8 @@ others: `--hour <0-24>` starts at that time (6 sunrise, 18 sunset),
 `--weather <clear|cloudy|rain|windy|storm>` fixes the weather, and
 `--day-minutes <n>` makes a whole day and night last n minutes, e.g.
 `godot --path . -- --hour 19 --weather storm --day-minutes 4`.
+While it runs (debug builds), `/` opens C09's debug commands: `/time
+set noon`, `/weather storm`, `/lightning`, `/help`.
 
 The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`.
@@ -3285,7 +3318,12 @@ easing and bounds, a storm's lightning 10-20 s apart with a flash no
 brighter than 0.6, none with lightning off or without a storm, the kind
 kept with changes off, clouds by cover, rain in a storm and none under
 the water, the bolt far off and gone in a moment, and no shadows from
-clouds, rain or the bolt), swimming (W08: floating at the surface, Space
+clouds, rain or the bolt), the debug commands (C09: times as 7m, 30s,
+10m22s or a name and nothing else, /time set counting from midnight,
+add, query and speed, /weather setting and holding a kind, query, auto
+and an unknown kind refused, /lightning in clear weather, unknown
+commands and /help; the console opened by /, closed by Esc, Enter
+running a line and showing the reply), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
 below the platform's deck, back in), back by the menu's "Platform" and
@@ -3501,8 +3539,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W10 island biomes; then W11, then a settings menu
-with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
+**Current focus:** W10 island biomes (built on `w10-island-biomes`,
+waiting for the user's live check) and C09 debug commands (built on
+`c09-debug-commands`, waiting for the user's word on my picks and a
+live check; dev log 2026-10-08-c09-commands); then W11, then a settings
+menu with graphics settings (it gets `Weather.lightning_enabled`'s switch), in
 that order (user's, 2026-10-08).
 **Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
 cycle and weather** (dev log 2026-10-08-w09-day-night): a 28-minute day
