@@ -13,6 +13,7 @@ here; each section is labelled with its feature ID.
 - [Clusters (W05)](#clusters-w05)
 - [Bridges and the maps (W06)](#bridges-and-the-maps-w06)
 - [Moving around (W03)](#moving-around-w03)
+- [Crouching and sliding (W11)](#crouching-and-sliding-w11)
 - [Swimming and the sea floor (W08)](#swimming-and-the-sea-floor-w08)
 - [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
@@ -284,6 +285,7 @@ You see the world through your character's eyes.
 | Walk | W A S D |
 | Sprint | hold Shift |
 | Jump | Space |
+| Crouch, or slide at a sprint | hold Ctrl |
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
@@ -300,6 +302,23 @@ The keys follow their position on the keyboard, so on other layouts
 Jumps are forgiving: pressing jump just before you land, or just after
 you step off an edge, still counts. Walk into the sea and once it's too deep to stand, you
 swim (below).
+
+## Crouching and sliding (W11)
+
+Hold Ctrl to crouch: you get lower (to about 60 % of your height) and
+walk at half speed. Let go to stand up again. Under something low you
+stay crouched until you've walked out from under it.
+
+Crouch while sprinting and you slide: a burst of speed that fades to a
+crouch in about a second on flat ground. On gentle downhill slopes a slide
+lasts longer, and from about 13° it speeds up; uphill it stops sooner.
+You can steer it a little: hold W and turn with the mouse. Let go of Ctrl to get up.
+
+Jump during a slide for a long, fast jump: you keep the slide's speed in
+the air. Land still holding Ctrl and you slide on, but without a new
+burst; the next burst comes after a moment on the ground.
+
+In the water, Ctrl swims down instead.
 
 ## Swimming and the sea floor (W08)
 

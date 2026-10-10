@@ -30,7 +30,7 @@ only then is the new cluster sent far off."
   now and the near future, since it takes a huge number of sessions.
   It's recorded as a known limit (W05, W06) and a watch item.
 
-## Mine, for the user to confirm
+## Mine, confirmed by the user (2026-10-09)
 
 - **Where far clusters start:** on rings from 2000 m, about 1200 m
   apart both along a ring and between rings (10 on the first, 16 on the
