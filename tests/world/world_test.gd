@@ -675,10 +675,10 @@ func _commands(world: Node3D, player: Player) -> void:
 	var console: DebugConsole = world.debug_console
 	_check(console != null, "C09: the console is there in a debug build")
 	_press("debug_console")
-	await _settle() # input is handled in the main loop, not per physics step
+	await _until(func() -> bool: return console.is_open() and not player.controls_enabled, 2.0)
 	_check(console.is_open() and not player.controls_enabled, "C09: T opens the console and stops the player")
 	_press("ui_cancel")
-	await _settle() # input is handled in the main loop, not per physics step
+	await _until(func() -> bool: return not console.is_open() and player.controls_enabled, 2.0)
 	_check(not console.is_open() and player.controls_enabled, "C09: Esc closes it")
 	console.open()
 	console.submit("/time set noon")
@@ -825,7 +825,10 @@ func _menu(world: Node3D, player: Player) -> void:
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
 	_check(menu.is_open() and not player.controls_enabled and not menu.hint_visible(), "Tab opens the sessions menu and pauses the player")
-	_check(menu.entries()[0] == "+ New session…" and "Resume" in menu.entries(), "with New session and a list to resume")
+	_check(menu.page() == SessionsMenu.Page.MAIN and menu.entries().slice(0, 2) == ["+ Add session…", "⌂ Platform"] and not menu.pickers_visible(), "its first page: Add session and the platform, no cluster or biome")
+	_check(menu.listings_asked == 0 and not menu.entries().has("Resume"), "S04: and no stored sessions, so the sidecar isn't asked for them")
+	menu.choose("+ Add session")
+	_check(menu.page() == SessionsMenu.Page.ADD and menu.entries() == ["+ New session…", "▸ Resume a session…"] and menu.pickers_visible(), "Add session: New or Resume, with the cluster and biome")
 	var kinds: Array[String] = ["Random"]
 	for k: int in Biome.NAMES:
 		kinds.append(Biome.NAMES[k])
@@ -837,16 +840,26 @@ func _menu(world: Node3D, player: Player) -> void:
 	_check(menu.picker().visible, "New session opens the folder picker, in the game window")
 	menu.picker().get_cancel_button().pressed.emit()
 	await _frames(2)
-	_check(menu.is_open() and not menu.picker().visible and not player.controls_enabled, "cancelling it goes back to the menu")
+	_check(menu.is_open() and menu.page() == SessionsMenu.Page.ADD and not menu.picker().visible and not player.controls_enabled, "cancelling it goes back to the menu")
+	menu.choose("▸ Resume a session")
+	_check(menu.page() == SessionsMenu.Page.RESUME and menu.listings_asked == 1 and menu.pickers_visible() and menu.biome_choice() == Biome.Kind.MOUNTAIN, "S04: Resume asks for the stored sessions, the choices kept")
+	_press("ui_cancel")
+	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.ADD, 2.0)
+	_check(menu.is_open() and menu.page() == SessionsMenu.Page.ADD, "Esc goes back a page: Resume to Add session")
+	_press("ui_cancel")
+	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.MAIN, 2.0)
+	_check(menu.is_open() and menu.page() == SessionsMenu.Page.MAIN and not menu.pickers_visible(), "then to the first page")
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
-	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "Esc closes the menu")
+	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "where Esc closes the menu")
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.biome_choice() == Biome.RANDOM, "W10: the biome selector is back to Random each time")
+	_check(menu.page() == SessionsMenu.Page.MAIN and menu.biome_choice() == Biome.RANDOM, "it opens on its first page, the biome back to Random each time")
+	menu.choose("+ Add session")
+	menu.choose("▸ Resume a session")
 	_press("sessions_menu")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
-	_check(not menu.is_open() and player.controls_enabled, "and so does Tab")
+	_check(not menu.is_open() and player.controls_enabled, "Tab closes it from any page")
 	# Choosing a folder ends in the launcher's create().
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
@@ -864,21 +877,30 @@ func _menu(world: Node3D, player: Player) -> void:
 	var new_session := func() -> void:
 		_press("sessions_menu")
 		await _until(func() -> bool: return menu.is_open(), 2.0)
+		menu.choose("+ Add session")
 		menu.choose("+ New session")
 		await _frames(2)
 	await new_session.call()
 	_check(pickers_shown[0] == 1 and menu.waiting_for_picker() and menu.is_open() and not menu.picker().visible, "system picker: the menu waits for it, with a note")
 	answer[0].call(false, PackedStringArray(), 0)
 	await _until(func() -> bool: return not menu.waiting_for_picker(), 2.0)
-	_check(menu.is_open() and not menu.waiting_for_picker() and not player.controls_enabled, "system picker: cancelling it goes back to the menu")
+	_check(menu.is_open() and menu.page() == SessionsMenu.Page.ADD and not menu.waiting_for_picker() and not player.controls_enabled, "system picker: cancelling it goes back to the menu")
 	menu.choose("+ New session")
 	await _frames(2)
 	_press("ui_cancel")
-	await _until(func() -> bool: return not menu.is_open(), 2.0)
-	_check(not menu.is_open() and not menu.waiting_for_picker() and player.controls_enabled, "system picker lost behind the game: Esc gives the controls back")
+	await _until(func() -> bool: return not menu.waiting_for_picker(), 2.0)
+	_check(menu.is_open() and menu.page() == SessionsMenu.Page.ADD and not menu.waiting_for_picker() and menu.pickers_visible() and not player.controls_enabled, "system picker lost behind the game: Esc stops waiting, back on Add a session")
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir()]), 0)
 	await _settle()
-	_check(not menu.launcher.busy() and menu.notice_text() == "" and not menu.is_open(), "and its late answer is ignored")
+	_check(not menu.launcher.busy() and menu.notice_text() == "" and menu.is_open() and menu.page() == SessionsMenu.Page.ADD, "and its late answer is ignored")
+	menu.choose("+ New session")
+	await _frames(2)
+	menu.get_node("Panel/Layout/Waiting/Cancel").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and not menu.waiting_for_picker() and player.controls_enabled, "and its Cancel closes the menu and gives the controls back")
+	answer[0].call(true, PackedStringArray([OS.get_user_data_dir()]), 0)
+	await _settle()
+	_check(not menu.launcher.busy() and menu.notice_text() == "" and not menu.is_open(), "and that late answer is ignored too")
 	await new_session.call()
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir().path_join("no-such-folder")]), 0)
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
@@ -1205,7 +1227,10 @@ func _sessions(world: Node3D, player: Player) -> void:
 	player.global_position = on_island
 	await _frames(10)
 	# A session started meanwhile: its island rises, and you're taken there
-	# once it's up.
+	# once it's up. A beach: a mountain starts about 100 m down (W10), so
+	# facing it from the platform, its aim point is on the 64x64 headless
+	# window's on-screen edge.
+	islands.choose_biome("h3", Biome.Kind.BEACH)
 	store.apply({"type": "session.created", "session": _snapshot("h3")})
 	var h3 := islands.island("h3")
 	_check(islands.is_rising("h3") and h3.position.y < -1.0, "a new session's island rises out of the sea")
@@ -1910,9 +1935,11 @@ func _live(world: Node3D, player: Player) -> void:
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var chat: ChatController = world.get_node("ChatController")
 	var sidecar: SidecarClient = root.get_node("Sidecar")
-	# The real way in: Tab, New session, the picker's own "select" button.
+	# The real way in: Tab, Add session, New session, the picker's own
+	# "select" button.
 	_press("sessions_menu")
 	await _until(func() -> bool: return menu.is_open(), 2.0)
+	menu.choose("+ Add session")
 	menu.choose("+ New session")
 	await _frames(2)
 	menu.picker().current_dir = OS.get_user_data_dir()
@@ -1959,8 +1986,11 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.status_text().begins_with("Your message hasn't reached") and panel.draft() == "lost", "live: one never picked up says so, its text back in the box")
 	panel.set_draft("hello again")
 	panel.send()
-	await _until(func() -> bool: return panel.shown_messages()[-1].contains("hello again") and world.store.orchestrator(id).get("state") == "idle", 8.0)
-	await _frames(40)
+	# Your own message arrives before the turn starts: wait for the reply's
+	# end, then past the pickup timeout, so a warning would be back by now.
+	await _until(func() -> bool: return panel.shown_messages()[-1].contains("> hello again") and panel.shown_messages()[-1].contains("(This is the fake provider.)") and world.store.orchestrator(id).get("state") == "idle", 8.0)
+	await create_timer(panel.pickup_timeout + 0.2).timeout
+	await _settle()
 	_check(panel.status_text() == "" and panel.shown_messages()[-1].contains("hello again"), "live: the next one arrives, and the warning goes")
 	# Busy (here, waiting on a permission), the provider queues a message for
 	# after its turn: not watched.
@@ -2094,12 +2124,19 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(not is_instance_valid(ended), "live: and sinks once you've left")
 
 	# S04: resume a stored session from the menu.
+	var is_listed := func(title: String) -> bool:
+		return menu.entries().any(func(e: String) -> bool: return e.begins_with(title))
 	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open() and menu.entries().any(func(e: String) -> bool: return e.begins_with("Add a save system")), 5.0)
+	await _until(func() -> bool: return menu.is_open(), 2.0)
+	var lists_before := menu.listings_asked
+	menu.choose("+ Add session")
+	_check(menu.listings_asked == lists_before, "live: the menu and Add session don't ask for the stored sessions")
+	menu.choose("▸ Resume a session")
+	await _until(func() -> bool: return is_listed.call("Add a save system"), 5.0)
 	var listed := menu.entries()
-	_check(listed.size() == 6 and listed[3].begins_with("Fix the player") and listed[4].begins_with("Add a save system") and listed[4].contains("my-game") and listed[4].ends_with("1 d ago"), "live: stored sessions listed newest first, with project and age")
+	_check(menu.listings_asked == lists_before + 1 and listed.size() == 3 and listed[0].begins_with("Fix the player") and listed[1].begins_with("Add a save system") and listed[1].contains("my-game") and listed[1].ends_with("1 d ago"), "live: Resume lists them newest first, with project and age")
 	menu.search("SAVE")
-	_check(menu.entries() == ["+ New session…", "⌂ Platform", "Resume", listed[4]], "live: the search filters them")
+	_check(menu.entries() == [listed[1]], "live: the search filters them")
 	menu.choose("Add a save system")
 	_check(not menu.is_open() and menu.notice_text() == "Starting…", "live: choosing one resumes it")
 	await _until(func() -> bool: return not world.store.sessions.is_empty(), 5.0)
@@ -2114,9 +2151,16 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
 	_press("sessions_menu")
-	await _until(func() -> bool: return menu.entries().size() == 8, 5.0)
+	await _until(func() -> bool: return menu.entries().size() == 5, 5.0)
 	var now := menu.entries()
-	_check(now[2] == "Running" and now[3].begins_with("▸ ") and now[4].begins_with("Add a save system") and not now.slice(5).any(func(e: String) -> bool: return e.begins_with("Add a save")), "live: now under Running, in its cluster, not Resume")
+	_check(now[2] == "Running" and now[3].begins_with("▸ ") and now[4].begins_with("Add a save system"), "live: now under Running, in its cluster")
+	menu.choose("+ Add session")
+	menu.choose("▸ Resume a session")
+	await _until(func() -> bool: return is_listed.call("Fix the player"), 5.0)
+	_check(is_listed.call("Fix the player") and not is_listed.call("Add a save system"), "live: and not under Resume")
+	_press("ui_cancel")
+	_press("ui_cancel")
+	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.MAIN, 2.0)
 	player.respawn()
 	menu.choose("Add a save system")
 	await _frames(5)

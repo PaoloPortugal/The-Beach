@@ -81,5 +81,9 @@ reading; look things up by feature ID.
 | 2026-10-08 | [W09: day, night and the weather](2026-10-08-w09-day-night.md) | W09, W02, W08, W01, A01 |
 | 2026-10-08 | [W10: kinds of island](2026-10-08-w10-biomes.md) | W10, W01, W03, W06, W04, W09, A04, S03 |
 | 2026-10-08 | [C09: debug commands](2026-10-08-c09-commands.md) | C09, W09 |
+| 2026-10-09 | [Three flaky world-test checks: the missing folder, the S06 warning, W04's arrow](2026-10-09-world-test-waits.md) | tooling |
+| 2026-10-09 | [C09's console checks waited on physics frames](2026-10-09-c09-console-check-flaky.md) | tooling |
 | 2026-10-09 | [W05/W06: clusters that grow without limit](2026-10-09-w05-unbounded-clusters.md) | W05, W06 |
+| 2026-10-09 | [S04: Resume on its own page, and a kept listing](2026-10-09-s04-resume-page.md) | S04, S03, W07, W05, W08, W10 |
+| 2026-10-09 | [C08: the short-name tests on a slow Windows runner](2026-10-09-c08-askwindows-flaky.md) | C08, tooling |
 | 2026-10-10 | [W11: crouch and slide](2026-10-10-w11-crouch-slide.md) | W11, W03, W08 |

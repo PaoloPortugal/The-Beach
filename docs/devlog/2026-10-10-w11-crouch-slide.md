@@ -45,19 +45,19 @@ the world (a floor, a bar 1.2 m up, a 20° slope), so the measurements
 don't depend on island terrain. The swim test now presses `crouch` with
 `swim_down`, as the real key does, and checks you don't crouch.
 
-## A flaky check
+## Two flaky checks, already fixed on `main`
 
-The first two runs after reimporting failed W04's "facing it: no arrow",
-a check this branch doesn't touch; the next seven passed, and the
-unchanged branch passed too. The player's height at that moment differed
-between runs (2.0 vs 4.5 m), so it looks like a timing race in that
-check, likely made more visible by the slower runs after an import. Its
-failure message now shows the arrows shown and the positions, so the
-next failure says why.
+While building, W04's "facing it: no arrow" failed twice and C09's "T
+opens the console" failed in a run from Git Bash; neither is touched by
+this branch. I took them for timing races and gave C09's checks
+`_settle()`. Merging `main` showed both were already fixed there
+(2026-10-09-world-test-waits: the arrow failed when the random new
+island was a mountain, which starts deeper; 2026-10-09-c09-console-check-flaky),
+so the merge keeps `main`'s fixes. The arrow check's failure message
+from this branch, which prints what was shown and where, is kept.
 
-The full run from Git Bash then failed C09's "T opens the console" in
-both world suites (it passed from PowerShell). That check pressed T and
-waited two physics frames, but an input event is handled once per
-main-loop iteration, and a slow iteration runs several physics steps
-first: the same race `_settle()` was written for. It and the Esc check
-after it now wait with `_settle()`; three runs from Git Bash passed.
+## Live check
+
+Passed (user's, 2026-10-10: "everything seems alright"), with my picks
+confirmed: the burst's wait counted on the ground only, downhill gaining
+from about 13°, 20 m/s top speed.
