@@ -89,7 +89,7 @@ v1 slice.
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
-| W11 | Crouch and slide                          | planned | n/a           | n/a       |
+| W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -828,7 +828,8 @@ buffering.
 **How it works.** `Player` (`world/player/`): a capsule 1.8 m tall with
 the camera at 1.6 m (FOV 80). No body is drawn.
 - *Controls.* WASD (physical keys, so they sit in the same place on
-  AZERTY), Shift to sprint, Space to jump, mouse to look (pitch clamped
+  AZERTY), Shift to sprint, Space to jump, Ctrl to crouch and slide
+  (W11), mouse to look (pitch clamped
   just short of straight up and down). The mouse is captured at start; Esc
   frees it and a click captures it again. The input actions are in
   `project.godot`, written by hand: godot-ai can't bind physical keys (dev
@@ -967,8 +968,9 @@ and sessions in the same repository are grouped automatically.
   - **A near wedge growing into a far cluster's area** is left alone for
     now and the near future: it takes a huge number of sessions (W06 →
     Known limits; Watch items).
-  - *Mine (2026-10-09), for the user to confirm:* a far cluster's first
-    island goes on rings from 2000 m, about 1200 m apart, so far
+  - *Mine (2026-10-09), confirmed by the user the same day:* a far
+    cluster's first island goes on rings from 2000 m, about 1200 m
+    apart, so far
     clusters' areas only touch at about 70 islands each; its later
     islands take the nearest free spots of a grid 100 m apart round its
     first one, on the side away from the platform.
@@ -1601,11 +1603,68 @@ from screenshots).
   draw distance.
 
 ### W11 Crouch and slide
-*Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
+*Built (2026-10-10). Scope: core* (user's request, 2026-10-08). Crouch, and
 slide when crouching at a run, extending W03's movement towards parkour.
-Not a provider feature: world only. Likely on Ctrl, which sinks you in
-the water (W08). Undesigned: crouch speed and height, the slide's speed,
-length and slopes, and whether you can jump out of a slide.
+Not a provider feature: world only.
+
+*Decided (user's, 2026-10-09; my recommendations, all taken):*
+- **Key: hold Ctrl.** Ctrl already swims down in the water (W08), which
+  never overlaps with standing on ground, so one key does both (rejected:
+  toggling Ctrl, slower for quick slides; hold C, less standard and easy
+  to miss mid-sprint).
+- **Crouch: 1.1 m, 2.5 m/s.** The body goes from 1.8 m to 1.1 m and the
+  eyes from 1.6 m to about 0.95 m, eased over about 0.15 s; crouch-walking
+  is half walking speed; you can't stand up under something low
+  (rejected: 1.3 m at 3 m/s, a smaller change; 0.9 m at 2 m/s, close to
+  crawling).
+- **Slide: momentum, slopes matter** (like Apex). Crouching at a sprint
+  gives a burst (about 11 m/s) that fades to crouch speed in about 1 s
+  on flat ground; downhill you keep or gain speed, uphill you stop
+  sooner; you can steer a little (rejected: a fixed short slide, about
+  1 s and 6 m with slopes ignored, which can't grow into parkour; a long,
+  slippery slide, easy to slide off a beach into the sea).
+- **Slide jump: yes, keeping speed.** A jump mid-slide keeps the slide's
+  speed, a long fast jump; a short wait (about 0.5 s) before the next
+  slide stops endless chaining (rejected: a normal jump ending the slide
+  at sprint speed; no jumping until the slide ends).
+
+**How it works** (`Player`, `world/player/player.gd`; the numbers not
+decided above are my picks, exported for tuning).
+- *Key.* A `crouch` action on Ctrl (physical key), beside `swim_down` on
+  the same key, so a settings menu can rebind them apart. Ctrl is read
+  only while the controls are on; with them off (the chat, a menu) you
+  stay as you were.
+- *Crouch.* While held on land (not swimming) the capsule is 1.1 m
+  (`crouch_height`), shrinking from the top, so the feet stay put, and
+  the eyes ease to 0.95 m (`crouch_eye_height`) in 0.15 s (`crouch_ease`).
+  Walking is 2.5 m/s (`crouch_speed`), Shift or not. Letting go stands up
+  only if the standing capsule fits (`test_move` 0.7 m up); else you stay
+  crouched (`crouching`) until there's room. In the water you stand.
+- *Slide* (`sliding`). Starts when crouched on the ground at 6.5 m/s or
+  more (`slide_min_speed`, above walking): pressing Ctrl at a sprint, or
+  landing fast with it held. It starts at 11 m/s (`slide_speed`), or
+  faster if you were. Each frame it slows by 8.5 m/s² (`slide_friction`),
+  gravity along the slope times 4 (`slide_gravity_scale`) speeds it up
+  downhill or slows it uphill (downhill wins from about 13°), turning at
+  most 1.2 rad/s (`slide_turn`) towards where you move, up to 20 m/s
+  (`slide_max_speed`). It ends at crouching speed (then you crouch-walk),
+  on standing up (letting go of Ctrl; under something low you stay
+  crouched, so it slides on), or on leaving the ground.
+- *Slide jump.* Jumping while sliding, or sliding off an edge, keeps the
+  slide's speed in the air: you can steer, but the air doesn't slow you to
+  walking or sprinting speed as it does after a normal jump. On landing,
+  that ends.
+- *No endless chaining.* After a slide, the burst comes back only after
+  0.5 s on the ground (`slide_cooldown`), counted only on the ground. So
+  landing from a slide jump with Ctrl held slides on at the speed you
+  have, without a new burst, and slows; letting go and running for 0.5 s
+  gives the next burst.
+
+Tested in `world_test.gd` (`_crouch_slide`, on test ground with a low bar
+and a 20° slope high above the world): the heights, crouch speed, staying
+crouched under the bar, the burst and its fade in about 1 s, downhill and
+uphill, the slide jump, landing with no new burst, and Ctrl in the water.
+*Live check passed (2026-10-10)* with the user, my picks included.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -3795,10 +3854,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W11 crouch and slide (not designed yet), then a
-settings menu with graphics settings (it gets
-`Weather.lightning_enabled`'s switch), in that order (user's,
+**Current focus:** a settings menu with graphics settings (it gets
+`Weather.lightning_enabled`'s switch), next after W11 (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-10), approved by the user: W11 crouch and
+slide** (dev log 2026-10-10-w11-crouch-slide): hold Ctrl to crouch
+(1.1 m, 2.5 m/s), slide at a sprint with slopes mattering, slide jumps
+keeping speed. Live check passed with the user.
 **Merged to `main` (2026-10-09), approved by the user: C08's flaky
 short-name tests** (dev log 2026-10-09-c08-askwindows-flaky):
 on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
@@ -3827,9 +3889,8 @@ lists anything.
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
 not to the platform; the bridges test's crowd (178 sessions on CI, 311
-with `-- --crowd`). Its live check (`tests/live/checklist.txt`, with the
-layout demo) and my two far-cluster picks are still for the user to
-confirm.
+with `-- --crowd`). The user confirmed my two far-cluster picks; its live
+check (`tests/live/checklist.txt`, with the layout demo) is still to do.
 **Merged to `main` (2026-10-09), approved by the user: W10 island biomes
 and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
 2026-10-08-c09-commands): five kinds of island picked in the sessions

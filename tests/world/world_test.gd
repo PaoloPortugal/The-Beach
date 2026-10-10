@@ -354,6 +354,7 @@ func _scene() -> void:
 	await _frames(15)
 	_check(player.global_position.y > start_y + 0.8, "jumps")
 
+	await _crouch_slide(player)
 	await _sky(world, player)
 	await _commands(world, player)
 	await _swimming(world, player)
@@ -366,6 +367,121 @@ func _scene() -> void:
 
 	world.queue_free()
 	await _frames(1)
+
+
+# W11: crouching and sliding, on test ground high above the world so the
+# slopes are known: a flat floor with a low bar over it, and a slope.
+func _crouch_slide(player: Player) -> void:
+	var arena := Node3D.new()
+	arena.position = Vector3(0, 500, 0)
+	root.add_child(arena)
+	_test_box(arena, Vector3(0, -0.5, -50), Vector3(20, 1, 120), 0.0) # the floor
+	_test_box(arena, Vector3(0, 1.45, 4), Vector3(20, 0.5, 2), 0.0) # a bar 1.2 m up
+	var slope := deg_to_rad(20.0)
+	# Down towards -z (W) from (40, 0, 0): slide down it, or turned round, up.
+	_test_box(arena, Vector3(40, -30 * sin(slope) - 0.5 * cos(slope), -30 * cos(slope) + 0.5 * sin(slope)), Vector3(20, 1, 60), -slope)
+	var flat := arena.position + Vector3(0, 0.05, 7)
+	var body := player.get_node("CollisionShape3D").shape as CapsuleShape3D
+	var head: Node3D = player.get_node("Head")
+	var speed := func() -> float: return Vector2(player.velocity.x, player.velocity.z).length()
+
+	player.rotation.y = 0.0 # facing -z
+	player.global_position = flat
+	player.velocity = Vector3.ZERO
+	await _frames(10)
+	Input.action_press("crouch")
+	await _frames(20)
+	_check(player.crouching and not player.sliding and is_equal_approx(body.height, 1.1) and is_equal_approx(head.position.y, 0.95), "W11: Ctrl crouches, 1.1 m with the eyes at 0.95 m (eyes %.2f)" % head.position.y)
+	Input.action_press("move_forward")
+	Input.action_press("sprint")
+	await _frames(30)
+	_check(not player.sliding and absf(speed.call() - player.crouch_speed) < 0.05, "crouch-walks at 2.5 m/s, sprinting or not (%.2f)" % speed.call())
+	await _frames(60) # past the start of the bar, under it
+	Input.action_release("move_forward")
+	Input.action_release("sprint")
+	Input.action_release("crouch")
+	await _frames(10)
+	_check(player.crouching and player.global_position.z < arena.position.z + 5.0, "under something low it stays crouched (z %.2f)" % (player.global_position.z - arena.position.z))
+	Input.action_press("move_forward")
+	await _until(func() -> bool: return not player.crouching, 3.0)
+	Input.action_release("move_forward")
+	_check(not player.crouching and is_equal_approx(body.height, 1.8) and player.global_position.z < arena.position.z + 3.0, "and stands up once out from under it")
+	await _frames(20)
+	_check(is_equal_approx(head.position.y, 1.6), "the eyes back at 1.6 m")
+
+	# A slide on the flat: the burst fades to crouching speed in about 1 s.
+	var slide := func(from: Vector3, frames: int) -> void:
+		player.global_position = from
+		player.velocity = Vector3.ZERO
+		await _frames(40) # landed
+		Input.action_press("move_forward")
+		Input.action_press("sprint")
+		await _frames(25)
+		Input.action_press("crouch")
+		await _frames(1)
+		Input.action_release("sprint")
+		await _frames(frames)
+	await slide.call(arena.position + Vector3(0, 0.05, -10), 0)
+	var start_z := player.global_position.z
+	_check(player.sliding and speed.call() > 10.5, "W11: crouching at a sprint slides, with a burst (%.2f m/s)" % speed.call())
+	var t := 0
+	while player.sliding and t < 180:
+		await _frames(1)
+		t += 1
+	var slid := start_z - player.global_position.z
+	_check(t > 45 and t < 90 and slid > 5.0, "fading to crouching speed in about 1 s on the flat (%.2f s, %.1f m)" % [t / 60.0, slid])
+	_check(player.crouching and speed.call() <= player.crouch_speed + 0.05, "then crouch-walks")
+	Input.action_release("move_forward")
+	Input.action_release("crouch")
+
+	# Downhill it keeps its speed; uphill it stops sooner.
+	await slide.call(arena.position + Vector3(40, 0.05, -3), 30)
+	_check(player.sliding and speed.call() > 10.5, "downhill a slide keeps its speed (%.2f m/s after 0.5 s)" % speed.call())
+	Input.action_release("move_forward")
+	Input.action_release("crouch")
+	player.rotation.y = PI # facing +z, up the slope
+	var low := arena.position + Vector3(40, 0.1 - 40 * sin(slope), -40 * cos(slope))
+	await slide.call(low, 0)
+	t = 0
+	while player.sliding and t < 180:
+		await _frames(1)
+		t += 1
+	_check(t > 0 and t < 40, "uphill it stops sooner (%.2f s)" % (t / 60.0))
+	Input.action_release("move_forward")
+	Input.action_release("crouch")
+
+	# A slide jump keeps the slide's speed; landing still crouched slides on
+	# without a new burst.
+	player.rotation.y = 0.0
+	await slide.call(arena.position + Vector3(0, 0.05, -10), 20)
+	var before := speed.call() as float
+	Input.action_press("jump")
+	await _frames(1)
+	Input.action_release("jump")
+	await _frames(30)
+	_check(not player.is_on_floor() and not player.sliding and speed.call() > before - 0.3, "W11: a slide jump keeps the slide's speed (%.2f, was %.2f)" % [speed.call(), before])
+	await _until(func() -> bool: return player.is_on_floor(), 3.0)
+	await _frames(2)
+	_check(player.sliding and speed.call() < before + 0.2 and speed.call() < player.slide_speed - 1.0, "landing crouched slides on, with no new burst (%.2f m/s)" % speed.call())
+	Input.action_release("move_forward")
+	Input.action_release("crouch")
+	await _frames(40)
+	_check(not player.crouching and not player.sliding, "letting go of Ctrl stands up")
+
+	player.respawn()
+	arena.queue_free()
+	await _frames(30)
+
+
+func _test_box(parent: Node3D, at: Vector3, size: Vector3, tilt: float) -> void:
+	var box := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	shape.shape.size = size
+	box.add_child(shape)
+	box.position = at
+	box.rotation.x = tilt
+	parent.add_child(box)
 
 
 # W09: the day and night cycle, the weather and what they bring.
@@ -618,9 +734,12 @@ func _swimming(world: Node3D, player: Player) -> void:
 
 	var before := player.global_position.y
 	Input.action_press("swim_down")
+	Input.action_press("crouch") # the same key, Ctrl
 	await _frames(30)
+	var crouched := player.crouching
 	Input.action_release("swim_down")
-	_check(player.global_position.y < before - 0.8, "Ctrl sinks")
+	Input.action_release("crouch")
+	_check(player.global_position.y < before - 0.8 and not crouched, "Ctrl sinks, and doesn't crouch in the water (W11)")
 
 	head.rotation.x = -0.9
 	before = player.global_position.y
@@ -1125,7 +1244,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	# physics ones. Right after an island is built, a main-loop iteration
 	# catches up several physics steps before any _process runs.
 	await _settle()
-	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it")
+	_check(pointers.shown().is_empty(), "facing it: no arrow, the beacon shows it (shown %s, player %s, h3 %s)" % [pointers.shown(), player.global_position, h3.global_position])
 	player.rotation.y += PI
 	await _settle()
 	var arrow := pointers.arrow("h3")
