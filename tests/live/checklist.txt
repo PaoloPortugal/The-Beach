@@ -1,3 +1,49 @@
+LIVE CHECK: W11 crouch and
+slide
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+(W05/W06's check is below.)
+
+On the platform, then on a
+beach and a mountain island
+(Tab: start a session on
+each kind).
+
+1. Hold Ctrl: you go down
+   smoothly, walk slowly. Let
+   go: up again. Height and
+   speed feel right?
+2. Sprint (Shift+W), press
+   Ctrl: a burst, fading in
+   about 1 s. Too far, too
+   short, too fast?
+3. Slide down a beach, or the
+   mountain's meadow: keeps
+   going? Up a slope: stops
+   sooner?
+4. Holding W, steer a slide
+   with the mouse: a little,
+   enough?
+5. Space mid-slide: a long,
+   fast jump. Land holding
+   Ctrl: slides on, slowing,
+   no new burst. Fair?
+6. Crouch under an agent's
+   desk or a low prop: you
+   can't stand until out.
+7. Wade into the sea crouched,
+   then swim: Ctrl swims down,
+   you stand on the beach.
+8. My picks to confirm:
+   - the burst waits 0.5 s on
+     the ground after a slide
+     (landing crouched slides
+     on with no new burst);
+   - downhill gains from about
+     13 degrees;
+   - 20 m/s top speed.
+
+----------------------------
 LIVE CHECK: W05/W06 clusters
 that grow without limit
   godot --path .
