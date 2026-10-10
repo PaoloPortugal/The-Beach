@@ -54,3 +54,10 @@ between runs (2.0 vs 4.5 m), so it looks like a timing race in that
 check, likely made more visible by the slower runs after an import. Its
 failure message now shows the arrows shown and the positions, so the
 next failure says why.
+
+The full run from Git Bash then failed C09's "T opens the console" in
+both world suites (it passed from PowerShell). That check pressed T and
+waited two physics frames, but an input event is handled once per
+main-loop iteration, and a slow iteration runs several physics steps
+first: the same race `_settle()` was written for. It and the Esc check
+after it now wait with `_settle()`; three runs from Git Bash passed.
