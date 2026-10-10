@@ -20,7 +20,7 @@ import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
 import { HookServer } from './hook-server.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, type Titles } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, StoredCache, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
 import type { UsageCounter } from './usage.ts'
@@ -78,6 +78,8 @@ export class ClaudeProvider implements Provider {
   private readonly runDirs = new Set<string>()
   /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
   private readonly live = new Set<string>()
+  /** The stored sessions' listing, kept between calls (S04). */
+  private readonly stored = new StoredCache()
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
 
@@ -127,6 +129,7 @@ export class ClaudeProvider implements Provider {
       dir: this.opts.projectsDir ?? projectsDir(),
       ...(project ? { project } : {}),
       exclude: this.live,
+      cache: this.stored,
     }).map(({ file: _file, ...s }) => s)
   }
 

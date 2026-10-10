@@ -19,11 +19,11 @@ sequenceDiagram
         participant Claude as Claude Code (terminal)
     end
 
-    User->>World: Tab: the sessions menu (its Resume list)
+    User->>World: Tab, Add session…, Resume a session…<br/>(only this page asks)
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Store: providers/claude/store.ts (read-only)
         World->>Sidecar: session.list_stored (optionally one project)
-        Store->>Sidecar: each file's first and last 64 KiB (read-only):<br/>folder, where it started, name, first message
+        Store->>Sidecar: each new or changed file's first and last 64 KiB<br/>(read-only): folder, where it started, name, first message.<br/>Unchanged ones (same size and time) come from the cache
         Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
     end
     User->>World: pick one

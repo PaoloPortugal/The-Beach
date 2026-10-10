@@ -1009,10 +1009,11 @@ and sessions in the same repository are grouped automatically.
   An island's land reaches at most about 44 m from its centre, its sea
   floor 68 m. `SessionIslands.session_at` picks the nearest island,
   since a cluster's islands are close.
-- *Sessions menu* (S03): a "Cluster:" row under the search box with
-  "Automatic (by repository)", each running cluster and "New cluster";
-  back to Automatic each time the menu opens, hidden with the lists while
-  the folder picker is open, and used by both New session and Resume.
+- *Sessions menu* (S03): a "Cluster:" row on the Add session and Resume
+  pages with "Automatic (by repository)", each running cluster and "New
+  cluster"; back to Automatic each time the menu opens, hidden with the
+  lists while the folder picker is open, and used by both New session and
+  Resume.
   The Running list (W07) shows "▸ <cluster>" headings with their
   sessions under them, and the search also matches cluster names.
 
@@ -1366,7 +1367,7 @@ chosen as offered):*
   walk out up a beach. The platform's and bridges' sides are walls.
 - *The way back* (`world.gd` → `go_to_platform`, which also drops a
   teleport waiting for an island to rise): "⌂ Platform" under
-  "+ New session…" in the sessions menu, and a click on the platform on
+  "+ Add session…" in the sessions menu, and a click on the platform on
   the big map (W06).
 - *Live check passed (2026-10-08)* with the user and the fake provider.
 
@@ -1581,7 +1582,8 @@ from screenshots).
   starts and ends deeper, all of it under the deepest sea floor
   (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
   so it rises faster in the same time.
-- *Picking* (sessions menu): a "Biome:" row under the cluster's, with
+- *Picking* (sessions menu): a "Biome:" row under the cluster's (Add
+  session and Resume pages), with
   Random and each kind, back to Random each time the menu opens, used by
   New session (either picker) and Resume. The launcher passes it to
   `SessionIslands.choose_biome` with the session id when the reply
@@ -1662,7 +1664,7 @@ Tested in `world_test.gd` (`_crouch_slide`, on test ground with a low bar
 and a 20° slope high above the world): the heights, crouch speed, staying
 crouched under the bar, the burst and its fade in about 1 s, downhill and
 uphill, the slide jump, landing with no new burst, and Ctrl in the water.
-Its feel is for the user's live check.
+*Live check passed (2026-10-10)* with the user, my picks included.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -2392,8 +2394,12 @@ How it works:
   Windows runner), and the path in `SIDECAR_SHORT_PATH`, never on a
   command line.
   Asked once per folder per run; it blocks the sidecar while it runs
-  (under a second, at most 10 s), and if that delays a session's hooks
-  they time out to the terminal's own prompts (fail safe). The answer
+  (about a second, a few under load, at most 10 s; never unbounded),
+  and if that delays a session's hooks
+  they time out to the terminal's own prompts (fail safe). Past 10 s
+  (Windows PowerShell can start that slowly on a loaded machine; seen
+  on CI) there is no answer, kept for the run like any other (Watch
+  items → A slow short-name answer is kept for the run). The answer
   is accepted only if it is the same file, on the same drive, and every
   component is safe. A volume without short names, or a short name that
   is still unsafe (`$(NEW-~1`), means no status line. Tested by running
@@ -2403,7 +2409,10 @@ How it works:
   relay gets exactly its 3 arguments and nothing else runs; and by
   asking Windows about folders named `$(New-Item PWNED)`, `` `ni
   PWNED` `` and `a';ni PWNED;'b`: nothing runs, and each answer is that
-  very folder (`sidecar/test/usage.test.ts`).
+  very folder (`sidecar/test/usage.test.ts`). These tests ask the real
+  Windows with up to 30 s per answer, not 10 s, so a slow runner isn't
+  read as a volume without short names; the checks are the same (dev
+  log 2026-10-09-c08-askwindows-flaky).
 - **Spotting the user's own status line:** read (never written) the
   user's settings (`~/.claude/settings.json`, under `CLAUDE_CONFIG_DIR`
   when set) and the project's `.claude/settings.json` and
@@ -3123,14 +3132,28 @@ proper design later, like all UI.
 `SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`):
 - **Opening.** Tab (input action `sessions_menu`, the physical Tab key)
   opens it anywhere while you have the controls, so not while chatting.
-  It frees the mouse and pauses the player. Tab or Esc closes it. While
-  no session runs and nothing is starting, "Press Tab for sessions"
-  shows at the bottom of the screen.
-- **Layout.** A centred panel: "Sessions", a search box (focused on
-  opening), the cluster selector (W05), the biome selector (W10), then "+ New session…", "⌂ Platform"
-  (back to the spawn platform; W08), "Running" (W07) and "Resume" (S04).
-  The search filters Running and Resume by title and project, like
-  Claude Code's own `/resume` list (user's choice).
+  It frees the mouse and pauses the player, and always opens on its
+  first page. Esc goes back a page and closes it from the first; Tab
+  closes it from any page (user's, 2026-10-09). While no session runs
+  and nothing is starting, "Press Tab for sessions" shows at the bottom
+  of the screen.
+- **Layout.** A centred panel in three pages (user's, 2026-10-09: adding
+  a session asks "new or resumed?", which fits the menu's future design;
+  dev log 2026-10-09-s04-resume-page):
+  - *Sessions*: a search box (focused), "+ Add session…", "⌂ Platform"
+    (back to the spawn platform; W08), "✕ Stop waiting for the session
+    starting" while one is starting (below), "Running" (W07) and, at the
+    bottom, A05's sound toggle. The search filters Running by title,
+    project and cluster.
+  - *Add a session*: the cluster selector (W05) and the biome selector
+    (W10), then "+ New session…" and "▸ Resume a session…".
+  - *Resume a session*: the same two selectors (their choices kept), a
+    search box and the stored sessions (S04), filtered by title and
+    project like Claude Code's own `/resume` list (user's choice). Only
+    this page asks the sidecar for them, each time it opens.
+  The header says the page ("Sessions", "Add a session", "Resume a
+  session") and the keys ("Tab or Esc to close", or "Esc to go back, Tab
+  to close").
 - **New session…** opens the **system's folder picker** on every
   platform (user's decision, 2026-10-01, reversing M1's choice of
   Godot's own): File Explorer's on Windows, the open panel on macOS, the
@@ -3139,7 +3162,7 @@ proper design later, like all UI.
   the home folder, then the last folder chosen. Where the system has
   none (`FEATURE_NATIVE_DIALOG_FILE` off, e.g. Linux without the desktop
   portal, or headless), Godot's own `FileDialog`, drawn inside the game
-  window, is used instead. Cancelling either returns to the menu. The
+  window, is used instead. Cancelling either returns to Add a session. The
   chosen folder goes to `session.create` with the first provider from
   `hello` (only one exists; choosing one is for S03 proper).
 - **A picker hidden behind the game can't trap you** (user's decision).
@@ -3149,9 +3172,11 @@ proper design later, like all UI.
   window, but the safety net is the same everywhere: while it is open
   the menu stays up with a note ("Choose the project folder in the
   window that opened. Can't see it? It may be behind the game: switch to
-  it, or press Cancel.") and a Cancel button; Cancel, Esc or Tab close
-  the menu and give the controls back, and whatever the lost picker
-  answers later is ignored, so nothing starts on its own.
+  it, or press Cancel.") and a Cancel button; Cancel or Tab close
+  the menu and give the controls back, Esc stops waiting and shows Add a
+  session again (as cancelling the picker does; user's, 2026-10-09), and
+  whatever the lost picker answers later is ignored, so nothing starts
+  on its own.
 - **Starting** (`SessionLauncher`, `session_launcher.gd`, for both new
   and resumed sessions, one at a time). A notice at the top centre of
   the screen (it replaced the post's sign; my choice) says how it goes:
@@ -3167,7 +3192,7 @@ proper design later, like all UI.
   sessions, W04) and the player is taken there once it's up.
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
   starting, the menu shows "✕ Stop waiting for the session starting"
-  under "+ New session…". It frees the launcher for another start ("Stopped
+  under "⌂ Platform". It frees the launcher for another start ("Stopped
   waiting. If that session starts later, it's listed under Running.");
   the sidecar isn't told, so a session that does come up later is an
   ordinary running session: its island rises, nobody is taken there.
@@ -3207,12 +3232,14 @@ transcripts are off), and Claude Code deletes transcripts after
 `cleanupPeriodDays` (30 by default), so the list only reaches that far
 back.
 
-The world side is the sessions menu's "Resume" list (S03; user's decisions,
+The world side is the sessions menu's "Resume a session" page (S03; user's decisions,
 2026-10-01): stored sessions from every provider the sidecar announced,
 newest first, as "title · project · how long ago" (titles in Claude Code's
 own order, S02 → Titles; "Untitled session" without one, which only another
-provider could list), asked for each time the menu opens, filtered by the
-search box. A click resumes it through the same launcher and notices as a
+provider could list), on its own page under Add session (Sessions → Add
+session… → Resume a session…; user's, 2026-10-09), asked for each time
+that page opens, filtered by its search box. A click resumes it through
+the same launcher and notices as a
 new session; once up, you're taken to its island and its chat holds the
 conversation so far. A **placeholder**, like the rest of the menu.
 *Live check passed (2026-10-01)* with the user and the real `claude`:
@@ -3226,7 +3253,18 @@ The sidecar side, built with S02: `providers/claude/store.ts` lists
 from `cwd`, title from `pickTitle` (S02 → Titles: the newest
 `custom-title`, else the newest `ai-title`, else the first user
 message's line; a transcript with none of them isn't listed),
-`updated_at` from the file time.
+`updated_at` from the file time. The reads are synchronous, so nothing
+else is handled meanwhile: 0.8-0.95 s for 181 transcripts on a dev
+machine (2026-10-09). The provider keeps each file's description
+(`StoredCache`) while its size and modification time stay the same, and
+forgets files that are gone, so listing again only reads the folders and
+the files' times (about 50 ms for the same 181). A file that couldn't be
+read isn't kept, so it's tried again. The cache holds only the listing
+fields (title, from the first message's line if untitled; project path;
+time), in memory, for the sidecar's lifetime. Tested with a temporary store:
+the same list with and without the cache, nothing read again unchanged,
+a rename read again, a deleted file forgotten, a new one listed, and a
+file whose read failed listed on the next call.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
 for now (user's decision, 2026-09-29); VS Code and desktop sessions are
@@ -3601,7 +3639,8 @@ the big map; the sea floor's range, banks and mounds, its colour
 gradient, and islands' underwater faces in its colours), the sessions menu (the
 hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
-cancelling, Esc while it is lost and its late answer ignored, a refused
+cancelling, Esc while it is lost going back to Add a session, its Cancel
+closing the menu, the late answers ignored, a refused
 folder; W10's biome selector, Random first and back to Random on
 opening), islands for sessions applied to the store by hand (one
 per session, in the folder's cluster, a new one rising and the teleport
@@ -3664,7 +3703,10 @@ changing `GODOT_VERSION` only. The actions are pinned to major versions
 annotations say their Node runtime is deprecated. Results can be read
 with `gh run list` and `gh run view <id> --log-failed`. Timing checks
 time the code itself, not a spawned process (Node's startup stretches
-by seconds on a loaded runner). In the Godot suites, a check after an
+by seconds on a loaded runner), and a test waiting on a real process
+the code bounds gives it more time than the code does (`askWindows`:
+30 s in its tests, 10 s in the sidecar; dev log
+2026-10-09-c08-askwindows-flaky). In the Godot suites, a check after an
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
@@ -3812,12 +3854,37 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W11 crouch and slide, built on `w11-crouch-slide`
-(dev log 2026-10-10-w11-crouch-slide), waiting for the user's review and
-a live check of its feel, then a
-settings menu with graphics settings (it gets
-`Weather.lightning_enabled`'s switch), in that order (user's,
+**Current focus:** a settings menu with graphics settings (it gets
+`Weather.lightning_enabled`'s switch), next after W11 (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-10), approved by the user: W11 crouch and
+slide** (dev log 2026-10-10-w11-crouch-slide): hold Ctrl to crouch
+(1.1 m, 2.5 m/s), slide at a sprint with slopes mattering, slide jumps
+keeping speed. Live check passed with the user.
+**Merged to `main` (2026-10-09), approved by the user: C08's flaky
+short-name tests** (dev log 2026-10-09-c08-askwindows-flaky):
+on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
+`usage.test.ts` tests read "no answer"; they now wait up to 30 s, with
+the same checks. The sidecar keeps 10 s (Watch items → A slow
+short-name answer is kept for the run).
+**Merged to `main` (2026-10-09), approved by the user: C09's flaky
+console checks** (dev log 2026-10-09-c09-console-check-flaky): T and Esc
+in the world test waited two physics frames; they now wait on the
+console's state (`_until`).
+**Merged to `main` (2026-10-09), approved by the user: S04's Resume on
+its own page** (dev log 2026-10-09-s04-resume-page): "+ Add session…"
+asks new or resume, Esc goes back a page (waiting for the folder picker
+too), and the sidecar keeps its stored-session listing. Live check
+passed.
+**Merged to `main` with it (2026-10-09): three flaky world-test
+checks** (dev log
+2026-10-09-world-test-waits): the missing-folder refusal queued behind
+the menu's session listings (Watch items → Listing stored sessions
+blocks the sidecar), the S06 "warning goes" check could read the turn
+just starting, and W04's "facing it" arrow check failed when h3 rolled a
+mountain (W10 starts one about 100 m down). S04, merged with it,
+puts the missing-folder wait back to 5 s, since opening the menu no longer
+lists anything.
 **Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
 clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
 growing without limit, a 9th and later cluster far, bridged within but
@@ -4135,6 +4202,27 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
+
+- **A slow short-name answer is kept for the run** (C08; found
+  2026-10-09). `askWindows` gives Windows PowerShell 10 s; on CI's
+  loaded Windows runner its start passed that (dev log
+  2026-10-09-c08-askwindows-flaky), where it usually takes 1-3 s
+  (0.7-1.3 s idle, 1.9-4.9 s with every core busy on a dev machine).
+  The missing answer is kept like any other (`askWindowsOnce`), so if
+  it was for a folder in every session's relay path, no session gets a
+  status line until the sidecar restarts (transcript only; logged). Not
+  seen outside CI. If it is: don't keep a timed-out answer, or ask in
+  the background so nothing blocks.
+
+- **Listing stored sessions blocks the sidecar** (S04; found
+  2026-10-09). `session.list_stored` reads transcripts newest first
+  until 200 are listed, synchronously, 64 KiB from each end: 0.8-0.95 s for 181 of them on a
+  dev machine, and meanwhile nothing else is handled (replies, hook
+  relays, permission requests). Seen as a 3 s wait in the world test
+  (dev log 2026-10-09-world-test-waits). Since 2026-10-09 (user's) only
+  the menu's Resume page asks, and the provider keeps the listing
+  (S04 → `StoredCache`), so only a sidecar's first listing reads every
+  file. If that first second matters, read with `fs.promises`.
 
 - **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
   Nothing stops a near cluster's wedge growing into the far clusters'
