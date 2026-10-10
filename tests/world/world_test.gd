@@ -675,10 +675,10 @@ func _commands(world: Node3D, player: Player) -> void:
 	var console: DebugConsole = world.debug_console
 	_check(console != null, "C09: the console is there in a debug build")
 	_press("debug_console")
-	await _frames(2)
+	await _settle() # input is handled in the main loop, not per physics step
 	_check(console.is_open() and not player.controls_enabled, "C09: T opens the console and stops the player")
 	_press("ui_cancel")
-	await _frames(2)
+	await _settle() # input is handled in the main loop, not per physics step
 	_check(not console.is_open() and player.controls_enabled, "C09: Esc closes it")
 	console.open()
 	console.submit("/time set noon")
