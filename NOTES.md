@@ -89,7 +89,7 @@ v1 slice.
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
-| W11 | Crouch and slide                          | planned | n/a           | n/a       |
+| W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -828,7 +828,8 @@ buffering.
 **How it works.** `Player` (`world/player/`): a capsule 1.8 m tall with
 the camera at 1.6 m (FOV 80). No body is drawn.
 - *Controls.* WASD (physical keys, so they sit in the same place on
-  AZERTY), Shift to sprint, Space to jump, mouse to look (pitch clamped
+  AZERTY), Shift to sprint, Space to jump, Ctrl to crouch and slide
+  (W11), mouse to look (pitch clamped
   just short of straight up and down). The mouse is captured at start; Esc
   frees it and a click captures it again. The input actions are in
   `project.godot`, written by hand: godot-ai can't bind physical keys (dev
@@ -1600,9 +1601,9 @@ from screenshots).
   draw distance.
 
 ### W11 Crouch and slide
-*Planned (user's request, 2026-10-08; after W08-W10).* Crouch, and
+*Built (2026-10-10). Scope: core* (user's request, 2026-10-08). Crouch, and
 slide when crouching at a run, extending W03's movement towards parkour.
-Not a provider feature: world only. Scope: core.
+Not a provider feature: world only.
 
 *Decided (user's, 2026-10-09; my recommendations, all taken):*
 - **Key: hold Ctrl.** Ctrl already swims down in the water (W08), which
@@ -1625,7 +1626,43 @@ Not a provider feature: world only. Scope: core.
   slide stops endless chaining (rejected: a normal jump ending the slide
   at sprint speed; no jumping until the slide ends).
 
-Not built yet.
+**How it works** (`Player`, `world/player/player.gd`; the numbers not
+decided above are my picks, exported for tuning).
+- *Key.* A `crouch` action on Ctrl (physical key), beside `swim_down` on
+  the same key, so a settings menu can rebind them apart. Ctrl is read
+  only while the controls are on; with them off (the chat, a menu) you
+  stay as you were.
+- *Crouch.* While held on land (not swimming) the capsule is 1.1 m
+  (`crouch_height`), shrinking from the top, so the feet stay put, and
+  the eyes ease to 0.95 m (`crouch_eye_height`) in 0.15 s (`crouch_ease`).
+  Walking is 2.5 m/s (`crouch_speed`), Shift or not. Letting go stands up
+  only if the standing capsule fits (`test_move` 0.7 m up); else you stay
+  crouched (`crouching`) until there's room. In the water you stand.
+- *Slide* (`sliding`). Starts when crouched on the ground at 6.5 m/s or
+  more (`slide_min_speed`, above walking): pressing Ctrl at a sprint, or
+  landing fast with it held. It starts at 11 m/s (`slide_speed`), or
+  faster if you were. Each frame it slows by 8.5 m/s² (`slide_friction`),
+  gravity along the slope times 4 (`slide_gravity_scale`) speeds it up
+  downhill or slows it uphill (downhill wins from about 13°), turning at
+  most 1.2 rad/s (`slide_turn`) towards where you move, up to 20 m/s
+  (`slide_max_speed`). It ends at crouching speed (then you crouch-walk),
+  on standing up (letting go of Ctrl; under something low you stay
+  crouched, so it slides on), or on leaving the ground.
+- *Slide jump.* Jumping while sliding, or sliding off an edge, keeps the
+  slide's speed in the air: you can steer, but the air doesn't slow you to
+  walking or sprinting speed as it does after a normal jump. On landing,
+  that ends.
+- *No endless chaining.* After a slide, the burst comes back only after
+  0.5 s on the ground (`slide_cooldown`), counted only on the ground. So
+  landing from a slide jump with Ctrl held slides on at the speed you
+  have, without a new burst, and slows; letting go and running for 0.5 s
+  gives the next burst.
+
+Tested in `world_test.gd` (`_crouch_slide`, on test ground with a low bar
+and a 20° slope high above the world): the heights, crouch speed, staying
+crouched under the bar, the burst and its fade in about 1 s, downhill and
+uphill, the slide jump, landing with no new burst, and Ctrl in the water.
+Its feel is for the user's live check.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -3775,8 +3812,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W11 crouch and slide, designed (user's, 2026-10-09;
-W11) and being built on `w11-crouch-slide`, then a
+**Current focus:** W11 crouch and slide, built on `w11-crouch-slide`
+(dev log 2026-10-10-w11-crouch-slide), waiting for the user's review and
+a live check of its feel, then a
 settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), in that order (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
