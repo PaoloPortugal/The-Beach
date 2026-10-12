@@ -37,7 +37,7 @@ const BAND_MIN := 1.5
 const VALLEYS := 3
 const VALLEY_WIDTH := 4.0
 ## A bridge's middle line keeps this far off the zipline's cable, in plan,
-## metres (W10): about a metre and a half past the deck's edge.
+## metres (W10): 1.8 m past the 2.4 m deck's edge.
 const BRIDGE_CLEAR := 3.0
 ## Triangles steeper than this (their normal's y below it) are rock.
 const STEEP := 0.8

@@ -22,6 +22,10 @@ var props := IslandProps.new()
 ## Which valley's mouth its zipline stands at (W10; see [method
 ## IslandGenerator.zipline_valley]).
 var zipline_valley := 0
+## Set before it enters the tree (SessionIslands does): its zipline waits
+## for the first [method set_landings], so it starts clear of its bridges
+## and clears no props under a valley it then leaves.
+var zipline_waits := false
 
 var _landings: Array[Vector3] = []
 
@@ -50,7 +54,8 @@ func _ready() -> void:
 	add_child(props)
 	props.setup(generator.prop_spots())
 	_add_torches()
-	_add_zipline()
+	if not zipline_waits:
+		_add_zipline()
 
 
 func height_at(x: float, z: float) -> float:
@@ -78,6 +83,11 @@ func zipline() -> Zipline:
 ## 2026-10-12).
 func set_landings(landings: Array[Vector3]) -> void:
 	_landings = landings
+	if zipline_waits:
+		zipline_waits = false
+		zipline_valley = generator.zipline_valley(landings, 0)
+		_add_zipline()
+		return
 	_place_zipline()
 
 
