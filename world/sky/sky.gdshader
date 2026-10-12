@@ -45,5 +45,15 @@ void sky() {
 			c += vec3(star * stars * smoothstep(0.0, 0.25, d.y) * (0.5 + 0.5 * hash(cell + 2.3)));
 		}
 	}
+#if CURRENT_RENDERER == RENDERER_MOBILE
+	// The Mobile renderer keeps the 3D picture at 10 bits a channel over
+	// twice the usual range, too coarse for the dark night sky: its
+	// gradient showed bands. A dither of one step, too fine to see, hides
+	// them (Godot's debanding works later, on the finished picture).
+	if (!AT_CUBEMAP_PASS) {
+		float n = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
+		c += (n - 0.5) * (2.0 / 1023.0);
+	}
+#endif
 	COLOR = c;
 }
