@@ -14,6 +14,13 @@ extends Control
 ## ring. A segment shows its island's biome (RingIcons, placeholders) with
 ## the session's state as a coloured rim, the waiting ones pulsing. A
 ## session still starting is a faded segment, not pointable.
+##
+## The pointer is the ring's own (user's, 2026-10-12): a dot moved by the
+## mouse's motion while the system's mouse stays captured, held to the
+## ring as if on a spring. It goes freely up to the rim (a fanned cluster's
+## outer edge where a fan shows); pushed past, it gives less and less
+## ([constant STRETCH] at most) and springs back onto the rim when the
+## push stops.
 
 ## Most segments for sessions before clusters fold.
 const MAX_SEGMENTS := 12
@@ -25,6 +32,11 @@ const GAP := 0.4
 const MAX_WIDTH := deg_to_rad(64.0)
 ## A fanned-out session's width, radians.
 const FAN_WIDTH := deg_to_rad(26.0)
+## The most the pointer gives past the rim, pixels.
+const STRETCH := 14.0
+## How fast it springs back onto the rim: the push left after a second
+## is e^-SPRING of it.
+const SPRING := 14.0
 
 const FILL := Color(0.06, 0.08, 0.11, 0.86)
 const FILL_POINTED := Color(0.17, 0.22, 0.28, 0.95)
@@ -54,7 +66,11 @@ var _fan: Array[Dictionary] = []
 var _pointed: Dictionary = {}
 ## How long the pointed fold has been pointed at, seconds.
 var _fold_time := 0.0
+## Where the pointer is drawn and points from, in the ring's coordinates.
 var _pointer := Vector2.ZERO
+## The pointer as pushed, from the middle; past the rim it's held back
+## to [member _pointer].
+var _pushed := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -70,6 +86,7 @@ func open() -> void:
 	_pointed = {}
 	_fold_time = 0.0
 	visible = true
+	_pushed = Vector2.ZERO
 	_pointer = centre()
 	refresh()
 
@@ -116,7 +133,7 @@ func refresh() -> void:
 	# pointed again only once it's gone.
 	var still := {} if _pointed.get("kind", "centre") == "centre" else _find(_pointed["kind"], _pointed["id"])
 	if still.is_empty():
-		point_at(_pointer)
+		_point_at(_pointer)
 	else:
 		_pointed = still
 		queue_redraw()
@@ -189,8 +206,30 @@ func position_of(kind: String, id: String) -> Vector2:
 	return centre() + _direction(s["angle"]) * radius
 
 
-## Points at what is at [param at] (the mouse, in the ring's coordinates).
+## Moves the pointer by [param by] (the mouse's motion), held to the ring.
+func move_pointer(by: Vector2) -> void:
+	_pushed += by
+	# A push far past the rim doesn't pile up: easing off answers at once.
+	var most := _limit(_pushed) + STRETCH * 3.0
+	if _pushed.length() > most:
+		_pushed = _pushed.normalized() * most
+	_point_at(_held())
+
+
+## Where the pointer is, in the ring's coordinates.
+func pointer() -> Vector2:
+	return _pointer
+
+
+## Puts the pointer at [param at] (in the ring's coordinates; tests and
+## the live check), held to the ring, and points at what is there.
 func point_at(at: Vector2) -> void:
+	_pushed = at - centre()
+	_point_at(_held())
+
+
+# Points at what is at [param at].
+func _point_at(at: Vector2) -> void:
 	_pointer = at
 	var before := _pointed
 	var v := at - centre()
@@ -219,6 +258,13 @@ func point_at(at: Vector2) -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	# Springing back onto the rim.
+	var limit := _limit(_pushed)
+	var pushed := _pushed.length()
+	if pushed > limit:
+		var past := (pushed - limit) * exp(-SPRING * delta)
+		_pushed = _pushed / pushed * (limit + (past if past > 0.5 else 0.0))
+		_point_at(_held())
 	if _pointed.get("kind") == "fold" and _fanned != _pointed["id"]:
 		_fold_time += delta
 		if _fold_time >= FAN_DELAY:
@@ -248,6 +294,28 @@ func _folded() -> Array[String]:
 		out.append(busiest)
 		count -= sizes[busiest] - 1
 	return out
+
+
+# How far the pointer goes freely in [param offset]'s direction: the rim
+# (as a pointed segment grows), or a fan's outer edge across the fan.
+func _limit(offset: Vector2) -> float:
+	var r := radii()
+	if not _fan.is_empty():
+		var angle := wrapf(offset.angle() + PI / 2.0, 0.0, TAU)
+		var nearest := _nearest(_fan, angle)
+		if _angle_between(angle, nearest["angle"]) < nearest["width"]:
+			return _fan_radii().y
+	return r.x + (r.x - r.y) * 0.12
+
+
+# The pointer as held: as pushed up to the limit, then giving less and
+# less, at most STRETCH further.
+func _held() -> Vector2:
+	var pushed := _pushed.length()
+	var limit := _limit(_pushed)
+	if pushed <= limit:
+		return centre() + _pushed
+	return centre() + _pushed / pushed * (limit + STRETCH * (1.0 - exp(-(pushed - limit) / STRETCH)))
 
 
 func _build_fan() -> void:
@@ -345,6 +413,9 @@ func _draw() -> void:
 		RingIcons.plus(self, c + Vector2(0, -r.z * 0.12), r.z * 0.8, TEXT if on_centre else TEXT_DIM)
 		_text(font, "New session (click)" if on_centre else "New session", c + Vector2(0, r.z * 0.52), 15, TEXT_DIM, r.z * 1.8)
 	_text(font, "Release Tab to go  ·  click + for a new session  ·  Esc to cancel", c + Vector2(0, r.x + 70.0), 15, TEXT_DIM, size.x)
+	# The pointer.
+	draw_circle(_pointer, 7.0, OUTLINE)
+	draw_circle(_pointer, 5.0, TEXT)
 
 
 func _draw_segment(s: Dictionary, inner: float, outer: float, pulse: float) -> void:
