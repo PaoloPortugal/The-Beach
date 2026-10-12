@@ -1,48 +1,55 @@
 LIVE CHECK: the sessions ring
-  godot --path . -- --checklist
+(fake provider demo)
+  godot --path .
+  res://tests/live/ring_demo.tscn
+  -- --sidecar-dev-fake
+  --checklist
 Page Down / wheel scrolls this.
+12 sessions start by
+themselves (~10 s): wait
+for the islands to rise.
 
-1. No session running: "Hold
-   Tab for sessions" at the
-   bottom? Hold Tab: a ring
-   with only the house at the
-   top, a + in the middle?
-   Tap Tab quickly: nothing
-   opens?
-2. Hold Tab, click the +:
-   Add a session (cluster,
-   biome, New, Resume) opens;
-   let go of Tab, it stays?
-   Start a session there.
-3. Start 2-3 more (two in
-   the same project, one in
-   another folder, Biomes
-   different). Hold Tab:
-   each project's sessions
-   together, its name outside
-   the ring, biome icons?
-4. Move the mouse toward one:
-   it grows, the middle shows
-   title, project, state?
-   Let go: you're at its
-   orchestrator?
-5. Make one wait (a
-   permission): its edge
-   pulses orange in the ring?
-6. Point at the house, let
-   go: back on the platform?
-   Esc while holding Tab:
+1. Hold Tab: house at the
+   top, + in the middle, 12
+   sessions in 4 arcs with
+   gaps, alpha / beta /
+   gamma / delta outside the
+   rim, all 5 biome icons?
+2. Edges: "Add dark mode"
+   and "Profile the
+   renderer" pulse orange;
+   "Translate the menus"
+   blue most of the time;
+   the rest grey?
+3. Point at a few: it grows,
+   the middle shows title,
+   project, state (coloured)?
+   The long title in beta:
+   how bad is the overflow?
+4. Let go on one: you're at
+   its orchestrator? Hold
+   Tab, point at the house,
+   let go: back on the
+   platform?
+5. Tap Tab quickly: nothing?
+   Esc while holding:
    closes, nothing happens?
-7. Optional, many sessions:
-   with 13+ running, a busy
-   project folds into "N >";
-   point at it: its sessions
-   fan out; pick one?
-8. Hold Tab, Alt+Tab to
-   another window, let go
-   there, come back: the
-   ring is closed and the
+   Hold Tab, Alt+Tab away,
+   let go, come back: closed,
    game playable?
-9. Looks: readable, sized
-   right for the window? Try
-   resizing the window.
+6. Press F2 (13 sessions):
+   alpha folds into "6 >"?
+   Point at it a moment: its
+   6 fan out outside the
+   ring; pick one, let go:
+   you're there? Point
+   elsewhere: folds back?
+7. Press F3: a faded "..."
+   piece, not pointable?
+   Click +: the panel has
+   "Stop waiting"; press it:
+   gone from the ring? (F3
+   again also hides it.)
+8. Looks: readable, sized
+   right? Resize the window
+   smaller and larger.
