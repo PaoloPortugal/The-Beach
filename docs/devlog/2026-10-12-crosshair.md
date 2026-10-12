@@ -20,9 +20,11 @@ with a recommendation; the user took every one:
 - **The old prompts go.** "Press E to chat" and the zipline's floating
   labels are replaced by the hint under the circle. Rejected: keeping
   them beside it, two ways of saying the same thing.
-- **A ring at rest, a bigger ring on a target** (1.5 px to 5.5 px radius
-  in 0.1 s, white with a dark outline). Rejected: a dot that turns into
-  a ring.
+- **A ring at rest, a bigger ring on a target** (white with a dark
+  outline, growing in 0.1 s). Rejected: a dot that turns into a ring.
+  First built at 1.5 px radius growing to 5.5 px; after a first look the
+  user asked for the grown size at rest and double it on a target:
+  5.5 px growing to 11 px.
 - **The hint:** "E  Talk", "E  Zipline up", "E  Zipline down", the key
   named from the `interact` binding so another layout or a later rebind
   shows the right one.
