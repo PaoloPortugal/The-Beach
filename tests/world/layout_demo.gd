@@ -44,6 +44,12 @@ func _ready() -> void:
 	if "--crowd" in OS.get_cmdline_user_args() and get_tree().current_scene == self:
 		sizes = CROWD
 	world = load("res://world/world.tscn").instantiate()
+	if get_tree().current_scene != self:
+		# Run by a test: the defaults, never the developer's settings file (C10, A05).
+		var settings_file := "user://layout_demo_test_settings_%d.cfg" % OS.get_process_id()
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
+		world.settings.path = settings_file
+		world.attention.settings_path = settings_file
 	add_child(world)
 	var store: SessionStore = world.store
 	var n := 0
