@@ -4642,6 +4642,19 @@ exists.
   way; untested). Built-ins with a launch-time equivalent could be offered
   at session creation or resume. Other built-ins stay terminal-only (S02),
   and the world should say so instead of sending them to Claude as text.
+- **Mod support** (user's idea, 2026-10-12). Things that let players
+  customize the game: custom agent models, parkour maps, biomes, and
+  more the user will add later. Steam Workshop is the main way to get
+  mods, but a mod must also work by dropping its files into a folder,
+  for players without the Steam release (the free GitHub build).
+  Undesigned; to check when it comes up: the mod format (Godot resource
+  packs or plain files such as glTF models and data), whether mods may
+  carry scripts (code from strangers running on the player's machine,
+  against the Principles and Security rules unless sandboxed or left
+  out), the Workshop's terms and API (Watch items → Anthropic's terms,
+  Steam), and the art rule (mods are the players' own, not ours, so
+  never-AI-generated can't be enforced on them; only our assets follow
+  it).
 - **External music app support** (user's idea, 2026-10-01). Show what
   the user's music app (YouTube Music, Spotify, ...) is playing and
   control it from the game: volume, pause, skip. Not a provider feature
