@@ -114,6 +114,16 @@ From the docs-sync and security reviews before handing it over:
 - Not changed: a long or right-to-left title can overflow the middle
   circle (cosmetic, older than this branch; the UI pass will redo it).
 
+## Many clusters
+
+The user asked what happens with a lot of clusters. Folding can't go
+below one segment per cluster, so past about 12 clusters the ring
+crowds (20 clusters: 11° segments, names overlapping), and a big
+cluster's fan gets thin (4.5° at 40 sessions). Offered: a second level
+("+N clusters" fanning out clusters) and fans in rows; accepting it for
+now; or type-to-search while holding Tab. The user's call: a Watch item,
+left to the UI pass (NOTES → Watch items → A ring with many clusters).
+
 ## The ring demo
 
 The user checked the ring with real Claude and asked for a fake
