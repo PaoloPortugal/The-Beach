@@ -153,7 +153,10 @@ func _setup_settings() -> void:
 	# Under the Compatibility renderer, sun shadows wash the island out to
 	# white (Godot 4.7.2, seen on AMD; NOTES → Watch items), so they're off
 	# there whatever the setting.
-	settings_menu.shadows_available = RenderingServer.get_current_rendering_method() != "gl_compatibility"
+	var compatibility := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	settings_menu.shadows_available = not compatibility
+	# Nor is there screen-space anti-aliasing there (Godot's docs).
+	settings_menu.screen_space_aa_available = not compatibility
 	add_child(settings_menu)
 	settings_menu.setup(settings, _player, attention)
 	apply_settings()
@@ -180,6 +183,15 @@ func apply_settings() -> void:
 	sun.shadow_enabled = shadows != "off" and settings_menu.shadows_available
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if shadows == "high" else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	RenderingServer.directional_shadow_atlas_set_size(4096 if shadows == "high" else 2048, true)
+	# Anti-aliasing: MSAA smooths the edges of the low-poly shapes; the
+	# screen-space filters smooth everything a little, blurring a little.
+	get_viewport().msaa_3d = {
+		"off": Viewport.MSAA_DISABLED, "2x": Viewport.MSAA_2X, "4x": Viewport.MSAA_4X, "8x": Viewport.MSAA_8X,
+	}[settings.value("graphics/msaa")]
+	var screen_aa: int = {
+		"off": Viewport.SCREEN_SPACE_AA_DISABLED, "fxaa": Viewport.SCREEN_SPACE_AA_FXAA, "smaa": Viewport.SCREEN_SPACE_AA_SMAA,
+	}[settings.value("graphics/screen_space_aa")]
+	get_viewport().screen_space_aa = screen_aa if settings_menu.screen_space_aa_available else Viewport.SCREEN_SPACE_AA_DISABLED
 	weather.lightning_enabled = settings.value("graphics/lightning")
 	_player.mouse_sensitivity = Player.BASE_SENSITIVITY * settings.value("controls/mouse_sensitivity")
 	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")

@@ -12,6 +12,7 @@ const NAMES := {
 	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen",
 	"off": "Off", "low": "Low", "high": "High",
 	0: "Off", 30: "30", 60: "60", 120: "120", 144: "144", 240: "240",
+	"2x": "2×", "4x": "4×", "8x": "8×", "fxaa": "FXAA", "smaa": "SMAA",
 }
 
 var settings: Settings
@@ -21,6 +22,9 @@ var attention: Attention
 ## Under the Compatibility renderer the sun casts no shadows (world.gd),
 ## so the shadow setting is greyed out.
 var shadows_available := true
+## Screen-space anti-aliasing isn't in the Compatibility renderer either
+## (Godot's docs), so its setting is greyed out there too.
+var screen_space_aa_available := true
 
 var _open := false
 var _panel := PanelContainer.new()
@@ -123,8 +127,8 @@ func _build() -> void:
 	title.text = "Settings"
 	title.add_theme_font_size_override("font_size", 26)
 	layout.add_child(title)
-	# The tallest tab's height, so the panel doesn't jump between tabs.
-	_tabs.custom_minimum_size.y = 260.0
+	# As tall as the tallest tab, so the panel doesn't jump between tabs.
+	_tabs.use_hidden_tabs_for_min_size = true
 	layout.add_child(_tabs)
 	for tab_name: String in TABS:
 		var grid := GridContainer.new()
@@ -140,6 +144,8 @@ func _build() -> void:
 	_choice(graphics, "FPS cap", "graphics/fps_cap")
 	_slider(graphics, "Render scale", "graphics/render_scale", func(v: float) -> String: return "%d %%" % roundi(v * 100.0))
 	_choice(graphics, "Shadows", "graphics/shadows")
+	_choice(graphics, "Anti-aliasing (MSAA)", "graphics/msaa")
+	_choice(graphics, "Screen-space anti-aliasing", "graphics/screen_space_aa")
 	_toggle(graphics, "Lightning in storms", "graphics/lightning")
 	var controls := _tabs.get_child(1)
 	_slider(controls, "Mouse sensitivity", "controls/mouse_sensitivity", func(v: float) -> String: return "%.2fx" % v)
@@ -239,10 +245,16 @@ func _refresh() -> void:
 			(c as HSlider).set_value_no_signal(v)
 			var shown: Array = _values[key]
 			shown[0].text = shown[1].call(v)
-	var shadows: OptionButton = _controls["graphics/shadows"]
-	shadows.disabled = not shadows_available
-	if not shadows_available:
-		shadows.select(0) # off, whatever is saved
-	shadows.tooltip_text = "" if shadows_available else "Off under the Compatibility renderer"
+	_grey_out("graphics/shadows", shadows_available)
+	_grey_out("graphics/screen_space_aa", screen_space_aa_available)
 	if attention:
 		_sound.set_pressed_no_signal(attention.sound_on)
+
+
+# A setting the Compatibility renderer can't do: greyed out, shown Off.
+func _grey_out(key: String, available: bool) -> void:
+	var button: OptionButton = _controls[key]
+	button.disabled = not available
+	if not available:
+		button.select(0) # off, whatever is saved
+	button.tooltip_text = "" if available else "Off under the Compatibility renderer"
