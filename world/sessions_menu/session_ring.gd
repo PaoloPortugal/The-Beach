@@ -111,7 +111,15 @@ func refresh() -> void:
 	if not _fanned.is_empty() and not (_fanned in folded):
 		_fanned = ""
 	_build_fan()
-	point_at(_pointer)
+	# What is pointed at stays while the pointer does, so a session
+	# arriving or ending mid-hold doesn't change what letting go selects;
+	# pointed again only once it's gone.
+	var still := {} if _pointed.get("kind", "centre") == "centre" else _find(_pointed["kind"], _pointed["id"])
+	if still.is_empty():
+		point_at(_pointer)
+	else:
+		_pointed = still
+		queue_redraw()
 
 
 ## The segments as shown, clockwise from the top, then the fanned ones.
@@ -194,7 +202,9 @@ func point_at(at: Vector2) -> void:
 	else:
 		var angle := wrapf(v.angle() + PI / 2.0, 0.0, TAU)
 		var in_fan := _nearest(_fan, angle) if not _fan.is_empty() and v.length() > r.x + 6.0 else {}
-		if not in_fan.is_empty() and _angle_between(angle, in_fan["angle"]) < FAN_WIDTH:
+		# Within a fanned segment's own width of its middle: up to half a
+		# segment past the fan's ends.
+		if not in_fan.is_empty() and _angle_between(angle, in_fan["angle"]) < in_fan["width"]:
 			_pointed = in_fan
 		else:
 			_pointed = _nearest(_segments.filter(func(s: Dictionary) -> bool: return s["kind"] != "starting"), angle)
