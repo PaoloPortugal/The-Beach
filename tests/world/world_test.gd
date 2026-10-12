@@ -775,7 +775,11 @@ func _commands(world: Node3D, player: Player) -> void:
 	_check(c.run("/time set later").begins_with("Not a time"), "C09: a bad time is refused")
 	reply = c.run("/time speed 2")
 	var fast := day.cycle
-	var refused := c.run("/time speed 0").begins_with("Not a speed") and c.run("/time speed 2m").begins_with("Not a speed")
+	var refused := c.run("/time speed -1").begins_with("Not a speed") and c.run("/time speed 2m").begins_with("Not a speed")
+	var stopped := c.run("/time speed 0")
+	var at := day.time
+	day._process(60.0)
+	_check(stopped.begins_with("Speed 0: time stands still") and day.time == at and c.run("/time query").ends_with("time stands still (speed 0)."), "C09: /time speed 0 stops the clock (%s)" % stopped)
 	c.run("/time speed 1")
 	_check(fast == DayNight.CYCLE / 2.0 and reply == "Speed 2: a day now takes 14m." and refused and day.cycle == DayNight.CYCLE, "C09: /time speed 2 makes a day 14m, 1 puts it back (%s)" % reply)
 	var changing := weather.changes
