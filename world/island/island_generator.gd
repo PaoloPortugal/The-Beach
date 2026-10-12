@@ -36,6 +36,9 @@ const BAND_MIN := 1.5
 ## VALLEY_WIDTH metres wide, so you can always walk up (W10).
 const VALLEYS := 3
 const VALLEY_WIDTH := 4.0
+## A bridge's middle line keeps this far off the zipline's cable, in plan,
+## metres (W10): about a metre and a half past the deck's edge.
+const BRIDGE_CLEAR := 3.0
 ## Triangles steeper than this (their normal's y below it) are rock.
 const STEEP := 0.8
 ## Props stay this far outside the flat middle, and off ground steeper
@@ -231,18 +234,59 @@ func _valley_width() -> float:
 
 ## Where the zipline's two ends stand (W10, the mountain's): on the beach
 ## and on the shoulder just past the cliff's lip (so the cable clears the
-## cliff), at the first valley's mouth, local, on the built ground after
-## [method build]. Empty for an island without one.
-func zipline_ends() -> Array[Vector3]:
+## cliff), at the mouth of valley [param valley] (0 to [constant
+## VALLEYS] - 1), local, on the built ground after [method build]. Empty
+## for an island without one.
+func zipline_ends(valley := 0) -> Array[Vector3]:
 	if not profile.get("zipline", false):
 		return []
-	var dir := Vector2.from_angle(_valley_turn)
+	var plan := _zipline_plan(valley)
+	return [Vector3(plan[0].x, surface_height(plan[0].x, plan[0].y), plan[0].y),
+		Vector3(plan[1].x, surface_height(plan[1].x, plan[1].y), plan[1].y)]
+
+
+## Which valley's mouth the zipline stands at, given where bridges land on
+## the island ([param landings], local; W10): [param current] while its
+## cable keeps [constant BRIDGE_CLEAR] off every bridge, else the first
+## valley that does, else the one with the most room.
+func zipline_valley(landings: Array[Vector3], current: int) -> int:
+	if zipline_room(landings, current) >= BRIDGE_CLEAR:
+		return current
+	var best := current
+	var most := -INF
+	for v in VALLEYS:
+		var room := zipline_room(landings, v)
+		if room >= BRIDGE_CLEAR:
+			return v
+		if room > most:
+			best = v
+			most = room
+	return best
+
+
+## How close, in plan, the zipline's cable at valley [param valley] comes
+## to the middle line of a bridge landing at any of [param landings]
+## (local), metres; INF with none. A bridge runs from its landing straight
+## out, away from the middle (W06), and a little past it inward.
+func zipline_room(landings: Array[Vector3], valley: int) -> float:
+	var plan := _zipline_plan(valley)
+	var room := INF
+	for l in landings:
+		var at := Vector2(l.x, l.z)
+		var out := at.normalized()
+		var ends := Geometry2D.get_closest_points_between_segments(plan[0], plan[1], at - out * 2.0, at + out * radius)
+		room = minf(room, ends[0].distance_to(ends[1]))
+	return room
+
+
+# The zipline's ends at valley [param valley]'s mouth, in plan.
+func _zipline_plan(valley: int) -> Array[Vector2]:
+	var dir := Vector2.from_angle(_valley_turn + TAU / VALLEYS * valley)
 	var shore := shore_radius(dir.x, dir.y)
 	var bands := _bands(shore)
 	var low := shore - bands[0] * 0.5
 	var high := shore - bands[0] - bands[1] - minf(0.8, bands[2] * 0.5)
-	return [Vector3(dir.x * low, surface_height(dir.x * low, dir.y * low), dir.y * low),
-		Vector3(dir.x * high, surface_height(dir.x * high, dir.y * high), dir.y * high)]
+	return [dir * low, dir * high]
 
 
 # How far (x, z) is from the nearest valley's line, metres.

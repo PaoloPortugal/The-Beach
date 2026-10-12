@@ -273,6 +273,7 @@ func _on_removed(id: String, _reason: String) -> void:
 func _sink(i: Island) -> void:
 	_sinking[i] = true
 	bridges.remove(region(i))
+	_tell_landings()
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", sunk_y(i), sink_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween.finished.connect(func() -> void:
@@ -308,6 +309,23 @@ func _bridge(id: String) -> void:
 		var inward := Vector3(-local.x, 0.0, -local.z).normalized() * LANDING_RUN
 		i.props.clear_near(local, local + inward, LANDING_CLEAR)
 		return p, not clusters.is_far(cluster))
+	_tell_landings()
+
+
+# Tells every island where its bridges land now, after bridges came or
+# went, so its zipline keeps off them (W10).
+func _tell_landings() -> void:
+	for i in all_islands():
+		if i.zipline() == null:
+			continue
+		var key := region(i)
+		var landings: Array[Vector3] = []
+		for l in bridges.links():
+			if key in l:
+				var b := bridges.bridge(l[0], l[1])
+				var near := b.from if b.from.distance_to(i.global_position) < b.to.distance_to(i.global_position) else b.to
+				landings.append(near - i.global_position)
+		i.set_landings(landings)
 
 
 # Where a bridge heading for [param toward] meets the island: the

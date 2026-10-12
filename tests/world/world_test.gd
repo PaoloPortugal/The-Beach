@@ -184,6 +184,20 @@ func _biomes() -> void:
 	_check(tops.min() > 50.0 and tops.max() > 60.0, "biomes: mountains reach %.0f-%.0f m, some taller" % [tops.min(), tops.max()])
 	_check(meadow, "biomes: a mountain's middle is a meadow high up, its edge nearly as high")
 	_check(cable and only_mountain, "biomes: a mountain's zipline runs from its beach to its shoulder, your head clear of the cliff; only mountains have one")
+	# A bridge landing on the zipline's cable moves it to another valley's
+	# mouth (W10; found by the user, 2026-10-09); one landing elsewhere
+	# doesn't, nor does one beside another valley.
+	var moves := true
+	for seed in range(1, 13):
+		var g := IslandGenerator.new(seed * 7919, Biome.Kind.MOUNTAIN)
+		var top := g.zipline_ends(0)[1]
+		var side := Vector3(-top.z, 0.0, top.x).normalized() * (IslandGenerator.BRIDGE_CLEAR - 1.0)
+		var away := Basis(Vector3.UP, TAU / IslandGenerator.VALLEYS / 2.0) * top
+		var v := g.zipline_valley([top + side], 0)
+		moves = moves and v != 0 and g.zipline_room([top + side], v) >= IslandGenerator.BRIDGE_CLEAR
+		moves = moves and g.zipline_valley([away], 0) == 0 and g.zipline_valley([], 0) == 0
+		moves = moves and g.zipline_valley([top], 1) == 1
+	_check(moves, "biomes: a bridge landing within %.0f m of a mountain's zipline moves it to a clear valley; others don't" % IslandGenerator.BRIDGE_CLEAR)
 	# What stands on a mountain stands on its built ground, a jittered 2 m
 	# grid that on the cliff is up to 2 m off height_at (W10; found by the
 	# user, 2026-10-09): every torch and zipline post, on many seeds.
@@ -1093,6 +1107,10 @@ func _biome_island(world: Node3D, player: Player) -> void:
 				clear = clear and not m.props.is_near(Vector2(e.x - m.global_position.x, e.z - m.global_position.z), SessionIslands.LANDING_CLEAR - 0.1)
 	_check(islands.bridges.links().any(func(l: Array) -> bool: return region in l) and not ends.is_empty(), "W10: it's bridged")
 	_check(ends.all(func(e: Vector3) -> bool: return absf(e.y - m.edge_height()) < 0.3) and clear, "W10: its bridges land at its edge height, clear of props")
+	var landings: Array[Vector3] = []
+	for e in ends:
+		landings.append(e - m.global_position)
+	_check(m.generator.zipline_room(landings, m.zipline_valley) >= IslandGenerator.BRIDGE_CLEAR, "W10: its zipline's cable keeps clear of its bridges")
 	# Its zipline: E by the bottom post rides you up, E at the top down.
 	var zip := m.zipline()
 	_check(zip != null and islands.island("m1") == m, "W10: a mountain has a zipline")
@@ -1104,11 +1122,20 @@ func _biome_island(world: Node3D, player: Player) -> void:
 		_press("interact")
 		await _until(func() -> bool: return zip.is_riding(), 1.0)
 		var started := zip.is_riding() and player.riding
-		await _until(func() -> bool: return not zip.is_riding(), 8.0)
+		# A bridge landing on its cable mid-ride moves it, once you're off.
+		var valley := m.zipline_valley
+		var blocked := landings.duplicate()
+		blocked.append(zip.high)
+		m.set_landings(blocked)
+		var stayed := m.zipline() == zip and m.zipline_valley == valley
+		await _until(func() -> bool: return not player.riding, 8.0)
 		var up := not player.riding and player.global_position.y > m.global_position.y + m.edge_height() - 0.5
 		_check(started and up, "W10: E by its bottom post rides you up to the shoulder (%.1f m)" % (player.global_position.y - m.global_position.y))
 		await physics_frame
 		await physics_frame
+		var moved := m.zipline() != null and not is_instance_valid(zip) and m.zipline_valley != valley
+		_check(stayed and moved and m.generator.zipline_room(blocked, m.zipline_valley) >= IslandGenerator.BRIDGE_CLEAR, "W10: a bridge landing on its cable moves it to another valley, not mid-ride")
+		zip = m.zipline()
 		player.global_position = zip.to_global(zip.high) + Vector3(0, 0.1, 0)
 		await physics_frame
 		await physics_frame
