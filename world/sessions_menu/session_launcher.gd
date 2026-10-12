@@ -65,7 +65,7 @@ func stop_waiting() -> void:
 	if pending.is_empty():
 		return
 	pending = ""
-	_say("Stopped waiting. If that session starts later, it's listed under Running.")
+	_say("Stopped waiting. If that session starts later, it joins the sessions ring.")
 
 
 ## Asks for a new session in the folder [param path], to join
@@ -113,7 +113,7 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 func _process(_delta: float) -> void:
 	if not pending.is_empty() and not _still_said and Time.get_ticks_msec() / 1000.0 - _asked_at > STILL_STARTING_S:
 		_still_said = true
-		_say("Still starting; check the terminal, or stop waiting in the menu (Tab).")
+		_say("Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +).")
 
 
 func _say(text: String) -> void:
