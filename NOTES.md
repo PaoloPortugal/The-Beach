@@ -104,6 +104,7 @@ v1 slice.
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
 | C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd`, `world/world.gd` |
+| C10 | Settings menu                             | planned | n/a           | n/a       |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -2516,6 +2517,33 @@ The rest of the syntax waits for the user's live check.
   While open you don't move. The reply shows above it for 6 s.
   Placeholder UI, like all UI.
 
+### C10 Settings menu
+*Designed (user's, 2026-10-12); being built. Scope: core.* A settings
+menu for graphics and the game's other options, gathering the switches
+that were waiting for it: W09's lightning, A05's chime (in the sessions
+menu until now) and W04's "taken to a new session's island" (Deferred
+ideas). Renderer choice stays automatic (Architecture → Rendering): no
+renderer or driver setting.
+
+*Decided (user's, 2026-10-12; my recommendations, all taken):*
+- **Esc opens it** when nothing else is open (Esc still closes the chat,
+  the menus and the map first), freeing the mouse as Esc did; Esc again
+  closes it and captures the mouse (rejected: a Settings entry in the
+  sessions menu, hidden behind sessions; a key of its own, F10 or O,
+  easy to forget).
+- **A focused first set:** *Graphics:* window mode, vsync, FPS cap,
+  render scale, shadow quality, lightning on/off. *Controls:* mouse
+  sensitivity, field of view. *Sound:* the waiting chime (moved from the
+  sessions menu). *Game:* being taken to a new session's island on/off.
+  Key rebinding later (rejected: graphics only; everything including
+  rebinding now, the biggest piece by far).
+- **Tabs:** Graphics, Controls, Sound, Game in one panel, a placeholder
+  look like the sessions menu (rejected: one scrolling list, crowded
+  later).
+- **Changes apply at once and are saved** to `user://settings.cfg`, with
+  "Reset to defaults" (rejected: an Apply button, safer for window mode
+  but slower for everything else).
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -3853,9 +3881,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** a settings menu with graphics settings (it gets
-`Weather.lightning_enabled`'s switch), next after W11 (user's,
-2026-10-08). The mountain bugs under Watch items wait for later.
+**Current focus:** C10 settings menu, designed (user's, 2026-10-12;
+C10) and being built on `c10-settings`. The mountain bugs under Watch
+items wait for later.
 **Merged to `main` (2026-10-12), approved by the user: CI only on
 `main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
 on all three systems, and by hand; a branch is checked locally.
