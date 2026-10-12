@@ -50,7 +50,10 @@ Move the mouse toward a session and **let go of Tab** to go straight to
 its island, in front of its orchestrator (if the island is still rising,
 once it's up). Only the direction counts, so you don't have to land
 exactly on it. Letting go with the pointer in the middle, or pressing
-**Esc**, just closes the ring, so a quick tap of Tab does nothing. While
+**Esc**, just closes the ring, so a quick tap of Tab does nothing; so
+does switching to another window while holding Tab. What you point at
+stays selected while the mouse is still, even if another session comes
+or goes meanwhile. While
 no session is running, "Hold Tab for sessions" reminds you at the bottom
 of the screen. The ring's icons are a first version, like the rest of
 the game's screens for now.
@@ -71,8 +74,8 @@ the game's screens for now.
   platform, and each cluster's sessions in the order of their islands.
 - **With more than 12 sessions**, the busiest clusters each fold into a
   single piece showing how many sessions it holds ("9 ▸"). Point at it
-  for a moment (or click it) and its sessions fan out in a half circle
-  just outside the ring; point at one there and let go of Tab. Pointing
+  for a moment (or click it) and its sessions fan out in an arc (at
+  most half a circle) just outside the ring; point at one there and let go of Tab. Pointing
   anywhere else folds it back.
 - **A session still starting** shows as a faded piece with three dots;
   you can't go to it yet.
@@ -273,7 +276,7 @@ up close it has all its planks again.
 
 A cluster far out at sea (the 9th and later) has bridges between its
 own islands but none back to the platform: go there with the sessions
-menu (Tab) or by clicking it on the big map.
+ring (hold Tab) or by clicking it on the big map.
 
 A cluster with a huge number of islands (about 160 for one of the 8
 near clusters, about 70 for a far one) can start to reach into another

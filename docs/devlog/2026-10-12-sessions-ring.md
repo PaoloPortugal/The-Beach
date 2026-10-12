@@ -91,3 +91,25 @@ point (`_click_at`).
 
 What the tests can't see: the mouse itself, the look, and how the
 pulse and the fan feel. That's the live check.
+
+## Review fixes
+
+From the docs-sync and security reviews before handing it over:
+- Tab let go in another window never reaches the game, so the ring
+  stayed open after an Alt+Tab. It now closes without acting when the
+  window loses focus; tested, and a step in the live check.
+- A session arriving or ending mid-hold rebuilt the segments and
+  pointed again by direction, so a still pointer could end up on a
+  different session. What is pointed at now stays until the pointer
+  moves or it's gone; tested with a starting segment arriving, which
+  shifts the pointer's old spot onto the neighbouring session.
+- The fan's hit zone compared against the fixed 26° even when the
+  fanned segments were narrower; it now uses the segment's own width.
+- A test that the click on the plus only opens the panel: no picker,
+  no start, no notice.
+- `warp_mouse` may do nothing under Wayland: a Watch item (only Windows
+  to test on).
+- Docs that still said "sessions menu (Tab)", "Platform" in the menu or
+  S03's "quick version" now name the ring and the create panel.
+- Not changed: a long or right-to-left title can overflow the middle
+  circle (cosmetic, older than this branch; the UI pass will redo it).
