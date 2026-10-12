@@ -102,8 +102,8 @@ func _forget(orchestrator: Orchestrator) -> void:
 	_refresh_prompt()
 
 
-# _input, not _unhandled_input, so Esc closes the chat before the player
-# sees it (the player's Esc frees the mouse).
+# _input, not _unhandled_input, so Esc closes the chat without the settings
+# menu (C10) also opening.
 func _input(event: InputEvent) -> void:
 	if _open != null and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
