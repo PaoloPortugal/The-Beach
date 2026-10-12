@@ -184,6 +184,30 @@ func _biomes() -> void:
 	_check(tops.min() > 50.0 and tops.max() > 60.0, "biomes: mountains reach %.0f-%.0f m, some taller" % [tops.min(), tops.max()])
 	_check(meadow, "biomes: a mountain's middle is a meadow high up, its edge nearly as high")
 	_check(cable and only_mountain, "biomes: a mountain's zipline runs from its beach to its shoulder, your head clear of the cliff; only mountains have one")
+	# What stands on a mountain stands on its built ground, a jittered 2 m
+	# grid that on the cliff is up to 2 m off height_at (W10; found by the
+	# user, 2026-10-09): every torch and zipline post, on many seeds.
+	var worst := 0.0
+	var stood := 0
+	for seed in range(1, 13):
+		var island := Island.new()
+		island.island_seed = seed * 7919
+		island.biome = Biome.Kind.MOUNTAIN
+		island.position = Vector3(0, -800, 0) # out of the way
+		root.add_child(island)
+		await process_frame # it builds in _ready
+		var faces := PackedVector3Array()
+		for c in island.get_children():
+			if c is CollisionShape3D:
+				faces = (c.shape as ConcavePolygonShape3D).get_faces()
+		var feet: Array[Vector3] = [island.zipline().low, island.zipline().high]
+		for t in island.torches():
+			feet.append(t.position)
+		for f in feet:
+			worst = maxf(worst, absf(f.y - _mesh_height(faces, f.x, f.z)))
+			stood += 1
+		island.free()
+	_check(stood == 12 * (2 + Island.TORCHES) and worst < 0.03, "biomes: a mountain's torches and zipline posts stand on its ground (%d, at most %.3f m off)" % [stood, worst])
 
 	# Props: their meshes face outward, they clear where asked, and the
 	# solid ones have collision.
@@ -2400,6 +2424,17 @@ func _until(cond: Callable, timeout_s: float) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout_s * 1000)
 	while not cond.call() and Time.get_ticks_msec() < deadline:
 		await process_frame
+
+
+# The height of the highest triangle of [param faces] over (x, z), found
+# the slow way, or -INF if none is.
+func _mesh_height(faces: PackedVector3Array, x: float, z: float) -> float:
+	var best := -INF
+	for t in range(0, faces.size(), 3):
+		var hit: Variant = Geometry3D.ray_intersects_triangle(Vector3(x, 1000.0, z), Vector3.DOWN, faces[t], faces[t + 1], faces[t + 2])
+		if hit != null:
+			best = maxf(best, (hit as Vector3).y)
+	return best
 
 
 func _check(ok: bool, what: String) -> void:

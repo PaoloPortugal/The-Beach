@@ -231,8 +231,8 @@ func _valley_width() -> float:
 
 ## Where the zipline's two ends stand (W10, the mountain's): on the beach
 ## and on the shoulder just past the cliff's lip (so the cable clears the
-## cliff), at the first valley's mouth, local. Empty for an island without
-## one.
+## cliff), at the first valley's mouth, local, on the built ground after
+## [method build]. Empty for an island without one.
 func zipline_ends() -> Array[Vector3]:
 	if not profile.get("zipline", false):
 		return []
@@ -241,8 +241,8 @@ func zipline_ends() -> Array[Vector3]:
 	var bands := _bands(shore)
 	var low := shore - bands[0] * 0.5
 	var high := shore - bands[0] - bands[1] - minf(0.8, bands[2] * 0.5)
-	return [Vector3(dir.x * low, height_at(dir.x * low, dir.y * low), dir.y * low),
-		Vector3(dir.x * high, height_at(dir.x * high, dir.y * high), dir.y * high)]
+	return [Vector3(dir.x * low, surface_height(dir.x * low, dir.y * low), dir.y * low),
+		Vector3(dir.x * high, surface_height(dir.x * high, dir.y * high), dir.y * high)]
 
 
 # How far (x, z) is from the nearest valley's line, metres.

@@ -81,15 +81,17 @@ func torches() -> Array[NightLight]:
 
 # Torches at the island's edge height (half a metre on a beach), inward
 # from the shore along a diagonal, so they mark the island's edge at night.
+# They stand on the built ground, which on a cliff can be metres off
+# height_at (W10).
 func _add_torches() -> void:
 	var at := maxf(0.5, edge_height())
 	for k in TORCHES:
 		var dir := Vector2.from_angle(TAU * (k + 0.5) / TORCHES)
 		var r := generator.shore_radius(dir.x, dir.y)
-		while r > 0.0 and generator.height_at(dir.x * r, dir.y * r) < at:
+		while r > 0.0 and generator.surface_height(dir.x * r, dir.y * r) < at:
 			r -= 0.5
 		var torch := NightLight.torch()
 		torch.name = "Torch%d" % k
-		torch.position = Vector3(dir.x * r, generator.height_at(dir.x * r, dir.y * r), dir.y * r)
+		torch.position = Vector3(dir.x * r, generator.surface_height(dir.x * r, dir.y * r), dir.y * r)
 		add_child(torch)
 		props.clear_near(torch.position, torch.position, TORCH_CLEAR)
