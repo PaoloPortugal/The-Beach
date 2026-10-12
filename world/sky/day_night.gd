@@ -73,6 +73,9 @@ func setup(environment: Environment, light: DirectionalLight3D, p_weather: Weath
 	_sky.shader = preload("res://world/sky/sky.gdshader")
 	var sky := Sky.new()
 	sky.sky_material = _sky
+	# The sun's direction is set every frame, and each change redraws the
+	# reflection map: at 64 px that's cheap and looks the same as 256.
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	_environment.sky = sky
 	# The ambient light is set here, by the hour, not taken from the sky.
 	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -167,7 +170,8 @@ func apply() -> void:
 	horizon = horizon.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
 	_set_sky("top_colour", top)
 	_set_sky("horizon_colour", horizon)
-	_set_sky("sun_direction", sun)
+	# Every frame, so the sun and moon move smoothly (_set_sky).
+	_sky.set_shader_parameter("sun_direction", sun)
 	_set_sky("sun_colour", colour if day else SUNSET_COLOUR)
 	_set_sky("stars", darkness * (1.0 - cover))
 	_set_sky("discs", 1.0 - cover * 0.9)
@@ -194,17 +198,14 @@ func apply() -> void:
 
 # Sets a sky uniform only when it has changed enough to show: each change
 # makes Godot redraw the sky's reflection map, so not every frame. A
-# colour step of 1/255, or the sun moving 1/255 of a radian (about once a
-# second of the 28-minute day; a lightning flash still updates every
-# frame).
+# colour step of 1/255 (a lightning flash still updates every frame). The
+# sun's direction is set every frame instead: in steps its disc jumped.
 func _set_sky(key: String, value: Variant) -> void:
 	var last: Variant = _sky_values.get(key)
 	if last != null:
 		var change := 0.0
 		if value is Color:
 			change = maxf(maxf(absf(value.r - last.r), absf(value.g - last.g)), absf(value.b - last.b))
-		elif value is Vector3:
-			change = (value as Vector3).distance_to(last)
 		else:
 			change = absf(value - last)
 		if change < SKY_STEP:
