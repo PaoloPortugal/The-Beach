@@ -361,7 +361,7 @@ func _placement() -> void:
 		for j in i:
 			closest = minf(closest, points[i].distance_to(points[j]))
 	_check(closest > 2.0, "placement: slots at least 2 m apart (closest %.2f m)" % closest)
-	_check(points.all(func(p: Vector2) -> bool: return p.length() > 9.0), "placement: all outside the chat zone")
+	_check(points.all(func(p: Vector2) -> bool: return p.length() > 9.0), "placement: all outside its talking reach")
 	_check(AgentPlacement.slot_position(7) == AgentPlacement.slot_position(7), "placement: a slot is always in the same place")
 	var far := AgentPlacement.slot_position(5000)
 	_check(far.length() > 100.0 and is_finite(far.x), "placement: no maximum")
@@ -477,12 +477,14 @@ func _settings(world: Node3D, player: Player) -> void:
 	menu.sound_toggle().button_pressed = false
 	_check(not world.attention.sound_on, "C10: the waiting chime's toggle, moved from the sessions menu")
 	(menu.control("game/go_to_new_island") as CheckButton).button_pressed = false
+	(menu.control("game/crosshair") as CheckButton).button_pressed = false
+	_check(not world.crosshair.ring_on, "C10/C11: the crosshair's toggle hides its ring")
 	menu.close()
 
 	var saved := Settings.new()
 	saved.path = settings.path
 	saved.load_file()
-	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false}
+	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false, "game/crosshair": false}
 	var lost := expect.keys().filter(func(k: String) -> bool:
 		return not (is_equal_approx(saved.value(k), expect[k]) if expect[k] is float else saved.value(k) == expect[k]))
 	_check(lost.is_empty(), "C10: every setting is kept between runs (not: %s)" % [lost])
@@ -521,7 +523,7 @@ func _settings(world: Node3D, player: Player) -> void:
 
 	menu.open()
 	menu.reset_all()
-	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
+	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on and world.crosshair.ring_on, "C10: Reset to defaults puts every setting back, the chime and the crosshair too")
 	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
 	menu.close()
 
@@ -1242,7 +1244,10 @@ func _biome_island(world: Node3D, player: Player) -> void:
 		player.global_position = zip.to_global(zip.low) + Vector3(0.5, 0.1, 0)
 		player.velocity = Vector3.ZERO
 		await physics_frame
+		_face(player, zip.ends[0].global_position)
 		await physics_frame
+		await physics_frame
+		_check(world.crosshair.hint_text() == "E  Zipline up", "C11: looking at its bottom post: \"%s\"" % world.crosshair.hint_text())
 		_press("interact")
 		await _until(func() -> bool: return zip.is_riding(), 1.0)
 		var started := zip.is_riding() and player.riding
@@ -1261,6 +1266,8 @@ func _biome_island(world: Node3D, player: Player) -> void:
 		_check(stayed and moved and m.generator.zipline_room(blocked, m.zipline_valley) >= IslandGenerator.BRIDGE_CLEAR, "W10: a bridge landing on its cable moves it to another valley, not mid-ride")
 		zip = m.zipline()
 		player.global_position = zip.to_global(zip.high) + Vector3(0, 0.1, 0)
+		await physics_frame
+		_face(player, zip.ends[1].global_position)
 		await physics_frame
 		await physics_frame
 		_press("interact")
@@ -1348,8 +1355,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _frames(20)
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0 and player.is_on_floor(), "teleport: in front of the orchestrator, on its island")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
-	await _until(func() -> bool: return chat.prompt_visible(), 2.0)
-	_check(chat.prompt_visible(), "walking close shows \"Press E to chat\"")
+	await _crosshair(world, player, orchestrator)
 	# The sidecar doesn't have h1, so fetching its history fails.
 	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
 	_check(not chat._history.has("h1"), "a failed history fetch is forgotten")
@@ -1471,7 +1477,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(walk_at) < 0.05, "no walking while chatting")
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
-	_check(not chat.is_open() and chat.prompt_visible() and player.controls_enabled, "Esc closes the chat")
+	await _frames(2)
+	_check(not chat.is_open() and world.crosshair.target() == orchestrator.talk and player.controls_enabled, "Esc closes the chat")
 
 	# The session ends while you're on its island, with the chat open.
 	_press("interact")
@@ -1513,7 +1520,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var island_ref: WeakRef = weakref(island)
 	await _until(func() -> bool: return orchestrator_ref.get_ref() == null and not chat.is_open(), 2.0)
 	_check(islands.island("h1") == null and not is_instance_valid(orchestrator) and not chat.is_open() and player.controls_enabled, "an ended session's orchestrator goes, and its chat closes")
-	_check(chat.bubble("h1") == null and not chat.prompt_visible(), "nothing of it is left to talk to")
+	_check(chat.bubble("h1") == null and world.crosshair.target() == null, "nothing of it is left to talk to")
 	await _frames(10)
 	_check(island in islands.left_islands() and island.position.y == 0.0 and player.global_position.distance_to(on_island) < 0.5, "W04: its island stays while you're on it")
 	# W06: on its bridge to the platform, far from the island, counts too.
@@ -2263,7 +2270,9 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return chat.history_loaded(id), 5.0)
 	_check(chat.history_loaded(id), "live: its history is loaded")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
-	await _until(func() -> bool: return chat.prompt_visible(), 2.0)
+	await physics_frame
+	_face(player, orchestrator.talk.global_position)
+	await _until(func() -> bool: return world.crosshair.target() == orchestrator.talk, 2.0)
 	_press("interact")
 	await _until(func() -> bool: return chat.is_open(), 2.0)
 	var panel := chat.panel()
@@ -2550,6 +2559,69 @@ func _sign_in_pickup(world: Node3D, chat: ChatController, id: String) -> void:
 	await _until(func() -> bool: return store.orchestrator(id).get("state") == "idle" and store.session(id)["notices"].is_empty(), 8.0)
 	await _frames(40)
 	_check(panel.status_text() == "" and panel.draft() == "" and panel.shown_messages()[-1].contains("signed in again"), "live: the next one goes through and the wait clears")
+
+
+# C11: the crosshair by an orchestrator: nothing while looking away, too
+# far or behind something; looking at it, it grows and says "E  Talk";
+# E acts only on what it is on; hidden while the controls are off.
+func _crosshair(world: Node3D, player: Player, orchestrator: Orchestrator) -> void:
+	var crosshair: Crosshair = world.crosshair
+	var chat: ChatController = world.get_node("ChatController")
+	var talk := orchestrator.talk
+	await physics_frame
+	_face(player, talk.global_position + (talk.global_position - player.global_position) * Vector3(-1, 0, -1))
+	await _frames(15)
+	_check(crosshair.shown() and crosshair.target() == null and crosshair.hint_text() == "" and is_zero_approx(crosshair.grown()), "C11: close but looking away: the crosshair stays small, no hint")
+	_press("interact")
+	await _frames(2)
+	_check(not chat.is_open(), "C11: and E does nothing")
+	_face(player, talk.global_position)
+	await _until(func() -> bool: return crosshair.grown() >= 1.0, 2.0)
+	_check(crosshair.target() == talk and crosshair.hint_text() == "E  Talk" and crosshair.grown() >= 1.0, "C11: looking at the orchestrator, it grows, \"%s\"" % crosshair.hint_text())
+	# A wall in between.
+	var wall := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	(shape.shape as BoxShape3D).size = Vector3(3, 3, 0.2)
+	wall.add_child(shape)
+	world.add_child(wall)
+	var camera := player.get_node("Head/Camera3D") as Node3D
+	wall.global_position = camera.global_position.lerp(talk.global_position, 0.4)
+	wall.look_at(talk.global_position, Vector3.UP)
+	await _frames(3)
+	_check(crosshair.target() == null, "C11: not through a wall")
+	wall.queue_free()
+	await _frames(3)
+	_check(crosshair.target() == talk, "C11: and again once it's gone")
+	# Too far: back off along the view.
+	var near := player.global_position
+	var away := (player.global_position - talk.global_position) * Vector3(1, 0, 1)
+	player.global_position += away.normalized() * (talk.reach + 1.0)
+	await physics_frame
+	_face(player, talk.global_position)
+	await _frames(3)
+	_check(crosshair.target() == null, "C11: not from further than its reach (%.1f m)" % talk.reach)
+	player.global_position = near
+	await physics_frame
+	_face(player, talk.global_position)
+	await _frames(3)
+	crosshair.ring_on = false
+	await _frames(2)
+	_check(crosshair.target() == talk and crosshair.hint_text() == "E  Talk", "C11: the setting hides the ring, not the aiming or the hint")
+	crosshair.ring_on = true
+	player.controls_enabled = false
+	await _frames(2)
+	_check(not crosshair.shown() and crosshair.hint_text() == "" and crosshair.target() == null, "C11: hidden without the controls (chat, menus, the ring, the map)")
+	player.controls_enabled = true
+	await _frames(2)
+
+
+# Turns the player and its head so the camera looks at [param at].
+func _face(player: Player, at: Vector3) -> void:
+	var head := player.get_node("Head") as Node3D
+	var d := at - (head.get_node("Camera3D") as Node3D).global_position
+	player.rotation.y = atan2(-d.x, -d.z)
+	head.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
 
 
 # Holds an action down until _release (Tab for the ring).

@@ -23,6 +23,7 @@ const DEFAULTS := {
 	"controls/mouse_sensitivity": 1.0,
 	"controls/fov": 80.0,
 	"game/go_to_new_island": true,
+	"game/crosshair": true,
 }
 
 ## The choices a text or whole-number setting can take, in menu order.

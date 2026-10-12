@@ -1,8 +1,9 @@
 class_name ChatController
 extends Node
-## Walk up to chat (C01) and the chat itself (C02). Near an orchestrator,
-## "Press E to chat" appears; E opens its chat panel, frees the mouse and
-## pauses the player's controls; Esc closes it again. Every orchestrator
+## Walk up to chat (C01) and the chat itself (C02). Looking at an
+## orchestrator from close enough, the crosshair says "E  Talk" (C11); E
+## opens its chat panel, frees the mouse and pauses the player's controls;
+## Esc closes it again. Every orchestrator
 ## also gets a bubble above its head with its latest message.
 
 signal chat_opened(orchestrator: Orchestrator)
@@ -15,20 +16,16 @@ const BUBBLE := preload("res://chat/message_bubble.tscn")
 var store: SessionStore
 var sidecar: SidecarClient
 
-## Orchestrators the player is standing near, most recent last.
-var _near: Array[Orchestrator] = []
 var _open: Orchestrator = null
 var _bubbles := {} # session id → MessageBubble
 var _history := {} # session id → "asking" or "loaded"
 
-@onready var _prompt: Label = $Prompt/Label
 @onready var _panel: ChatPanel = $Prompt/Panel
 
 
 func _ready() -> void:
 	for node in get_tree().get_nodes_in_group("orchestrators"):
 		watch(node)
-	_refresh_prompt()
 
 
 ## Connects to the sessions. Call once, before any session's orchestrator
@@ -51,8 +48,9 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 
 
 func watch(orchestrator: Orchestrator) -> void:
-	orchestrator.player_entered.connect(_on_entered)
-	orchestrator.player_exited.connect(_on_exited)
+	orchestrator.talk.used.connect(func(_player: Player) -> void:
+		if _open == null:
+			open(orchestrator))
 	orchestrator.tree_exiting.connect(_forget.bind(orchestrator))
 	var id := orchestrator.session_id
 	if id.is_empty() or store == null:
@@ -69,10 +67,6 @@ func is_open() -> bool:
 	return _open != null
 
 
-func prompt_visible() -> bool:
-	return _prompt.visible
-
-
 func panel() -> ChatPanel:
 	return _panel
 
@@ -82,24 +76,11 @@ func bubble(session_id: String) -> MessageBubble:
 	return _bubbles.get(session_id)
 
 
-func _on_entered(orchestrator: Orchestrator) -> void:
-	_near.erase(orchestrator)
-	_near.append(orchestrator)
-	_refresh_prompt()
-
-
-func _on_exited(orchestrator: Orchestrator) -> void:
-	_near.erase(orchestrator)
-	_refresh_prompt()
-
-
 # An orchestrator left the world (its session ended).
 func _forget(orchestrator: Orchestrator) -> void:
-	_near.erase(orchestrator)
 	_bubbles.erase(orchestrator.session_id)
 	if _open == orchestrator:
 		close()
-	_refresh_prompt()
 
 
 # _input, not _unhandled_input, so Esc closes the chat without the settings
@@ -112,9 +93,6 @@ func _input(event: InputEvent) -> void:
 			_panel.cancel_link()
 		else:
 			close()
-	elif _open == null and not _near.is_empty() and player.controls_enabled and event.is_action_pressed("interact"):
-		get_viewport().set_input_as_handled()
-		open(_near.back())
 
 
 func open(orchestrator: Orchestrator) -> void:
@@ -123,7 +101,6 @@ func open(orchestrator: Orchestrator) -> void:
 	_panel.open(orchestrator.session_id)
 	player.controls_enabled = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_refresh_prompt()
 	chat_opened.emit(orchestrator)
 
 
@@ -133,12 +110,7 @@ func close() -> void:
 	_panel.close()
 	player.controls_enabled = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_refresh_prompt()
 	chat_closed.emit(was)
-
-
-func _refresh_prompt() -> void:
-	_prompt.visible = _open == null and not _near.is_empty()
 
 
 # The chat so far isn't in the snapshot: fetch it once per session. If

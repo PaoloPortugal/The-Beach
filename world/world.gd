@@ -8,7 +8,8 @@ extends Node3D
 ## shows the cluster you're in, and M opens a map of the world (W06).
 ## The plan's usage limits are in the bottom-right corner (C08). The day
 ## turns to night and back, and the weather changes (W09). Esc opens the
-## settings menu (C10), whose settings this applies.
+## settings menu (C10), whose settings this applies. The crosshair picks
+## what E acts on (C11).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -38,6 +39,8 @@ var lightning_bolt := LightningBolt.new()
 var settings := Settings.new()
 ## Esc, with nothing else open (C10).
 var settings_menu := SettingsMenu.new()
+## The crosshair, and what E acts on (C11).
+var crosshair := Crosshair.new()
 ## Where the debug commands (C09) are typed; null outside debug builds.
 var debug_console: DebugConsole
 
@@ -87,6 +90,9 @@ func _ready() -> void:
 	add_child(minimap)
 	minimap.setup(_islands, _player)
 	minimap.hidden_when = func() -> bool: return _chat.is_open() or _menu.is_open() or world_map.is_open()
+	crosshair.name = "Crosshair"
+	crosshair.player = _player
+	add_child(crosshair)
 	add_child(world_map)
 	world_map.setup(_islands, _player, store, minimap)
 	world_map.go_to.connect(teleport)
@@ -196,6 +202,7 @@ func apply_settings() -> void:
 	weather.lightning_enabled = settings.value("graphics/lightning")
 	_player.mouse_sensitivity = Player.BASE_SENSITIVITY * settings.value("controls/mouse_sensitivity")
 	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")
+	crosshair.ring_on = settings.value("game/crosshair")
 
 
 # The debug commands (C09), in debug builds only: T opens their line.

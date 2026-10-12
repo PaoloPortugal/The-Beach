@@ -7,7 +7,8 @@ extends RefCounted
 ## orchestrator, on the ground plane (x, z). A slot's small jitter comes
 ## from its number, so a slot is always in the same place.
 
-## Radius of the first ring, metres: outside the orchestrator's chat zone.
+## Radius of the first ring, metres: outside the orchestrator's talking
+## reach (its `talk`, 3.5 m; C11).
 const FIRST_RING := 10.0
 ## Distance between rings, and between slots along a ring.
 const RING_GAP := 3.0
