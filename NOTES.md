@@ -4313,10 +4313,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** A02's report throw, branch `a02-report-throw`, ready
-for the user's review and live check: a done subagent stands up and
-throws its paper in a 0.6 s arc to its caller, which bobs, instead of
-walking it there (dev log 2026-10-12-report-throw).
+**Current focus:** none set; the user picks the next feature.
+**Merged to `main` (2026-10-12), approved by the user: A02's report
+throw** (dev log 2026-10-12-report-throw): a done subagent stands up
+and throws its paper in a 0.6 s arc to its caller, which bobs, instead
+of walking it there, so the report lands about 1 s after Claude has it.
+Live check passed with the user; it found the message bubble vanishing
+over the sea (Watch items, to fix later).
 **Merged to `main` (2026-10-12), approved by the user: C11, the
 crosshair** (dev log 2026-10-12-crosshair): a ring in the middle of the
 screen that doubles in size on what you can use within reach, with
