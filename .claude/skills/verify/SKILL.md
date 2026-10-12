@@ -49,12 +49,14 @@ watch (the file's header shows how).
 
 ## 4. CI
 
-If the branch is pushed: `gh run list --branch <branch> --limit 3`, and for
-a failed run, `gh run view <id> --log-failed`. A branch push runs Windows and
-Linux only; macOS runs on `main` and by hand (NOTES.md → Running it →
-Continuous integration). Don't trigger a run yourself: the repo's Actions
-minutes are limited. If macOS matters for this change, suggest the user
-starts one.
+CI runs only on pushes to `main` and by hand (NOTES.md → Running it →
+Continuous integration), so a feature branch usually has no run: the local
+suites above are its check. If a run exists for the branch (started by
+hand): `gh run list --branch <branch> --limit 3`, and for a failed run,
+`gh run view <id> --log-failed`. After a merge, read `main`'s run the same
+way. Don't trigger a run yourself: the repo's Actions minutes are limited.
+If another system matters for this change (macOS above all), suggest the
+user starts one.
 
 ## 5. Report
 
