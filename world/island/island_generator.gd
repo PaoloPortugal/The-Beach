@@ -84,6 +84,10 @@ var _seed: int
 var _tint := RandomNumberGenerator.new()
 var _valley_turn := 0.0 # the first valley's angle
 var _peaks: Array[Vector4] = [] # spires: x, z, height over the middle, base radius
+# The built mesh's vertices and coarse blocks (build), for surface_height.
+var _grid: Array[PackedVector3Array] = []
+var _coarse: Array[PackedByteArray] = []
+var _extent := 0.0
 
 
 func _init(p_seed: int, p_biome: int = Biome.Kind.BEACH) -> void:
@@ -377,6 +381,9 @@ func build() -> Dictionary:
 						var je: int = j0 + (COARSE if side[1] > 0 else 0)
 						grid[i0 + k][je] = grid[i0][je].lerp(grid[i0 + COARSE][je], t)
 
+	_grid = grid
+	_coarse = coarse
+	_extent = extent
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
@@ -400,19 +407,63 @@ func _deep(grid: Array[PackedVector3Array], i0: int, j0: int) -> bool:
 	return true
 
 
+## How high the built mesh's ground is at (x, z), local (W10): it's a
+## jittered 2 m grid sampling [method height_at], so on a cliff the two
+## can be metres apart. What stands on the ground (torches, the zipline's
+## posts) stands here. [method height_at] before [method build] or off
+## the mesh.
+func surface_height(x: float, z: float) -> float:
+	if _grid.is_empty():
+		return height_at(x, z)
+	var n := _grid.size() - 1
+	var ci := int(floor((x + _extent) / cell))
+	var cj := int(floor((z + _extent) / cell))
+	var p := Vector2(x, z)
+	# The jitter moves a vertex at most 0.3 of a cell: the point is in
+	# this cell's triangles or a neighbour's.
+	for i in range(maxi(ci - 1, 0), mini(ci + 2, n)):
+		for j in range(maxi(cj - 1, 0), mini(cj + 2, n)):
+			var bi := i / COARSE
+			var bj := j / COARSE
+			var tris: Array
+			if _coarse[bi][bj]:
+				tris = _cell_triangles(_grid, bi * COARSE, bj * COARSE, COARSE, bi + bj)
+			else:
+				tris = _cell_triangles(_grid, i, j, 1, i + j)
+			for t in tris:
+				var a: Vector3 = t[0]
+				var b: Vector3 = t[1]
+				var c: Vector3 = t[2]
+				var w := Geometry2D.point_is_inside_triangle(p, Vector2(a.x, a.z), Vector2(b.x, b.z), Vector2(c.x, c.z))
+				if w:
+					return _plane_y(a, b, c, x, z)
+	return height_at(x, z)
+
+
+# The height at (x, z) of the plane through a, b and c.
+static func _plane_y(a: Vector3, b: Vector3, c: Vector3, x: float, z: float) -> float:
+	var normal := (b - a).cross(c - a)
+	if absf(normal.y) < 0.000001:
+		return maxf(a.y, maxf(b.y, c.y))
+	return a.y - (normal.x * (x - a.x) + normal.z * (z - a.z)) / normal.y
+
+
 # Two triangles over the [param size] x [param size] cells from (i, j).
 func _add_cell(st: SurfaceTool, faces: PackedVector3Array, grid: Array[PackedVector3Array], i: int, j: int, size: int, parity: int) -> void:
+	for t in _cell_triangles(grid, i, j, size, parity):
+		_add_triangle(st, faces, t[0], t[1], t[2])
+
+
+# The corners of those two triangles.
+static func _cell_triangles(grid: Array[PackedVector3Array], i: int, j: int, size: int, parity: int) -> Array:
 	var a := grid[i][j]
 	var b := grid[i + size][j]
 	var c := grid[i + size][j + size]
 	var d := grid[i][j + size]
 	# Alternate the diagonal for a less regular look.
 	if parity % 2 == 0:
-		_add_triangle(st, faces, a, b, c)
-		_add_triangle(st, faces, a, c, d)
-	else:
-		_add_triangle(st, faces, a, b, d)
-		_add_triangle(st, faces, b, c, d)
+		return [[a, b, c], [a, c, d]]
+	return [[a, b, d], [b, c, d]]
 
 
 func _add_triangle(st: SurfaceTool, faces: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3) -> void:
