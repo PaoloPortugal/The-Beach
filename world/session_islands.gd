@@ -217,6 +217,7 @@ func _on_added(id: String, created: bool) -> void:
 	i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
 	_biome_choice.erase(id)
 	i.position = clusters.island_position(id)
+	i.zipline_waits = true # placed once its bridges land (W10)
 	add_child(i, true) # generates the island
 	if created:
 		i.position.y = sunk_y(i)
@@ -316,7 +317,7 @@ func _bridge(id: String) -> void:
 # went, so its zipline keeps off them (W10).
 func _tell_landings() -> void:
 	for i in all_islands():
-		if i.zipline() == null:
+		if not i.generator.profile.get("zipline", false):
 			continue
 		var key := region(i)
 		var landings: Array[Vector3] = []

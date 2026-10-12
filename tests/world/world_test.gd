@@ -1096,6 +1096,7 @@ func _biome_island(world: Node3D, player: Player) -> void:
 	var m := islands.island("m1")
 	_check(m.biome == Biome.Kind.MOUNTAIN and m.edge_height() > 4.0, "W10: the chosen biome is the island's")
 	_check(m.position.y + m.top() < Seabed.DEEPEST, "W10: a high island rises from all under the sea floor (top %.1f m)" % (m.position.y + m.top()))
+	_check(m.zipline() == null, "W10: its zipline waits for its bridges")
 	await _until(func() -> bool: return not islands.is_rising("m1"), 6.0)
 	var region := SessionIslands.region(m)
 	var ends: Array[Vector3] = []
