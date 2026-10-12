@@ -105,6 +105,7 @@ v1 slice.
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
 | C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd`, `world/world.gd` |
 | C10 | Settings menu                             | built (UI placeholder) | C10 | `world/settings/`, `world/world.gd`, `world/player/player.gd` |
+| C11 | Crosshair                                 | built (UI placeholder) | C11 | `world/crosshair.gd`, `world/interactable.gd`, `world/world.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -441,7 +442,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -1761,15 +1762,14 @@ from screenshots).
   starts in a clear valley and leaves no bare strip behind. Without it,
   4-8 % of mountains with 1-3 bridges had a bridge through the cable;
   with it, a clear valley was found every time (400 seeds, random
-  bridge directions). Within 2 m
-  of a post, "E: zipline up" (or down) floats over it; E (`interact`)
+  bridge directions). With the crosshair on a post from within 3 m
+  (C11), it says "E  Zipline up" (or down); E (`interact`)
   rides you to the other post (its length over 7 m/s, eased in and
   out, so about 10 m/s at its fastest), hanging
   2.2 m under the cable, your head clear of the cliff. While riding,
   `Player.riding` stops walking, falling and swimming, but you can look
   round. At the top you're let off 1.5 m further in. Props keep 2 m off
-  the cable. If the island goes mid-ride, you're let go. The player
-  joins the `player` group so the zipline can find you.
+  the cable. If the island goes mid-ride, you're let go.
 - *Bridges* (W06): a bridge lands at the island's edge height
   (`Island.edge_height`), at the outermost point that high on the line
   from its middle. Where a bridge is steeper than 0.2 m a metre its
@@ -1880,8 +1880,8 @@ question 7 is settled.
 
 **How it works.** `agents/orchestrator/`: a capsule body and a sphere head
 behind a desk, all Godot primitives (no art assets), facing +z. It has a
-solid collision box and a `ChatZone` (`Area3D`, radius 2.5 m) that signals
-when the player walks in or out (C01), and a `MessageAnchor` above its head
+solid collision box, `talk`, the `Interactable` the crosshair aims at
+to chat (C01, C11), and a `MessageAnchor` above its head
 where its message bubble floats (C02). It joins the `orchestrators` group.
 One is made per session, in the middle of its island, by `SessionIslands`
 (W01), with `session_id` set to the session it belongs to. A lamp on its
@@ -1948,7 +1948,7 @@ and it handles about 20–30 per island. Nothing may assume a fixed maximum
 agent count. Options for larger counts are in Deferred ideas.
 
 *Decided (user's, 2026-09-30):* rings with fixed slots. Rings around the
-orchestrator from about 10 m out (outside the chat zone), slots about
+orchestrator from about 10 m out (outside its 3.5 m talking reach), slots about
 3 m apart along each ring, a little jitter, every agent facing the
 orchestrator and standing on the sand. More rings as needed, no maximum.
 An agent keeps its slot while it's there; a freed slot is reused.
@@ -2036,19 +2036,21 @@ game isn't in front:
 the chat panel for its session.
 
 *Decided (user's, 2026-09-30):* walk close, "Press E to chat" appears, E
-opens the panel and frees the mouse, Esc closes it.
+opens the panel and frees the mouse, Esc closes it. Since C11
+(2026-10-12) you look at the orchestrator instead: the crosshair says
+"E  Talk".
 
-**How it works.** `ChatController` (`chat/`) listens to the chat zone of
-every orchestrator the world gives it (`watch`, called for each new
-island). While the player is in one, "Press E to chat" shows at the bottom
-of the screen. E (`interact`, physical key) opens that orchestrator's chat
+**How it works.** `ChatController` (`chat/`) listens to the `talk`
+interactable of every orchestrator the world gives it (`watch`, called
+for each new island). With the crosshair on it from within 3.5 m (C11),
+E (`interact`, physical key) opens that orchestrator's chat
 panel (C02), frees the mouse and turns the player's controls off
 (`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
 back; the controller reads Esc in `_input` and marks it handled, so
 Esc doesn't also open the settings menu (C10). An orchestrator that
 leaves the world (its session ended) is forgotten, and its chat closes if
-it was open. Checked headless (zone, prompt, open, no walking while open,
+it was open. Checked headless (looking at it, open, no walking while open,
 close) and in the running game (the mouse; headless Godot has none).
 
 ### C02 Chat panel
@@ -2743,8 +2745,8 @@ later SMAA default):*
 - **A focused first set:** *Graphics:* window mode, vsync, FPS cap,
   render scale, shadow quality, lightning on/off. *Controls:* mouse
   sensitivity, field of view. *Sound:* the waiting chime (moved from the
-  sessions menu). *Game:* being taken to a new session's island on/off.
-  Key rebinding later (rejected: graphics only; everything including
+  sessions menu). *Game:* being taken to a new session's island on/off;
+  the crosshair on/off (C11, 2026-10-12). Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
   (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA); **MSAA
@@ -2816,6 +2818,8 @@ later SMAA default):*
   - *Take me to a new session's island* (W04): off, a session you start
     leaves you where you are (its beacon and edge arrow still show it);
     going there from the sessions menu or the map still takes you.
+  - *Crosshair* (C11): off hides the ring (`Crosshair.ring_on`); the
+    aiming and the hint under it stay.
 - *Sound:* A05's chime toggle, moved here from the sessions menu; it
   still sets `Attention.sound_on`, saved where it was.
 - Reset to defaults sets every setting back, the chime on too.
@@ -2823,11 +2827,80 @@ later SMAA default):*
 Tested in the world test (`_settings`): Esc opening and closing it, Esc
 in the sessions menu closing only that, the tabs, each setting applied
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
-the chime, the trip to a new island off and on), every value kept in a
+the chime, the trip to a new island off and on, the crosshair), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
-defaults or clamped, and Reset. The window mode, vsync and the mouse
+defaults or clamped, and Reset (the crosshair too). The window mode, vsync and the mouse
 being captured can't be seen headless: the live check's. Screenshots of
 every tab under both renderers.
+
+### C11 Crosshair
+*Built (2026-10-12). Scope: core* (world only: no provider, protocol or
+sidecar part). A crosshair in the middle of the screen that shows what
+E (`interact`) will act on, and E acts only on that: you look at an
+orchestrator or a zipline post to use it, instead of standing near it.
+It replaces C01's "Press E to chat" and W10's floating zipline labels,
+and gives later things you can use (parkour, minigames) one way in.
+
+*Decided (user's design, 2026-10-12; my recommendations for the open
+details, all taken):*
+- **A small white ring** in the screen's middle, with a dark outline so
+  it reads on sand, sea and sky. At rest it is a ring of 5.5 px radius;
+  on something you can use, within its reach and not behind anything,
+  it grows to double that, 11 px, in 0.1 s (the user's sizes after the
+  first look, 2026-10-12; first built 1.5 px growing to 5.5 px).
+  Rejected: a dot that turns into a ring (two shapes for one meaning).
+- **The hint under it:** "<key>  <what it does>" ("E  Talk", "E  Zipline
+  up", "E  Zipline down"), the key named from the `interact` binding as
+  the keyboard's layout names it.
+- **E acts only on what the crosshair is on** (rejected: a crosshair for
+  looks only, with E still acting on whatever you stand near; keeping
+  the old prompts beside it, two ways of saying the same thing).
+- **Hidden whenever you don't have the controls:** in the chat, a menu,
+  the sessions ring, the map.
+- **A setting:** the Game tab's "Crosshair" (on by default) hides the
+  ring only; aiming and the hint stay, so E still works and still says
+  what it does (my pick; rejected: no setting).
+
+**How it works.**
+- `Interactable` (`world/interactable.gd`, a `Node3D` in the
+  `interactables` group): `hint`, `reach` (metres from the camera),
+  `radius` (how far from its middle still counts as on it, metres
+  across the view), `enabled`, and `used(player)`, emitted on E. It is
+  placed where the crosshair should aim, as a child of what it belongs
+  to.
+- `Crosshair` (`world/crosshair.gd`, a `CanvasLayer` made by
+  `world.gd`): every physics frame it picks the interactable nearest the
+  view's middle (by angle) that is enabled, visible, in front, within
+  its reach and within its radius of the view's line, with nothing in
+  between: a ray from the camera to it, past the player, may hit only
+  the interactable's parent's own colliders (the orchestrator's desk).
+  None while riding a zipline or without the controls. The ring grows
+  towards 1 with a target and shrinks back, drawn with Godot's fallback
+  font for the hint (18 px, outlined, 26 px under the grown ring). E is
+  read in `_unhandled_input`: it picks again and emits `used` on the
+  target, marking E handled; with no target it does nothing.
+- The key's name: the `interact` event's physical key, turned into the
+  layout's key (`DisplayServer.keyboard_get_keycode_from_physical`);
+  headless, where that call fails, as on a US keyboard.
+- *Orchestrators* (A01): `talk`, an `Interactable` ("Talk", reach
+  3.5 m, radius 0.7 m) at its body and head (1.2 m up). Its `ChatZone`
+  is gone; `ChatController` connects `talk.used` to `open` (C01).
+- *Ziplines* (W10): `ends`, one `Interactable` per post ("Zipline up" on
+  the beach, "Zipline down" at the top), 1.3 m above the post's foot,
+  reach 3 m, radius 0.6 m; `used` rides it unless you already are. The
+  floating labels and the zipline's own E handling are gone.
+- *Setting:* `game/crosshair` (C10), applied as `Crosshair.ring_on`.
+
+Tested in the world test (`_crosshair`, at an orchestrator): close but
+looking away, no target, no hint, a small ring, and E opens nothing;
+looking at it, the ring grows and says "E  Talk"; a wall in between
+hides it, and it's back once the wall goes; from further than its reach,
+nothing; the ring off still aims and hints; nothing without the
+controls. The chat, zipline and fake-provider tests now face their
+target (`_face`) before E. The setting is toggled through the menu in
+`_settings` (C10). The look itself (size, readable on every background)
+can't be judged headless: a screenshot was checked, and the live check
+has the rest.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -3981,7 +4054,7 @@ waiting for it, an ended one staying while you're on it and sinking once
 you leave, one ending mid-rise, a chosen mountain island rising from
 under the sea floor, bridged at its edge height clear of props, its
 zipline waiting for its bridges and then clear of them, riding you up
-with E and back down, moving off a landing put on its cable only after
+with E (looking at its post) and back down, moving off a landing put on its cable only after
 the ride, and sinking (W10), the new-island beacon and edge arrow
 (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
@@ -3992,8 +4065,10 @@ choices and commands through a recording stand-in for the sidecar (C06,
 C07), C08's header, turn hints and limits corner (a line per provider,
 growing upwards, a window that's over hidden, a provider's labels as
 plain text in its order), the session ending under
-you: its orchestrator goes and the chat closes), and walking up to chat (A01,
-C01, C02, C05). With `--sidecar-dev-fake` it also starts a session
+you: its orchestrator goes and the chat closes), walking up to chat (A01,
+C01, C02, C05), and the crosshair (C11: looking away, E doing nothing,
+looking at it growing with its hint, a wall, out of reach, the ring
+off, without the controls). With `--sidecar-dev-fake` it also starts a session
 (its island rising before you're taken there, W04)
 through the menu's launcher (choosing a folder in the picker is replaced
 by calling `SessionLauncher.create`, which it calls), chats with it,
@@ -4204,6 +4279,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** none set; the user picks the next feature.
+**Merged to `main` (2026-10-12), approved by the user: C11, the
+crosshair** (dev log 2026-10-12-crosshair): a ring in the middle of the
+screen that doubles in size on what you can use within reach, with
+"E  Talk" or "E  Zipline up/down" under it; E acts only on that,
+replacing "Press E to chat" and the zipline's labels; a Game tab toggle
+for the ring. Live check passed with the user (sizes changed after the
+first look).
 **Merged to `main` (2026-10-12), approved by the user: the sessions
 ring** (W07/S03; dev log 2026-10-12-sessions-ring): holding Tab shows
 the running sessions in a ring grouped by cluster, ⌂ at the top, ➕ in
