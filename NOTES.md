@@ -1312,6 +1312,40 @@ chatting.
   *Built with W06 (2026-10-07).*
 - **A real design** for the menu comes with the UI pass, like all UI.
 
+*Decided with the user (2026-10-12): the sessions ring* (the proper
+sessions menu, replacing the placeholder's pages; the user's idea, after
+the ability wheel in The Legend of Zelda: Tears of the Kingdom and
+Genshin Impact's quick menu; the details my recommendations, chosen as
+offered unless marked user's). Not built yet.
+- **Hold Tab** (user's): while it is held, the running sessions are
+  arranged in a ring; the mouse is freed and the player stops, the
+  world keeps going (no slow motion).
+- **Pointing** goes by direction from the centre, past a small middle
+  zone, not by touching the segment. The pointed segment grows and the
+  middle shows "title · project · state".
+- **Release Tab** on a session to teleport to it (user's); released
+  with nothing pointed at, the ring just closes.
+- **Clusters** (user's): each cluster's sessions sit together as one
+  arc, a gap between clusters, the cluster's name on the outer rim.
+  Clockwise in the order of their islands, so nothing moves while you
+  look (as decided above).
+- **⌂ Platform** (user's): a fixed segment at the top that takes you to
+  the spawn platform (W08).
+- **➕ in the middle** (user's): a big circle that opens the create
+  menu. A left click while Tab is held opens it; releasing Tab in the
+  middle only closes the ring, so a quick tap never opens anything.
+- **Many sessions:** up to about 12, one segment each; past that a busy
+  cluster folds into one segment with its count, and pointing at it a
+  moment fans its sessions out in a small outer ring.
+- **A segment** shows its island's biome icon (W10) with the session's
+  state as a coloured rim (working, idle, waiting for you), the waiting
+  one pulsing like A05's beam.
+- **The create menu** (➕) is an ordinary panel: New session and Resume
+  (with its search, S04), the cluster and biome selectors, and "Stop
+  waiting" while a session starts. A starting session shows in the ring
+  as a faded segment. The Running list and its search go: the ring is
+  that list.
+
 ### W08 Swimming and seabed
 *Built (2026-10-08). Scope: core (world only).* Swim instead of being put
 back on the platform when you wade too deep (W03's placeholder), and a
@@ -4050,8 +4084,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the proper sessions menu (W07/S03); its layout,
-grouping and feel are for the user to decide before anything is built.
+**Current focus:** the proper sessions menu (W07/S03), branch
+`sessions-ring`: a hold-Tab ring of sessions grouped by cluster, ⌂ at
+the top, ➕ in the middle (decided 2026-10-12, W07 → the sessions ring).
 **Merged to `main` (2026-10-12), approved by the user: the sidecar
 without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
 stored sessions (S04) and asking Windows for short names (C08) no
