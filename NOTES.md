@@ -538,12 +538,16 @@ frame is about 1 ms, physics 0.3-0.5 ms.
     one redraws the sky's reflection map, so `DayNight._set_sky` skips a
     change smaller than `SKY_STEP` (1/255) (W09).
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
-  keeps 4 shadow splits (C10 can lower them, and the render scale); no threaded island generation, mesh merging, or
+  keeps 4 shadow splits (C10 can lower them, the render scale and
+  MSAA); no threaded island generation, mesh merging, or
   collision off far away (collision and per-frame scripts measured no
   cost). The clouds (W09) have no draw distance: they wrap round an 800 m
   square, so the far corners are past the fog. Tried and reverted (W09): drawing only the ocean's visible side
   (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
   +0.7 ms on another.
+- *Anti-aliasing:* the numbers above were measured without any (Godot's
+  default). C10 turns MSAA 4× on by default; its cost hasn't been
+  measured yet (the C10 live check asks whether it's fast enough).
 
 ## Protocol
 
@@ -2587,10 +2591,11 @@ renderer or driver setting.
     shows Off, greyed out.
   - *Anti-aliasing (MSAA):* Off, 2×, 4× (default) or 8×
     (`Viewport.msaa_3d`): smooths the edges of shapes, not shading or
-    textures.
+    textures; each step up is smoother and slower (Godot's docs).
   - *Screen-space anti-aliasing:* Off (default), FXAA or SMAA
     (`Viewport.screen_space_aa`): a filter over the whole picture,
-    cheaper but a little blurry. Godot has none under Compatibility (its
+    cheaper but a little blurry; SMAA is clearer than FXAA, at a
+    slightly higher cost (Godot's docs). Godot has none under Compatibility (its
     docs), so there it's off and the menu shows Off, greyed out, like
     the shadows. MSAA works under both.
   - *Lightning in storms* (W09's `Weather.lightning_enabled`).
