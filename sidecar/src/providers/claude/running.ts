@@ -40,21 +40,30 @@ export type Running = { ids: Set<string> } | { none: string }
  * (the command refuses), the command is missing, slow or prints something
  * else, the answer is `none` with the reason, and nothing is left out.
  */
-export function runningSessions(claude: string, env: Record<string, string>): Promise<Running> {
+export function runningSessions(
+  claude: string, env: Record<string, string>,
+  limits: { timeoutMs?: number; maxOutput?: number } = {},
+): Promise<Running> {
   return new Promise((resolve) => {
-    execFile(claude, ['agents', '--json'], {
-      env, timeout: RUNNING_TIMEOUT_MS, maxBuffer: RUNNING_MAX_OUTPUT, windowsHide: true, shell: false,
-    }, (err, stdout, stderr) => {
-      if (err) {
-        resolve({ none: (String(stderr).trim().split('\n')[0] || err.message).slice(0, 200) })
-        return
-      }
-      const trimmed = String(stdout).trim()
-      if (!trimmed.startsWith('[')) {
-        resolve({ none: 'claude agents --json printed no list' })
-        return
-      }
-      resolve({ ids: parseRunning(trimmed) })
-    })
+    try {
+      execFile(claude, ['agents', '--json'], {
+        env, timeout: limits.timeoutMs ?? RUNNING_TIMEOUT_MS, maxBuffer: limits.maxOutput ?? RUNNING_MAX_OUTPUT,
+        windowsHide: true, shell: false,
+      }, (err, stdout, stderr) => {
+        if (err) {
+          resolve({ none: (String(stderr).trim().split(/\r?\n/)[0] || err.message).slice(0, 200) })
+          return
+        }
+        const trimmed = String(stdout).trim()
+        if (!trimmed.startsWith('[')) {
+          resolve({ none: 'claude agents --json printed no list' })
+          return
+        }
+        resolve({ ids: parseRunning(trimmed) })
+      })
+    } catch (e) {
+      // Thrown at once rather than reported (e.g. EINVAL for a .cmd on Windows).
+      resolve({ none: String(e instanceof Error ? e.message : e).slice(0, 200) })
+    }
   })
 }

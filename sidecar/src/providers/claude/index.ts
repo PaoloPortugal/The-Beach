@@ -68,8 +68,8 @@ export interface ClaudeOptions {
   hooksCheckMs?: number
   /** For tests: the environment the user's settings are found from (CLAUDE_CONFIG_DIR). */
   env?: NodeJS.ProcessEnv
-  /** For tests: replaces asking `claude agents --json` which sessions run. */
-  runningSessions?: () => Promise<Running>
+  /** For tests: replaces running `claude agents --json`; gets the `claude` found and the environment it would run with. */
+  runningSessions?: (claude: string, env: Record<string, string>) => Promise<Running>
 }
 
 
@@ -83,6 +83,8 @@ export class ClaudeProvider implements Provider {
   private readonly live = new Set<string>()
   /** The stored sessions' listing, kept between calls (S04). */
   private readonly stored = new StoredCache()
+  /** The `claude` the last find() gave, for asking which sessions run (running()). */
+  private foundPath: string | undefined
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
 
@@ -148,13 +150,15 @@ export class ClaudeProvider implements Provider {
 
   /** Claude's session ids running anywhere on this machine; empty when that can't be known. */
   private async running(): Promise<Set<string>> {
-    let answer: Running
-    if (this.opts.runningSessions) answer = await this.opts.runningSessions()
-    else {
-      let found: FoundClaude
-      try { found = await this.find() } catch { return new Set() }
-      answer = await runningSessions(found.path, cleanEnv(process.env, ClaudeProvider.UNSET_ENV))
+    // The `claude` found last, so a listing doesn't run `--version` first each time; a launch still finds it afresh.
+    let claude = this.foundPath
+    if (!claude) {
+      try { claude = (await this.find()).path } catch (e) {
+        this.log.info(`can't tell which sessions run elsewhere: ${e instanceof Error ? e.message : String(e)}`)
+        return new Set()
+      }
     }
+    const answer = await (this.opts.runningSessions ?? runningSessions)(claude, cleanEnv(process.env, ClaudeProvider.UNSET_ENV))
     if ('none' in answer) {
       this.log.info(`can't tell which sessions run elsewhere: ${answer.none}`)
       return new Set()
@@ -272,12 +276,13 @@ export class ClaudeProvider implements Provider {
 
   private async find(): Promise<FoundClaude> {
     try {
-      if (this.opts.findClaude) return await this.opts.findClaude()
-      return await findClaude({
+      const found = this.opts.findClaude ? await this.opts.findClaude() : await findClaude({
         env: process.env,
         cleanEnv: cleanEnv(process.env, ClaudeProvider.UNSET_ENV),
         ...(this.opts.claudePath ? { override: this.opts.claudePath } : {}),
       })
+      this.foundPath = found.path
+      return found
     } catch (e) {
       if (e instanceof ClaudeNotFound) throw new CommandError('provider_error', e.message)
       throw e
