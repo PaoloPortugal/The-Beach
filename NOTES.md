@@ -4835,6 +4835,17 @@ exists.
   - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
     is the fallback home for the Linux build if Steam's sandboxing blocks
     launching the terminal and `claude`.
+- **A ring with many clusters** (W07; left to the UI pass, user's,
+  2026-10-12). Folding only merges a cluster's sessions, so the ring
+  keeps a segment per cluster: past about 12 clusters it has more than
+  12 segments whatever folds (20 clusters: about 11° each, names
+  overlapping; 40: about 6°, hard to point at). A big cluster's fan gives
+  each session min(26°, 180° / count): 4.5° at 40 sessions. Seen in the
+  layout demo (20 clusters; its `--crowd` for a 52-session fan).
+  Recommended when it's taken up: past about 12 segments the smallest
+  (or far) clusters merge into one "+N clusters" segment that fans out
+  clusters, then a cluster's sessions; and a fan capped at about 12 per
+  row, a second row further out past that.
 - **Mouse warp on Wayland** (W07). The sessions ring puts the mouse in
   its middle with `warp_mouse`, which Wayland doesn't allow programs to
   do; untested (only Windows to test on). If it does nothing there, the
