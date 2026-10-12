@@ -292,7 +292,7 @@ func choose(text: String) -> void:
 
 
 # _input, not _unhandled_input: Tab would otherwise move the focus in the
-# search box, and Esc would free the mouse before the menu closes.
+# search box, and Esc would also open the settings menu (C10).
 func _input(event: InputEvent) -> void:
 	if _dialog.visible:
 		return # the picker handles its own keys

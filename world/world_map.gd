@@ -188,8 +188,8 @@ func click(at: Vector2) -> void:
 	go_to.emit(id)
 
 
-# _input, not _unhandled_input, so Esc closes the map before the player
-# sees it (the player's Esc frees the mouse).
+# _input, not _unhandled_input, so Esc closes the map without the settings
+# menu (C10) also opening.
 func _input(event: InputEvent) -> void:
 	if _open and (event.is_action_pressed("minimap") or event.is_action_pressed("ui_cancel")):
 		get_viewport().set_input_as_handled()
