@@ -4040,6 +4040,19 @@ steps (user's, 2026-10-12): replace them for the next one, and empty it
 once the check passes. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
+**Ring demo (dev tool, W07;** user's request, 2026-10-12**).**
+`godot --path . res://tests/live/ring_demo.tscn -- --sidecar-dev-fake
+--checklist`: the world with the fake provider and 12 sessions started
+by themselves (no folder picker, nobody taken there) in four empty
+folders under the user data folder (`ring_demo/`, outside git, so four
+clusters of 5, 3, 2 and 2), every biome, two sessions waiting (a
+permission, a question) and one sent `agents 4` again whenever it is idle
+2 s, so it's working most of the time. F2 starts one more in the
+biggest project (13: it folds); F3 shows or hides a stand-in starting
+session (`SessionLauncher.pending` set by hand; nothing starts). Without
+`--sidecar-dev-fake` it starts nothing, since that would be real
+`claude` sessions.
+
 **Claude Code workflow (dev tool;** user's request, 2026-10-03; dev log
 2026-10-03-dev-workflow**).** Project skills and subagents in `.claude/`
 turn the working rules in CLAUDE.md and this file into steps Claude

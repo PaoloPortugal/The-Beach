@@ -113,3 +113,14 @@ From the docs-sync and security reviews before handing it over:
   S03's "quick version" now name the ring and the create panel.
 - Not changed: a long or right-to-left title can overflow the middle
   circle (cosmetic, older than this branch; the UI pass will redo it).
+
+## The ring demo
+
+The user checked the ring with real Claude and asked for a fake
+provider setup showing everything else: `tests/live/ring_demo.tscn`
+starts 12 sessions in four projects through the fake sidecar, with every
+biome, waiting and working sessions, and keys for folding (F2) and a
+starting session (F3). It sends the state-setting messages 3 s after the
+naming ones: sent at once, the naming turn's end set the session idle
+again over the question's waiting. The live check's steps now follow
+the demo.
