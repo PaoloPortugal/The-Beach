@@ -1,0 +1,26 @@
+LIVE CHECK: S04 sessions running elsewhere
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+
+1. In a plain terminal, cd to
+   some project, run claude,
+   say something, wait for
+   the reply. Leave it open.
+2. Game: hold Tab, the +,
+   Resume a session...: that
+   session is NOT listed?
+3. Type /exit in the
+   terminal. Esc, then open
+   Resume a session... again:
+   it's listed now? Click it:
+   it resumes, chat and island
+   come back?
+4. Optional: open the Resume
+   page, then start that
+   session again in the
+   terminal (claude --resume
+   <it>), then click it in
+   the game: the note says
+   it's still running in a
+   terminal, and no new
+   terminal opens?
