@@ -2538,6 +2538,12 @@ renderer or driver setting.
   sessions menu). *Game:* being taken to a new session's island on/off.
   Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
+- **Anti-aliasing** (asked for after the first build, same day): MSAA
+  (Off, 2×, 4×, 8×; **default 4×**, so the low-poly edges are clean out
+  of the box) and a screen-space filter (Off, FXAA, SMAA; default Off)
+  as two settings (rejected: MSAA only; adding TAA, which ghosts on what
+  moves most here: the waves, rain and clouds. TAA and FSR 2 can come
+  later with a closer look at the render scale).
 - **Tabs:** Graphics, Controls, Sound, Game in one panel, a placeholder
   look like the sessions menu (rejected: one scrolling list, crowded
   later).
@@ -2579,6 +2585,14 @@ renderer or driver setting.
     splits, a 2048 atlas) or Off. Under the Compatibility renderer the
     sun casts none whatever the setting (Watch items), and the menu
     shows Off, greyed out.
+  - *Anti-aliasing (MSAA):* Off, 2×, 4× (default) or 8×
+    (`Viewport.msaa_3d`): smooths the edges of shapes, not shading or
+    textures.
+  - *Screen-space anti-aliasing:* Off (default), FXAA or SMAA
+    (`Viewport.screen_space_aa`): a filter over the whole picture,
+    cheaper but a little blurry. Godot has none under Compatibility (its
+    docs), so there it's off and the menu shows Off, greyed out, like
+    the shadows. MSAA works under both.
   - *Lightning in storms* (W09's `Weather.lightning_enabled`).
   - *Mouse sensitivity:* 0.25-3x of `Player.BASE_SENSITIVITY` (0.0025
     rad per pixel). *Field of view:* 60-110°, default 80.
@@ -2591,7 +2605,7 @@ renderer or driver setting.
 
 Tested in the world test (`_settings`): Esc opening and closing it, Esc
 in the sessions menu closing only that, the tabs, each setting applied
-(shadows, FPS cap, render scale, lightning, sensitivity, field of view,
+(shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
 defaults or clamped, and Reset. The window mode, vsync and the mouse
