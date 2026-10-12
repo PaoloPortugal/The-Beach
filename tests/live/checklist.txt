@@ -33,9 +33,11 @@ Page Down / wheel scrolls this.
 7. The sun and moon: T,
    /time speed 60, watch
    them cross: smooth, no
-   steps? (/time speed 1
-   after.) The sky colours
+   steps? The sky colours
    change smoothly too?
+   /time speed 0: the sun
+   stops, /time query says
+   so. /time speed 1 after.
 8. Compatibility still
    works (no shadows, AA
    greyed out, sky fine):

@@ -89,4 +89,4 @@ reading; look things up by feature ID.
 | 2026-10-10 | [W11: crouch and slide](2026-10-10-w11-crouch-slide.md) | W11, W03, W08 |
 | 2026-10-12 | [CI: only on main](2026-10-12-ci-main-only.md) | tooling |
 | 2026-10-12 | [C10: the settings menu](2026-10-12-c10-settings.md) | C10, A05, W03, W04, W09, C01, S03 |
-| 2026-10-12 | [The second performance pass: the Mobile renderer](2026-10-12-perf-pass-2.md) | Performance, Rendering, C10, W09 |
+| 2026-10-12 | [The second performance pass: the Mobile renderer](2026-10-12-perf-pass-2.md) | Performance, Rendering, C10, W09, C09 |
