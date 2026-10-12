@@ -21,6 +21,9 @@ const STEP_OFF := 1.5
 const WOOD := Color(0.45, 0.32, 0.20)
 const CABLE := Color(0.22, 0.22, 0.24)
 
+## A ride has ended, the rider let off at the far post.
+signal ride_ended
+
 ## The ground at the foot of each post, local to the island.
 var low: Vector3
 var high: Vector3
@@ -132,6 +135,7 @@ func _let_off() -> void:
 	_rider.velocity = Vector3.ZERO
 	_rider.riding = false
 	_rider = null
+	ride_ended.emit()
 
 
 # Whoever rides gets let go if the island goes (its session ended).
