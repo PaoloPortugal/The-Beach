@@ -434,7 +434,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -2550,10 +2550,12 @@ renderer or driver setting.
   "section/key" in `DEFAULTS`, saved at once on every change to
   `user://settings.cfg` (keeping the file's other sections, A05's
   `[attention] sound`) and announced by `changed`. Loading takes only a
-  value of the default's type, one of a setting's `CHOICES`, clamped to
-  its `RANGES`; anything else is the default. `path` lets tests use
-  their own file (the world test sets it before the world is added, and
-  A05's too, so a test never reads or writes the developer's file).
+  value of the default's type (a whole number for a decimal one), one of
+  a setting's `CHOICES`, clamped to its `RANGES`; anything else is the
+  default. `path` lets tests use their own file: the world test sets it
+  before the world is added, and A05's too, and so does the layout demo
+  when a test runs it (the bridges and performance tests, which then get
+  the defaults), so a test never reads or writes the developer's file.
 - `SettingsMenu` (`world/settings/settings_menu.gd`, a `CanvasLayer`
   made by `world.gd`): a centred panel like the sessions menu's, with
   tabs (`TabContainer`, sized to the tallest tab so it doesn't jump),
@@ -3802,7 +3804,8 @@ Down scroll a list taller than the window) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
 second when the file changes. Write the current live check's steps
-there; replace them for the next one. `world.gd` adds the overlay
+there; replace them for the next one (a check still to do stays, below
+the new one). `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
 **Claude Code workflow (dev tool;** user's request, 2026-10-03; dev log

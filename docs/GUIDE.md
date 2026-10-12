@@ -154,7 +154,9 @@ dunes and a sandy beach. There are other kinds too (see Kinds of island
 below). Islands are made by the game, so no two look the same.
 
 When a session starts, its island rises out of the seabed, which takes a few
-seconds. A green light beam stands over a new session's island until
+seconds; if you started it from the sessions menu, you're taken there
+(the settings' Game tab can turn that off). A green light beam stands
+over a new session's island until
 you've been on it, and while the island is off-screen a green arrow at
 the edge of the screen points to it, with its project's name and how far
 it is. (The beam and arrow are a first version, like the rest of the
