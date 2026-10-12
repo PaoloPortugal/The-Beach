@@ -85,7 +85,7 @@ v1 slice.
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
 | W05 | Clusters (project clustering)             | built   | W05, S03      | `world/session_clusters.gd`, `sidecar/src/repo.ts` |
 | W06 | Bridges (region connection)               | built (UI placeholder) | W06 | `world/bridges/`, `world/session_clusters.gd`, `world/session_islands.gd`, `world/minimap.gd`, `world/world_map.gd` |
-| W07 | Teleport menu                             | built (UI placeholder) | S03 | `world/sessions_menu/` |
+| W07 | Teleport menu                             | built (icons placeholder) | S03 | `world/sessions_menu/session_ring.gd`, `world/sessions_menu/ring_icons.gd`, `world/sessions_menu/sessions_menu.gd` |
 | W08 | Swimming and seabed                       | built   | W08           | `world/seabed/`, `world/ocean/`, `world/player/player.gd`, `world/island/island_generator.gd` |
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
@@ -107,7 +107,7 @@ v1 slice.
 | C10 | Settings menu                             | built (UI placeholder) | C10 | `world/settings/`, `world/world.gd`, `world/player/player.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
-| S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
+| S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `world/sessions_menu/` |
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
@@ -1060,8 +1060,9 @@ and sessions in the same repository are grouped automatically.
   cluster"; back to Automatic each time the menu opens, hidden with the
   lists while the folder picker is open, and used by both New session and
   Resume.
-  The Running list (W07) shows "▸ <cluster>" headings with their
-  sessions under them, and the search also matches cluster names.
+  The sessions ring (W07) puts each cluster's sessions together as one
+  arc, its name outside the rim (until 2026-10-12, "▸ <cluster>"
+  headings in the Running list, searched by cluster name too).
 
 *Known limits.* Nothing in the world shows a cluster's name yet. (The
 rings' limit, a big cluster reaching its neighbouring clusters, went
@@ -1121,7 +1122,7 @@ and the real layout (user's, 2026-10-02; W07).
   the pointer). It shows the whole world: islands (far clusters too),
   bridges, the platform, you, each cluster's name, and, zoomed in
   enough, each island's session title and state. Clicking a session's
-  island takes you there, like the sessions menu's Running list (W07),
+  island takes you there, like the sessions ring (W07),
   and clicking the platform takes you to it (W08).
   While it's open you don't move and the mouse is free, but the world
   doesn't pause, so the map stays live (rejected: the small map with its
@@ -1282,19 +1283,16 @@ Watch items). The ocean plane is 800 m wide around the camera, so the demo's vie
 above shows its edge.
 
 ### W07 Teleport menu
-*Built (2026-10-02), inside the sessions menu (S03); the UI is a
-placeholder. Scope: core.* Instantly jumps to a session's island, so you
-never have to walk across the world to reach an orchestrator. The menu's
-"Running" list shows every live session, grouped under its cluster's name
-(W05), as "title · project · state" (working, waiting for you, stopped
-or idle, from the whole session, subagents included: S05 →
-`SessionStore.activity`); a click closes the menu and puts you in
-front of that session's orchestrator (`world.gd` → `teleport`; once its
-island is up, W04). The
-search box filters it with the rest, by cluster name too. *Live check
+*Built (2026-10-02) as the sessions menu's "Running" list; since
+2026-10-12 the **sessions ring** (below; its icons are placeholders).
+Scope: core.* Instantly jumps to a session's island, so you never have
+to walk across the world to reach an orchestrator: hold Tab, point at a
+session, let go, and you're in front of its orchestrator (`world.gd` →
+`teleport`; once its island is up, W04). *The Running list's live check
 passed (2026-10-01)* with the user and the real `claude`: two sessions
 under Running, jumping between them, and Tab doing nothing while
-chatting.
+chatting. The list (grouped by cluster, "title · project · state",
+filtered by the menu's search) went with the ring.
 
 *Decided with the user (2026-10-02), open question 3:*
 - **Order:** fixed, no pinning. Clusters in the order of their spots,
@@ -1311,12 +1309,14 @@ chatting.
 - **Minimap:** not now; revisit with bridges and the real layout (W06).
   *Built with W06 (2026-10-07).*
 - **A real design** for the menu comes with the UI pass, like all UI.
+  *Designed by the user (2026-10-12): the sessions ring, below.*
 
 *Decided with the user (2026-10-12): the sessions ring* (the proper
 sessions menu, replacing the placeholder's pages; the user's idea, after
 the ability wheel in The Legend of Zelda: Tears of the Kingdom and
 Genshin Impact's quick menu; the details my recommendations, chosen as
-offered unless marked user's). Not built yet.
+offered unless marked user's). Built (2026-10-12; dev log
+2026-10-12-sessions-ring).
 - **Hold Tab** (user's): while it is held, the running sessions are
   arranged in a ring; the mouse is freed and the player stops, the
   world keeps going (no slow motion).
@@ -1345,6 +1345,65 @@ offered unless marked user's). Not built yet.
   waiting" while a session starts. A starting session shows in the ring
   as a faded segment. The Running list and its search go: the ring is
   that list.
+- **Icons** (user's choice of my recommendation): drawn in code as
+  placeholders (a house, a plus, a palm, a tree, a peak, a snowflake, a
+  cactus) until the UI pass brings real ones, the user's or CC0.
+
+**How it works** (sizes, colours and timings my picks). `SessionRing`
+(`world/sessions_menu/session_ring.gd`, a full-window `Control` in the
+`SessionsMenu` layer, under its panel) draws the ring and works out the
+pointing; `SessionsMenu` opens it and acts.
+- *Opening.* Tab (`sessions_menu`) pressed while you have the controls
+  opens it: the player stops, the mouse is freed and put in the middle,
+  pointing at the ➕. While it shows, `SessionsMenu._input` takes the
+  mouse (motion points), the left button, Tab and Esc; Tab's repeats are
+  swallowed.
+- *Acting.* Tab released: a session → `go_to` (teleport), ⌂ →
+  `go_to_platform`, anything else (the middle, a fold) → just closed. A
+  left click: the ➕ → the create panel (S03), a fold → fanned out at
+  once, a session or ⌂ → the same as releasing on it. Esc closes it.
+  Tab let go after the panel opened does nothing.
+- *Layout.* ⌂ is centred at the top; then each cluster in
+  `clusters.ids()` order, its sessions in `clusters.sessions()` order,
+  clockwise; then a starting session (`launcher.busy()`), faded with three
+  dots and never pointed at. Every segment gets an equal share of the
+  circle, with 0.4 of a share as the gap after each group (⌂, each
+  cluster, the starting one), drawn at most 64° wide. Radii scale with
+  the window: outer 30 % of its shorter side (150-320 px), inner 56 % of
+  that, the ➕ circle 46 %. A pointed segment grows 12 % outward. Cluster
+  names sit just outside the rim by the middle of their arc, pushed
+  sideways by half their width so they never cover it.
+- *Pointing* (`point_at`): inside the ➕ circle points at the middle;
+  elsewhere the segment whose middle is nearest the pointer's direction,
+  however far out.
+- *Folding.* Past `max_segments` (12) sessions (a starting one counts),
+  the cluster with the most sessions folds into one segment ("9 ▸", its
+  rim the most urgent of its sessions' states), then the next busiest,
+  until they fit. Pointed at for 0.3 s, or clicked, a fold fans its
+  sessions out in an outer ring centred on it (each 26°, the whole fan at
+  most 180°); the pointer past the ring's rim and within a fanned
+  segment's width points at it. Pointing at the middle or another main
+  segment folds it back. Cluster names hide while a fan shows.
+- *A segment* shows its island's biome (`RingIcons`,
+  `world/sessions_menu/ring_icons.gd`; a beach while it has no island)
+  and the state (`SessionStore.activity`) as a 6 px rim in the big map's
+  colours (`WorldMap.STATE_COLOURS`): working blue, idle grey, waiting
+  amber, pulsing at 1.2 Hz, stopped red. The middle shows the pointed
+  session's title, project and state (in its colour), ⌂'s "Platform",
+  a fold's cluster name and count, or the ➕ and "New session". A hint
+  under the ring: "Release Tab to go · click + for a new session · Esc to
+  cancel".
+- *Live.* The ring rebuilds every frame while it shows, so sessions
+  coming, going, renamed or changing state show at once; the pointer's
+  direction is pointed at again against the new segments.
+
+Tests (world test): the empty ring (⌂ only, at the top, pointing at the
+middle), a quick tap and Esc opening nothing, the click on ➕ opening the
+create panel, a starting session's faded segment, h1 and h2 as one
+cluster's arc, the middle's text, pointing by direction, folding and
+fanning out with `max_segments` lowered, and letting go on a session or
+⌂; with the fake provider, a new session, a rename and a resumed session
+in the ring.
 
 ### W08 Swimming and seabed
 *Built (2026-10-08). Scope: core (world only).* Swim instead of being put
@@ -1368,7 +1427,8 @@ opaque everywhere (user's request, 2026-09-30).
 - *Getting out:* only by swimming to a beach and walking out; no
   climbing onto the platform's or bridges' decks.
 - *Way back:* the sea respawn goes; the sessions menu (Tab) gets a fixed
-  "Platform" entry that takes you to the spawn platform from anywhere,
+  "Platform" entry (since 2026-10-12 the ring's ⌂, W07) that takes you
+  to the spawn platform from anywhere,
   and clicking the platform on the big map (M) takes you there too, like
   clicking a session's island.
 
@@ -3344,34 +3404,36 @@ First a "New session" post on the spawn platform (M1); since 2026-10-01 the
 one menu, opened from anywhere, to start a session (S03), resume a stored
 one (S04) and go to a running one (W07). Rejected: keeping the post and
 giving it the menu, or a second post for resuming. The post is removed.
-The menu is a **placeholder** (user's): it only has to work, and gets a
-proper design later, like all UI.
+Since 2026-10-12 the menu is the **sessions ring** (W07, the user's
+design): holding Tab shows the running sessions to go to, and the ➕ in
+its middle opens the **create panel**, which is what's left of the
+first menu's pages. The panel is still a **placeholder** (user's): it
+only has to work, and gets a proper design later, like all UI.
 
-`SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`):
-- **Opening.** Tab (input action `sessions_menu`, the physical Tab key)
-  opens it anywhere while you have the controls, so not while chatting.
-  It frees the mouse and pauses the player, and always opens on its
-  first page. Esc goes back a page and closes it from the first; Tab
+`SessionsMenu` (`world/sessions_menu/`, a `CanvasLayer`, holding the
+ring, `SessionRing`):
+- **Opening.** Holding Tab (input action `sessions_menu`, the physical
+  Tab key) shows the ring anywhere while you have the controls, so not
+  while chatting (W07 → How it works). A click on its ➕ opens the panel
+  in its place; letting go of Tab then leaves the panel open. The panel
+  frees the mouse and pauses the player, and always opens on Add a
+  session. Esc goes back a page and closes it from Add a session; Tab
   closes it from any page (user's, 2026-10-09). While no session runs
-  and nothing is starting, "Press Tab for sessions" shows at the bottom
+  and nothing is starting, "Hold Tab for sessions" shows at the bottom
   of the screen.
-- **Layout.** A centred panel in three pages (user's, 2026-10-09: adding
-  a session asks "new or resumed?", which fits the menu's future design;
-  dev log 2026-10-09-s04-resume-page):
-  - *Sessions*: a search box (focused), "+ Add session…", "⌂ Platform"
-    (back to the spawn platform; W08), "✕ Stop waiting for the session
-    starting" while one is starting (below) and "Running" (W07). (A05's
-    sound toggle was at the bottom until C10 moved it.) The search filters Running by title,
-    project and cluster.
+- **Layout.** A centred panel in two pages (user's, 2026-10-09: adding
+  a session asks "new or resumed?"; dev log 2026-10-09-s04-resume-page;
+  its first page, Sessions, with the search, "⌂ Platform" and Running,
+  went with the ring, 2026-10-12):
   - *Add a session*: the cluster selector (W05) and the biome selector
-    (W10), then "+ New session…" and "▸ Resume a session…".
+    (W10), then "+ New session…", "▸ Resume a session…" and "✕ Stop
+    waiting for the session starting" while one is starting (below).
   - *Resume a session*: the same two selectors (their choices kept), a
     search box and the stored sessions (S04), filtered by title and
     project like Claude Code's own `/resume` list (user's choice). Only
     this page asks the sidecar for them, each time it opens.
-  The header says the page ("Sessions", "Add a session", "Resume a
-  session") and the keys ("Tab or Esc to close", or "Esc to go back, Tab
-  to close").
+  The header says the page ("Add a session", "Resume a session") and
+  the keys ("Tab or Esc to close", or "Esc to go back, Tab to close").
 - **New session…** opens the **system's folder picker** on every
   platform (user's decision, 2026-10-01, reversing M1's choice of
   Godot's own): File Explorer's on Windows, the open panel on macOS, the
@@ -3401,7 +3463,7 @@ proper design later, like all UI.
   "Starting…", then the reply's notice (Godot's own text for
   `confirm_in_terminal`: "Confirm in the terminal to start this
   session."), "Still starting; check the terminal, or stop waiting in
-  the menu (Tab)." after 2 minutes,
+  the sessions menu (hold Tab, click +)." after 2 minutes,
   "Couldn't start a session: …" / "Couldn't resume the session: …" for
   a refused command, "The session didn't start." if it ends before
   coming up (at once if Claude Code closes before it's up: S02 →
@@ -3410,9 +3472,11 @@ proper design later, like all UI.
   sessions, W04) and the player is taken there once it's up, unless
   the settings' Game tab turns that off (C10).
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
-  starting, the menu shows "✕ Stop waiting for the session starting"
-  under "⌂ Platform". It frees the launcher for another start ("Stopped
-  waiting. If that session starts later, it's listed under Running.");
+  starting, the create panel shows "✕ Stop waiting for the session
+  starting" (until 2026-10-12 on the first page, under "⌂ Platform"),
+  and the ring a faded segment (W07). It frees the launcher for another
+  start ("Stopped waiting. If that session starts later, it joins the
+  sessions ring.");
   the sidecar isn't told, so a session that does come up later is an
   ordinary running session: its island rises, nobody is taken there.
   *Live check passed (2026-10-02)* with the user and the real `claude`:
@@ -3430,10 +3494,10 @@ the controls, `/exit` back to the platform.
 
 Sessions are named like Claude Code names them, not after their folder
 (user's decision, 2026-10-02; S02 → Titles): a running one is "New
-session" until its first message names it, and the menu, the quit
-dialog and the Running list follow every rename.
+session" until its first message names it, and the ring, the quit
+dialog and the big map follow every rename.
 
-Still to design: the menu itself, recent folders, choosing a
+Still to design: the create panel itself, recent folders, choosing a
 provider and starting several at once. Where a session's cluster is
 chosen was decided with W05 (the cluster selector).
 
@@ -3455,12 +3519,12 @@ The world side is the sessions menu's "Resume a session" page (S03; user's decis
 2026-10-01): stored sessions from every provider the sidecar announced,
 newest first, as "title · project · how long ago" (titles in Claude Code's
 own order, S02 → Titles; "Untitled session" without one, which only another
-provider could list), on its own page under Add session (Sessions → Add
-session… → Resume a session…; user's, 2026-10-09), asked for each time
+provider could list), on its own page under Add session (hold Tab, the
+ring's ➕ → Resume a session…; user's, 2026-10-09 and 2026-10-12), asked for each time
 that page opens, filtered by its search box. A click resumes it through
 the same launcher and notices as a
 new session; once up, you're taken to its island and its chat holds the
-conversation so far. A **placeholder**, like the rest of the menu.
+conversation so far. A **placeholder**, like the rest of the create panel.
 *Live check passed (2026-10-01)* with the user and the real `claude`:
 the ended session listed under Resume and found by search, resumed with
 `claude --resume`, its earlier messages in the chat, and Claude
@@ -3553,7 +3617,7 @@ before that, many sessions pushed the buttons off screen). A
 `SessionStore.activity`, subagents included: waiting for you if any agent
 waits, else working if any works (so an idle orchestrator waiting on its
 subagents' reports counts as working), else stopped or idle (the user had
-seen such sessions shown as idle). The Running list (W07) uses it too.
+seen such sessions shown as idle). The sessions ring (W07) uses it too.
 *Live check passed (2026-10-02)* with the user and the real `claude`:
 "working" while a subagent works, the dialog with the session and the
 `/exit` hint, following its state, Back to the game and Esc, Quit leaving
@@ -4018,7 +4082,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    sessions menu (Tab), which lists running sessions to jump to (W07's
    basic version). Running sessions are grouped by cluster (W05).
    *Answered (user's, 2026-10-02):* a fixed order with no pinning, and
-   the minimap waits for W06 (W07). *Built with W06 (2026-10-07):* a
+   the minimap waits for W06 (W07). *Designed by the user (2026-10-12):*
+   the sessions ring (W07). *Built with W06 (2026-10-07):* a
    minimap of the cluster you're in, and a big map of the whole world (M)
    whose islands you can click to go to.
 4. **Subagent chat.** Chat with subagents directly, or keep them read-only
@@ -4085,8 +4150,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the proper sessions menu (W07/S03), branch
-`sessions-ring`: a hold-Tab ring of sessions grouped by cluster, ⌂ at
-the top, ➕ in the middle (decided 2026-10-12, W07 → the sessions ring).
+`sessions-ring`, ready for the user's review and live check: a hold-Tab
+ring of sessions grouped by cluster, ⌂ at the top, ➕ in the middle
+opening the create panel (dev log 2026-10-12-sessions-ring).
 **Merged to `main` (2026-10-12), approved by the user: the sidecar
 without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
 stored sessions (S04) and asking Windows for short names (C08) no

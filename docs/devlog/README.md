@@ -92,3 +92,4 @@ reading; look things up by feature ID.
 | 2026-10-12 | [The second performance pass: the Mobile renderer](2026-10-12-perf-pass-2.md) | Performance, Rendering, C10, W09, C09 |
 | 2026-10-12 | [W10: the mountain bugs (torches in the air, ziplines through bridges)](2026-10-12-w10-mountain-bugs.md) | W10, W09, W06 |
 | 2026-10-12 | [The sidecar without blocking: stored sessions and short names](2026-10-12-sidecar-no-blocking.md) | S04, C08 |
+| 2026-10-12 | [The sessions ring](2026-10-12-sessions-ring.md) | W07, S03, S04 |

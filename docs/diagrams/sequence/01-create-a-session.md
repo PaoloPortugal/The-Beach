@@ -55,7 +55,7 @@ Platforms). Before any of this, Godot has started the sidecar ([flow 0](00-start
 is up, commands for it get `session_starting`.
 
 In the world for now (S03's quick version): the user picks the folder
-from the sessions menu (Tab, Add session…, New session…), whose notice at the top of the screen shows
+from the sessions menu (hold Tab, click the ring's +, New session…), whose notice at the top of the screen shows
 the reply's `notice` until `session.created`; then the session's island
 rises out of the sea and the player is taken there once it's up (W04). A session that never comes up gets
 `session.ended` and the notice says so: at once if the launcher exits

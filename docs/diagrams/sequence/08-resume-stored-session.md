@@ -19,7 +19,7 @@ sequenceDiagram
         participant Claude as Claude Code (terminal)
     end
 
-    User->>World: Tab, Add session…, Resume a session…<br/>(only this page asks)
+    User->>World: hold Tab, click the ring's +, Resume a session…<br/>(only this page asks)
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Store: providers/claude/store.ts (read-only)
         World->>Sidecar: session.list_stored (optionally one project)
