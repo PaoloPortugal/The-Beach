@@ -75,6 +75,7 @@ func _ready() -> void:
 	_chat.setup(store, Sidecar)
 	_menu.setup(store, Sidecar, _islands.clusters)
 	_menu.launcher.islands = _islands
+	_menu.ring.islands = _islands
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
 	add_child(attention)
