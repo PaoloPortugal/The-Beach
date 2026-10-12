@@ -2,8 +2,9 @@ extends SceneTree
 ## Headless test for the M1 world: the island generator (W01) and jump
 ## assist (W03), then the world scene with
 ## real physics: the player lands on the spawn platform, walks, jumps, and
-## swims in the sea over the seabed (W08), back by the sessions menu's
-## "Platform" or the big map; the sessions menu; islands for
+## swims in the sea over the seabed (W08), back by the sessions ring's
+## "Platform" or the big map; the sessions ring and its create panel
+## (W07, S03); islands for
 ## sessions (applied to the store by hand) rising and sinking (W04), each
 ## orchestrator's bubble, and
 ## walking up to chat in the chat panel (A01, C01, C02), both rendering
@@ -430,12 +431,17 @@ func _settings(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _settle()
 	_check(not menu.is_open() and player.controls_enabled, "C10: Esc again closes them")
-	_press("sessions_menu")
+	_hold("sessions_menu")
 	await _settle()
-	_check(sessions.is_open(), "C10: (the sessions menu open)")
+	_check(sessions.ring_open(), "C10: (the sessions ring open)")
 	_press("ui_cancel")
 	await _settle()
-	_check(not sessions.is_open() and not menu.is_open(), "C10: Esc in the sessions menu closes only that")
+	_check(not sessions.is_open() and not menu.is_open(), "C10: Esc in the sessions ring closes only that")
+	_release("sessions_menu")
+	await _open_create(sessions)
+	_press("ui_cancel")
+	await _settle()
+	_check(not sessions.is_open() and not menu.is_open(), "C10: and in the create panel")
 
 	menu.open()
 	var tabs := []
@@ -962,10 +968,11 @@ func _swimming(world: Node3D, player: Player) -> void:
 	player.global_position = Vector3(30, -2, 0)
 	await _frames(5)
 	var menu: SessionsMenu = world.get_node("SessionsMenu")
-	menu.open()
-	await _frames(2)
-	_check(menu.entries()[1] == "⌂ Platform", "the sessions menu offers the platform")
-	menu.choose("⌂ Platform")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	_check(menu.ring.segments()[0]["kind"] == "platform", "the sessions ring offers the platform")
+	menu.point_at(menu.ring.position_of("platform", ""))
+	_release("sessions_menu")
 	await _frames(2)
 	_check(not menu.is_open() and not player.swimming and player.global_position.distance_to(player.spawn_point) < 0.2, "which takes you there")
 	player.global_position = Vector3(30, -2, 0)
@@ -981,14 +988,27 @@ func _swimming(world: Node3D, player: Player) -> void:
 func _menu(world: Node3D, player: Player) -> void:
 	var menu: SessionsMenu = world.get_node("SessionsMenu")
 	await _frames(5)
-	_check(menu.hint_visible() and not menu.is_open(), "no sessions yet: \"Press Tab for sessions\"")
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.is_open() and not player.controls_enabled and not menu.hint_visible(), "Tab opens the sessions menu and pauses the player")
-	_check(menu.page() == SessionsMenu.Page.MAIN and menu.entries().slice(0, 2) == ["+ Add session…", "⌂ Platform"] and not menu.pickers_visible(), "its first page: Add session and the platform, no cluster or biome")
-	_check(menu.listings_asked == 0 and not menu.entries().has("Resume"), "S04: and no stored sessions, so the sidecar isn't asked for them")
-	menu.choose("+ Add session")
-	_check(menu.page() == SessionsMenu.Page.ADD and menu.entries() == ["+ New session…", "▸ Resume a session…"] and menu.pickers_visible(), "Add session: New or Resume, with the cluster and biome")
+	_check(menu.hint_visible() and not menu.is_open(), "no sessions yet: \"Hold Tab for sessions\"")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	_check(menu.ring_open() and not menu.panel_open() and not player.controls_enabled and not menu.hint_visible(), "W07: holding Tab shows the sessions ring and stops the player")
+	var segments := menu.ring.segments()
+	_check(segments.size() == 1 and segments[0]["kind"] == "platform" and is_zero_approx(segments[0]["angle"]), "W07: no sessions: only ⌂ Platform, at the top")
+	_check(menu.ring.pointed().get("kind") == "centre" and menu.ring.centre_text()[0] == "New session", "W07: it opens pointing at the + in the middle")
+	_release("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and player.controls_enabled and menu.listings_asked == 0, "W07: letting go of Tab in the middle only closes it: a quick tap opens nothing")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	_press("ui_cancel")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	_check(not menu.is_open() and player.controls_enabled, "W07: Esc closes the ring")
+	_release("sessions_menu")
+	await _frames(2)
+	_check(not menu.is_open() and player.controls_enabled, "W07: and letting go of Tab afterwards does nothing")
+	await _open_create(menu)
+	_check(menu.panel_open() and not menu.ring_open() and not player.controls_enabled and menu.page() == SessionsMenu.Page.ADD and menu.entries() == ["+ New session…", "▸ Resume a session…"] and menu.pickers_visible(), "W07: a click on the + opens the create panel: New or Resume, with the cluster and biome")
+	_check(menu.listings_asked == 0, "S04: and the sidecar isn't asked for the stored sessions yet")
 	var kinds: Array[String] = ["Random"]
 	for k: int in Biome.NAMES:
 		kinds.append(Biome.NAMES[k])
@@ -1007,15 +1027,10 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.ADD, 2.0)
 	_check(menu.is_open() and menu.page() == SessionsMenu.Page.ADD, "Esc goes back a page: Resume to Add session")
 	_press("ui_cancel")
-	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.MAIN, 2.0)
-	_check(menu.is_open() and menu.page() == SessionsMenu.Page.MAIN and not menu.pickers_visible(), "then to the first page")
-	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
-	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "where Esc closes the menu")
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.page() == SessionsMenu.Page.MAIN and menu.biome_choice() == Biome.RANDOM, "it opens on its first page, the biome back to Random each time")
-	menu.choose("+ Add session")
+	_check(not menu.is_open() and player.controls_enabled and menu.hint_visible(), "where Esc closes it")
+	await _open_create(menu)
+	_check(menu.page() == SessionsMenu.Page.ADD and menu.biome_choice() == Biome.RANDOM, "it opens on Add session, the biome back to Random each time")
 	menu.choose("▸ Resume a session")
 	_press("sessions_menu")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
@@ -1035,9 +1050,7 @@ func _menu(world: Node3D, player: Player) -> void:
 		return OK
 	menu.native_picker_shown.connect(func(_dir: String) -> void: pickers_shown[0] += 1)
 	var new_session := func() -> void:
-		_press("sessions_menu")
-		await _until(func() -> bool: return menu.is_open(), 2.0)
-		menu.choose("+ Add session")
+		await _open_create(menu)
 		menu.choose("+ New session")
 		await _frames(2)
 	await new_session.call()
@@ -1070,19 +1083,85 @@ func _menu(world: Node3D, player: Player) -> void:
 	menu.native_picker = false
 
 	# A session that's slow to start (its terminal may have closed unseen):
-	# the menu can stop waiting for it.
+	# a faded segment in the ring, and the create panel can stop waiting.
 	var started := [0]
 	menu.launcher.session_started.connect(func(_id: String) -> void: started[0] += 1)
 	menu.launcher.pending = "slow"
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries().has("✕ Stop waiting for the session starting"), "a start under way: the menu offers to stop waiting")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	segments = menu.ring.segments()
+	_check(segments.size() == 2 and segments[1]["kind"] == "starting", "W07: a start under way is a segment in the ring")
+	menu.point_at(menu.ring.position_of("starting", "slow"))
+	_check(menu.ring.pointed().get("kind") == "platform", "W07: which can't be pointed at")
+	_click_at(menu.ring.centre())
+	await _until(func() -> bool: return menu.panel_open(), 2.0)
+	_release("sessions_menu")
+	_check(menu.entries().has("✕ Stop waiting for the session starting"), "a start under way: the create panel offers to stop waiting")
 	menu.choose("✕ Stop waiting")
 	await _frames(2)
 	_check(not menu.launcher.busy() and menu.notice_text().begins_with("Stopped waiting") and not menu.entries().has("✕ Stop waiting for the session starting"), "stopping frees the launcher for another start")
 	_press("ui_cancel")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(started[0] == 0, "and nobody waits for it any more")
+
+
+# W07: the ring with h1 and h2 running in one cluster: where they sit,
+# pointing, a cluster folding and fanning out, and letting go of Tab on a
+# session or the platform.
+func _ring(world: Node3D, player: Player) -> void:
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
+	var ring := menu.ring
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	var c1 := islands.clusters.cluster_of("h1")
+	var shown := func() -> Array:
+		return ring.segments().map(func(s: Dictionary) -> Array: return [s["kind"], s["id"]])
+	player.controls_enabled = true # _quit's Quit left the game quitting
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	_check(menu.ring_open(), "W07: (the ring open, with h1 and h2 running)")
+	_check(shown.call() == [["platform", ""], ["session", "h1"], ["session", "h2"]], "W07: the ring: ⌂ Platform at the top, then the cluster's sessions: %s" % [shown.call()])
+	var segments := ring.segments()
+	_check(segments[1]["angle"] > 0.0 and segments[2]["angle"] > segments[1]["angle"] and segments[1]["cluster"] == c1 and segments[2]["cluster"] == c1, "W07: clockwise, together as their cluster's arc")
+	menu.point_at(ring.position_of("session", "h2"))
+	_check(ring.pointed().get("id") == "h2" and ring.centre_text() == PackedStringArray(["New session", "demo", "idle"]), "W07: pointing at one shows its title, project and state in the middle: %s" % [ring.centre_text()])
+	var out := (ring.position_of("session", "h2") - ring.centre()).normalized()
+	menu.point_at(ring.centre() + out * ring.radii().x * 1.5)
+	_check(ring.pointed().get("id") == "h2", "W07: pointing goes by direction: beyond the ring still points at it")
+	ring.max_segments = 1
+	await _frames(2)
+	_check(shown.call() == [["platform", ""], ["fold", c1]], "W07: past the most segments, a busy cluster folds into one: %s" % [shown.call()])
+	menu.point_at(ring.position_of("fold", c1))
+	_check(ring.fanned() == "", "W07: not fanned out at once")
+	await _until(func() -> bool: return ring.fanned() == c1, 2.0)
+	_check(ring.fanned() == c1 and shown.call().count(["session", "h1"]) == 1 and shown.call().count(["session", "h2"]) == 1, "W07: pointing at it a moment fans its sessions out")
+	menu.point_at(ring.position_of("session", "h1"))
+	_check(ring.pointed().get("id") == "h1" and ring.fanned() == c1, "W07: and one of them can be pointed at")
+	menu.point_at(ring.position_of("platform", ""))
+	_check(ring.fanned() == "" and ring.pointed().get("kind") == "platform", "W07: pointing elsewhere folds it back")
+	ring.max_segments = SessionRing.MAX_SEGMENTS
+	await _frames(2)
+	menu.point_at(ring.position_of("session", "h2"))
+	_release("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	await _frames(20)
+	_check(not menu.is_open() and player.controls_enabled and player.global_position.distance_to(islands.orchestrator("h2").global_position) < 7.0, "W07: letting go of Tab on a session takes you to its island")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	menu.point_at(ring.position_of("platform", ""))
+	_release("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	await _frames(2)
+	_check(player.global_position.distance_to(player.spawn_point) < 0.2, "W07: and on ⌂ Platform, to the spawn platform")
+
+
+# Holds Tab and clicks the ring's +: the create panel (W07).
+func _open_create(menu: SessionsMenu) -> void:
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	_click_at(menu.ring.centre())
+	await _until(func() -> bool: return menu.panel_open(), 2.0)
+	_release("sessions_menu")
+	await _frames(1)
 
 
 # W10: an island of a chosen biome rises from deep enough, is bridged at
@@ -1196,6 +1275,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _settle()
 	_check(minimap.shown_cluster() == c1, "the minimap is back once the big map closes")
 	await _quit(world, player)
+	await _ring(world, player)
 
 	var bubble := chat.bubble("h1")
 	_check(bubble != null and not bubble.visible, "no bubble before the orchestrator says anything")
@@ -2111,9 +2191,7 @@ func _live(world: Node3D, player: Player) -> void:
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	# The real way in: Tab, Add session, New session, the picker's own
 	# "select" button.
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	menu.choose("+ Add session")
+	await _open_create(menu)
 	menu.choose("+ New session")
 	await _frames(2)
 	menu.picker().current_dir = OS.get_user_data_dir()
@@ -2130,10 +2208,12 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(islands.is_rising(id), "live: rising")
 	await _until(func() -> bool: return player.global_position.distance_to(orchestrator.global_position) < 7.0, 6.0)
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0, "live: and once it's up, it takes you there")
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[4].begins_with("New session   ·"), "live: a new session is listed as \"New session\"")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	menu.point_at(menu.ring.position_of("session", id))
+	_check(menu.ring.pointed().get("id") == id and menu.ring.centre_text()[0] == "New session", "live: a new session is in the ring as \"New session\"")
 	_press("ui_cancel")
+	_release("sessions_menu")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
 	await _until(func() -> bool: return chat.history_loaded(id), 5.0)
@@ -2277,14 +2357,16 @@ func _live(world: Node3D, player: Player) -> void:
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
 
-	# The open menu follows a rename.
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
-	_check(menu.entries()[4].begins_with("Tidy the notes   ·"), "live: the menu shows its name")
+	# The open ring follows a rename.
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	menu.point_at(menu.ring.position_of("session", id))
+	_check(menu.ring.centre_text()[0] == "Tidy the notes", "live: the ring shows its name")
 	sidecar.send_command("message.send", {"session": id, "text": "rename Notes"})
-	await _until(func() -> bool: return menu.entries()[4].begins_with("Notes   ·"), 5.0)
-	_check(menu.entries()[4].begins_with("Notes   ·"), "live: and follows a rename while open")
+	await _until(func() -> bool: return menu.ring.centre_text()[0] == "Notes", 5.0)
+	_check(menu.ring.centre_text()[0] == "Notes", "live: and follows a rename while open")
 	_press("ui_cancel")
+	_release("sessions_menu")
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 
 	var ended := islands.island(id)
@@ -2300,11 +2382,9 @@ func _live(world: Node3D, player: Player) -> void:
 	# S04: resume a stored session from the menu.
 	var is_listed := func(title: String) -> bool:
 		return menu.entries().any(func(e: String) -> bool: return e.begins_with(title))
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.is_open(), 2.0)
 	var lists_before := menu.listings_asked
-	menu.choose("+ Add session")
-	_check(menu.listings_asked == lists_before, "live: the menu and Add session don't ask for the stored sessions")
+	await _open_create(menu)
+	_check(menu.listings_asked == lists_before, "live: the ring and Add session don't ask for the stored sessions")
 	menu.choose("▸ Resume a session")
 	await _until(func() -> bool: return is_listed.call("Add a save system"), 5.0)
 	var listed := menu.entries()
@@ -2324,19 +2404,25 @@ func _live(world: Node3D, player: Player) -> void:
 	_check(panel.turn_hints() == [["r2", "↓ 1.8k tokens"]] and panel.usage_text().begins_with("Context 31% · "), "live: and its usage so far: %s %s" % [panel.turn_hints(), panel.usage_text()])
 	_press("ui_cancel")
 	await _until(func() -> bool: return not chat.is_open(), 2.0)
-	_press("sessions_menu")
-	await _until(func() -> bool: return menu.entries().size() == 5, 5.0)
-	var now := menu.entries()
-	_check(now[2] == "Running" and now[3].begins_with("▸ ") and now[4].begins_with("Add a save system"), "live: now under Running, in its cluster")
-	menu.choose("+ Add session")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	menu.point_at(menu.ring.position_of("session", resumed))
+	_check(menu.ring.pointed().get("id") == resumed and menu.ring.centre_text()[0] == "Add a save system", "live: now in the ring")
+	_press("ui_cancel")
+	_release("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	await _open_create(menu)
 	menu.choose("▸ Resume a session")
 	await _until(func() -> bool: return is_listed.call("Fix the player"), 5.0)
 	_check(is_listed.call("Fix the player") and not is_listed.call("Add a save system"), "live: and not under Resume")
 	_press("ui_cancel")
 	_press("ui_cancel")
-	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.MAIN, 2.0)
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	player.respawn()
-	menu.choose("Add a save system")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	menu.point_at(menu.ring.position_of("session", resumed))
+	_release("sessions_menu")
 	await _frames(5)
 	_check(not menu.is_open() and player.global_position.distance_to(islands.orchestrator(resumed).global_position) < 7.0, "live: a running one takes you to its island")
 	sidecar.send_command("session.end", {"session": resumed})
@@ -2420,6 +2506,32 @@ func _sign_in_pickup(world: Node3D, chat: ChatController, id: String) -> void:
 	await _until(func() -> bool: return store.orchestrator(id).get("state") == "idle" and store.session(id)["notices"].is_empty(), 8.0)
 	await _frames(40)
 	_check(panel.status_text() == "" and panel.draft() == "" and panel.shown_messages()[-1].contains("signed in again"), "live: the next one goes through and the wait clears")
+
+
+# Holds an action down until _release (Tab for the ring).
+func _hold(action: String) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	Input.parse_input_event(event)
+
+
+func _release(action: String) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = false
+	Input.parse_input_event(event)
+
+
+# A left click at [param at], in the window.
+func _click_at(at: Vector2) -> void:
+	for pressed in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.position = at
+		event.global_position = at
+		event.pressed = pressed
+		Input.parse_input_event(event)
 
 
 func _press(action: String) -> void:

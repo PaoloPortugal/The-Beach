@@ -1,17 +1,18 @@
 class_name SessionsMenu
 extends CanvasLayer
-## The sessions menu (S03, S04, a first W07): Tab opens it anywhere you're
-## not chatting. Its first page lists the sessions running now by cluster
-## (W05) to jump to their island, with "Platform" back to the spawn
-## platform (W08) and "Add session…". That page asks where a session goes:
-## the cluster selector (by its repository unless changed) and the biome
-## selector (W10, Random unless changed), then "New session…" picks a
-## project folder and "Resume a session…" lists the stored ones, newest
-## first. Only that last page asks the sidecar for them (user's,
-## 2026-10-09): listing reads the transcripts. Esc goes back a page, Tab
-## closes it. A search box filters the running or the stored list. A
-## PLACEHOLDER, like all UI for now (user's, 2026-10-01): it only has to
-## work, and gets a proper design later.
+## The sessions menu (S03, S04, W07). Holding Tab anywhere you're not
+## chatting shows the sessions ring ([SessionRing]; user's design,
+## 2026-10-12): releasing Tab on a session takes you to its island, on
+## "⌂ Platform" to the spawn platform (W08), anywhere else just closes it;
+## Esc closes it too. A click on the ➕ in its middle opens the create
+## panel: the cluster selector (by its repository unless changed) and the
+## biome selector (W10, Random unless changed), then "New session…" picks
+## a project folder and "Resume a session…" lists the stored ones, newest
+## first, with a search box. Only that page asks the sidecar for them
+## (user's, 2026-10-09): listing reads the transcripts. "✕ Stop waiting"
+## shows there while a session is starting. In the panel Esc goes back a
+## page and Tab closes it. The panel is still a PLACEHOLDER, like all UI
+## for now (user's, 2026-10-01).
 ##
 ## The folder picker is the system's own (File Explorer on Windows; user's
 ## decision, 2026-10-01), or Godot's, drawn in the game window, where the
@@ -32,11 +33,11 @@ signal native_picker_shown(directory: String)
 
 const HEADING_COLOUR := Color(1, 1, 1, 0.55)
 
-## The menu's pages: the running sessions, adding one, the stored ones.
-enum Page { MAIN, ADD, RESUME }
+## The create panel's pages: adding a session, the stored ones.
+enum Page { ADD, RESUME }
 
-const TITLES := {Page.MAIN: "Sessions", Page.ADD: "Add a session", Page.RESUME: "Resume a session"}
-const CLOSE_HINTS := {Page.MAIN: "Tab or Esc to close", Page.ADD: "Esc to go back, Tab to close", Page.RESUME: "Esc to go back, Tab to close"}
+const TITLES := {Page.ADD: "Add a session", Page.RESUME: "Resume a session"}
+const CLOSE_HINTS := {Page.ADD: "Tab or Esc to close", Page.RESUME: "Esc to go back, Tab to close"}
 
 @export var player: Player
 
@@ -51,6 +52,7 @@ var store: SessionStore
 var sidecar: SidecarClient
 var clusters: SessionClusters
 var launcher := SessionLauncher.new()
+var ring := SessionRing.new()
 ## How many times the stored sessions were asked for (tests watch this).
 var listings_asked := 0
 
@@ -62,8 +64,8 @@ var _stored_status := ""
 ## earlier listing is ignored.
 var _listing := 0
 ## The page showing.
-var _page := Page.MAIN
-## Open, with the panel or the folder picker showing. Its own flag: the
+var _page := Page.ADD
+## The create panel open, with the panel or the folder picker showing. Its own flag: the
 ## picker hides itself before it says which folder was chosen, so by then
 ## neither shows, and close() must still give the controls back.
 var _open := false
@@ -92,6 +94,10 @@ var _last_dir := ""
 
 func _ready() -> void:
 	add_child(launcher)
+	ring.name = "Ring"
+	add_child(ring)
+	move_child(ring, 0)
+	ring.launcher = launcher
 	_panel.visible = false
 	# The cluster selector, under the search box.
 	var label := Label.new()
@@ -134,7 +140,9 @@ func _ready() -> void:
 	launcher.status_changed.connect(func(text: String) -> void:
 		_notice.text = text
 		_notice.visible = not text.is_empty()
-		_refresh_hint())
+		_refresh_hint()
+		if _open and _page == Page.ADD:
+			_fill()) # "Stop waiting" comes and goes
 	_notice.visible = false
 
 
@@ -145,25 +153,46 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient, p_clusters: SessionC
 	clusters = p_clusters
 	launcher.setup(store, sidecar)
 	launcher.clusters = clusters
+	ring.store = store
+	ring.clusters = clusters
 	clusters.changed.connect(_fill_clusters)
 	for sig in [store.session_added, store.session_removed]:
 		sig.connect(func(_id: String, _rest = null) -> void:
 			_refresh_hint()
-			if is_open():
+			if _open:
 				_fill())
-	store.session_changed.connect(func(_id: String, fields: Array) -> void:
-		if "title" in fields and is_open():
-			_fill())
 	_refresh_hint()
 
 
+## The ring or the create panel open.
 func is_open() -> bool:
+	return _open or ring.visible
+
+
+func ring_open() -> bool:
+	return ring.visible
+
+
+func panel_open() -> bool:
 	return _open
 
 
-func open() -> void:
+## Shows the ring, the pointer in its middle (holding Tab).
+func open_ring() -> void:
 	if is_open():
 		return
+	player.controls_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	ring.open()
+	get_viewport().warp_mouse(ring.centre())
+	_refresh_hint()
+
+
+## Shows the create panel (the ring's ➕), in place of the ring.
+func open_create() -> void:
+	if _open:
+		return
+	ring.close()
 	_open = true
 	_panel.visible = true
 	player.controls_enabled = false
@@ -171,13 +200,19 @@ func open() -> void:
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
 	_biome.select(0) # and to Random
-	_show(Page.MAIN)
+	_show(Page.ADD)
 	_refresh_hint()
+
+
+## Points the ring at [param at] (in the window), as the mouse does.
+func point_at(at: Vector2) -> void:
+	ring.point_at(at)
 
 
 func close() -> void:
 	if not is_open():
 		return
+	ring.close()
 	_open = false
 	_stop_waiting()
 	_listing += 1
@@ -202,16 +237,13 @@ func pickers_visible() -> bool:
 	return _cluster_row.visible and _biome_row.visible
 
 
-## Back a page, as Esc does: from the stored sessions to adding one, from
-## there to the running ones, and from those closed.
+## Back a page, as Esc does: from the stored sessions to adding one, and
+## from there closed.
 func back() -> void:
-	match _page:
-		Page.RESUME:
-			_show(Page.ADD)
-		Page.ADD:
-			_show(Page.MAIN)
-		_:
-			close()
+	if _page == Page.RESUME:
+		_show(Page.ADD)
+	else:
+		close()
 
 
 ## Whether the menu is waiting for the system's folder picker.
@@ -296,13 +328,15 @@ func choose(text: String) -> void:
 func _input(event: InputEvent) -> void:
 	if _dialog.visible:
 		return # the picker handles its own keys
-	if event.is_action_pressed("sessions_menu"):
+	if ring.visible:
+		_ring_input(event)
+	elif event.is_action_pressed("sessions_menu"):
 		if _panel.visible:
 			get_viewport().set_input_as_handled()
 			close()
 		elif player.controls_enabled:
 			get_viewport().set_input_as_handled()
-			open()
+			open_ring()
 	elif _panel.visible and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		# Waiting for a system picker that may be lost behind the game, Esc
@@ -312,6 +346,45 @@ func _input(event: InputEvent) -> void:
 			_stop_waiting()
 		else:
 			back()
+
+
+# While the ring shows: the mouse points, releasing Tab or a click acts,
+# Esc closes it.
+func _ring_input(event: InputEvent) -> void:
+	var motion := event as InputEventMouseMotion
+	var button := event as InputEventMouseButton
+	if motion:
+		ring.point_at(motion.position)
+	elif button and button.pressed and button.button_index == MOUSE_BUTTON_LEFT:
+		get_viewport().set_input_as_handled()
+		ring.point_at(button.position)
+		var p := ring.pointed()
+		match p.get("kind"):
+			"centre":
+				open_create()
+			"fold":
+				ring.fan_out(p["id"])
+			_:
+				_go(p)
+	elif event.is_action_released("sessions_menu"):
+		get_viewport().set_input_as_handled()
+		_go(ring.pointed())
+	elif event.is_action("sessions_menu"):
+		get_viewport().set_input_as_handled() # Tab held: its repeats
+	elif event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		close()
+
+
+# Closes the ring, going where it points: a session's island, the
+# platform, or nowhere.
+func _go(pointed: Dictionary) -> void:
+	close()
+	match pointed.get("kind"):
+		"session":
+			go_to.emit(pointed["id"])
+		"platform":
+			go_to_platform.emit()
 
 
 func _show(page: Page) -> void:
@@ -360,47 +433,15 @@ func _fill() -> void:
 	for child in _list.get_children():
 		child.queue_free()
 	match _page:
-		Page.MAIN:
-			_fill_running()
 		Page.ADD:
 			_add_button("+ New session…", _pick_folder)
 			_add_button("▸ Resume a session…", func() -> void: _show(Page.RESUME))
+			if not launcher.pending.is_empty():
+				_add_button("✕ Stop waiting for the session starting", func() -> void:
+					launcher.stop_waiting()
+					_fill())
 		Page.RESUME:
 			_fill_stored()
-
-
-func _fill_running() -> void:
-	var query := _search.text.strip_edges().to_lower()
-	_add_button("+ Add session…", func() -> void: _show(Page.ADD))
-	_add_button("⌂ Platform", func() -> void:
-		close()
-		go_to_platform.emit())
-	if not launcher.pending.is_empty():
-		_add_button("✕ Stop waiting for the session starting", func() -> void:
-			launcher.stop_waiting()
-			_fill())
-
-	var running: Array[Array] = [] # [cluster name, [[label, id]...]]
-	for cid in clusters.ids():
-		var cluster := clusters.cluster_name(cid)
-		var rows: Array[Array] = []
-		for id in clusters.sessions(cid):
-			var s: Dictionary = store.session(id)
-			var label := row(display_title(s.get("title")), project_name(s.get("project", {})), state_text(store.activity(id)))
-			if query.is_empty() or label.to_lower().contains(query) or cluster.to_lower().contains(query):
-				rows.append([label, id])
-		if not rows.is_empty():
-			running.append([cluster, rows])
-	if not running.is_empty():
-		_add_heading("Running")
-		for group in running:
-			_add_heading("▸ " + group[0])
-			for r in group[1]:
-				_add_button(r[0], func() -> void:
-					close()
-					go_to.emit(r[1]))
-	elif not query.is_empty():
-		_add_heading("No match.")
 
 
 func _fill_stored() -> void:
@@ -467,9 +508,9 @@ func _stop_waiting() -> void:
 func _set_waiting(on: bool) -> void:
 	_waiting = on
 	_wait_note.visible = on
-	_search.visible = not on and _page != Page.ADD
-	_cluster_row.visible = not on and _page != Page.MAIN
-	_biome_row.visible = not on and _page != Page.MAIN
+	_search.visible = not on and _page == Page.RESUME
+	_cluster_row.visible = not on
+	_biome_row.visible = not on
 	_scroll.visible = not on
 	if _search.visible:
 		_search.grab_focus()
@@ -491,7 +532,7 @@ func _fill_clusters() -> void:
 	for i in _cluster.item_count:
 		if str(_cluster.get_item_metadata(i)) == keep:
 			_cluster.select(i)
-	if is_open():
+	if _open:
 		_fill()
 
 
