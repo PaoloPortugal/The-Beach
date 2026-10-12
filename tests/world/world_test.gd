@@ -383,7 +383,7 @@ func _settings(world: Node3D, player: Player) -> void:
 	var sessions: SessionsMenu = world.get_node("SessionsMenu")
 	_check(not settings.path.ends_with("/settings.cfg"), "C10: the test's own settings file")
 	_check(settings.value("controls/fov") == 80.0 and settings.value("graphics/shadows") == "high", "C10: no file, the defaults")
-	_check(world.get_viewport().msaa_3d == Viewport.MSAA_4X and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "C10: MSAA 4x by default, no screen-space anti-aliasing")
+	_check(world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "C10: no anti-aliasing by default")
 	_press("ui_cancel")
 	await _settle()
 	# The mouse itself can't be captured headless: the live check's.
@@ -470,12 +470,12 @@ func _settings(world: Node3D, player: Player) -> void:
 	saved.path = settings.path + ".bad"
 	bad.save(saved.path)
 	saved.load_file()
-	_check(saved.value("graphics/shadows") == "high" and saved.value("graphics/fps_cap") == 0 and saved.value("graphics/msaa") == "4x" and saved.value("controls/fov") == 80.0 and saved.value("controls/mouse_sensitivity") == 3.0, "C10: values it can't take are the defaults, out of range ones clamped")
+	_check(saved.value("graphics/shadows") == "high" and saved.value("graphics/fps_cap") == 0 and saved.value("graphics/msaa") == "off" and saved.value("controls/fov") == 80.0 and saved.value("controls/mouse_sensitivity") == 3.0, "C10: values it can't take are the defaults, out of range ones clamped")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(saved.path))
 
 	menu.open()
 	menu.reset_all()
-	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_4X and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
+	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
 	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
 	menu.close()
 

@@ -17,7 +17,7 @@ const DEFAULTS := {
 	"graphics/fps_cap": 0,
 	"graphics/render_scale": 1.0,
 	"graphics/shadows": "high",
-	"graphics/msaa": "4x",
+	"graphics/msaa": "off",
 	"graphics/screen_space_aa": "off",
 	"graphics/lightning": true,
 	"controls/mouse_sensitivity": 1.0,
