@@ -3856,6 +3856,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** a settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), next after W11 (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-12), approved by the user: CI only on
+`main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
+on all three systems, and by hand; a branch is checked locally.
 **Merged to `main` (2026-10-10), approved by the user: W11 crouch and
 slide** (dev log 2026-10-10-w11-crouch-slide): hold Ctrl to crouch
 (1.1 m, 2.5 m/s), slide at a sprint with slopes mattering, slide jumps
