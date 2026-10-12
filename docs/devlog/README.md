@@ -87,3 +87,4 @@ reading; look things up by feature ID.
 | 2026-10-09 | [S04: Resume on its own page, and a kept listing](2026-10-09-s04-resume-page.md) | S04, S03, W07, W05, W08, W10 |
 | 2026-10-09 | [C08: the short-name tests on a slow Windows runner](2026-10-09-c08-askwindows-flaky.md) | C08, tooling |
 | 2026-10-10 | [W11: crouch and slide](2026-10-10-w11-crouch-slide.md) | W11, W03, W08 |
+| 2026-10-12 | [CI: only on main](2026-10-12-ci-main-only.md) | tooling |
