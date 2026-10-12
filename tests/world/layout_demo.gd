@@ -11,7 +11,7 @@ extends Node3D
 ## [constant CROWD]), to see big clusters or measure performance with them.
 ##
 ## B switches to a view from above (fog off, so no draw distance; mouse
-## wheel zooms); Tab's Running list goes to any island; M opens the big
+## wheel zooms); the sessions ring (hold Tab) goes to any island; M opens the big
 ## map.
 
 ## Islands per cluster: 64 in 20 clusters, the first 8 near (d01-d41),
