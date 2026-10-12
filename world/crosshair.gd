@@ -8,8 +8,8 @@ extends CanvasLayer
 ## settings' Game tab can hide the ring, not the aiming or the hint.
 
 ## The ring's radius at rest and grown, pixels.
-const REST := 1.5
-const GROWN := 5.5
+const REST := 5.5
+const GROWN := 11.0
 ## How long it takes to grow or shrink, seconds.
 const GROW_TIME := 0.1
 

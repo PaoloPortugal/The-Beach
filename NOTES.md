@@ -2844,10 +2844,11 @@ and gives later things you can use (parkour, minigames) one way in.
 *Decided (user's design, 2026-10-12; my recommendations for the open
 details, all taken):*
 - **A small white ring** in the screen's middle, with a dark outline so
-  it reads on sand, sea and sky. At rest it is a dot-sized ring (1.5 px
-  radius); on something you can use, within its reach and not behind
-  anything, it grows to 5.5 px in 0.1 s. Rejected: a dot that turns
-  into a ring (two shapes for one meaning).
+  it reads on sand, sea and sky. At rest it is a ring of 5.5 px radius;
+  on something you can use, within its reach and not behind anything,
+  it grows to double that, 11 px, in 0.1 s (the user's sizes after the
+  first look, 2026-10-12; first built 1.5 px growing to 5.5 px).
+  Rejected: a dot that turns into a ring (two shapes for one meaning).
 - **The hint under it:** "<key>  <what it does>" ("E  Talk", "E  Zipline
   up", "E  Zipline down"), the key named from the `interact` binding as
   the keyboard's layout names it.
