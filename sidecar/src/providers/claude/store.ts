@@ -64,6 +64,21 @@ function peek(file: string, size: number): { head: string; tail: string } {
   } finally { fs.closeSync(fd) }
 }
 
+/** [peek] without blocking: listing reads up to 200 files (NOTES.md -> S04). */
+async function peekAsync(file: string, size: number): Promise<{ head: string; tail: string }> {
+  const fh = await fs.promises.open(file, 'r')
+  try {
+    const read = async (at: number, n: number) => {
+      const buf = Buffer.alloc(n)
+      const { bytesRead } = await fh.read(buf, 0, n, at)
+      return buf.subarray(0, bytesRead).toString('utf8')
+    }
+    const head = await read(0, Math.min(PEEK, size))
+    const tail = size > PEEK ? await read(size - PEEK, PEEK) : ''
+    return { head, tail }
+  } finally { await fh.close() }
+}
+
 /**
  * What a conversation can be called (NOTES.md -> S02 -> Titles): the name
  * it was given (`custom-title`: --name or /rename), the title Claude Code
@@ -149,26 +164,26 @@ export function describe(file: string): StoredInfo | null {
 /**
  * Listings kept between calls (NOTES.md -> S04): each transcript's
  * description, reused while its size and modification time stay the same,
- * so listing again only reads the folders and the files' times. Listing
- * reads synchronously, and the menu asks each time its Resume page opens.
+ * so listing again only reads the folders and the files' times. The menu
+ * asks each time its Resume page opens.
  */
 export class StoredCache {
   private readonly entries = new Map<string, { size: number; mtimeMs: number; info: StoredInfo | null }>()
   /** Files described by reading them, since this cache was made (for tests). */
   reads = 0
 
-  private readonly read: (file: string, st: fs.Stats) => StoredInfo | null | undefined
+  private readonly read: (file: string, st: fs.Stats) => Promise<StoredInfo | null | undefined>
 
   /** [read] describes one file; undefined if it couldn't be read (tests stand in a failing one). */
-  constructor(read = describeAs) { this.read = read }
+  constructor(read = describeAsync) { this.read = read }
 
   get size(): number { return this.entries.size }
 
-  describe(file: string, st: fs.Stats): StoredInfo | null {
+  async describe(file: string, st: fs.Stats): Promise<StoredInfo | null> {
     const kept = this.entries.get(file)
     if (kept && kept.size === st.size && kept.mtimeMs === st.mtimeMs) return kept.info
     this.reads++
-    const info = this.read(file, st)
+    const info = await this.read(file, st)
     // A file that couldn't be read (e.g. locked mid-write) is tried again next time.
     if (info === undefined) this.entries.delete(file)
     else this.entries.set(file, { size: st.size, mtimeMs: st.mtimeMs, info })
@@ -183,11 +198,26 @@ export class StoredCache {
 
 /** [describe] with the file's stats; undefined if it couldn't be read. */
 export function describeAs(file: string, st: fs.Stats): StoredInfo | null | undefined {
+  if (!listable(file, st)) return null
+  let read: { head: string; tail: string }
+  try { read = peek(file, st.size) } catch { return undefined }
+  return describeRead(file, st, read)
+}
+
+/** [describeAs] without blocking, for listing. */
+export async function describeAsync(file: string, st: fs.Stats): Promise<StoredInfo | null | undefined> {
+  if (!listable(file, st)) return null
+  let read: { head: string; tail: string }
+  try { read = await peekAsync(file, st.size) } catch { return undefined }
+  return describeRead(file, st, read)
+}
+
+function listable(file: string, st: fs.Stats): boolean {
+  return UUID.test(path.basename(file, '.jsonl')) && st.isFile() && st.size > 0
+}
+
+function describeRead(file: string, st: fs.Stats, { head, tail }: { head: string; tail: string }): StoredInfo | null {
   const id = path.basename(file, '.jsonl')
-  if (!UUID.test(id)) return null
-  if (!st.isFile() || st.size === 0) return null
-  let head: string, tail: string
-  try { ({ head, tail } = peek(file, st.size)) } catch { return undefined }
   const first = lines(head, false)
   const last = tail ? lines(tail, true) : []
   let cwd: string | null = null
@@ -213,29 +243,32 @@ function samePath(a: string, b: string): boolean {
 /**
  * Resumable sessions, newest first, optionally only one project's. With
  * [cache], files unchanged since an earlier listing aren't read again.
+ * Reads without blocking, so the sidecar handles everything else
+ * meanwhile (NOTES.md -> S04).
  */
-export function listStored(opts: { dir?: string; project?: string; exclude?: Set<string>; cache?: StoredCache } = {}): StoredInfo[] {
+export async function listStored(opts: { dir?: string; project?: string; exclude?: Set<string>; cache?: StoredCache } = {}): Promise<StoredInfo[]> {
   const dir = opts.dir ?? projectsDir()
   let slugs: string[]
-  try { slugs = fs.readdirSync(dir) } catch { return [] }
+  try { slugs = await fs.promises.readdir(dir) } catch { return [] }
   // Newest files first, so only the ones that will be listed are read.
   const files: { file: string; st: fs.Stats }[] = []
   for (const slug of slugs) {
     let names: string[]
-    try { names = fs.readdirSync(path.join(dir, slug)) } catch { continue }
-    for (const name of names) {
-      if (!name.endsWith('.jsonl') || opts.exclude?.has(name.slice(0, -6))) continue
-      const file = path.join(dir, slug, name)
-      const st = fs.statSync(file, { throwIfNoEntry: false })
-      if (st !== undefined) files.push({ file, st })
-    }
+    try { names = await fs.promises.readdir(path.join(dir, slug)) } catch { continue }
+    const found = await Promise.all(names
+      .filter((name) => name.endsWith('.jsonl') && !opts.exclude?.has(name.slice(0, -6)))
+      .map(async (name) => {
+        const file = path.join(dir, slug, name)
+        try { return { file, st: await fs.promises.stat(file) } } catch { return null }
+      }))
+    for (const f of found) if (f) files.push(f)
   }
   files.sort((a, b) => b.st.mtimeMs - a.st.mtimeMs)
   const out: StoredInfo[] = []
   const seen = new Set<string>()
   for (const { file, st } of files) {
     seen.add(file)
-    const info = opts.cache ? opts.cache.describe(file, st) : describeAs(file, st) ?? null
+    const info = opts.cache ? await opts.cache.describe(file, st) : await describeAsync(file, st) ?? null
     if (!info || (opts.project && !samePath(info.project.path, opts.project))) continue
     out.push(info)
     if (out.length >= LIST_MAX) break

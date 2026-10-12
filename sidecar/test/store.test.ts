@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, describeAs, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
+import { describe, describeAsync, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
@@ -58,65 +58,80 @@ function store() {
   return { dir, projA, projB }
 }
 
-test('list: terminal sessions, newest first, titled by name or first message; filters by project', () => {
+test('list: terminal sessions, newest first, titled by name or first message; filters by project', async () => {
   const s = store()
-  const all = listStored({ dir: s.dir })
+  const all = await listStored({ dir: s.dir })
   assert.deepEqual(all.map((x) => [x.native_id, x.title]), [
     [ID(1), 'cp1-project'], [ID(6), 'renamed later'], [ID(2), 'fix the login bug'], [ID(8), 'Log review'],
   ])
   assert.equal(all[0]!.provider, 'claude')
   assert.equal(all[0]!.project.path, s.projA)
   assert.ok(!Number.isNaN(Date.parse(all[0]!.updated_at)))
-  assert.deepEqual(listStored({ dir: s.dir, project: s.projB }).map((x) => x.native_id), [ID(2), ID(8)])
-  assert.deepEqual(listStored({ dir: s.dir, exclude: new Set([ID(1)]) }).map((x) => x.native_id), [ID(6), ID(2), ID(8)])
-  assert.deepEqual(listStored({ dir: path.join(s.dir, 'missing') }), [])
+  assert.deepEqual((await listStored({ dir: s.dir, project: s.projB })).map((x) => x.native_id), [ID(2), ID(8)])
+  assert.deepEqual((await listStored({ dir: s.dir, exclude: new Set([ID(1)]) })).map((x) => x.native_id), [ID(6), ID(2), ID(8)])
+  assert.deepEqual(await listStored({ dir: path.join(s.dir, 'missing') }), [])
   assert.equal(findStored(ID(2), s.dir)!.title, 'fix the login bug')
   assert.equal(findStored(ID(3), s.dir), null, 'desktop sessions are not resumed here')
   assert.equal(findStored('../../etc/passwd', s.dir), null)
   assert.equal(describe(path.join(s.dir, 'b', 'not-a-session.jsonl')), null)
 })
 
-test('list with a cache: the same list; files read again only once they change, gone ones forgotten', () => {
+test('list with a cache: the same list; files read again only once they change, gone ones forgotten', async () => {
   const s = store()
   const cache = new StoredCache()
-  const plain = listStored({ dir: s.dir })
-  assert.deepEqual(listStored({ dir: s.dir, cache }), plain)
+  const plain = await listStored({ dir: s.dir })
+  assert.deepEqual(await listStored({ dir: s.dir, cache }), plain)
   const firstReads = cache.reads
   assert.ok(firstReads >= plain.length)
-  assert.deepEqual(listStored({ dir: s.dir, cache }), plain, 'listed again, the same')
+  assert.deepEqual(await listStored({ dir: s.dir, cache }), plain, 'listed again, the same')
   assert.equal(cache.reads, firstReads, 'and nothing read again')
   // Renamed in the terminal: the file grows, and its new title shows.
   fs.appendFileSync(path.join(s.dir, 'b', `${ID(2)}.jsonl`), jsonl({ type: 'custom-title', customTitle: 'login fix' }))
-  const after = listStored({ dir: s.dir, cache })
+  const after = await listStored({ dir: s.dir, cache })
   assert.equal(after.find((x) => x.native_id === ID(2))!.title, 'login fix')
   assert.equal(after[0]!.native_id, ID(2), 'and it is the newest now')
   assert.equal(cache.reads, firstReads + 1, 'only that one is read again')
-  assert.deepEqual(after, listStored({ dir: s.dir }), 'the same as without the cache')
+  assert.deepEqual(after, await listStored({ dir: s.dir }), 'the same as without the cache')
   // Deleted (Claude Code's cleanup): gone from the list and the cache.
   const before = cache.size
   fs.rmSync(path.join(s.dir, 'a', `${ID(6)}.jsonl`))
-  assert.ok(!listStored({ dir: s.dir, cache }).some((x) => x.native_id === ID(6)))
+  assert.ok(!(await listStored({ dir: s.dir, cache })).some((x) => x.native_id === ID(6)))
   assert.equal(cache.size, before - 1)
   // A new one is read and listed.
   fs.writeFileSync(path.join(s.dir, 'b', `${ID(9)}.jsonl`), jsonl({ type: 'user', message: { content: 'brand new' }, cwd: s.projB, entrypoint: 'cli' }))
-  assert.equal(listStored({ dir: s.dir, cache })[0]!.title, 'brand new')
+  assert.equal((await listStored({ dir: s.dir, cache }))[0]!.title, 'brand new')
 })
 
-test('a transcript whose read fails is not kept, and is listed on the next call', () => {
+test('a transcript whose read fails is not kept, and is listed on the next call', async () => {
   const s = store()
   const failing = path.join(s.dir, 'b', `${ID(2)}.jsonl`)
   let fail = true
-  const cache = new StoredCache((file, st) => {
+  const cache = new StoredCache(async (file, st) => {
     if (file === failing && fail) return undefined // e.g. locked mid-write
-    return describeAs(file, st)
+    return describeAsync(file, st)
   })
-  assert.ok(!listStored({ dir: s.dir, cache }).some((x) => x.native_id === ID(2)), 'left out while it can\'t be read')
+  assert.ok(!(await listStored({ dir: s.dir, cache })).some((x) => x.native_id === ID(2)), 'left out while it can\'t be read')
   fail = false
   const reads = cache.reads
-  const next = listStored({ dir: s.dir, cache })
+  const next = await listStored({ dir: s.dir, cache })
   assert.equal(next.find((x) => x.native_id === ID(2))?.title, 'fix the login bug', 'read again, and listed')
   assert.equal(cache.reads, reads + 1, 'only that one is read again')
-  assert.deepEqual(next, listStored({ dir: s.dir }), 'the same as without the cache')
+  assert.deepEqual(next, await listStored({ dir: s.dir }), 'the same as without the cache')
+})
+
+test('listing doesn\'t block: other work runs while the files are read', async () => {
+  const s = store()
+  for (let n = 10; n < 40; n++) {
+    fs.writeFileSync(path.join(s.dir, 'b', `${ID(n)}.jsonl`), jsonl({ type: 'user', message: { content: `session ${n}` }, cwd: s.projB, entrypoint: 'cli' }))
+  }
+  let ticks = 0
+  let done = false
+  const tick = () => { if (!done) { ticks++; setImmediate(tick) } }
+  setImmediate(tick)
+  const list = await listStored({ dir: s.dir, cache: new StoredCache() })
+  done = true
+  assert.equal(list.length, 34)
+  assert.ok(ticks >= 10, `the event loop turned ${ticks} times meanwhile`)
 })
 
 test('the provider keeps its listing between calls, and shows what changed', async () => {
