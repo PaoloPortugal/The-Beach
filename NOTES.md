@@ -550,9 +550,14 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   - *In-world UI drawn through a SubViewport only redraws when it
     changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
     and hides once too far to read: the message bubble (C02).
-  - *The sky's uniforms are set only when a change would show:* setting
+  - *The sky's colours are set only when a change would show:* setting
     one redraws the sky's reflection map, so `DayNight._set_sky` skips a
-    change smaller than `SKY_STEP` (1/255) (W09).
+    change smaller than `SKY_STEP` (1/255) (W09). The sun's direction is
+    set every frame, so its disc and the moon's move smoothly (in 1/255
+    steps they jumped about once a second; user's, 2026-10-12), on a
+    64 px reflection map (`Sky.radiance_size`, Godot's default 256):
+    every frame at 256 px cost about 4 ms, at 64 px 0-0.3 ms, and
+    screenshots by day, at sunset and by night looked the same.
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
   keeps 4 shadow splits (C10 can lower them, the render scale and
   MSAA); no threaded island generation, mesh merging, or
@@ -578,7 +583,8 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   (Architecture → Rendering; rejected: a Forward+/Mobile choice in the
   settings, which needs a restart and goes against C10's "no renderer
   setting"; staying on Forward+). The sky's dither (W09) costs about
-  0.1 ms.
+  0.1 ms; the sun's direction set every frame on a 64 px reflection map
+  (W09), 0-0.3 ms.
 
 ## Protocol
 
@@ -1511,10 +1517,11 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
 - *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
   it: `changes` off) and `--day-minutes <n>`, after `--`. C09's debug
   commands do the same while the game runs.
-- *Performance* (Architecture → Performance): the sky's uniforms are
-  only set when a change would show (a 1/255 step, about once a second;
-  each set redraws the sky's reflection map, which measured 1.6-1.9 ms a
-  frame when it happened every frame); rain rings only within 60 m;
+- *Performance* (Architecture → Performance): the sky's colours are
+  only set when a change would show (a 1/255 step; each set redraws the
+  sky's reflection map, which measured 1.6-1.9 ms a frame when it
+  happened every frame); the sun's direction every frame, for a smooth
+  sun and moon, on a 64 px reflection map that keeps that cheap; rain rings only within 60 m;
   clouds, rain and the bolt cast no shadows. Measured costs are in
   Architecture → Performance.
 
@@ -4005,7 +4012,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 dev log 2026-10-12-perf-pass-2) is built and waits for the user's
 review and live check: the Mobile renderer instead of Forward+ (35-50 %
 less GPU time on the user's machine), the night sky dithered against
-Mobile's bands, SMAA on by default. The mountain bugs under Watch items
+Mobile's bands, SMAA on by default, and a smooth sun and moon (user's,
+asked during the review). The mountain bugs under Watch items
 wait for later.
 **Merged to `main` (2026-10-12), approved by the user: C10 settings
 menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics

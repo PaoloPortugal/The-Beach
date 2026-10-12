@@ -30,7 +30,13 @@ Page Down / wheel scrolls this.
    MSAA 2x and 4x: fast
    enough? SMAA off vs on:
    sharper, or worth it?
-7. Compatibility still
+7. The sun and moon: T,
+   /time speed 60, watch
+   them cross: smooth, no
+   steps? (/time speed 1
+   after.) The sky colours
+   change smoothly too?
+8. Compatibility still
    works (no shadows, AA
    greyed out, sky fine):
      godot --path .
