@@ -1,8 +1,9 @@
 class_name Zipline
 extends Node3D
 ## The mountain's way up from its beach (W10, user's, 2026-10-09): a cable
-## from a post on the beach to one on the shoulder above the cliff. Press
-## E (interact) by either post to ride it to the other: you hang under the
+## from a post on the beach to one on the shoulder above the cliff. E
+## (interact) with the crosshair on either post ([Interactable], C11)
+## rides it to the other: you hang under the
 ## cable and can look round, but not move, until you're off. Low-poly
 ## placeholder like the props. Made by [Island] where the biome has one,
 ## at [method IslandGenerator.zipline_ends].
@@ -13,8 +14,8 @@ const POST_HEIGHT := 4.0
 const HANG := 2.2
 ## Riding speed along the cable, m/s, and how long it eases in and out.
 const SPEED := 7.0
-## How close to a post you can get on, metres across the ground.
-const REACH := 2.0
+## How far from a post's middle (from the camera) you can get on, metres.
+const REACH := 3.0
 ## Where you're let off at the top: this far further inward, metres.
 const STEP_OFF := 1.5
 
@@ -28,12 +29,12 @@ signal ride_ended
 var low: Vector3
 var high: Vector3
 
-var _near_end := -1 # 0 low, 1 high, -1 neither
 var _rider: Player
 var _from: Vector3 # global, the cable at the start and the end
 var _to: Vector3
 var _ride_t := 0.0
-var _prompts: Array[Label3D] = []
+## What the crosshair aims at by each post: the low one's, the high one's.
+var ends: Array[Interactable] = []
 
 
 func _init(p_low: Vector3, p_high: Vector3) -> void:
@@ -59,16 +60,14 @@ func _ready() -> void:
 	mi.material_override = IslandProps.material()
 	add_child(mi)
 	for k in 2:
-		var label := Label3D.new()
-		label.text = "E: zipline up" if k == 0 else "E: zipline down"
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.font_size = 48
-		label.pixel_size = 0.005
-		label.outline_size = 12
-		label.position = (low if k == 0 else high) + Vector3(0, 2.2, 0)
-		label.visible = false
-		add_child(label)
-		_prompts.append(label)
+		var end := Interactable.new("Zipline up" if k == 0 else "Zipline down", REACH, 0.6)
+		end.name = "End%d" % k
+		end.position = (low if k == 0 else high) + Vector3(0, 1.3, 0)
+		end.used.connect(func(player: Player) -> void:
+			if not player.riding:
+				ride(player, k))
+		add_child(end)
+		ends.append(end)
 
 
 ## Where the cable is above post [param end] (0 low, 1 high), local.
@@ -93,7 +92,6 @@ func ride(player: Player, end: int) -> void:
 	player.swimming = false
 	player.velocity = Vector3.ZERO
 	player.global_position = _from - Vector3(0, HANG, 0)
-	_show_prompt(-1)
 
 
 func _physics_process(delta: float) -> void:
@@ -102,22 +100,6 @@ func _physics_process(delta: float) -> void:
 		_rider.global_position = _from.lerp(_to, smoothstep(0.0, 1.0, _ride_t)) - Vector3(0, HANG, 0)
 		if _ride_t >= 1.0:
 			_let_off()
-		return
-	var player := _player()
-	_near_end = -1
-	if player and not player.riding:
-		for k in 2:
-			var foot := to_global(low if k == 0 else high)
-			if Vector2(player.global_position.x - foot.x, player.global_position.z - foot.z).length() < REACH and absf(player.global_position.y - foot.y) < 2.0:
-				_near_end = k
-	_show_prompt(_near_end if player and player.controls_enabled else -1)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	var player := _player()
-	if _near_end >= 0 and player and player.controls_enabled and not player.riding and event.is_action_pressed("interact"):
-		get_viewport().set_input_as_handled()
-		ride(player, _near_end)
 
 
 # At the far post: on the ground, a step inward at the top.
@@ -143,15 +125,6 @@ func _exit_tree() -> void:
 	if _rider:
 		_rider.riding = false
 		_rider = null
-
-
-func _show_prompt(end: int) -> void:
-	for k in _prompts.size():
-		_prompts[k].visible = k == end
-
-
-func _player() -> Player:
-	return get_tree().get_first_node_in_group("player") as Player if is_inside_tree() else null
 
 
 # An upright cylinder of [param length] at [param centre], turned to lie

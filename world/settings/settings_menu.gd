@@ -157,6 +157,7 @@ func _build() -> void:
 			attention.sound_on = on)
 	var game := _tabs.get_child(3)
 	_toggle(game, "Take me to a new session's island", "game/go_to_new_island")
+	_toggle(game, "Crosshair", "game/crosshair")
 
 	var bottom := HBoxContainer.new()
 	layout.add_child(bottom)
