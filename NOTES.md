@@ -4041,14 +4041,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the three bugs the user asked for (2026-10-12):
-W10's mountain bugs, then S04 and C08. Branch
-`w10-mountain-bugs`, ready for the user's review: a mountain's torches
-and zipline posts stand on the built mesh, and its zipline moves to a
-valley clear of its bridges (dev log 2026-10-12-w10-mountain-bugs).
-Next, branch `sidecar-no-blocking`: S04 (listing stored sessions
-without blocking) and C08 (a slow short-name answer kept for the run),
-under Watch items. Then the proper sessions menu (W07/S03), whose
-layout is for the user to decide first.
+W10's mountain bugs are merged; next, branch `sidecar-no-blocking`:
+S04 (listing stored sessions without blocking) and C08 (a slow
+short-name answer kept for the run), under Watch items. Then the
+proper sessions menu (W07/S03), whose layout is for the user to decide
+first.
+**Merged to `main` (2026-10-12), approved by the user: W10's mountain
+bugs** (dev log 2026-10-12-w10-mountain-bugs): a mountain's torches and
+zipline posts stand on the built mesh, and its zipline moves to a
+valley clear of its bridges. Live check: a light look by the user, no
+problems seen.
 **Merged to `main` (2026-10-12), approved by the user: the second
 optimization pass** (dev log 2026-10-12-perf-pass-2): the Mobile
 renderer instead of Forward+ (35-50 % less GPU time on the user's
