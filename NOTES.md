@@ -4715,6 +4715,17 @@ exists.
 
 ### Watch items
 
+- **The message bubble vanishing over the sea** (C02; seen live by the
+  user, 2026-10-12, to fix later). Parts of an orchestrator's bubble
+  (panel and text) disappear where only sea is behind it, and draw fine
+  where a tree is behind it. Not investigated yet. Likely cause: both
+  are see-through and Godot sorts see-through things by their middle's
+  distance, so the ocean (one huge mesh, `ocean.gdshader` writes
+  `ALPHA`) can be drawn after the bubble (a `Sprite3D` showing a
+  transparent `SubViewport`) and over it; a tree is opaque, so it is
+  drawn first. To check: the bubble's `render_priority` above the
+  ocean's (A05's beacon sorts itself with `render_priority` −1 for the
+  same reason), and whether the sky's bands matter too.
 - **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
   Nothing stops a near cluster's wedge growing into the far clusters'
   first ring (about 160 islands) or two far clusters' areas meeting
