@@ -709,9 +709,10 @@ puts everything back.
   - *Anti-aliasing (MSAA)* smooths the jagged, stair-stepped edges of
     shapes: off (the default), 2×, 4× or 8×. Higher is smoother and
     slower; on a fast computer, try 4×.
-  - *Screen-space anti-aliasing* (FXAA or SMAA; off by default) smooths
-    the whole picture a little more, at a small cost, and blurs it a
-    little. SMAA is the sharper of the two.
+  - *Screen-space anti-aliasing* (off, FXAA or SMAA; SMAA by default)
+    smooths the whole picture a little, at a small cost, and blurs it a
+    little. SMAA is the sharper of the two; on a slow computer, turning
+    it off makes the game a little faster.
 
   On computers that run the game in its simpler compatibility mode
   there are no shadows and no screen-space anti-aliasing, so those two

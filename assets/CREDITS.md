@@ -20,7 +20,7 @@ Every new one Claude writes or rewrites gets a row.
 | File | Written by | Notes |
 |------|------------|-------|
 | `world/ocean/ocean.gdshader` | Claude (Claude Code) | Shader. The ocean (W02, 2026-09-30): waves and flat shading. Rewritten for W08 (2026-10-08): see-through, tinted by depth, an underside. W09 (2026-10-08): wave speed from the wind, rain rings. |
-| `world/sky/sky.gdshader` | Claude (Claude Code) | Shader. The sky (W09, 2026-10-08): gradient, sun and moon discs, stars. |
+| `world/sky/sky.gdshader` | Claude (Claude Code) | Shader. The sky (W09, 2026-10-08): gradient, sun and moon discs, stars. A dither under the Mobile renderer (2026-10-12). |
 | `world/sky/clouds.gd`, `world/sky/rain.gd`, `world/sky/lightning_bolt.gd` | Claude (Claude Code) | Generated weather (W09, 2026-10-08): low-poly clouds from flattened blobs, rain streaks (particles), a lightning bolt ribbon. |
 | `world/sky/night_light.gd` | Claude (Claude Code) | Placeholder night lights (W09, 2026-10-08): torches and a desk lamp from primitives, with a warm light. |
 | `world/island/island_generator.gd`, `world/island/island.gd`, `world/island/biome.gd` | Claude (Claude Code) | Generated islands (W01, 2026-09-30): height field, flat-shaded triangles, colours by height. Shelf and drop-off added for W08; underwater colours from the sea floor's (2026-10-08). Biomes (W10, 2026-10-08): forest, mountain, snowy and desert shapes and palettes, rock on steep slopes. Tall mountains (2026-10-09): a cliff up to a high meadow among spires. |

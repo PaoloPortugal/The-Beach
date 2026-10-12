@@ -385,8 +385,15 @@ the same `~/.claude` layout. What differs, and how we handle it:
   items → Untested on macOS and Linux.
 
 The game (Godot) follows the same rule:
-- **Rendering (user's decision).** Built for **Forward+**, with Godot's
-  default drivers: Vulkan on Windows and Linux, Metal on macOS. No
+- **Rendering (user's decision).** Built for the **Mobile renderer**
+  (since 2026-10-12; Forward+ before: the second optimization pass
+  measured Mobile 35-50 % faster on the user's integrated GPU and
+  looking the same, Architecture → Performance), with Godot's
+  default drivers: Vulkan on Windows and Linux, Metal on macOS. Given
+  up with Forward+: SSAO, SSR, SDFGI and volumetric fog (none used) and
+  more than 8 lights on one mesh. Mobile keeps the 3D picture at 10 bits
+  a channel, coarse in the dark: the sky shader dithers it there
+  (W09), and `use_debanding` is on. No
   graphics API is required: when the first choice fails, Godot falls back
   to Direct3D 12 and then to the **Compatibility renderer** (OpenGL 3.3)
   on its own (`fallback_to_d3d12`, `fallback_to_opengl3`, both on by
@@ -457,8 +464,8 @@ removing a provider means deleting its folders.
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
 
-**Performance** (user's decisions, 2026-10-07; dev log
-2026-10-08-perf-pass). Scope: core. The game is **GPU-bound**: the CPU's share of a
+**Performance** (user's decisions, 2026-10-07 and 2026-10-12; dev logs
+2026-10-08-perf-pass, 2026-10-12-perf-pass-2). Scope: core. The game is **GPU-bound**: the CPU's share of a
 frame is about 1 ms, physics 0.3-0.5 ms.
 - *Budget, measured* with the layout demo (W06: 64 sessions in 20
   clusters, 56 bridges; 52 since W05's unbounded layout, 2026-10-09, not
@@ -472,6 +479,15 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   |---|---|---|
   | Before (2026-10-07) | 23-29 ms | 1.2-1.8 million, over half in the sun's shadows |
   | After this pass (2026-10-08) | 15-18 ms | 0.33-0.45 million |
+  | Second pass, Forward+ (2026-10-12) | 15.6-31.5 ms | 0.24-0.38 million |
+  | Mobile renderer (2026-10-12) | 10.1-16.0 ms | the same |
+  | Mobile with SMAA, the default since | 12.6-20.3 ms | the same |
+
+  The second pass's bridge view stands above the deck (the first's was
+  under the water, inside the bridge's box), so it costs more than
+  before: 31.5 ms under Forward+, 16.0 under Mobile. Per view, Forward+
+  → Mobile: platform out 18.5 → 10.1, back 21.1 → 12.7, island 15.6 →
+  10.3, bridge 31.5 → 16.0.
 
   The segments cost some CPU: draw calls went from about 240 to
   210-330, CPU rendering from 0.8 to 1.2 ms.
@@ -545,10 +561,24 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   square, so the far corners are past the fog. Tried and reverted (W09): drawing only the ocean's visible side
   (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
   +0.7 ms on another.
-- *Anti-aliasing:* the numbers above were measured without any (Godot's
-  default, and C10's: off unless the player turns it on). On the user's
-  machine MSAA under Forward+ was too slow (C10 live check, 2026-10-12);
-  not measured yet, for the next optimization pass.
+- *Anti-aliasing* (2026-10-12, under Mobile, ms added per frame by
+  view): FXAA +0.5-2.3, SMAA +1.6-3.7 (C10's default), MSAA 2x +3.7-5.5,
+  4x +7.2-11.4. Under Forward+: FXAA +1.5-2, SMAA +3.5-4, MSAA 2x +5-8,
+  4x +10-15.
+- *Second pass* (2026-10-12; dev log 2026-10-12-perf-pass-2), each
+  measured under Forward+ by turning one thing off or down: the sun's
+  shadows 4-9 ms (Low 2-5 ms; hard filtering, a 60 m shadow distance:
+  within the spread); the ocean 3-7 ms; the island ground 4-12 ms (most
+  on the bridge view, where cliffs overlap); props, clouds, the sea
+  floor, bridges and agents about 1 ms or less each; night's lamps and
+  torches 0-3 ms. A 75 % render scale saves about a third: the cost is
+  in filling pixels, not triangles. Per-vertex shading on the islands
+  saved nothing. The depth pre-pass would save 3-17 ms but still breaks
+  in 4.7.2 (Watch items). So the renderer changed instead
+  (Architecture → Rendering; rejected: a Forward+/Mobile choice in the
+  settings, which needs a restart and goes against C10's "no renderer
+  setting"; staying on Forward+). The sky's dither (W09) costs about
+  0.1 ms.
 
 ## Protocol
 
@@ -1432,7 +1462,12 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
 - *Sky* (`sky.gdshader`): a gradient from horizon to top (eased:
   `1 - exp(-6 * up)`, so sunset colours stay a band near the horizon),
   the sun's disc and glow, the moon's disc opposite, and stars (hashed
-  direction cells, fading toward the horizon) by night. `DayNight` sets
+  direction cells, fading toward the horizon) by night. Under the Mobile
+  renderer it adds a dither of one step of Mobile's 10-bit picture
+  (noise from the pixel's position, not in the reflection map), which
+  hides the bands its dark night gradient showed (a faint arc near the
+  top; Godot's `use_debanding` didn't remove them, as it works on the
+  finished picture); about 0.1 ms. `DayNight` sets
   every colour: day, a gold and orange horizon at dusk and dawn, night;
   greyed by cloud (`OVERCAST`), darker in storms (`STORM_SKY`), lifted by
   lightning. The fog's colour follows the horizon (through
@@ -2544,12 +2579,16 @@ renderer or driver setting.
   Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
-  (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA), **both
-  Off by default**. First built with MSAA 4× as the default; in the live
-  check 4× and 2× looked good but the user's machine couldn't run MSAA
-  fast enough under Forward+, so it starts off and is there for
-  stronger PCs (user's, 2026-10-12; the default is to be looked at again
-  after the optimization pass)
+  (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA); **MSAA
+  Off and SMAA on by default**. First built with MSAA 4× as the default;
+  in the live check 4× and 2× looked good but the user's machine
+  couldn't run MSAA fast enough under Forward+, so it started off, both
+  off, and is there for stronger PCs (user's, 2026-10-12). After the
+  second optimization pass moved to the Mobile renderer, SMAA became the
+  default (user's, 2026-10-12; my recommendation was both off: SMAA adds
+  1.6-3.7 ms, MSAA 2× 3.7-5.5 ms on the user's machine, Architecture →
+  Performance; rejected: MSAA 2× by default, about half of what Mobile
+  saved)
   as two settings (rejected: MSAA only; adding TAA, which ghosts on what
   moves most here: the waves, rain and clouds. TAA and FSR 2 can come
   later with a closer look at the render scale).
@@ -2597,7 +2636,7 @@ renderer or driver setting.
   - *Anti-aliasing (MSAA):* Off (default), 2×, 4× or 8×
     (`Viewport.msaa_3d`): smooths the edges of shapes, not shading or
     textures; each step up is smoother and slower (Godot's docs).
-  - *Screen-space anti-aliasing:* Off (default), FXAA or SMAA
+  - *Screen-space anti-aliasing:* Off, FXAA or SMAA (default)
     (`Viewport.screen_space_aa`): a filter over the whole picture,
     cheaper but a little blurry; SMAA is clearer than FXAA, at a
     slightly higher cost (Godot's docs). Godot has none under Compatibility (its
@@ -3961,10 +4000,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** another optimization pass (user's, 2026-10-12): the
-user's machine runs MSAA too slowly under Forward+ (C10), so measure it
-with the rest and look at the anti-aliasing default again after. The
-mountain bugs under Watch items wait for later.
+**Current focus:** the second optimization pass (branch `perf-pass2`,
+dev log 2026-10-12-perf-pass-2) is built and waits for the user's
+review and live check: the Mobile renderer instead of Forward+ (35-50 %
+less GPU time on the user's machine), the night sky dithered against
+Mobile's bands, SMAA on by default. The mountain bugs under Watch items
+wait for later.
 **Merged to `main` (2026-10-12), approved by the user: C10 settings
 menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics
 (window, vsync, FPS cap, render scale, shadows, MSAA and screen-space
@@ -4528,7 +4569,7 @@ exists.
 - **Compatibility renderer and sun shadows.** Under Compatibility (Godot
   4.7.2, Windows, AMD Radeon, OpenGL 3.3), any directional-light shadow
   washes the island out to pure white, in every shadow mode and even with
-  the sun at 0.3 energy; Forward+ is fine. The world turns sun shadows
+  the sun at 0.3 energy; Forward+ and Mobile are fine. The world turns sun shadows
   off under Compatibility (`world/world.gd`). Recheck on Godot updates and
   on other GPUs; if it's a Godot bug, report it and remove the fallback
   once fixed.
@@ -4543,9 +4584,14 @@ exists.
   is some overdraw, small for this low-poly world, but it includes the
   sea floor, the islands' drop-offs and the posts, all under the water
   (see-through since W08; Architecture → Performance): worth
-  rechecking whether the pre-pass can come back. Recheck on Godot
-  updates; if it's a Godot bug, report it and turn the pre-pass back on
-  once fixed (dev log 2026-09-30-chat-panel-session-islands).
+  rechecking whether the pre-pass can come back. Still there in 4.7.2,
+  the latest release, on 2026-10-12, when turning the pre-pass back on
+  would have saved 3-17 ms a frame. The Mobile renderer, the default
+  since then (Architecture → Rendering), has no depth pre-pass, so the
+  bug and the setting only matter when Forward+ is chosen on the command
+  line. Recheck on Godot updates; if it's a Godot bug, report it and
+  turn the pre-pass back on once fixed (dev logs
+  2026-09-30-chat-panel-session-islands, 2026-10-12-perf-pass-2).
 - **Untested on macOS and Linux.** Everything verified so far (S02, C03)
   ran on Windows 11 only, and only Windows is available to test on. The
   launch flow (terminal launcher, finding `claude`, the channel
