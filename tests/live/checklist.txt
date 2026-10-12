@@ -1,3 +1,30 @@
+LIVE CHECK: W10 mountain bugs
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+(Perf pass 2's check is below.)
+
+1. Start or resume a session
+   with Biome: Mountain. T:
+   /time set midnight. Walk
+   round the cliff's top:
+   every torch stands on the
+   ground, none floating?
+2. Its zipline: E at the
+   beach post rides up, E at
+   the top rides down, as
+   before? Posts on the
+   ground?
+3. Bridges: start more
+   Mountain sessions in the
+   same cluster (3-4). On
+   each mountain, does any
+   bridge run through or
+   right beside the zipline's
+   cable? (If a zipline moved
+   to another valley, a bare
+   strip down the cliff where
+   it was is expected.)
+
 LIVE CHECK: perf pass 2
   (the Mobile renderer)
   godot --path . -- --checklist

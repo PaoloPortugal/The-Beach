@@ -1612,7 +1612,23 @@ from screenshots).
 - *Zipline* (`Zipline`, `world/island/zipline.gd`, made by `Island` where
   the biome has one: the mountain): a post on the beach and one on the
   shoulder just past the cliff's lip, at the first valley's mouth
-  (`IslandGenerator.zipline_ends`), the cable 4 m over each. Within 2 m
+  (`IslandGenerator.zipline_ends`), the cable 4 m over each. The posts
+  stand on the built mesh (`IslandGenerator.surface_height`: the
+  triangle under the point, not `height_at`, which on the cliff's 2 m
+  jittered grid can be 2 m off).
+  *Clear of bridges* (2026-10-12; user's choice over shifting the
+  bridge): whenever bridges come or go, `SessionIslands` tells each
+  island where its bridges land (`Island.set_landings`). If a bridge's
+  middle line (from 2 m inside its landing straight out) comes within
+  3 m of the cable in plan (`IslandGenerator.BRIDGE_CLEAR`,
+  `zipline_room`), the zipline moves to the first of the 3 valley
+  mouths that is clear, else the one with the most room
+  (`zipline_valley`; `Island.zipline_valley`). It stays put while
+  someone rides it and moves when the ride ends. The props cleared
+  under the old cable stay cleared (user's, 2026-10-12). Without it,
+  4-8 % of mountains with 1-3 bridges had a bridge through the cable;
+  with it, a clear valley was found every time (400 seeds, random
+  bridge directions). Within 2 m
   of a post, "E: zipline up" (or down) floats over it; E (`interact`)
   rides you to the other post (its length over 7 m/s, eased in and
   out, so about 10 m/s at its fastest), hanging
@@ -1646,7 +1662,8 @@ from screenshots).
   meadow; later ones fall in the valleys, on the shoulder or on the
   beach below the cliff.
 - *Torches* (W09) stand at the island's edge height (the mountain's at
-  the cliff's lip).
+  the cliff's lip), on the built mesh (`surface_height`, 2026-10-12:
+  at `height_at` they floated up to 2 m on the cliff).
 - *Maps* (W06): an island is drawn in its biome's ground colour (a
   beach's sand).
 - *Performance* (Architecture → Performance): props cost 0.25-1.1 ms of
@@ -4011,8 +4028,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none chosen yet, for the user to pick. The mountain
-bugs under Watch items wait for later.
+**Current focus:** the user's three bugs (2026-10-12). Branch
+`w10-mountain-bugs`, ready for the user's review: a mountain's torches
+and zipline posts stand on the built mesh, and its zipline moves to a
+valley clear of its bridges (dev log 2026-10-12-w10-mountain-bugs).
+Next, branch `sidecar-no-blocking`: S04 (listing stored sessions
+without blocking) and C08 (a slow short-name answer kept for the run),
+under Watch items. Then the proper sessions menu (W07/S03), whose
+layout is for the user to decide first.
 **Merged to `main` (2026-10-12), approved by the user: the second
 optimization pass** (dev log 2026-10-12-perf-pass-2): the Mobile
 renderer instead of Forward+ (35-50 % less GPU time on the user's
@@ -4401,17 +4424,6 @@ exists.
   (about 70 islands each). Left for now and the near future: it takes a
   huge number of sessions. If it ever matters, push the far rings out as
   the near wedges grow, or move a far cluster's area.
-
-- **Mountain bugs to debug later** (W10; seen by the user, 2026-10-09).
-  - *Ziplines through bridges:* a zipline's cable sometimes runs through
-    a bridge. Likely cause: the zipline stands at the first valley's
-    mouth, chosen with the island, and a bridge lands wherever its
-    neighbour lies, with nothing keeping the two apart.
-  - *Torches in the air:* a mountain's torches sometimes float. Likely
-    cause: they stand at `IslandGenerator.height_at` on the cliff's lip,
-    but the mesh is a jittered 2 m grid, which on an 18 m cliff can lie
-    well below the function there.
-  Not fixed yet; the user asked for notes only.
 
 - **A login expiring on its own** (S06; user's, 2026-10-08). Not yet
   seen live: the live check could only simulate a failed account with
