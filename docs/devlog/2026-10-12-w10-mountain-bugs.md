@@ -63,16 +63,23 @@ takes the valley's index.
 
 The props cleared under the old cable stay cleared, a bare strip down
 the cliff: the user's choice (2026-10-12) over laying the props out
-again.
+again. The docs-sync review then found the strip also appeared where
+nobody could have seen a zipline: a session's island placed it at the
+first valley in `_ready`, and its first bridges, a moment later, could
+move it. So a session's island now waits (`Island.zipline_waits`, set
+by `SessionIslands`) and places its zipline at its first landings; a
+new island's comes when it has risen. Islands made outside the world
+(tests, the layout demo) place it at once.
 
 Tests: a world-test check on 12 seeds (a landing beside the cable moves
 it to a clear valley; one elsewhere, none, or one beside another valley
 doesn't), and in the world, the risen mountain's cable clears its
-bridges, and a landing put on its cable mid-ride moves it only after the
-ride.
+bridges (and it has none while rising), and a landing put on its cable
+mid-ride moves it only after the ride.
 
 ## Not done
 
 Bridges also land at `height_at`'s lip (`SessionIslands._shore_point`),
 so their ends could sit off the mesh like the torches did. Not seen as
-a bug (a bridge's end overruns and its posts sink), so left alone.
+a bug (a bridge's end overruns and its posts sink), so left alone;
+noted in NOTES.md → W10 → Bridges.

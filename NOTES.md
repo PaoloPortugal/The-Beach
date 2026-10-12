@@ -1611,8 +1611,9 @@ from screenshots).
   `LANDING_CLEAR`, `LANDING_RUN`).
 - *Zipline* (`Zipline`, `world/island/zipline.gd`, made by `Island` where
   the biome has one: the mountain): a post on the beach and one on the
-  shoulder just past the cliff's lip, at the first valley's mouth
-  (`IslandGenerator.zipline_ends`), the cable 4 m over each. The posts
+  shoulder just past the cliff's lip, at a valley's mouth (the first,
+  unless a bridge is in the way; `IslandGenerator.zipline_ends`), the
+  cable 4 m over each. The posts
   stand on the built mesh (`IslandGenerator.surface_height`: the
   triangle under the point, not `height_at`, which on the cliff's 2 m
   jittered grid can be 2 m off).
@@ -1625,7 +1626,10 @@ from screenshots).
   mouths that is clear, else the one with the most room
   (`zipline_valley`; `Island.zipline_valley`). It stays put while
   someone rides it and moves when the ride ends. The props cleared
-  under the old cable stay cleared (user's, 2026-10-12). Without it,
+  under the old cable stay cleared (user's, 2026-10-12). A session's
+  island has no zipline until its bridges first land
+  (`Island.zipline_waits`; a new one's comes when it has risen), so it
+  starts in a clear valley and leaves no bare strip behind. Without it,
   4-8 % of mountains with 1-3 bridges had a bridge through the cable;
   with it, a clear valley was found every time (400 seeds, random
   bridge directions). Within 2 m
@@ -1645,6 +1649,9 @@ from screenshots).
   are about 50 m long, so most stay gentle ramps; one up to a
   mountain's 18 m is a stair. On a mountain they land on the shoulder
   at the cliff's top, 2 m below the meadow, and a valley leads up.
+  The landing is found with `height_at`, not on the built mesh like
+  the torches, so on a cliff a bridge's end could sit off the ground;
+  not seen (its end overruns), so left alone (2026-10-12).
 - *Rising and sinking* (W04): an island taller than a beach's 3.2 m
   starts and ends deeper, all of it under the deepest sea floor
   (`SessionIslands.sunk_y`): a mountain's 70 m start about 100 m down,
@@ -3787,7 +3794,10 @@ bridges land, props off the beach and the middle, and a walk on a 1 m
 grid, no step steeper than 40°, from the beach (a mountain's zipline
 top instead) and every landing up to the middle; a mountain's spires
 over 50 m and some over 60, its high meadow and its zipline's cable
-clear of the cliff, on mountains only; every prop mesh facing outward
+clear of the cliff, on mountains only; a bridge landing within 3 m of
+the cable moving the zipline to a clear valley and others not; every
+mountain torch and zipline post on the collision mesh, over 12 seeds;
+every prop mesh facing outward
 (a palm's, a plant's and a starfish's by signed volume), solid
 props colliding and clearing along a bridge's way in; a steep bridge's
 level steps on a smooth ramp), the day and the weather (W09: starting
@@ -3821,7 +3831,9 @@ per session, in the folder's cluster, a new one rising and the teleport
 waiting for it, an ended one staying while you're on it and sinking once
 you leave, one ending mid-rise, a chosen mountain island rising from
 under the sea floor, bridged at its edge height clear of props, its
-zipline riding you up with E and back down, and sinking (W10), the new-island beacon and edge arrow
+zipline waiting for its bridges and then clear of them, riding you up
+with E and back down, moving off a landing put on its cable only after
+the ride, and sinking (W10), the new-island beacon and edge arrow
 (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
 built newest first),
@@ -4028,7 +4040,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the user's three bugs (2026-10-12). Branch
+**Current focus:** the three bugs the user asked for (2026-10-12):
+W10's mountain bugs, then S04 and C08. Branch
 `w10-mountain-bugs`, ready for the user's review: a mountain's torches
 and zipline posts stand on the built mesh, and its zipline moves to a
 valley clear of its bridges (dev log 2026-10-12-w10-mountain-bugs).
