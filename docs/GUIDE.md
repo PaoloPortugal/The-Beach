@@ -26,6 +26,7 @@ here; each section is labelled with its feature ID.
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [When you need to sign in again (S06)](#when-you-need-to-sign-in-again-s06)
+- [Settings (C10)](#settings-c10)
 - [Debug commands (C09)](#debug-commands-c09)
 - [The sidecar (S01)](#the-sidecar-s01)
 - [Claude Code sessions (S02)](#claude-code-sessions-s02)
@@ -92,8 +93,6 @@ On the first page:
   you always find a session in the same place: clusters in the order
   of their places around the platform, and each cluster's sessions in
   the order of their islands.
-- **Sound when waiting**, at the bottom, turns the attention chime on
-  or off (see When something waits for you (A05)).
 
 On Add a session:
 
@@ -120,7 +119,8 @@ a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
 "Still starting; check the terminal, or stop waiting in the menu (Tab)."
 Once you've confirmed, the session's island rises out of the seabed, and
-once it's up you're taken to it, right in front of its orchestrator.
+once it's up you're taken to it, right in front of its orchestrator
+(unless you've turned that off in the settings: Settings (C10)).
 
 If the session can't start, the note says why. If Claude Code closes
 before it's ready (for example you chose not to trust the folder, or
@@ -289,7 +289,7 @@ You see the world through your character's eyes.
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
-| Free the mouse pointer | Esc (click in the game to take it back) |
+| Settings (frees the mouse pointer) | Esc (Esc again closes them; click in the game to take the pointer back) |
 | Sessions menu: start, resume or go to a session or the platform | Tab (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
@@ -370,8 +370,8 @@ most one every 10 to 20 seconds. Rain makes rings on the water, and
 stops when you dive under. The weather is only for the look: it never
 means anything about your sessions.
 
-For now it's all silent; sounds come later. A switch to turn lightning
-off will be in the settings menu, once there is one.
+For now it's all silent; sounds come later. To turn lightning off, open
+the settings (Esc) and untick **Lightning in storms**.
 
 ## Talking to the orchestrator (C01)
 
@@ -655,8 +655,8 @@ placeholder.
   the game, there's no flash and no chime: the beacon and the count are
   enough.
 
-To turn the chime off, open the sessions menu (Tab) and untick **Sound
-when waiting** at the bottom; the game remembers it.
+To turn the chime off, open the settings (Esc), go to **Sound** and
+untick **Sound when waiting**; the game remembers it.
 
 ## When you need to sign in again (S06)
 
@@ -692,6 +692,26 @@ you type in the terminal counts too: after it, the text put back goes,
 so copy it first if you still want to send it. (Messages you send while
 Claude is busy wait for its turn to end, so they don't get this
 warning.)
+
+## Settings (C10)
+
+Press **Esc** to open the settings; Esc again closes them. (If the chat,
+the sessions menu or the map is open, Esc closes that first.) Every
+change takes effect at once and is remembered; **Reset to defaults**
+puts everything back.
+
+- **Graphics:** the window (windowed, borderless fullscreen or
+  fullscreen), vsync, a frame-rate cap, the render scale (draw the world
+  at a lower resolution for speed; the text stays sharp), shadow quality
+  (high, low or off), and lightning in storms on or off. On computers
+  that run the game in its simpler compatibility mode there are no
+  shadows, so that setting is greyed out.
+- **Controls:** mouse sensitivity and field of view.
+- **Sound:** the chime when something waits on you while you're in
+  another window (see When something waits for you (A05)).
+- **Game:** whether starting a session takes you to its island. Turned
+  off, you stay where you are; its green beacon and the arrow at the
+  screen's edge show where it rose.
 
 ## Debug commands (C09)
 

@@ -1,0 +1,248 @@
+class_name SettingsMenu
+extends CanvasLayer
+## The settings menu (C10): Esc opens it when nothing else is open (the
+## chat, the menus and the map take Esc first) and frees the mouse; Esc
+## again closes it. Tabs for Graphics, Controls, Sound and Game; every
+## change applies at once and is saved ([Settings]). A PLACEHOLDER, like
+## all UI for now.
+
+const TABS := ["Graphics", "Controls", "Sound", "Game"]
+## What each choice reads as in the menu.
+const NAMES := {
+	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen",
+	"off": "Off", "low": "Low", "high": "High",
+	0: "Off", 30: "30", 60: "60", 120: "120", 144: "144", 240: "240",
+}
+
+var settings: Settings
+var player: Player
+## A05's chime is its own setting ([Attention.sound_on]).
+var attention: Attention
+## Under the Compatibility renderer the sun casts no shadows (world.gd),
+## so the shadow setting is greyed out.
+var shadows_available := true
+
+var _open := false
+var _panel := PanelContainer.new()
+var _tabs := TabContainer.new()
+var _controls := {} # setting key → its Control
+var _values := {} # a slider's key → the Label showing its value
+var _sound := CheckButton.new()
+
+
+func _init() -> void:
+	layer = 2
+	_build()
+	_panel.visible = false
+
+
+func setup(with_settings: Settings, with_player: Player, with_attention: Attention) -> void:
+	settings = with_settings
+	player = with_player
+	attention = with_attention
+	settings.changed.connect(_refresh)
+	_refresh()
+
+
+func is_open() -> bool:
+	return _open
+
+
+func open() -> void:
+	if _open:
+		return
+	_open = true
+	_panel.visible = true
+	player.controls_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_refresh()
+
+
+func close() -> void:
+	if not _open:
+		return
+	_open = false
+	_panel.visible = false
+	player.controls_enabled = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## The control that sets [param key] (a [Settings] key), for tests.
+func control(key: String) -> Control:
+	return _controls[key]
+
+
+## The chime's toggle (A05), for tests.
+func sound_toggle() -> CheckButton:
+	return _sound
+
+
+## Shows the tab called [param tab_name].
+func show_tab(tab_name: String) -> void:
+	_tabs.current_tab = TABS.find(tab_name)
+
+
+func current_tab() -> String:
+	return TABS[_tabs.current_tab]
+
+
+# _input, so Esc closes it before anything else sees it. It opens in
+# _unhandled_input: the chat, the sessions menu, the map and the debug
+# console take their Esc in _input first.
+func _input(event: InputEvent) -> void:
+	if _open and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		close()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _open and player and player.controls_enabled and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		open()
+
+
+func _build() -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.06, 0.08, 0.11, 0.94)
+	style.set_corner_radius_all(16)
+	style.content_margin_left = 24.0
+	style.content_margin_right = 24.0
+	style.content_margin_top = 18.0
+	style.content_margin_bottom = 18.0
+	_panel.name = "Panel"
+	_panel.add_theme_stylebox_override("panel", style)
+	_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_panel.custom_minimum_size = Vector2(600, 0)
+	add_child(_panel)
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 12)
+	_panel.add_child(layout)
+	var title := Label.new()
+	title.text = "Settings"
+	title.add_theme_font_size_override("font_size", 26)
+	layout.add_child(title)
+	# The tallest tab's height, so the panel doesn't jump between tabs.
+	_tabs.custom_minimum_size.y = 260.0
+	layout.add_child(_tabs)
+	for tab_name: String in TABS:
+		var grid := GridContainer.new()
+		grid.name = tab_name
+		grid.columns = 2
+		grid.add_theme_constant_override("h_separation", 24)
+		grid.add_theme_constant_override("v_separation", 10)
+		_tabs.add_child(grid)
+
+	var graphics := _tabs.get_child(0)
+	_choice(graphics, "Window", "graphics/window_mode")
+	_toggle(graphics, "Vsync", "graphics/vsync")
+	_choice(graphics, "FPS cap", "graphics/fps_cap")
+	_slider(graphics, "Render scale", "graphics/render_scale", func(v: float) -> String: return "%d %%" % roundi(v * 100.0))
+	_choice(graphics, "Shadows", "graphics/shadows")
+	_toggle(graphics, "Lightning in storms", "graphics/lightning")
+	var controls := _tabs.get_child(1)
+	_slider(controls, "Mouse sensitivity", "controls/mouse_sensitivity", func(v: float) -> String: return "%.2fx" % v)
+	_slider(controls, "Field of view", "controls/fov", func(v: float) -> String: return "%d°" % roundi(v))
+	var sound := _tabs.get_child(2)
+	_row(sound, "Sound when waiting\n(while you're in another window)", _sound)
+	_sound.toggled.connect(func(on: bool) -> void:
+		if attention:
+			attention.sound_on = on)
+	var game := _tabs.get_child(3)
+	_toggle(game, "Take me to a new session's island", "game/go_to_new_island")
+
+	var bottom := HBoxContainer.new()
+	layout.add_child(bottom)
+	var reset := Button.new()
+	reset.name = "Reset"
+	reset.text = "Reset to defaults"
+	reset.focus_mode = Control.FOCUS_NONE
+	reset.pressed.connect(reset_all)
+	bottom.add_child(reset)
+	var hint := Label.new()
+	hint.text = "Esc to close"
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hint.modulate = Color(1, 1, 1, 0.6)
+	bottom.add_child(hint)
+
+
+## Every setting back to its default, the chime included.
+func reset_all() -> void:
+	if attention:
+		attention.sound_on = true
+	settings.reset()
+
+
+func _row(grid: Node, text: String, control: Control) -> void:
+	var label := Label.new()
+	label.text = text
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(label)
+	control.focus_mode = Control.FOCUS_NONE
+	control.custom_minimum_size.x = 240.0
+	grid.add_child(control)
+
+
+func _choice(grid: Node, text: String, key: String) -> void:
+	var button := OptionButton.new()
+	for choice: Variant in Settings.CHOICES[key]:
+		button.add_item(NAMES[choice])
+	button.item_selected.connect(func(i: int) -> void: settings.set_value(key, Settings.CHOICES[key][i]))
+	_controls[key] = button
+	_row(grid, text, button)
+
+
+func _toggle(grid: Node, text: String, key: String) -> void:
+	var button := CheckButton.new()
+	button.toggled.connect(func(on: bool) -> void: settings.set_value(key, on))
+	_controls[key] = button
+	_row(grid, text, button)
+
+
+func _slider(grid: Node, text: String, key: String, shown: Callable) -> void:
+	var box := HBoxContainer.new()
+	var slider := HSlider.new()
+	var r: Array = Settings.RANGES[key]
+	slider.min_value = r[0]
+	slider.max_value = r[1]
+	slider.step = r[2]
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	slider.focus_mode = Control.FOCUS_NONE
+	var value := Label.new()
+	value.custom_minimum_size.x = 64.0
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	box.add_child(slider)
+	box.add_child(value)
+	slider.value_changed.connect(func(v: float) -> void:
+		value.text = shown.call(v)
+		settings.set_value(key, v))
+	_controls[key] = slider
+	_values[key] = [value, shown]
+	_row(grid, text, box)
+
+
+# Shows the saved values, without setting them again.
+func _refresh() -> void:
+	if settings == null:
+		return
+	for key: String in _controls:
+		var c: Control = _controls[key]
+		var v: Variant = settings.value(key)
+		if c is OptionButton:
+			(c as OptionButton).select(Settings.CHOICES[key].find(v))
+		elif c is CheckButton:
+			(c as CheckButton).set_pressed_no_signal(v)
+		elif c is HSlider:
+			(c as HSlider).set_value_no_signal(v)
+			var shown: Array = _values[key]
+			shown[0].text = shown[1].call(v)
+	var shadows: OptionButton = _controls["graphics/shadows"]
+	shadows.disabled = not shadows_available
+	if not shadows_available:
+		shadows.select(0) # off, whatever is saved
+	shadows.tooltip_text = "" if shadows_available else "Off under the Compatibility renderer"
+	if attention:
+		_sound.set_pressed_no_signal(attention.sound_on)

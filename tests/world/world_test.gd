@@ -330,6 +330,11 @@ func _placement() -> void:
 
 func _scene() -> void:
 	var world: Node3D = load("res://world/world.tscn").instantiate()
+	# Never the developer's own settings file, nor another run's (C10, A05).
+	var settings_file := "user://world_test_settings_%d.cfg" % OS.get_process_id()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
+	world.settings.path = settings_file
+	world.attention.settings_path = settings_file
 	root.add_child(world)
 	await process_frame  # _ready runs once the tree is going
 	var player: Player = world.get_node("Player")
@@ -361,12 +366,111 @@ func _scene() -> void:
 	await _menu(world, player)
 	await _sessions(world, player)
 	await _agents(world)
+	await _settings(world, player)
 	await _biome_island(world, player)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live(world, player)
 
 	world.queue_free()
 	await _frames(1)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
+
+
+# C10: the settings menu, each setting applied, saved and reset.
+func _settings(world: Node3D, player: Player) -> void:
+	var menu: SettingsMenu = world.settings_menu
+	var settings: Settings = world.settings
+	var sessions: SessionsMenu = world.get_node("SessionsMenu")
+	_check(not settings.path.ends_with("/settings.cfg"), "C10: the test's own settings file")
+	_check(settings.value("controls/fov") == 80.0 and settings.value("graphics/shadows") == "high", "C10: no file, the defaults")
+	_press("ui_cancel")
+	await _settle()
+	# The mouse itself can't be captured headless: the live check's.
+	_check(menu.is_open() and not player.controls_enabled, "C10: Esc opens the settings and stops the player")
+	_press("ui_cancel")
+	await _settle()
+	_check(not menu.is_open() and player.controls_enabled, "C10: Esc again closes them")
+	_press("sessions_menu")
+	await _settle()
+	_check(sessions.is_open(), "C10: (the sessions menu open)")
+	_press("ui_cancel")
+	await _settle()
+	_check(not sessions.is_open() and not menu.is_open(), "C10: Esc in the sessions menu closes only that")
+
+	menu.open()
+	var tabs := []
+	for t: String in SettingsMenu.TABS:
+		menu.show_tab(t)
+		tabs.append(menu.current_tab())
+	_check(tabs == ["Graphics", "Controls", "Sound", "Game"], "C10: tabs for Graphics, Controls, Sound and Game")
+	var sun: DirectionalLight3D = world.get_node("Sun")
+	var camera: Camera3D = player.get_node("Head/Camera3D")
+	var shadows: OptionButton = menu.control("graphics/shadows")
+	shadows.item_selected.emit(1)
+	_check(settings.value("graphics/shadows") == "low" and sun.shadow_enabled == menu.shadows_available and sun.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, "C10: low shadows, 2 splits")
+	shadows.item_selected.emit(0)
+	_check(not sun.shadow_enabled and shadows.selected == 0, "C10: shadows off")
+	(menu.control("graphics/fps_cap") as OptionButton).item_selected.emit(2)
+	_check(Engine.max_fps == 60, "C10: the FPS cap")
+	(menu.control("graphics/render_scale") as HSlider).value = 0.7
+	_check(is_equal_approx(world.get_viewport().scaling_3d_scale, 0.7), "C10: the render scale")
+	(menu.control("graphics/lightning") as CheckButton).button_pressed = false
+	_check(not world.weather.lightning_enabled, "C10: lightning off")
+	(menu.control("graphics/vsync") as CheckButton).button_pressed = false
+	(menu.control("graphics/window_mode") as OptionButton).item_selected.emit(1)
+	(menu.control("controls/mouse_sensitivity") as HSlider).value = 2.0
+	_check(is_equal_approx(player.mouse_sensitivity, Player.BASE_SENSITIVITY * 2.0), "C10: mouse sensitivity")
+	(menu.control("controls/fov") as HSlider).value = 100.0
+	_check(camera.fov == 100.0, "C10: field of view")
+	world.attention.sound_on = true
+	menu.sound_toggle().button_pressed = false
+	_check(not world.attention.sound_on, "C10: the waiting chime's toggle, moved from the sessions menu")
+	(menu.control("game/go_to_new_island") as CheckButton).button_pressed = false
+	menu.close()
+
+	var saved := Settings.new()
+	saved.path = settings.path
+	saved.load_file()
+	var expect := {"graphics/shadows": "off", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false}
+	var lost := expect.keys().filter(func(k: String) -> bool:
+		return not (is_equal_approx(saved.value(k), expect[k]) if expect[k] is float else saved.value(k) == expect[k]))
+	_check(lost.is_empty(), "C10: every setting is kept between runs (not: %s)" % [lost])
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	_check(cfg.get_value("attention", "sound", true) == false, "C10: in the same file as the chime's")
+
+	# Being taken to a session you started, off and on.
+	var store: SessionStore = world.store
+	store.apply({"type": "session.snapshot", "session": _snapshot("s10")})
+	await _frames(2)
+	var at := player.global_position
+	sessions.launcher.session_started.emit("s10")
+	await _frames(2)
+	_check(player.global_position.distance_to(at) < 1.0, "C10: with it off, starting a session leaves you where you are")
+	settings.set_value("game/go_to_new_island", true)
+	sessions.launcher.session_started.emit("s10")
+	await _frames(2)
+	_check(player.global_position.distance_to(at) > 20.0, "C10: on, it takes you there")
+	player.respawn()
+	store.apply({"type": "session.ended", "session": "s10", "seq": 2, "reason": "exited"})
+
+	# A broken file: what can't be read is the default.
+	var bad := ConfigFile.new()
+	bad.set_value("graphics", "shadows", "ultra")
+	bad.set_value("graphics", "fps_cap", 75)
+	bad.set_value("controls", "fov", "wide")
+	bad.set_value("controls", "mouse_sensitivity", 50)
+	saved.path = settings.path + ".bad"
+	bad.save(saved.path)
+	saved.load_file()
+	_check(saved.value("graphics/shadows") == "high" and saved.value("graphics/fps_cap") == 0 and saved.value("controls/fov") == 80.0 and saved.value("controls/mouse_sensitivity") == 3.0, "C10: values it can't take are the defaults, out of range ones clamped")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(saved.path))
+
+	menu.open()
+	menu.reset_all()
+	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
+	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
+	menu.close()
 
 
 # W11: crouching and sliding, on test ground high above the world so the
@@ -1363,8 +1467,7 @@ func _attention(world: Node3D) -> void:
 	var islands: SessionIslands = world.get_node("SessionIslands")
 	var attention: Attention = world.attention
 	var menu: SessionsMenu = world.get_node("SessionsMenu")
-	# Never the developer's own settings file, nor another run's.
-	attention.settings_path = "user://world_test_settings_%d.cfg" % OS.get_process_id()
+	# The test's own settings file (_scene), emptied.
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(attention.settings_path))
 	var focused := [true]
 	var asked := [0]
@@ -1403,10 +1506,12 @@ func _attention(world: Node3D) -> void:
 	_check(attention.count_text() == "2 sessions waiting", "attention: an ended session isn't counted")
 	asked[0] = 1
 	chimes[0] = 1
-	menu.open()
-	_check(menu.sound_toggle().visible and menu.sound_toggle().button_pressed, "attention: the sessions menu has the sound toggle, on")
-	menu.sound_toggle().button_pressed = false
-	menu.close()
+	var settings_menu: SettingsMenu = world.settings_menu
+	settings_menu.open()
+	settings_menu.show_tab("Sound")
+	_check(settings_menu.sound_toggle().is_visible_in_tree() and settings_menu.sound_toggle().button_pressed, "attention: the settings' Sound tab has the toggle, on (C10)")
+	settings_menu.sound_toggle().button_pressed = false
+	settings_menu.close()
 	_check(not attention.sound_on, "attention: the toggle turns the chime off")
 	state.call(7, "working")
 	state.call(8, "waiting", "permission")
@@ -1419,7 +1524,6 @@ func _attention(world: Node3D) -> void:
 	_check(not again.sound_on, "attention: the sound setting is kept between runs")
 	again.free()
 	attention.sound_on = true
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(attention.settings_path))
 	focused[0] = true
 	state.call(9, "idle")
 	await _frames(1)

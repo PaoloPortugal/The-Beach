@@ -104,7 +104,7 @@ v1 slice.
 | C07 | Plan approval                             | built   | C06, C07      | `chat/pending_card.gd`, `sidecar/src/providers/claude/session.ts` |
 | C08 | Token usage                               | built (UI placeholder) | C08 | `chat/usage_text.gd`, `chat/chat_panel.gd`, `world/usage_limits.gd`, `sidecar/src/providers/claude/usage.ts`, `sidecar/src/providers/claude/statusline.ts`, `sidecar/src/launch/shell-command.ts` |
 | C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd`, `world/world.gd` |
-| C10 | Settings menu                             | planned | n/a           | n/a       |
+| C10 | Settings menu                             | built (UI placeholder) | C10 | `world/settings/`, `world/world.gd`, `world/player/player.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | quick version built | S03 | `world/sessions_menu/` |
@@ -392,8 +392,8 @@ The game (Godot) follows the same rule:
   on its own (`fallback_to_d3d12`, `fallback_to_opengl3`, both on by
   default; checked in 4.7.2). The world must stay usable under
   Compatibility: every effect we use needs a plain fallback there (e.g.
-  simpler water and lighting), and both renderers get checked. No graphics
-  menu: selection is automatic only; for driver trouble, Godot's
+  simpler water and lighting), and both renderers get checked. No
+  renderer setting (C10's settings menu has none): selection is automatic only; for driver trouble, Godot's
   `--rendering-driver` / `--rendering-method` command-line flags are the
   escape hatch (goes in the guide once there's something to run). If the
   game ships on Steam, those become Steam launch options (e.g. "Play
@@ -538,8 +538,7 @@ frame is about 1 ms, physics 0.3-0.5 ms.
     one redraws the sky's reflection map, so `DayNight._set_sky` skips a
     change smaller than `SKY_STEP` (1/255) (W09).
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
-  keeps 4 shadow splits; no resolution setting yet (later, in a graphics
-  settings menu); no threaded island generation, mesh merging, or
+  keeps 4 shadow splits (C10 can lower them, and the render scale); no threaded island generation, mesh merging, or
   collision off far away (collision and per-frame scripts measured no
   cost). The clouds (W09) have no draw distance: they wrap round an 800 m
   square, so the far corners are past the fog. Tried and reverted (W09): drawing only the ocean's visible side
@@ -832,7 +831,8 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   AZERTY), Shift to sprint, Space to jump, Ctrl to crouch and slide
   (W11), mouse to look (pitch clamped
   just short of straight up and down). The mouse is captured at start; Esc
-  frees it and a click captures it again. The input actions are in
+  opens the settings menu, which frees it (C10), and a click captures it
+  again. The input actions are in
   `project.godot`, written by hand: godot-ai can't bind physical keys (dev
   log 2026-09-30-island-ocean-movement).
 - *Feel.* Walk 5 m/s, sprint 8.5 m/s, reached quickly on the ground
@@ -873,7 +873,8 @@ session makes its island sink, and the island is then removed.
   it" (built with W06).
 - **Motion only** for now: no splash, foam or sound.
 - **Finding a new island** (after trying it: the rise was easy to miss,
-  and there is to be an option to turn off being taken there): a
+  and there is to be an option to turn off being taken there, C10's
+  Game tab since 2026-10-12): a
   **beacon** over a new session's island, rising with it, until you've
   been on it, and an **arrow at the screen's edge** pointing to it while
   it's off-screen (rejected: a beacon only, which is missed when behind
@@ -1395,7 +1396,7 @@ request, 2026-10-01).
 - *Thunderstorms:* a stronger rain with wind and lightning. Lightning is
   soft and rare: a short, gentle brightening (never a white-out), at
   most one every 10-20 s, with a bolt in the distance. The settings menu
-  (after W11) gets an off switch.
+  turns it off (C10).
 - *Night:* moonlit and readable: blue moonlight to walk and swim by,
   stars, and warm lights on each island (the orchestrator's desk lamp, a
   few torches; placeholders until there's art), so islands read from
@@ -1439,8 +1440,8 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
   3 to 8 minutes, then the next is drawn by `WEIGHTS` (clear 50 %, cloudy
   20 %, rain and windy 12 % each, storm 6 %; the same kind can come
   again). Nothing reads it but the look.
-- *Lightning:* with `storm` above 0.6 and `lightning_enabled` (for the
-  settings menu's switch), a strike every 10 to 20 s (`MIN_GAP`,
+- *Lightning:* with `storm` above 0.6 and `lightning_enabled` (C10's
+  "Lightning in storms"), a strike every 10 to 20 s (`MIN_GAP`,
   `MAX_GAP`): `flash` makes two soft pulses over 0.35 s, peaking at 0.6
   (`FLASH_PEAK`), which lift the sky, the light and the ambient, never
   to white; and a bolt (`LightningBolt`, `lightning_bolt.gd`), a jagged
@@ -1787,9 +1788,8 @@ game isn't in front:
 - **Chime:** a CC0 sound the user picks (`assets/audio/attention.ogg`:
   Kenney Interface Sounds' `question_002`, the user's pick; silent if
   the file is missing). On by default at one quiet volume,
-  with "Sound when waiting: on/off" in the sessions menu (Tab), saved
-  between runs. Placeholder UI, like the rest; a settings screen comes
-  later.
+  with "Sound when waiting: on/off", saved between runs: in the sessions
+  menu (Tab) until C10, now in the settings' Sound tab (Esc).
 
 **How it works.**
 - **Beacon:** `AttentionBeacon` (`agents/attention_beacon.gd`), a child
@@ -1812,7 +1812,8 @@ game isn't in front:
   the sound on, plays `assets/audio/attention.ogg` at −12 dB when the
   file exists.
 - **Sound toggle:** "Sound when waiting (while you're in another
-  window)" at the bottom of the sessions menu, saved as
+  window)" in the settings menu's Sound tab (C10; the sessions menu's
+  bottom until then), saved as
   `[attention] sound` in `user://settings.cfg` (Godot's per-user data
   folder). The game's first settings file; later settings go there too.
 - Tested in the world test: count, beacon on and fading out, no cue in
@@ -1842,8 +1843,8 @@ of the screen. E (`interact`, physical key) opens that orchestrator's chat
 panel (C02), frees the mouse and turns the player's controls off
 (`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
-back; the controller reads Esc in `_input` and marks it handled, so the
-player's own Esc (free the mouse) doesn't also fire. An orchestrator that
+back; the controller reads Esc in `_input` and marks it handled, so
+Esc doesn't also open the settings menu (C10). An orchestrator that
 leaves the world (its session ended) is forgotten, and its chat closes if
 it was open. Checked headless (zone, prompt, open, no walking while open,
 close) and in the running game (the mouse; headless Godot has none).
@@ -2518,7 +2519,7 @@ The rest of the syntax waits for the user's live check.
   Placeholder UI, like all UI.
 
 ### C10 Settings menu
-*Designed (user's, 2026-10-12); being built. Scope: core.* A settings
+*Built (2026-10-12). Scope: core.* A settings
 menu for graphics and the game's other options, gathering the switches
 that were waiting for it: W09's lightning, A05's chime (in the sessions
 menu until now) and W04's "taken to a new session's island" (Deferred
@@ -2543,6 +2544,57 @@ renderer or driver setting.
 - **Changes apply at once and are saved** to `user://settings.cfg`, with
   "Reset to defaults" (rejected: an Apply button, safer for window mode
   but slower for everything else).
+
+**How it works** (the ranges and defaults are my picks).
+- `Settings` (`world/settings/settings.gd`): the values, keyed
+  "section/key" in `DEFAULTS`, saved at once on every change to
+  `user://settings.cfg` (keeping the file's other sections, A05's
+  `[attention] sound`) and announced by `changed`. Loading takes only a
+  value of the default's type, one of a setting's `CHOICES`, clamped to
+  its `RANGES`; anything else is the default. `path` lets tests use
+  their own file (the world test sets it before the world is added, and
+  A05's too, so a test never reads or writes the developer's file).
+- `SettingsMenu` (`world/settings/settings_menu.gd`, a `CanvasLayer`
+  made by `world.gd`): a centred panel like the sessions menu's, with
+  tabs (`TabContainer`, sized to the tallest tab so it doesn't jump),
+  "Reset to defaults" and "Esc to close". It opens in
+  `_unhandled_input` on Esc while the player has the controls: the chat,
+  the sessions menu, the big map and the debug console take their Esc
+  in `_input` first and mark it handled, so their Esc only closes them.
+  It closes in `_input`. Open, it frees the mouse and turns the player's
+  controls off, like the other menus. The player no longer frees the
+  mouse on Esc; a click still captures it when it's free (e.g. after
+  switching windows).
+- `world.gd` → `apply_settings`, at start and on every change:
+  - *Window:* Windowed, Borderless fullscreen (`WINDOW_MODE_FULLSCREEN`)
+    or Fullscreen (exclusive), set only when it differs (a maximised
+    window counts as windowed). *Vsync* on or off. Both left alone
+    without a real window (headless).
+  - *FPS cap:* Off, 30, 60, 120, 144 or 240 (`Engine.max_fps`).
+  - *Render scale:* 50-100 % in 5 % steps, the 3D view only
+    (`Viewport.scaling_3d_scale`, bilinear; the UI stays sharp).
+  - *Shadows:* High as built (4 splits on Godot's 4096 atlas), Low (2
+    splits, a 2048 atlas) or Off. Under the Compatibility renderer the
+    sun casts none whatever the setting (Watch items), and the menu
+    shows Off, greyed out.
+  - *Lightning in storms* (W09's `Weather.lightning_enabled`).
+  - *Mouse sensitivity:* 0.25-3x of `Player.BASE_SENSITIVITY` (0.0025
+    rad per pixel). *Field of view:* 60-110°, default 80.
+  - *Take me to a new session's island* (W04): off, a session you start
+    leaves you where you are (its beacon and edge arrow still show it);
+    going there from the sessions menu or the map still takes you.
+- *Sound:* A05's chime toggle, moved here from the sessions menu; it
+  still sets `Attention.sound_on`, saved where it was.
+- Reset to defaults sets every setting back, the chime on too.
+
+Tested in the world test (`_settings`): Esc opening and closing it, Esc
+in the sessions menu closing only that, the tabs, each setting applied
+(shadows, FPS cap, render scale, lightning, sensitivity, field of view,
+the chime, the trip to a new island off and on), every value kept in a
+new `Settings`, the chime in the same file, a broken file's values as
+defaults or clamped, and Reset. The window mode, vsync and the mouse
+being captured can't be seen headless: the live check's. Screenshots of
+every tab under both renderers.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -3170,8 +3222,8 @@ proper design later, like all UI.
   dev log 2026-10-09-s04-resume-page):
   - *Sessions*: a search box (focused), "+ Add session…", "⌂ Platform"
     (back to the spawn platform; W08), "✕ Stop waiting for the session
-    starting" while one is starting (below), "Running" (W07) and, at the
-    bottom, A05's sound toggle. The search filters Running by title,
+    starting" while one is starting (below) and "Running" (W07). (A05's
+    sound toggle was at the bottom until C10 moved it.) The search filters Running by title,
     project and cluster.
   - *Add a session*: the cluster selector (W05) and the biome selector
     (W10), then "+ New session…" and "▸ Resume a session…".
@@ -3217,7 +3269,8 @@ proper design later, like all UI.
   coming up (at once if Claude Code closes before it's up: S02 →
   Starting up), "A session is already starting.", or the sidecar's
   failure. Once the session is up, its island rises (W01 → Islands for
-  sessions, W04) and the player is taken there once it's up.
+  sessions, W04) and the player is taken there once it's up, unless
+  the settings' Game tab turns that off (C10).
 - **Stop waiting** (user's choice, 2026-10-02). While a session is
   starting, the menu shows "✕ Stop waiting for the session starting"
   under "⌂ Platform". It frees the launcher for another start ("Stopped
@@ -3881,9 +3934,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C10 settings menu, designed (user's, 2026-10-12;
-C10) and being built on `c10-settings`. The mountain bugs under Watch
-items wait for later.
+**Current focus:** C10 settings menu, built on `c10-settings` (dev log
+2026-10-12-c10-settings), waiting for the user's review and live check.
+The mountain bugs under Watch items wait for later.
 **Merged to `main` (2026-10-12), approved by the user: CI only on
 `main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
 on all three systems, and by hand; a branch is checked locally.
@@ -4167,9 +4220,7 @@ exists.
 - **The terminal's other prompt options:** built (C05, 2026-10-03).
 
 - **Turning off being taken to a new session's island** (user's,
-  2026-10-07): an option, later, so starting a session leaves you where
-  you are. W04's beacon and edge arrow then show where it went. Belongs
-  with a settings screen.
+  2026-10-07): built (C10, 2026-10-12).
 
 - **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
   The sidecar and its protocol don't depend on the game: others could
