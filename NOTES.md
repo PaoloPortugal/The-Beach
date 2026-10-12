@@ -501,7 +501,9 @@ frame is about 1 ms, physics 0.3-0.5 ms.
 
   W09's share (2026-10-08, interleaved A/B pairs, median of 5): the
   sky about 0 ms once its uniforms are set only when a change would
-  show (1.6-1.9 ms a frame when they were set every frame); clouds
+  show (1.6-1.9 ms a frame when they were set every frame, at the
+  default 256 px reflection map under Forward+; since 2026-10-12 they
+  change every frame on a 64 px map, below); clouds
   0.2-1.6 ms by view; the night lights 0-1.6 ms, near an island; rain
   about 0 (its rings drawn only within 60 m). Also measured then: the
   ocean about 3 ms (W08's, unchanged), the sea floor 0.6-1.3 ms. The
@@ -550,14 +552,15 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   - *In-world UI drawn through a SubViewport only redraws when it
     changes* (`UPDATE_ONCE` on a change, `UPDATE_DISABLED` while hidden)
     and hides once too far to read: the message bubble (C02).
-  - *The sky's colours are set only when a change would show:* setting
-    one redraws the sky's reflection map, so `DayNight._set_sky` skips a
-    change smaller than `SKY_STEP` (1/255) (W09). The sun's direction is
-    set every frame, so its disc and the moon's move smoothly (in 1/255
-    steps they jumped about once a second; user's, 2026-10-12), on a
-    64 px reflection map (`Sky.radiance_size`, Godot's default 256):
-    every frame at 256 px cost about 4 ms, at 64 px 0-0.3 ms, and
-    screenshots by day, at sunset and by night looked the same.
+  - *The sky's reflection map is small:* every change to a sky uniform
+    redraws it, and the sun's direction and the sky's colours change
+    every frame, so the sun and moon move smoothly (W09; in 1/255 steps,
+    as first built, their discs jumped about once a second; user's,
+    2026-10-12). At 64 px (`Sky.radiance_size`, Godot's default 256)
+    that cost 0-0.3 ms a frame, at 256 px about 4 ms (Mobile,
+    2026-10-12), and screenshots by day, at sunset and by night looked
+    the same. `DayNight._set_sky` sends a value only when it changed, so
+    a stopped clock (`/time speed 0`) redraws nothing.
 - *Not done* (user's, 2026-10-07): islands keep casting shadows, the sun
   keeps 4 shadow splits (C10 can lower them, the render scale and
   MSAA); no threaded island generation, mesh merging, or
@@ -1517,11 +1520,10 @@ of it is made by `world.gd` → `_setup_sky`, under `world/sky/`.
 - *Dev flags* (Running it): `--hour <0-24>`, `--weather <kind>` (fixes
   it: `changes` off) and `--day-minutes <n>`, after `--`. C09's debug
   commands do the same while the game runs.
-- *Performance* (Architecture → Performance): the sky's colours are
-  only set when a change would show (a 1/255 step; each set redraws the
-  sky's reflection map, which measured 1.6-1.9 ms a frame when it
-  happened every frame); the sun's direction every frame, for a smooth
-  sun and moon, on a 64 px reflection map that keeps that cheap; rain rings only within 60 m;
+- *Performance* (Architecture → Performance): the sky's uniforms
+  change every frame, for a smooth sun and moon, and each change
+  redraws the sky's reflection map, so that map is 64 px, which keeps
+  it at 0-0.3 ms; rain rings only within 60 m;
   clouds, rain and the bolt cast no shadows. Measured costs are in
   Architecture → Performance.
 
