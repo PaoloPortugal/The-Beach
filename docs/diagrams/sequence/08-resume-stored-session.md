@@ -23,7 +23,7 @@ sequenceDiagram
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Store: providers/claude/store.ts (read-only)
         World->>Sidecar: session.list_stored (optionally one project)
-        Store->>Sidecar: each new or changed file's first and last 64 KiB<br/>(read-only): folder, where it started, name, first message.<br/>Unchanged ones (same size and time) come from the cache
+        Store->>Sidecar: each new or changed file's first and last 64 KiB<br/>(read-only, in the background): folder, where it started, name,<br/>first message. Unchanged ones (same size and time) come from the cache
         Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here)
     end
     User->>World: pick one

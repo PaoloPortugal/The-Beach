@@ -61,11 +61,11 @@ export function userStatusLine(project: string, env: NodeJS.ProcessEnv = process
  * statusline mode with the relay file, as a command string (the one
  * exception to No shell strings), or why there's none.
  */
-export function ourStatusLine(project: string, relay: string[], opts: CommandOptions & { env?: NodeJS.ProcessEnv } = {}):
-  { statusLine: { type: 'command'; command: string } } | { none: string } {
+export async function ourStatusLine(project: string, relay: string[], opts: CommandOptions & { env?: NodeJS.ProcessEnv } = {}):
+  Promise<{ statusLine: { type: 'command'; command: string } } | { none: string }> {
   const theirs = userStatusLine(project, opts.env)
   if (theirs) return { none: 'the user has a status line of their own' }
-  const command = shellCommand(relay, opts)
+  const command = await shellCommand(relay, opts)
   if (!command) return { none: 'its paths can\'t be put safely in a command string' }
   return { statusLine: { type: 'command', command } }
 }

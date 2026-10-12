@@ -6,7 +6,7 @@
 // shell the CLI may use; when a path can't be made safe, there is no
 // command (null) and the caller goes without. Replaced by an argument list
 // as soon as the CLI offers one (NOTES.md -> Watch items).
-import { spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -59,7 +59,27 @@ export function shortNameGuesses(name: string): string[] {
 }
 
 /** Asks Windows for a path's short form; null if it can't say. */
-export type AskShort = (p: string) => string | null
+export type AskShort = (p: string) => Promise<string | null>
+
+/** How a process ran: its exit status, what it printed, and whether it was stopped for taking too long. */
+export interface RunResult { status: number | null; stdout: string; timedOut: boolean }
+
+/** Runs [program] with [args] without blocking, stopping it after [opts.timeout] ms. */
+export type Run = (program: string, args: string[], opts: { cwd: string; env: NodeJS.ProcessEnv; timeout: number; shell: false }) => Promise<RunResult>
+
+export const runInBackground: Run = (program, args, opts) => new Promise((resolve) => {
+  try {
+    execFile(program, args, { ...opts, encoding: 'utf8', windowsHide: true }, (err, stdout) => {
+      const code = (err as { code?: unknown } | null)?.code
+      resolve({
+        status: err ? (typeof code === 'number' ? code : null) : 0,
+        stdout: typeof stdout === 'string' ? stdout : '',
+        // execFile kills it past the timeout, and says it did.
+        timedOut: (err as { killed?: boolean } | null)?.killed === true,
+      })
+    })
+  } catch { resolve({ status: null, stdout: '', timedOut: false }) }
+})
 
 /**
  * Windows PowerShell by its full path under SystemRoot, never by a bare
@@ -80,12 +100,12 @@ export interface AskOptions {
   /** Its working folder: a fixed one (default the temp folder), not whatever the sidecar inherited. */
   cwd?: string
   env?: NodeJS.ProcessEnv
-  run?: typeof spawnSync
+  run?: Run
   /** How long to wait, in ms (default ASK_TIMEOUT_MS); tests on a loaded runner wait longer. Never unbounded: 0 or less means the default. */
   timeout?: number
 }
 
-/** How long askWindows blocks at most: it's usually under a second, but PowerShell starts slowly on a loaded machine. */
+/** How long askWindows waits at most: it's usually under a second, but PowerShell starts slowly on a loaded machine. */
 export const ASK_TIMEOUT_MS = 10_000
 
 const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject; $p = $env:SIDECAR_SHORT_PATH; ' +
@@ -99,30 +119,56 @@ const SHORT_PATH_SCRIPT = '$f = New-Object -ComObject Scripting.FileSystemObject
  * array, run from a fixed folder with the user's environment, cleaned
  * (Security rules -> Clean child environments; with only SystemRoot,
  * PowerShell hung on CI's Windows runner), and the path (in a variable,
- * never on a command line). Blocks for up to
- * ASK_TIMEOUT_MS (10 s); past that, no answer. Only the answer's file identity is trusted (shortPath checks it).
+ * never on a command line). In the background, so the sidecar
+ * handles everything else meanwhile; past ASK_TIMEOUT_MS (10 s) it's
+ * stopped, and there's no answer. Only the answer's file identity is
+ * trusted (shortPath checks it).
  */
-export function askWindows(p: string, opts: AskOptions = {}): string | null {
+export async function askWindows(p: string, opts: AskOptions = {}): Promise<string | null> {
+  return (await askWindowsTimed(p, opts)).answer
+}
+
+/** [askWindows], and whether it was stopped for taking too long. */
+export async function askWindowsTimed(p: string, opts: AskOptions = {}): Promise<{ answer: string | null; timedOut: boolean }> {
   const env = opts.env ?? process.env
   const program = opts.program === undefined ? windowsPowerShell(env) : opts.program
-  if (program === null || !env.SystemRoot) return null
+  if (program === null || !env.SystemRoot) return { answer: null, timedOut: false }
   try {
-    const r = (opts.run ?? spawnSync)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
+    const r = await (opts.run ?? runInBackground)(program, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SHORT_PATH_SCRIPT], {
       cwd: opts.cwd ?? os.tmpdir(), env: { ...cleanEnv(env, { names: STORE_CLIENT_VARIABLES }, 'win32'), SIDECAR_SHORT_PATH: p },
-      encoding: 'utf8', shell: false, timeout: opts.timeout !== undefined && opts.timeout > 0 ? opts.timeout : ASK_TIMEOUT_MS, windowsHide: true,
+      shell: false, timeout: opts.timeout !== undefined && opts.timeout > 0 ? opts.timeout : ASK_TIMEOUT_MS,
     })
-    if (r.status === 0 && typeof r.stdout === 'string' && r.stdout) return r.stdout.trim()
+    if (r.status === 0 && r.stdout) return { answer: r.stdout.trim(), timedOut: false }
+    return { answer: null, timedOut: r.timedOut }
   } catch { /* no PowerShell: no answer */ }
-  return null
+  return { answer: null, timedOut: false }
 }
 
-/** Windows' answers, per path: asked at most once per run. */
-const asked = new Map<string, string | null>()
-
-const askWindowsOnce: AskShort = (p) => {
-  if (!asked.has(p)) asked.set(p, askWindows(p))
-  return asked.get(p)!
+/**
+ * [ask], at most once per path while its answers last (NOTES.md -> C08):
+ * an answer, or Windows saying it has none, is kept for the run; one that
+ * took too long isn't, so the next session asks again. Asks under way
+ * are shared.
+ */
+export function askOnce(ask: (p: string) => Promise<{ answer: string | null; timedOut: boolean }>): AskShort {
+  const asked = new Map<string, Promise<string | null>>()
+  return (p) => {
+    let answer = asked.get(p)
+    if (!answer) {
+      answer = ask(p).then((r) => {
+        if (r.timedOut) asked.delete(p)
+        return r.answer
+      }, () => {
+        asked.delete(p) // a failed ask isn't kept either
+        return null
+      })
+      asked.set(p, answer)
+    }
+    return answer
+  }
 }
+
+const askWindowsOnce = askOnce((p) => askWindowsTimed(p))
 
 /**
  * A Windows path whose every component is safe for WINDOWS_WORD, using
@@ -134,7 +180,7 @@ const askWindowsOnce: AskShort = (p) => {
  * Null when the volume makes no short names, or a short name still isn't
  * safe (`$(NEW-~1`).
  */
-export function shortPath(p: string, id: Identify = identify, ask: AskShort = askWindowsOnce): string | null {
+export async function shortPath(p: string, id: Identify = identify, ask: AskShort = askWindowsOnce): Promise<string | null> {
   const full = path.win32.resolve(p)
   const root = path.win32.parse(full).root
   if (!/^[A-Za-z]:\\$/.test(root)) return null // UNC and device paths: no
@@ -156,7 +202,7 @@ export function shortPath(p: string, id: Identify = identify, ask: AskShort = as
     } else {
       // Asked for this folder (or file), not the whole path: a session's
       // own folder is new each time, the folders above it aren't.
-      const theirs = windowsShort(ask, nextLong, root)
+      const theirs = await windowsShort(ask, nextLong, root)
       if (theirs === null || id(theirs) !== want) return null
       short = theirs
     }
@@ -166,8 +212,8 @@ export function shortPath(p: string, id: Identify = identify, ask: AskShort = as
 }
 
 /** Windows' short form of `p`, if it's on the same drive and every component is safe. */
-function windowsShort(ask: AskShort, p: string, root: string): string | null {
-  const answer = ask(p)
+async function windowsShort(ask: AskShort, p: string, root: string): Promise<string | null> {
+  const answer = await ask(p)
   if (answer === null || !path.win32.isAbsolute(answer)) return null
   const theirs = path.win32.resolve(answer)
   const rest = theirs.slice(root.length).split('\\').filter(Boolean)
@@ -184,7 +230,7 @@ function posixQuote(arg: string): string | null {
 export interface CommandOptions {
   platform?: NodeJS.Platform
   /** For tests: Windows short names. */
-  shortPath?: (p: string) => string | null
+  shortPath?: (p: string) => string | null | Promise<string | null>
 }
 
 /**
@@ -193,7 +239,7 @@ export interface CommandOptions {
  * with forward slashes, the same in Git Bash and PowerShell. Elsewhere:
  * each word in POSIX single quotes for `sh`.
  */
-export function shellCommand(argv: string[], opts: CommandOptions = {}): string | null {
+export async function shellCommand(argv: string[], opts: CommandOptions = {}): Promise<string | null> {
   const platform = opts.platform ?? process.platform
   if (argv.length === 0) return null
   const words: string[] = []
@@ -201,7 +247,7 @@ export function shellCommand(argv: string[], opts: CommandOptions = {}): string 
     if (PLAIN_WORD.test(arg)) { words.push(arg); continue }
     if (platform === 'win32') {
       if (!path.win32.isAbsolute(arg)) return null
-      const short = (opts.shortPath ?? shortPath)(arg)
+      const short = await (opts.shortPath ?? shortPath)(arg)
       const word = short?.replace(/\\/g, '/')
       if (!word || !WINDOWS_WORD.test(word)) return null
       words.push(word)
