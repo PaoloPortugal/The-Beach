@@ -546,8 +546,9 @@ frame is about 1 ms, physics 0.3-0.5 ms.
   (a `cull_back` / `cull_front` split) measured -0.6 ms on one view and
   +0.7 ms on another.
 - *Anti-aliasing:* the numbers above were measured without any (Godot's
-  default). C10 turns MSAA 4× on by default; its cost hasn't been
-  measured yet (the C10 live check asks whether it's fast enough).
+  default, and C10's: off unless the player turns it on). On the user's
+  machine MSAA under Forward+ was too slow (C10 live check, 2026-10-12);
+  not measured yet, for the next optimization pass.
 
 ## Protocol
 
@@ -2543,8 +2544,12 @@ renderer or driver setting.
   Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
-  (Off, 2×, 4×, 8×; **default 4×**, so the low-poly edges are clean out
-  of the box) and a screen-space filter (Off, FXAA, SMAA; default Off)
+  (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA), **both
+  Off by default**. First built with MSAA 4× as the default; in the live
+  check 4× and 2× looked good but the user's machine couldn't run MSAA
+  fast enough under Forward+, so it starts off and is there for
+  stronger PCs (user's, 2026-10-12; the default is to be looked at again
+  after the optimization pass)
   as two settings (rejected: MSAA only; adding TAA, which ghosts on what
   moves most here: the waves, rain and clouds. TAA and FSR 2 can come
   later with a closer look at the render scale).
@@ -2589,7 +2594,7 @@ renderer or driver setting.
     splits, a 2048 atlas) or Off. Under the Compatibility renderer the
     sun casts none whatever the setting (Watch items), and the menu
     shows Off, greyed out.
-  - *Anti-aliasing (MSAA):* Off, 2×, 4× (default) or 8×
+  - *Anti-aliasing (MSAA):* Off (default), 2×, 4× or 8×
     (`Viewport.msaa_3d`): smooths the edges of shapes, not shading or
     textures; each step up is smoother and slower (Godot's docs).
   - *Screen-space anti-aliasing:* Off (default), FXAA or SMAA
@@ -3956,9 +3961,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C10 settings menu, built on `c10-settings` (dev log
-2026-10-12-c10-settings), waiting for the user's review and live check.
-The mountain bugs under Watch items wait for later.
+**Current focus:** another optimization pass (user's, 2026-10-12): the
+user's machine runs MSAA too slowly under Forward+ (C10), so measure it
+with the rest and look at the anti-aliasing default again after. The
+mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-12), approved by the user: C10 settings
+menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics
+(window, vsync, FPS cap, render scale, shadows, MSAA and screen-space
+anti-aliasing, both off by default, lightning), Controls, Sound (the
+chime) and Game (being taken to a new island) tabs, applied at once and
+saved. Live check passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: CI only on
 `main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
 on all three systems, and by hand; a branch is checked locally.
