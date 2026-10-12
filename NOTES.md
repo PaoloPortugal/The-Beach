@@ -2468,13 +2468,14 @@ How it works:
   child environments; with only `SystemRoot` PowerShell hung on CI's
   Windows runner), and the path in `SIDECAR_SHORT_PATH`, never on a
   command line.
-  Asked once per folder per run; it blocks the sidecar while it runs
-  (about a second, a few under load, at most 10 s; never unbounded),
-  and if that delays a session's hooks
-  they time out to the terminal's own prompts (fail safe). Past 10 s
-  (Windows PowerShell can start that slowly on a loaded machine; seen
-  on CI) there is no answer, kept for the run like any other (Watch
-  items → A slow short-name answer is kept for the run). The answer
+  Asked in the background (2026-10-12): the session's start waits for
+  the answer (about a second, a few under load, at most 10 s; never
+  unbounded), and the sidecar handles everything else meanwhile.
+  Asked once per folder per run (`askOnce`): an answer, or Windows
+  saying it has none, is kept; one past 10 s (Windows PowerShell can
+  start that slowly on a loaded machine; seen on CI) is stopped and
+  not kept, so that session goes without a status line and the next
+  one asks again. Two sessions starting at once share one ask. The answer
   is accepted only if it is the same file, on the same drive, and every
   component is safe. A volume without short names, or a short name that
   is still unsafe (`$(NEW-~1`), means no status line. Tested by running
@@ -2484,7 +2485,10 @@ How it works:
   relay gets exactly its 3 arguments and nothing else runs; and by
   asking Windows about folders named `$(New-Item PWNED)`, `` `ni
   PWNED` `` and `a';ni PWNED;'b`: nothing runs, and each answer is that
-  very folder (`sidecar/test/usage.test.ts`). These tests ask the real
+  very folder (`sidecar/test/usage.test.ts`); also that other work runs
+  while Windows is asked, a process past its timeout is stopped and
+  said to be, a timed-out answer is asked again while others are
+  kept, and two asks at once share one. These tests ask the real
   Windows with up to 30 s per answer, not 10 s, so a slow runner isn't
   read as a volume without short names; the checks are the same (dev
   log 2026-10-09-c08-askwindows-flaky).
@@ -3434,18 +3438,24 @@ The sidecar side, built with S02: `providers/claude/store.ts` lists
 from `cwd`, title from `pickTitle` (S02 → Titles: the newest
 `custom-title`, else the newest `ai-title`, else the first user
 message's line; a transcript with none of them isn't listed),
-`updated_at` from the file time. The reads are synchronous, so nothing
-else is handled meanwhile: 0.8-0.95 s for 181 transcripts on a dev
-machine (2026-10-09). The provider keeps each file's description
+`updated_at` from the file time. The reads don't block (`fs.promises`,
+2026-10-12): the sidecar handles everything else meanwhile (replies,
+hook relays, permission requests). A first listing of 191 transcripts
+took about 0.66 s on a dev machine, never holding everything else up
+for more than 7 ms at a time (before, 0.8-0.95 s for 181, during which
+nothing else was handled). The provider keeps each file's description
 (`StoredCache`) while its size and modification time stay the same, and
 forgets files that are gone, so listing again only reads the folders and
-the files' times (about 50 ms for the same 181). A file that couldn't be
+the files' times (about 50 ms for the same 191). A file that couldn't be
 read isn't kept, so it's tried again. The cache holds only the listing
 fields (title, from the first message's line if untitled; project path;
 time), in memory, for the sidecar's lifetime. Tested with a temporary store:
 the same list with and without the cache, nothing read again unchanged,
-a rename read again, a deleted file forgotten, a new one listed, and a
-file whose read failed listed on the next call.
+a rename read again, a deleted file forgotten, a new one listed, a
+file whose read failed listed on the next call, and other work running
+while a listing reads.
+A resumed session's history (S02 → History) is still read
+synchronously, bounded at 64 MiB.
 Transcripts record where a session was started (`entrypoint`: `cli`,
 `sdk-cli`, `claude-vscode`, `claude-desktop`); only `cli` ones are listed
 for now (user's decision, 2026-09-29); VS Code and desktop sessions are
@@ -3906,9 +3916,9 @@ the mouse wheel, over the list or while walking, or Page Up and Page
 Down scroll a list taller than the window) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
-second when the file changes. Write the current live check's steps
-there; replace them for the next one (a check still to do stays, below
-the new one). `world.gd` adds the overlay
+second when the file changes. It holds only the current live check's
+steps (user's, 2026-10-12): replace them for the next one, and empty it
+once the check passes. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
 **Claude Code workflow (dev tool;** user's request, 2026-10-03; dev log
@@ -4040,12 +4050,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the three bugs the user asked for (2026-10-12):
-W10's mountain bugs are merged; next, branch `sidecar-no-blocking`:
-S04 (listing stored sessions without blocking) and C08 (a slow
-short-name answer kept for the run), under Watch items. Then the
-proper sessions menu (W07/S03), whose layout is for the user to decide
-first.
+**Current focus:** the proper sessions menu (W07/S03); its layout,
+grouping and feel are for the user to decide before anything is built.
+**Merged to `main` (2026-10-12), approved by the user: the sidecar
+without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
+stored sessions (S04) and asking Windows for short names (C08) no
+longer block the sidecar, and a timed-out answer isn't kept. Live check
+passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: W10's mountain
 bugs** (dev log 2026-10-12-w10-mountain-bugs): a mountain's torches and
 zipline posts stand on the built mesh, and its zipline moves to a
@@ -4075,8 +4086,8 @@ keeping speed. Live check passed with the user.
 short-name tests** (dev log 2026-10-09-c08-askwindows-flaky):
 on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
 `usage.test.ts` tests read "no answer"; they now wait up to 30 s, with
-the same checks. The sidecar keeps 10 s (Watch items → A slow
-short-name answer is kept for the run).
+the same checks. The sidecar keeps 10 s (a timed-out answer was then
+kept for the run; no longer since 2026-10-12, C08 → Short names).
 **Merged to `main` (2026-10-09), approved by the user: C09's flaky
 console checks** (dev log 2026-10-09-c09-console-check-flaky): T and Esc
 in the world test waited two physics frames; they now wait on the
@@ -4089,8 +4100,8 @@ passed.
 **Merged to `main` with it (2026-10-09): three flaky world-test
 checks** (dev log
 2026-10-09-world-test-waits): the missing-folder refusal queued behind
-the menu's session listings (Watch items → Listing stored sessions
-blocks the sidecar), the S06 "warning goes" check could read the turn
+the menu's session listings (which blocked the sidecar then; no longer
+since 2026-10-12, S04), the S06 "warning goes" check could read the turn
 just starting, and W04's "facing it" arrow check failed when h3 rolled a
 mountain (W10 starts one about 100 m down). S04, merged with it,
 puts the missing-folder wait back to 5 s, since opening the menu no longer
@@ -4411,27 +4422,6 @@ exists.
   and it can allow browser origins (CORS).
 
 ### Watch items
-
-- **A slow short-name answer is kept for the run** (C08; found
-  2026-10-09). `askWindows` gives Windows PowerShell 10 s; on CI's
-  loaded Windows runner its start passed that (dev log
-  2026-10-09-c08-askwindows-flaky), where it usually takes 1-3 s
-  (0.7-1.3 s idle, 1.9-4.9 s with every core busy on a dev machine).
-  The missing answer is kept like any other (`askWindowsOnce`), so if
-  it was for a folder in every session's relay path, no session gets a
-  status line until the sidecar restarts (transcript only; logged). Not
-  seen outside CI. If it is: don't keep a timed-out answer, or ask in
-  the background so nothing blocks.
-
-- **Listing stored sessions blocks the sidecar** (S04; found
-  2026-10-09). `session.list_stored` reads transcripts newest first
-  until 200 are listed, synchronously, 64 KiB from each end: 0.8-0.95 s for 181 of them on a
-  dev machine, and meanwhile nothing else is handled (replies, hook
-  relays, permission requests). Seen as a 3 s wait in the world test
-  (dev log 2026-10-09-world-test-waits). Since 2026-10-09 (user's) only
-  the menu's Resume page asks, and the provider keeps the listing
-  (S04 → `StoredCache`), so only a sidecar's first listing reads every
-  file. If that first second matters, read with `fs.promises`.
 
 - **Clusters growing into each other** (W05/W06; user's, 2026-10-09).
   Nothing stops a near cluster's wedge growing into the far clusters'

@@ -14,7 +14,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { callUsageIn, statusFiguresIn, UsageCounter } from '../src/providers/claude/usage.ts'
 import { readConversation } from '../src/providers/claude/store.ts'
-import { ASK_TIMEOUT_MS, askWindows, shellCommand, shortNameGuesses, shortPath, windowsPowerShell } from '../src/launch/shell-command.ts'
+import { ASK_TIMEOUT_MS, askOnce, askWindows, askWindowsTimed, runInBackground, shellCommand, shortNameGuesses, shortPath, windowsPowerShell, type Run } from '../src/launch/shell-command.ts'
 import { ourStatusLine, statusLineSettingsFiles, userStatusLine } from '../src/providers/claude/statusline.ts'
 import { HookServer, STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { writeRelayFile } from '../src/launch/relay.ts'
@@ -185,7 +185,7 @@ test('short name guesses: the order Windows tries, ASCII only', () => {
   assert.deepEqual(shortNameGuesses('...'), [], 'nothing left of the name')
 })
 
-test('shortPath: a guess is used only if it is the very same file', () => {
+test('shortPath: a guess is used only if it is the very same file', async () => {
   // A made-up volume: "C:\Program Files" is 1, its short name PROGRA~2 (PROGRA~1 is another folder).
   const ids: Record<string, string> = {
     'C:\\Program Files': 'pf', 'C:\\PROGRA~1': 'other', 'C:\\PROGRA~2': 'pf',
@@ -193,50 +193,106 @@ test('shortPath: a guess is used only if it is the very same file', () => {
   }
   const id = (p: string) => ids[p] ?? null
   const asked: string[] = []
-  const ask = (answer: string | null) => (p: string) => { asked.push(p); return answer }
-  assert.equal(shortPath('C:\\Program Files\\nodejs\\node.exe', id, ask(null)), 'C:\\PROGRA~2\\nodejs\\node.exe')
+  const ask = (answer: string | null) => async (p: string) => { asked.push(p); return answer }
+  assert.equal(await shortPath('C:\\Program Files\\nodejs\\node.exe', id, ask(null)), 'C:\\PROGRA~2\\nodejs\\node.exe')
   assert.deepEqual(asked, [], 'a right guess needs no process')
-  assert.equal(shortPath('\\\\server\\share\\x', id, ask(null)), null, 'UNC: no')
-  assert.equal(shortPath('C:\\plain\\path.txt', () => null, ask(null)), 'C:\\plain\\path.txt', 'safe parts need no lookup')
+  assert.equal(await shortPath('\\\\server\\share\\x', id, ask(null)), null, 'UNC: no')
+  assert.equal(await shortPath('C:\\plain\\path.txt', () => null, ask(null)), 'C:\\plain\\path.txt', 'safe parts need no lookup')
 
   // A name Windows hashes (no guess fits): Windows is asked for that folder only, and its answer checked.
-  assert.equal(shortPath('C:\\a b\\run-1\\status.json', id, ask(null)), null, 'no answer (no short names on this volume)')
+  assert.equal(await shortPath('C:\\a b\\run-1\\status.json', id, ask(null)), null, 'no answer (no short names on this volume)')
   assert.deepEqual(asked, ['C:\\a b'], 'the folder, not the session\'s file under it')
   ids['C:\\AB2761~1'] = 'ab'
-  assert.equal(shortPath('C:\\a b\\run-1\\status.json', id, ask('C:\\AB2761~1')), 'C:\\AB2761~1\\run-1\\status.json')
-  assert.equal(shortPath('C:\\a b\\x', id, ask('C:\\PROGRA~2')), null, 'an answer naming another folder')
-  assert.equal(shortPath('C:\\a b\\x', id, ask('D:\\AB2761~1')), null, 'another drive')
+  assert.equal(await shortPath('C:\\a b\\run-1\\status.json', id, ask('C:\\AB2761~1')), 'C:\\AB2761~1\\run-1\\status.json')
+  assert.equal(await shortPath('C:\\a b\\x', id, ask('C:\\PROGRA~2')), null, 'an answer naming another folder')
+  assert.equal(await shortPath('C:\\a b\\x', id, ask('D:\\AB2761~1')), null, 'another drive')
   ids['C:\\$(AB~1'] = 'ab'
-  assert.equal(shortPath('C:\\a b\\x', id, ask('C:\\$(AB~1')), null, 'a short name that still isn\'t safe')
-  assert.equal(shortPath('C:\\a b\\x', id, ask('AB2761~1')), null, 'not absolute')
+  assert.equal(await shortPath('C:\\a b\\x', id, ask('C:\\$(AB~1')), null, 'a short name that still isn\'t safe')
+  assert.equal(await shortPath('C:\\a b\\x', id, ask('AB2761~1')), null, 'not absolute')
 })
 
-test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, with a clean environment and the path', () => {
+test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, with a clean environment and the path', async () => {
   const calls: { file: string; args: readonly string[]; opts: { cwd?: unknown; env?: unknown; shell?: unknown } }[] = []
-  const run = ((file: string, args: readonly string[], opts: object) => {
+  const run: Run = async (file, args, opts) => {
     calls.push({ file, args, opts })
-    return { status: 0, stdout: 'C:\\AB2761~1\r\n' }
-  }) as unknown as typeof spawnSync
+    return { status: 0, stdout: 'C:\\AB2761~1\r\n', timedOut: false }
+  }
   const env = { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SteamAppId: '1', SIDECAR_SHORT_PATH: 'C:\\other' }
-  assert.equal(askWindows('C:\\a b', { program: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cwd: 'C:\\fixed', env, run }), 'C:\\AB2761~1')
+  assert.equal(await askWindows('C:\\a b', { program: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', cwd: 'C:\\fixed', env, run }), 'C:\\AB2761~1')
   assert.equal(calls[0]!.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
   assert.ok(!calls[0]!.args.some((a) => a.includes('a b')), 'the path is never in the arguments')
   assert.equal(calls[0]!.opts.cwd, 'C:\\fixed')
   assert.equal(calls[0]!.opts.shell, false)
   assert.equal((calls[0]!.opts as { timeout?: unknown }).timeout, ASK_TIMEOUT_MS)
-  assert.ok(ASK_TIMEOUT_MS > 0 && ASK_TIMEOUT_MS <= 10_000, 'a bounded wait (spawnSync reads 0 as none)')
+  assert.ok(ASK_TIMEOUT_MS > 0 && ASK_TIMEOUT_MS <= 10_000, 'a bounded wait (execFile reads 0 as none)')
   assert.deepEqual(calls[0]!.opts.env, { SystemRoot: 'C:\\Windows', PATH: 'C:\\Windows\\System32', SIDECAR_SHORT_PATH: 'C:\\a b' },
     'the user\'s environment, cleaned (a store client\'s variables dropped), and our path')
-  assert.equal(askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
-  assert.equal(askWindows('C:\\a b', { env: {}, run }), null, 'no SystemRoot: no answer')
+  assert.equal(await askWindows('C:\\a b', { program: null, run }), null, 'no PowerShell: no answer')
+  assert.equal(await askWindows('C:\\a b', { env: {}, run }), null, 'no SystemRoot: no answer')
   assert.equal(windowsPowerShell({}), null)
   assert.equal(windowsPowerShell({ SystemRoot: 'Windows' }), null, 'a relative SystemRoot')
   assert.equal(windowsPowerShell({ SystemRoot: tmp('no-ps-') }), null, 'not there')
-  askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout: 1234, run })
+  await askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout: 1234, run })
   assert.equal((calls[1]!.opts as { timeout?: unknown }).timeout, 1234)
-  for (const timeout of [0, -1]) askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout, run })
+  for (const timeout of [0, -1]) await askWindows('C:\\a b', { program: 'C:\\ps.exe', env, timeout, run })
   assert.deepEqual(calls.slice(2).map((c) => (c.opts as { timeout?: unknown }).timeout), [ASK_TIMEOUT_MS, ASK_TIMEOUT_MS], 'never unbounded')
   assert.equal(calls.length, 4)
+})
+
+test('askWindows in the background: the sidecar keeps working meanwhile; one stopped for taking too long says so', async () => {
+  const env = { SystemRoot: 'C:\\Windows' }
+  let release!: () => void
+  const slow: Run = () => new Promise((resolve) => { release = () => resolve({ status: 0, stdout: 'C:\\AB2761~1', timedOut: false }) })
+  let ticks = 0
+  let done = false
+  const tick = () => { if (!done) { ticks++; setImmediate(tick) } }
+  setImmediate(tick)
+  const pending = askWindows('C:\\a b', { program: 'C:\\ps.exe', env, run: slow })
+  while (ticks < 5) await new Promise((r) => setImmediate(r))
+  release()
+  assert.equal(await pending, 'C:\\AB2761~1')
+  done = true
+  assert.ok(ticks >= 5, 'other work ran while Windows was asked')
+  const late: Run = async () => ({ status: null, stdout: '', timedOut: true })
+  assert.deepEqual(await askWindowsTimed('C:\\a b', { program: 'C:\\ps.exe', env, run: late }), { answer: null, timedOut: true })
+  const none: Run = async () => ({ status: 0, stdout: '', timedOut: false })
+  assert.deepEqual(await askWindowsTimed('C:\\a b', { program: 'C:\\ps.exe', env, run: none }), { answer: null, timedOut: false })
+})
+
+test('runInBackground: a process past its timeout is stopped and said to be; one that ends in time is not', { timeout: 30_000 }, async () => {
+  const opts = { cwd: os.tmpdir(), env: process.env, shell: false as const }
+  const ok = await runInBackground(process.execPath, ['-e', 'process.stdout.write("hi")'], { ...opts, timeout: 20_000 })
+  assert.deepEqual(ok, { status: 0, stdout: 'hi', timedOut: false })
+  const started = Date.now()
+  const slow = await runInBackground(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { ...opts, timeout: 300 })
+  assert.equal(slow.timedOut, true)
+  assert.ok(Date.now() - started < 10_000, 'stopped, not waited for')
+  const failed = await runInBackground(process.execPath, ['-e', 'process.exit(3)'], { ...opts, timeout: 20_000 })
+  assert.deepEqual(failed, { status: 3, stdout: '', timedOut: false })
+  const missing = await runInBackground(path.join(os.tmpdir(), 'no-such-program.exe'), [], { ...opts, timeout: 20_000 })
+  assert.deepEqual(missing, { status: null, stdout: '', timedOut: false })
+})
+
+test('askOnce: an answer, or none, is kept for the run; one that took too long is asked again; asks under way are shared (C08)', async () => {
+  const asked: string[] = []
+  const replies: { answer: string | null; timedOut: boolean }[] = [
+    { answer: null, timedOut: true }, { answer: 'C:\\AB2761~1', timedOut: false }, { answer: null, timedOut: false },
+  ]
+  const once = askOnce(async (p) => { asked.push(p); return replies.shift()! })
+  assert.equal(await once('C:\\a b'), null, 'too slow: no answer this time')
+  assert.equal(await once('C:\\a b'), 'C:\\AB2761~1', 'asked again next time')
+  assert.equal(await once('C:\\a b'), 'C:\\AB2761~1', 'and then kept')
+  assert.deepEqual(asked, ['C:\\a b', 'C:\\a b'])
+  assert.equal(await once('C:\\c d'), null, 'Windows saying it has none')
+  assert.equal(await once('C:\\c d'), null)
+  assert.deepEqual(asked, ['C:\\a b', 'C:\\a b', 'C:\\c d'], 'is kept too')
+  let release!: (r: { answer: string | null; timedOut: boolean }) => void
+  let calls = 0
+  const shared = askOnce(() => { calls++; return new Promise((r) => { release = r }) })
+  const both = Promise.all([shared('C:\\e f'), shared('C:\\e f')])
+  release({ answer: 'C:\\EF~1', timedOut: false })
+  assert.deepEqual(await both, ['C:\\EF~1', 'C:\\EF~1'])
+  assert.equal(calls, 1, 'two sessions starting at once ask once')
 })
 
 /**
@@ -248,21 +304,21 @@ test('askWindows: Windows PowerShell by its System32 path, from a fixed folder, 
 const PATIENT_ASK_MS = 30_000
 const patientShortPath = (p: string) => shortPath(p, undefined, (q) => askWindows(q, { timeout: PATIENT_ASK_MS }))
 
-test('askWindows, for real: a hostile folder name runs nothing, and any answer is that very folder', { skip: process.platform !== 'win32' }, (t) => {
+test('askWindows, for real: a hostile folder name runs nothing, and any answer is that very folder', { skip: process.platform !== 'win32' }, async (t) => {
   const exe = windowsPowerShell()
   assert.ok(exe, 'Windows PowerShell is under SystemRoot')
   assert.match(exe, /^[A-Za-z]:\\.+\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i)
   const used: string[] = []
-  const run = ((file: string, args: readonly string[], opts: object) => { used.push(file); return spawnSync(file, args, opts as never) }) as unknown as typeof spawnSync
+  const run: Run = (file, args, opts) => { used.push(file); return runInBackground(file, args, opts) }
   const base = tmp('ask-')
   const cwd = tmp('ask-cwd-')
   const before = fs.existsSync(path.join(os.tmpdir(), 'PWNED'))
-  const shortNames = makesShortNames(tmp('probe-'))
+  const shortNames = await makesShortNames(tmp('probe-'))
   for (const name of ['$(New-Item PWNED)', '`ni PWNED`', "a';ni PWNED;'b"]) {
     const dir = path.join(base, name)
     fs.mkdirSync(dir)
     const started = Date.now()
-    const answer = askWindows(dir, { cwd, run, timeout: PATIENT_ASK_MS })
+    const answer = await askWindows(dir, { cwd, run, timeout: PATIENT_ASK_MS })
     const took = Date.now() - started
     t.diagnostic(`${name}: ${took} ms`)
     if (shortNames) assert.ok(answer, `${name}: Windows answers on a volume with short names (none after ${took} ms)`)
@@ -273,27 +329,27 @@ test('askWindows, for real: a hostile folder name runs nothing, and any answer i
   assert.deepEqual(used, [exe, exe, exe], 'always the System32 PowerShell')
 })
 
-test('shellCommand: Windows words unquoted with forward slashes, POSIX single quotes; anything unsafe means no command', () => {
+test('shellCommand: Windows words unquoted with forward slashes, POSIX single quotes; anything unsafe means no command', async () => {
   const win = (argv: string[], short: (p: string) => string | null = (p) => p) => shellCommand(argv, { platform: 'win32', shortPath: short })
-  assert.equal(win(['C:\\sidecar\\sidecar.exe', 'statusline', 'C:\\Users\\me\\run\\status.json']),
+  assert.equal(await win(['C:\\sidecar\\sidecar.exe', 'statusline', 'C:\\Users\\me\\run\\status.json']),
     'C:/sidecar/sidecar.exe statusline C:/Users/me/run/status.json')
   for (const bad of [
     'relative\\path', 'C:\\has space\\x', 'C:\\a&b', 'C:\\$(x)', 'C:\\a;b', 'C:\\100%', 'C:\\a`b', 'C:\\a\'b', 'C:\\a!b',
     'C:\\caf\u00e9', '\\\\server\\share\\x', 'C:', 'C:\\a,b', 'C:\\a=b', 'C:\\a(b)', 'C:\\a{b}', 'C:\\a@b', 'C:\\a#b', 'C:\\a+b',
   ]) {
-    assert.equal(win(['C:\\sidecar.exe', 'statusline', bad]), null, `refused: ${bad}`)
+    assert.equal(await win(['C:\\sidecar.exe', 'statusline', bad]), null, `refused: ${bad}`)
   }
   // A short name that still isn't safe is refused too.
-  assert.equal(win(['C:\\x', 'statusline'], () => 'C:\\x y'), null)
-  assert.equal(win(['C:\\x', 'statusline'], () => null), null, 'no short name')
-  assert.equal(win(['C:\\x', '-flag']), null, 'a word that isn\'t a plain mode word or a path')
-  assert.equal(win(['C:\\x', 'Mode']), null)
-  assert.equal(win([]), null)
+  assert.equal(await win(['C:\\x', 'statusline'], () => 'C:\\x y'), null)
+  assert.equal(await win(['C:\\x', 'statusline'], () => null), null, 'no short name')
+  assert.equal(await win(['C:\\x', '-flag']), null, 'a word that isn\'t a plain mode word or a path')
+  assert.equal(await win(['C:\\x', 'Mode']), null)
+  assert.equal(await win([]), null)
 
   const posix = (argv: string[]) => shellCommand(argv, { platform: 'linux' })
-  assert.equal(posix(['/opt/the app/sidecar', 'statusline', '/tmp/a $(b) `c` & d/status.json']),
+  assert.equal(await posix(['/opt/the app/sidecar', 'statusline', '/tmp/a $(b) `c` & d/status.json']),
     "'/opt/the app/sidecar' statusline '/tmp/a $(b) `c` & d/status.json'")
-  for (const bad of ['rel/path', "/a'b", '/a\\b', '/a\nb', '/a\x07b']) assert.equal(posix(['/sidecar', 'statusline', bad]), null, `refused: ${JSON.stringify(bad)}`)
+  for (const bad of ['rel/path', "/a'b", '/a\\b', '/a\nb', '/a\x07b']) assert.equal(await posix(['/sidecar', 'statusline', bad]), null, `refused: ${JSON.stringify(bad)}`)
 })
 
 /** Git Bash, if installed: Claude Code's first choice on Windows. Never WSL's bash. */
@@ -320,10 +376,10 @@ function shells(): { name: string; run: (command: string, cwd: string, env: Node
 const fileId = (p: string) => { const s = fs.statSync(p, { bigint: true }); return `${s.dev}:${s.ino}` }
 
 /** Whether this Windows volume makes short names: a folder with a space gets one. */
-function makesShortNames(dir: string): boolean {
+async function makesShortNames(dir: string): Promise<boolean> {
   const probe = path.join(dir, 'probe with space')
   fs.mkdirSync(probe)
-  return patientShortPath(probe) !== null
+  return (await patientShortPath(probe)) !== null
 }
 
 /**
@@ -332,7 +388,7 @@ function makesShortNames(dir: string): boolean {
  * it must reach the script as exactly its three arguments, and nothing in
  * a name may run. Returns the command, or null when none was made.
  */
-function runInShells(t: { diagnostic: (m: string) => void }, parts: string[]): string | null {
+async function runInShells(t: { diagnostic: (m: string) => void }, parts: string[]): Promise<string | null> {
   const base = tmp('cmd-')
   const dir = parts.reduce((d, part) => { const n = path.join(d, part); fs.mkdirSync(n); return n }, base)
   const script = path.join(dir, 'record.cjs')
@@ -340,7 +396,7 @@ function runInShells(t: { diagnostic: (m: string) => void }, parts: string[]): s
   const record = path.join(base, 'argv.json')
   fs.writeFileSync(script, `require('fs').writeFileSync(process.env.RECORD_TO, JSON.stringify(process.argv.slice(1)))\n`)
   fs.writeFileSync(relay, '{}')
-  const command = shellCommand([process.execPath, script, 'statusline', relay], { shortPath: patientShortPath })
+  const command = await shellCommand([process.execPath, script, 'statusline', relay], { shortPath: patientShortPath })
   if (command === null) return null
   const cwd = tmp('cmd-cwd-')
   for (const sh of shells()) {
@@ -362,33 +418,33 @@ test('the command string, run by the real shells, reaches us as exactly our thre
   t.diagnostic(`shells: ${shells().map((s) => s.name).join(', ')}`)
   if (process.platform !== 'win32') {
     // POSIX: single quotes keep every one of these whole.
-    const command = runInShells(t, ['a b', 'x;touch PWNED;y', '$(touch PWNED)', '`touch PWNED`', '100% & more', '!hist', 'ça va', '{e}@f#g+h', '~home', '-dash', '*', '$HOME', '"dq"'])
+    const command = await runInShells(t, ['a b', 'x;touch PWNED;y', '$(touch PWNED)', '`touch PWNED`', '100% & more', '!hist', 'ça va', '{e}@f#g+h', '~home', '-dash', '*', '$HOME', '"dq"'])
     assert.ok(command)
     // A quote, a backslash (fish reads it inside quotes) or a control character: no command at all.
     for (const bad of ["it's", 'a\\b', 'a\tb']) {
-      assert.equal(runInShells(t, [bad]), null, `no command under ${JSON.stringify(bad)}`)
+      assert.equal(await runInShells(t, [bad]), null, `no command under ${JSON.stringify(bad)}`)
     }
     return
   }
-  if (!makesShortNames(tmp('probe-'))) {
+  if (!(await makesShortNames(tmp('probe-')))) {
     t.diagnostic('this volume makes no short names: no command; sessions count from their transcripts only')
-    assert.equal(runInShells(t, ['a b']), null)
+    assert.equal(await runInShells(t, ['a b']), null)
     return
   }
   // Windows: names whose short names are safe, including ones Windows
   // hashes ("a b" -> AB2761~1), so Windows is asked.
-  const command = runInShells(t, ['a b', 'x;touch PWNED;y', 'ça va', '100 percent & more', 'Paulo Conceição', 'semi;colon & amp (paren) = eq'])
+  const command = await runInShells(t, ['a b', 'x;touch PWNED;y', 'ça va', '100 percent & more', 'Paulo Conceição', 'semi;colon & amp (paren) = eq'])
   assert.ok(command, 'a command for paths with spaces, separators and accents')
   t.diagnostic(`command: ${command}`)
   // Names whose short names a shell would still read (or that have none): no command at all.
   for (const bad of ['$(New-Item PWNED)', '`touch PWNED`', "it's", '!hist', '{e}@f#g+h', '100% & more']) {
-    assert.equal(runInShells(t, [bad]), null, `no command under ${bad}`)
+    assert.equal(await runInShells(t, [bad]), null, `no command under ${bad}`)
   }
 })
 
 // ---- whose status line ----
 
-test('a status line of the user\'s own (their settings, the project\'s shared or local) wins: we set none', () => {
+test('a status line of the user\'s own (their settings, the project\'s shared or local) wins: we set none', async () => {
   const config = tmp('config-')
   const project = tmp('project-')
   const env = { CLAUDE_CONFIG_DIR: config }
@@ -398,7 +454,7 @@ test('a status line of the user\'s own (their settings, the project\'s shared or
   const self = [process.platform === 'win32' ? 'C:\\sidecar\\sidecar.exe' : '/sidecar/sidecar', 'statusline',
     process.platform === 'win32' ? 'C:\\run\\status.json' : '/run/status.json']
   const opts = { env, shortPath: (p: string) => p }
-  const ours = ourStatusLine(project, self, opts)
+  const ours = await ourStatusLine(project, self, opts)
   assert.ok('statusLine' in ours && ours.statusLine.type === 'command' && ours.statusLine.command.includes(' statusline '))
   assert.equal(userStatusLine(project, env), null)
 
@@ -410,7 +466,7 @@ test('a status line of the user\'s own (their settings, the project\'s shared or
     const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null
     fs.writeFileSync(file, JSON.stringify({ statusLine: { type: 'command', command: 'mine' } }))
     assert.equal(userStatusLine(project, env), file)
-    assert.deepEqual(ourStatusLine(project, self, opts), { none: 'the user has a status line of their own' })
+    assert.deepEqual(await ourStatusLine(project, self, opts), { none: 'the user has a status line of their own' })
     assert.equal(fs.readFileSync(file, 'utf8'), JSON.stringify({ statusLine: { type: 'command', command: 'mine' } }), 'their file is never written')
     if (before === null) fs.rmSync(file); else fs.writeFileSync(file, before)
   }
@@ -421,7 +477,7 @@ test('a status line of the user\'s own (their settings, the project\'s shared or
   fs.mkdirSync(path.join(config, 'settings.json'))
   assert.equal(userStatusLine(project, env), null)
   // A path that can't be made safe: no status line either.
-  assert.deepEqual(ourStatusLine(project, self, { env, shortPath: () => null, platform: 'win32' }), { none: 'its paths can\'t be put safely in a command string' })
+  assert.deepEqual(await ourStatusLine(project, self, { env, shortPath: () => null, platform: 'win32' }), { none: 'its paths can\'t be put safely in a command string' })
 })
 
 // ---- the status endpoint and the relay ----

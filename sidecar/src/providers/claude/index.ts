@@ -125,12 +125,12 @@ export class ClaudeProvider implements Provider {
 
   /** Terminal sessions in Claude Code's store, newest first; the ones running here are left out. */
   async listStored(project?: string): Promise<StoredSession[]> {
-    return listStored({
+    return (await listStored({
       dir: this.opts.projectsDir ?? projectsDir(),
       ...(project ? { project } : {}),
       exclude: this.live,
       cache: this.stored,
-    }).map(({ file: _file, ...s }) => s)
+    })).map(({ file: _file, ...s }) => s)
   }
 
   private async start(host: SessionHost, o: {
@@ -152,7 +152,7 @@ export class ClaudeProvider implements Provider {
     session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone), onStatus: (p) => session.onStatus(p) })
-    const settings = this.writeSettings(launch, hooks, session.hookLink.token, o.project.path, host.id)
+    const settings = await this.writeSettings(launch, hooks, session.hookLink.token, o.project.path, host.id)
     const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
     const args = [
       // A resumed session keeps its id and name; a new one is named by Claude Code.
@@ -210,13 +210,13 @@ export class ClaudeProvider implements Provider {
    * command string can't be made safe (then the session counts from its
    * transcript only).
    */
-  private writeSettings(launch: Launch, hooks: HookServer, token: string, project: string, id: string): string {
+  private async writeSettings(launch: Launch, hooks: HookServer, token: string, project: string, id: string): Promise<string> {
     const self = this.opts.selfCommand ?? selfCommand
     const relayFile = path.join(launch.runDir, 'relay.json')
     writeRelayFile(relayFile, { url: hooks.url, token })
     const statusFile = path.join(launch.runDir, 'status.json')
     writeRelayFile(statusFile, { url: hooks.statusUrl, token })
-    const ours = ourStatusLine(project, self('statusline', statusFile), this.opts.env ? { env: this.opts.env } : {})
+    const ours = await ourStatusLine(project, self('statusline', statusFile), this.opts.env ? { env: this.opts.env } : {})
     if ('none' in ours) this.log.info(`session ${id}: no status line of ours: ${ours.none}`)
     const file = path.join(launch.runDir, 'settings.json')
     fs.writeFileSync(file, JSON.stringify(hookSettings(hooks.url, token, self('relay', relayFile),
