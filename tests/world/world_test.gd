@@ -1006,9 +1006,22 @@ func _menu(world: Node3D, player: Player) -> void:
 	_release("sessions_menu")
 	await _frames(2)
 	_check(not menu.is_open() and player.controls_enabled, "W07: and letting go of Tab afterwards does nothing")
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	var went := [0]
+	var count_went := func() -> void: went[0] += 1
+	menu.go_to_platform.connect(count_went)
+	menu.point_at(menu.ring.position_of("platform", ""))
+	menu.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	await _frames(2)
+	_check(not menu.is_open() and player.controls_enabled and went[0] == 0, "W07: the window losing focus (Tab let go elsewhere) closes the ring without acting")
+	menu.go_to_platform.disconnect(count_went)
+	_release("sessions_menu")
+	await _frames(2)
 	await _open_create(menu)
 	_check(menu.panel_open() and not menu.ring_open() and not player.controls_enabled and menu.page() == SessionsMenu.Page.ADD and menu.entries() == ["+ New session…", "▸ Resume a session…"] and menu.pickers_visible(), "W07: a click on the + opens the create panel: New or Resume, with the cluster and biome")
 	_check(menu.listings_asked == 0, "S04: and the sidecar isn't asked for the stored sessions yet")
+	_check(not menu.waiting_for_picker() and not menu.launcher.busy() and menu.notice_text() == "", "W07: the click on + only opens the panel: no picker, no start, no notice")
 	var kinds: Array[String] = ["Random"]
 	for k: int in Biome.NAMES:
 		kinds.append(Biome.NAMES[k])
@@ -1127,6 +1140,12 @@ func _ring(world: Node3D, player: Player) -> void:
 	var out := (ring.position_of("session", "h2") - ring.centre()).normalized()
 	menu.point_at(ring.centre() + out * ring.radii().x * 1.5)
 	_check(ring.pointed().get("id") == "h2", "W07: pointing goes by direction: beyond the ring still points at it")
+	menu.point_at(ring.position_of("session", "h1"))
+	menu.launcher.pending = "late"
+	await _frames(2)
+	_check(ring.segments().size() == 4 and ring.pointed().get("id") == "h1", "W07: a segment arriving mid-hold doesn't change what a still pointer selects")
+	menu.launcher.pending = ""
+	await _frames(2)
 	ring.max_segments = 1
 	await _frames(2)
 	_check(shown.call() == [["platform", ""], ["fold", c1]], "W07: past the most segments, a busy cluster folds into one: %s" % [shown.call()])

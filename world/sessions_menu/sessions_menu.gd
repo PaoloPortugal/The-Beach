@@ -323,6 +323,13 @@ func choose(text: String) -> void:
 			return
 
 
+# Tab let go in another window never reaches the game, so the ring
+# closes without acting when the window loses focus.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and ring.visible:
+		close()
+
+
 # _input, not _unhandled_input: Tab would otherwise move the focus in the
 # search box, and Esc would also open the settings menu (C10).
 func _input(event: InputEvent) -> void:
