@@ -707,8 +707,8 @@ puts everything back.
   at a lower resolution for speed; the text stays sharp), shadow quality
   (high, low or off), anti-aliasing, and lightning in storms on or off.
   - *Anti-aliasing (MSAA)* smooths the jagged, stair-stepped edges of
-    shapes: off, 2×, 4× (the default) or 8×. Higher is smoother and
-    slower; lower it first if the game runs slowly.
+    shapes: off (the default), 2×, 4× or 8×. Higher is smoother and
+    slower; on a fast computer, try 4×.
   - *Screen-space anti-aliasing* (FXAA or SMAA; off by default) smooths
     the whole picture a little more, at a small cost, and blurs it a
     little. SMAA is the sharper of the two.
