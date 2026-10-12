@@ -4482,12 +4482,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** branch `s04-live-sessions` (2026-10-12): Resume
-leaves out sessions running in a terminal (S04 → Sessions running
-elsewhere); built, documented and checked (dev log
-2026-10-12-live-sessions), live check passed with the user, waiting
-for their review. Before S07 is built, the user decides on the kept hook port
-(S07 → To settle before building). **Next, decided by the user (2026-10-12):** (1) model,
+**Current focus:** next, decided by the user (2026-10-12): (1) model,
 effort and mode pickers at launch: on the create panel and the Resume
 page, Model "Default" (no flag) or Opus, Sonnet, Haiku, Fable
 (aliases; `--model`), Effort "Default" or low to max (`--effort`; no
@@ -4497,8 +4492,16 @@ reverses C06's "no launch picker" (user's reason: the only way to set
 them from the game until Claude Code offers one). Each starts at
 Default every time. The chat header shows model and effort beside the
 mode (effort from every hook's `effort.level`; model from the
-transcript and the `PostModelSwitch` hook). Scope: capability. (2) S07.
-Subagents stay read-only in the world (Open questions → 4).
+transcript and the `PostModelSwitch` hook). Scope: capability. (2) S07;
+before it's built, the user decides on the kept hook port (S07 → To
+settle before building). Subagents stay read-only in the world (Open
+questions → 4).
+**Merged to `main` (2026-10-12), approved by the user: S04's sessions
+running elsewhere** (dev log 2026-10-12-live-sessions): the Resume page
+leaves out sessions still running in a terminal (`claude agents
+--json`) and refuses to resume them; S07 designed. Live check passed
+with the user; it found a resumed chat showing a reply before its
+message (Watch items, to fix later).
 **Merged to `main` (2026-10-12), approved by the user: A02's report
 throw** (dev log 2026-10-12-report-throw): a done subagent stands up
 and throws its paper in a 0.6 s arc to its caller, which bobs, instead
