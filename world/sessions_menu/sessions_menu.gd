@@ -177,14 +177,15 @@ func panel_open() -> bool:
 	return _open
 
 
-## Shows the ring, the pointer in its middle (holding Tab).
+## Shows the ring, its pointer in the middle (holding Tab). The system's
+## mouse stays captured: the ring draws its own pointer, moved by the
+## mouse's motion and held to the ring.
 func open_ring() -> void:
 	if is_open():
 		return
 	player.controls_enabled = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	ring.open()
-	get_viewport().warp_mouse(ring.centre())
 	_refresh_hint()
 
 
@@ -204,7 +205,7 @@ func open_create() -> void:
 	_refresh_hint()
 
 
-## Points the ring at [param at] (in the window), as the mouse does.
+## Puts the ring's pointer at [param at] (in the window).
 func point_at(at: Vector2) -> void:
 	ring.point_at(at)
 
@@ -361,10 +362,9 @@ func _ring_input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	var button := event as InputEventMouseButton
 	if motion:
-		ring.point_at(motion.position)
+		ring.move_pointer(motion.relative)
 	elif button and button.pressed and button.button_index == MOUSE_BUTTON_LEFT:
 		get_viewport().set_input_as_handled()
-		ring.point_at(button.position)
 		var p := ring.pointed()
 		match p.get("kind"):
 			"centre":
