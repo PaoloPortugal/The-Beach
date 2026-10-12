@@ -387,11 +387,11 @@ the same `~/.claude` layout. What differs, and how we handle it:
 The game (Godot) follows the same rule:
 - **Rendering (user's decision).** Built for the **Mobile renderer**
   (since 2026-10-12; Forward+ before: the second optimization pass
-  measured Mobile 35-50 % faster on the user's integrated GPU and
-  looking the same, Architecture → Performance), with Godot's
+  measured 35-50 % less GPU time under Mobile on the user's integrated
+  GPU, looking the same; Architecture → Performance), with Godot's
   default drivers: Vulkan on Windows and Linux, Metal on macOS. Given
-  up with Forward+: SSAO, SSR, SDFGI and volumetric fog (none used) and
-  more than 8 lights on one mesh. Mobile keeps the 3D picture at 10 bits
+  up by leaving Forward+: SSAO, SSR, SDFGI and volumetric fog (none
+  used) and more than 8 lights on one mesh. Mobile keeps the 3D picture at 10 bits
   a channel, coarse in the dark: the sky shader dithers it there
   (W09), and `use_debanding` is on. No
   graphics API is required: when the first choice fails, Godot falls back
@@ -2566,7 +2566,8 @@ menu until now) and W04's "taken to a new session's island" (Deferred
 ideas). Renderer choice stays automatic (Architecture → Rendering): no
 renderer or driver setting.
 
-*Decided (user's, 2026-10-12; my recommendations, all taken):*
+*Decided (user's, 2026-10-12; my recommendations, all taken but the
+later SMAA default):*
 - **Esc opens it** when nothing else is open (Esc still closes the chat,
   the menus and the map first), freeing the mouse as Esc did; Esc again
   closes it and captures the mouse (rejected: a Settings entry in the
@@ -4009,7 +4010,8 @@ wait for later.
 **Merged to `main` (2026-10-12), approved by the user: C10 settings
 menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics
 (window, vsync, FPS cap, render scale, shadows, MSAA and screen-space
-anti-aliasing, both off by default, lightning), Controls, Sound (the
+anti-aliasing, both off by default then (SMAA on since the second
+optimization pass), lightning), Controls, Sound (the
 chime) and Game (being taken to a new island) tabs, applied at once and
 saved. Live check passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: CI only on
