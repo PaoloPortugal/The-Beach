@@ -56,6 +56,15 @@ export interface Question { question: Id; agent: Id; asked_at?: string; items: Q
 
 export interface Notice { code: string; message: string }
 
+/** One value the user can pick or see: the provider's id and its words for it. */
+export interface Choice { id: string; label: string }
+
+/** What a session can be started or resumed with, each list in the provider's order (launch_options). */
+export interface LaunchOptions { model?: Choice[]; effort?: Choice[]; mode?: Choice[] }
+
+/** The user's launch choices: ids from the provider's lists; one left out is the provider's default. */
+export interface Launch { model?: string; effort?: string; mode?: string }
+
 /**
  * One of the account's usage limits (usage capability). `id` is stable per
  * provider (Claude: five_hour, seven_day); `label` is the provider's own
@@ -90,6 +99,9 @@ export interface Session {
   questions?: Question[]
   /** permission_modes capability: the current mode, null until known. */
   mode?: string | null
+  /** model_info capability: the model and effort level, null until known. */
+  model?: Choice | null
+  effort?: Choice | null
   /** plans capability: plans waiting for approval. */
   plans?: Plan[]
   /** usage capability: null until the first count. */
@@ -152,15 +164,15 @@ export type SessionEvent =
   | { type: 'session.notice'; notice: Notice }
   | { type: 'session.notice_cleared'; code: string }
   | { type: 'usage.updated'; usage: Usage }
-  | { type: 'session.updated'; native_id?: string; title?: string | null; mode?: string }
+  | { type: 'session.updated'; native_id?: string; title?: string | null; mode?: string; model?: Choice; effort?: Choice | null }
   | { type: `ext.${string}`; [key: string]: unknown }
 
 export type EndReason = 'user' | 'exited' | 'error'
 
 export type Command =
-  | { type: 'session.create'; id: Id; provider: string; project: Project; prompt?: string }
+  | { type: 'session.create'; id: Id; provider: string; project: Project; prompt?: string; launch?: Launch }
   | { type: 'session.list_stored'; id: Id; provider: string; project?: string }
-  | { type: 'session.resume'; id: Id; provider: string; native_id: string }
+  | { type: 'session.resume'; id: Id; provider: string; native_id: string; launch?: Launch }
   | { type: 'session.end'; id: Id; session: Id }
   | { type: 'interrupt.request'; id: Id; session: Id }
   | { type: 'session.get_snapshot'; id: Id; session: Id }

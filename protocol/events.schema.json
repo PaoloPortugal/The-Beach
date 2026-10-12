@@ -122,6 +122,39 @@
       "additionalProperties": false
     },
 
+    "choice": {
+      "description": "One value the user can pick or see: the provider's own id, and its words for it.",
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 }
+      },
+      "additionalProperties": false
+    },
+
+    "launch_options": {
+      "description": "What a session can be started or resumed with (launch_options), each list in the provider's order. Godot offers \"Default\" (no choice: the provider's own) before each list, and shows only the lists given.",
+      "type": "object",
+      "properties": {
+        "model": { "type": "array", "items": { "$ref": "#/$defs/choice" }, "minItems": 1 },
+        "effort": { "type": "array", "items": { "$ref": "#/$defs/choice" }, "minItems": 1 },
+        "mode": { "type": "array", "items": { "$ref": "#/$defs/choice" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+
+    "launch": {
+      "description": "The user's launch choices (launch_options): ids from the provider's lists; a field left out is \"Default\". The sidecar refuses an id the provider didn't announce.",
+      "type": "object",
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "effort": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+
     "mode": {
       "description": "A permission mode (permission_modes capability): the provider's own id, e.g. Claude Code's \"default\", \"acceptEdits\", \"plan\" or \"auto\". Godot shows its own name for ids it knows, else the id.",
       "type": "string",
@@ -294,6 +327,14 @@
           "description": "The current permission mode; null until the provider knows it. Present only when the permission_modes capability is declared.",
           "anyOf": [{ "$ref": "#/$defs/mode" }, { "type": "null" }]
         },
+        "model": {
+          "description": "The model the session uses; null until the provider knows it. Present only when the model_info capability is declared.",
+          "anyOf": [{ "$ref": "#/$defs/choice" }, { "type": "null" }]
+        },
+        "effort": {
+          "description": "The effort level the session runs at; null until the provider knows it (or the model has none). Present only when the model_info capability is declared.",
+          "anyOf": [{ "$ref": "#/$defs/choice" }, { "type": "null" }]
+        },
         "plans": {
           "description": "Plans waiting for approval. Present only when the plans capability is declared.",
           "type": "array",
@@ -395,7 +436,8 @@
             "required": ["provider", "name"],
             "properties": {
               "provider": { "$ref": "#/$defs/provider_id" },
-              "name": { "type": "string" }
+              "name": { "type": "string" },
+              "launch_options": { "$ref": "#/$defs/launch_options" }
             },
             "additionalProperties": false
           }
@@ -500,7 +542,7 @@
     },
 
     "session.updated": {
-      "description": "Sidecar -> Godot. Some of the session's own fields changed; only the changed ones are sent. native_id: the provider started a new conversation in the same session (e.g. Claude Code's /clear), same project. title: the session's name changed (e.g. the provider named it, or the user renamed it); null when it has none yet. mode: the permission mode changed (permission_modes capability).",
+      "description": "Sidecar -> Godot. Some of the session's own fields changed; only the changed ones are sent. native_id: the provider started a new conversation in the same session (e.g. Claude Code's /clear), same project. title: the session's name changed (e.g. the provider named it, or the user renamed it); null when it has none yet. mode: the permission mode changed (permission_modes capability). model, effort: the model or effort level changed (model_info capability).",
       "type": "object",
       "required": ["type", "session", "seq"],
       "minProperties": 4,
@@ -510,7 +552,9 @@
         "seq": { "$ref": "#/$defs/seq" },
         "native_id": { "type": "string", "minLength": 1 },
         "title": { "type": ["string", "null"] },
-        "mode": { "$ref": "#/$defs/mode" }
+        "mode": { "$ref": "#/$defs/mode" },
+        "model": { "$ref": "#/$defs/choice" },
+        "effort": { "anyOf": [{ "$ref": "#/$defs/choice" }, { "type": "null" }] }
       },
       "additionalProperties": false
     },
@@ -718,7 +762,8 @@
         "id": { "$ref": "#/$defs/id" },
         "provider": { "$ref": "#/$defs/provider_id" },
         "project": { "$ref": "#/$defs/project" },
-        "prompt": { "description": "Optional first user message.", "type": "string" }
+        "prompt": { "description": "Optional first user message.", "type": "string" },
+        "launch": { "$ref": "#/$defs/launch" }
       },
       "additionalProperties": false
     },
@@ -742,7 +787,8 @@
         "type": { "const": "session.resume" },
         "id": { "$ref": "#/$defs/id" },
         "provider": { "$ref": "#/$defs/provider_id" },
-        "native_id": { "type": "string" }
+        "native_id": { "type": "string" },
+        "launch": { "$ref": "#/$defs/launch" }
       },
       "additionalProperties": false
     },

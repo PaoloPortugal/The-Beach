@@ -1,7 +1,7 @@
 // A scriptable provider for tests and for developing the Godot side before a
 // real provider runs. Never shipped: the bundle only includes src/.
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from '../src/provider.ts'
-import type { History, Id, Project, StoredSession } from '../src/protocol.ts'
+import type { Choice, History, Id, Launch, LaunchOptions, Project, StoredSession } from '../src/protocol.ts'
 
 export interface FakeOptions {
   id?: string
@@ -11,6 +11,8 @@ export interface FakeOptions {
   announceOnCreate?: boolean
   /** create() rejects with this. */
   failCreate?: Error
+  /** What sessions can be started with (hello's launch_options). */
+  launchOptions?: LaunchOptions
 }
 
 export type Call = { method: string; session: Id; args: unknown[] }
@@ -25,6 +27,9 @@ export class FakeSession implements ProviderSession {
   title?: string | null
   /** permission_modes: the mode announce() reports, if set. */
   mode?: string | null
+  /** model_info: what announce() reports, if set. */
+  model?: Choice | null
+  effort?: Choice | null
   answerQuestion?: ProviderSession['answerQuestion']
   answerPlan?: ProviderSession['answerPlan']
   interrupt?: ProviderSession['interrupt']
@@ -51,6 +56,8 @@ export class FakeSession implements ProviderSession {
       capabilities: this.provider.options.capabilities ?? {},
       extensions: this.provider.options.extensions ?? [],
       ...(this.mode !== undefined ? { mode: this.mode } : {}),
+      ...(this.model !== undefined ? { model: this.model } : {}),
+      ...(this.effort !== undefined ? { effort: this.effort } : {}),
       agents: [{ agent: 'main', role: 'orchestrator', parent: null, name: 'Orchestrator', state: 'idle', reason: null }],
     })
   }
@@ -87,13 +94,18 @@ export class FakeProvider implements Provider {
   failNext: Error | null = null
   stored: StoredSession[] = []
   shutdownCalled = false
+  readonly launchOptions?: LaunchOptions
+  /** Each create's and resume's launch choices, in order. */
+  readonly launches: (Launch | undefined)[] = []
 
   constructor(options: FakeOptions = {}) {
     this.options = options
     this.id = options.id ?? 'fake'
+    if (options.launchOptions) this.launchOptions = options.launchOptions
   }
 
-  async create(host: SessionHost, options: { project: Project; prompt?: string }) {
+  async create(host: SessionHost, options: { project: Project; prompt?: string; launch?: Launch }) {
+    this.launches.push(options.launch)
     if (this.options.failCreate) throw this.options.failCreate
     const s = new FakeSession(this, host, options.project)
     this.sessions.push(s)
@@ -101,7 +113,8 @@ export class FakeProvider implements Provider {
     return s
   }
 
-  async resume(host: SessionHost, nativeId: string) {
+  async resume(host: SessionHost, nativeId: string, launch?: Launch) {
+    this.launches.push(launch)
     const s = new FakeSession(this, host, { path: process.cwd(), name: nativeId })
     this.sessions.push(s)
     if (this.options.announceOnCreate ?? true) s.announce()

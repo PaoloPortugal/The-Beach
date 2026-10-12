@@ -10,7 +10,7 @@ import path from 'node:path'
 import type { History, HistoryMessage, HistoryTool, StoredSession } from '../../protocol.ts'
 import { jsonBytes } from '../../history.ts'
 import { clip, firstLine, INPUT_MAX, MAIN, parseHandback, parseTaskNotification, PLAN_TOOL, summarizeTool, unwrapChannel } from './hooks.ts'
-import { callUsageIn, UsageCounter } from './usage.ts'
+import { callUsageIn, modelIn, UsageCounter } from './usage.ts'
 
 /**
  * Where a session was started, from the transcript's `entrypoint`. Only
@@ -321,6 +321,8 @@ export interface Conversation {
   history: History
   /** Its totals, latest context and last turn; each user message has its turn's `turn_tokens`. */
   usage: UsageCounter
+  /** The model of its latest reply (C12), if any. */
+  model?: string
 }
 
 /**
@@ -343,6 +345,8 @@ export function readConversation(file: string, budget = HISTORY_MAX_BYTES): Conv
   const byId = new Map<string, HistoryMessage>()
   const tools = new ToolReader()
   const plans = new Set<string>()
+  let model: string | undefined
+  let modelAt = ''
   for (const e of lines(text, false)) {
     const at = typeof e.timestamp === 'string' ? e.timestamp : new Date(0).toISOString()
     const said = userText(e)
@@ -355,6 +359,9 @@ export function readConversation(file: string, budget = HISTORY_MAX_BYTES): Conv
     if (e.isSidechain === true) continue
     const call = callUsageIn(e)
     if (call && usage.add(call) && turn) turn.turn_tokens = (turn.turn_tokens ?? 0) + call.output
+    const replyModel = call ? modelIn(e) : null
+    // The latest by time: lines aren't always written in order (Watch items).
+    if (replyModel && at >= modelAt) { model = replyModel; modelAt = at }
     const msg = e.message as { id?: unknown; content?: unknown } | undefined
     if (e.type === 'assistant' && msg && typeof msg.id === 'string' && Array.isArray(msg.content)) {
       const texts = msg.content.filter((c) => c?.type === 'text' && typeof c.text === 'string').map((c) => c.text as string)
@@ -382,7 +389,7 @@ export function readConversation(file: string, budget = HISTORY_MAX_BYTES): Conv
     tools.read(e, MAIN, out.at(-1)?.message ?? null)
   }
   readSubagents(file, tools, budget)
-  return { history: { messages: out, tools: tools.list }, usage }
+  return { history: { messages: out, tools: tools.list }, usage, ...(model ? { model } : {}) }
 }
 
 /** Tool calls from transcript entries: a tool_use starts one, its tool_result ends it. */
