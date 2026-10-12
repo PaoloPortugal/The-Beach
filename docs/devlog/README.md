@@ -93,3 +93,4 @@ reading; look things up by feature ID.
 | 2026-10-12 | [W10: the mountain bugs (torches in the air, ziplines through bridges)](2026-10-12-w10-mountain-bugs.md) | W10, W09, W06 |
 | 2026-10-12 | [The sidecar without blocking: stored sessions and short names](2026-10-12-sidecar-no-blocking.md) | S04, C08 |
 | 2026-10-12 | [The sessions ring](2026-10-12-sessions-ring.md) | W07, S03, S04 |
+| 2026-10-12 | [The crosshair](2026-10-12-crosshair.md) | C11, C01, W10, C10 |

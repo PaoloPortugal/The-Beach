@@ -16,6 +16,7 @@ here; each section is labelled with its feature ID.
 - [Crouching and sliding (W11)](#crouching-and-sliding-w11)
 - [Swimming and the sea floor (W08)](#swimming-and-the-sea-floor-w08)
 - [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
+- [The crosshair (C11)](#the-crosshair-c11)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -204,8 +205,8 @@ start or resume a session (**Biome**), or at random:
 - **Forest**: grassy and a little higher, with trees, pines and bushes.
 - **Mountain**: a meadow 20 m up among rocky spires 60-70 m high, snow
   on their tops, and pines. Its beach is under a cliff: a **zipline**
-  takes you up. Stand by its post on the beach and press **E** to ride
-  up; at the top, E by the post takes you back down. You can look
+  takes you up. Look at its post on the beach from close by and press
+  **E** to ride up; at the top, E on the post takes you back down. You can look
   round while you ride. The zipline stands at the foot of one of the
   valleys up to the meadow, away from the bridges: a new mountain's
   zipline appears once its bridges are up, and if a bridge later comes
@@ -318,8 +319,8 @@ You see the world through your character's eyes.
 | Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
 | Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
-| Chat, next to the orchestrator | E (Esc closes the chat) |
-| Ride a mountain's zipline, by its post | E |
+| Chat: look at the orchestrator from close by | E (Esc closes the chat) |
+| Ride a mountain's zipline: look at its post from close by | E |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -399,13 +400,29 @@ means anything about your sessions.
 For now it's all silent; sounds come later. To turn lightning off, open
 the settings (Esc) and untick **Lightning in storms**.
 
+## The crosshair (C11)
+
+A small white ring sits in the middle of the screen. When you look at
+something you can use and you're close enough, it grows and says what
+**E** does under it: **E  Talk** on an orchestrator, **E  Zipline up**
+or **down** on a zipline's post. Press E then to do it. E only acts on
+what the crosshair is on: looking away, or from too far, it does
+nothing. Nothing works through a wall.
+
+The crosshair hides while you're in the chat, a menu, the sessions ring
+or the map. If you'd rather not see the ring, turn off **Crosshair** in
+the settings' Game tab; the words still appear when you look at
+something, and E still works. Like the rest of the look for now, it's a
+placeholder.
+
 ## Talking to the orchestrator (C01)
 
 In the middle of each island, an AI agent sits at a desk: the
 **orchestrator** of that session, the one you talk to. For now it's a
 plain stand-in figure.
 
-Walk up to it and **Press E to chat** appears. Press E to open the chat:
+Walk up to it and look at it: the crosshair grows and says **E  Talk**
+(see The crosshair (C11)). Press E to open the chat:
 it fills most of the screen and frees your mouse pointer, and you can't
 walk while it's open. Press Esc to close it and carry on walking. If the
 session ends while the chat is open, the chat closes.
@@ -419,7 +436,7 @@ It's part of the world, so it gets smaller as you walk away and hills
 can hide it. From about 60 m away, where it's too small to read, it
 isn't shown.
 
-**The chat** (E, next to the orchestrator) shows the whole conversation:
+**The chat** (E, looking at the orchestrator) shows the whole conversation:
 your messages on the right, the orchestrator's on the left, including
 what was said in the terminal. Replies appear as they're written. You can
 select text to copy it. Type in the box at the bottom: **Enter** sends,
@@ -746,7 +763,9 @@ puts everything back.
   another window (see When something waits for you (A05)).
 - **Game:** whether starting a session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
-  screen's edge show where it rose.
+  screen's edge show where it rose. And **Crosshair**: off hides the
+  ring in the middle of the screen; what E does still shows when you
+  look at something (see The crosshair (C11)).
 
 ## Debug commands (C09)
 
