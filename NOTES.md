@@ -4203,10 +4203,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the proper sessions menu (W07/S03), branch
-`sessions-ring`, ready for the user's review and live check: a hold-Tab
-ring of sessions grouped by cluster, ⌂ at the top, ➕ in the middle
-opening the create panel (dev log 2026-10-12-sessions-ring).
+**Current focus:** none set; the user picks the next feature.
+**Merged to `main` (2026-10-12), approved by the user: the sessions
+ring** (W07/S03; dev log 2026-10-12-sessions-ring): holding Tab shows
+the running sessions in a ring grouped by cluster, ⌂ at the top, ➕ in
+the middle opening the create panel, with the ring's own pointer held to
+it like on a spring; the ring demo (`tests/live/ring_demo.tscn`) for its
+live check. Live check passed with the user (real Claude and the fake
+provider demo).
 **Merged to `main` (2026-10-12), approved by the user: the sidecar
 without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
 stored sessions (S04) and asking Windows for short names (C08) no
