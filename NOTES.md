@@ -4278,10 +4278,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C11, the crosshair, branch `crosshair`, ready for
-the user's review and live check: a small ring that grows on what you
-can use within reach ("E  Talk", "E  Zipline up"), E acting only on
-that, a Game tab toggle (dev log 2026-10-12-crosshair).
+**Current focus:** none set; the user picks the next feature.
+**Merged to `main` (2026-10-12), approved by the user: C11, the
+crosshair** (dev log 2026-10-12-crosshair): a ring in the middle of the
+screen that doubles in size on what you can use within reach, with
+"E  Talk" or "E  Zipline up/down" under it; E acts only on that,
+replacing "Press E to chat" and the zipline's labels; a Game tab toggle
+for the ring. Live check passed with the user (sizes changed after the
+first look).
 **Merged to `main` (2026-10-12), approved by the user: the sessions
 ring** (W07/S03; dev log 2026-10-12-sessions-ring): holding Tab shows
 the running sessions in a ring grouped by cluster, ⌂ at the top, ➕ in
