@@ -1,3 +1,23 @@
+LIVE CHECK: sidecar without blocking
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+(W10's check is below.)
+
+1. Tab, Add session, Resume a
+   session: the list comes up
+   as before, newest first,
+   search works? Resume one:
+   its chat and island come.
+2. Start a new session in a
+   folder with a space in its
+   name: once it's working,
+   its token usage shows as
+   before (the status line)?
+3. While the Resume page is
+   loading the first time,
+   chat in a running session:
+   replies keep coming?
+
 LIVE CHECK: W10 mountain bugs
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
