@@ -664,9 +664,12 @@ computer, facing the orchestrator. The first ones sit in a ring about
 10 m out; more rings are added as more of them arrive. Each one keeps its
 place while it works.
 
-When a subagent finishes, its desk goes and it walks back to whoever
-asked for the work, a sheet of paper over its head, and disappears when
-it gets there. If it's asked to carry on later, it comes back to its
+When a subagent finishes, it stands up and throws a sheet of paper, its
+report, to whoever asked for the work, which gives a little bob as it
+lands; then the subagent and its desk disappear. It all takes about a
+second, from near or far. (Claude already has the report by the time
+the world shows it, so the orchestrator may start on it just before the
+paper lands.) If it's asked to carry on later, it comes back to its
 desk. Subagents that finished before you opened the world aren't shown.
 
 **What they're doing** shows as a small sign above each agent, the
