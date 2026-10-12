@@ -2179,27 +2179,38 @@ func _agents(world: Node3D) -> void:
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 4, "agent": "s1", "state": "waiting", "reason": "permission"})
 	_check(agents.subagent("s1").shown_state() == "waiting", "agents: waiting on you shows the \"!\"")
 
-	# Done: walks its report to its parent (s1, still at its PC), then goes.
+	# Done: throws its report to its parent (s1, still at its PC), which
+	# bobs, then goes.
 	var s1 := agents.subagent("s1")
 	var s2 := agents.subagent("s2")
 	var s2_slot := s2.slot
-	var start := s2.worker_position().distance_to(s1.worker_position())
+	var paper := s2.get_node("Worker/Paper") as Node3D
+	var thrown_at := Time.get_ticks_msec()
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 5, "agent": "s2", "state": "done", "reason": null})
-	_check(s2.is_leaving() and s2.get_node("Worker/Paper").visible and s2.shown_state() == "", "agents: a done one gets up with its paper")
-	await _frames(15)
-	_check(s2.worker_position().distance_to(s1.worker_position()) < start - 0.5, "agents: and walks to whoever called it")
-	await _until(func() -> bool: return agents.subagent("s2") == null, 3.0)
-	_check(agents.subagent("s2") == null and agents.subagent_count() == 2, "agents: and is gone once there (not only after giving up)")
+	_check(s2.is_leaving() and paper.visible and s2.shown_state() == "", "agents: a done one stands up with its paper")
+	await _until(func() -> bool: return paper.top_level, 1.0)
+	_check(paper.top_level and s2.worker_position().distance_to(s2.global_position) < 0.3, "agents: and throws it from its PC (after %d ms)" % (Time.get_ticks_msec() - thrown_at))
+	var across := func() -> float: return Vector2(paper.global_position.x - s1.catch_point().x, paper.global_position.z - s1.catch_point().z).length()
+	var far: float = across.call()
+	await _frames(12)
+	_check(across.call() < far * 0.85 and paper.global_position.y > s2.worker_position().y + 1.0, "agents: the paper flies in an arc to whoever called it")
+	var s1_worker := s1.get_node("Worker") as Node3D
+	await _until(func() -> bool: return s1_worker.position.y > 0.02, 1.5)
+	_check(s1_worker.position.y > 0.02 and not paper.visible, "agents: it bobs as the paper lands")
+	await _until(func() -> bool: return agents.subagent("s2") == null, 2.0)
+	var took := Time.get_ticks_msec() - thrown_at
+	_check(agents.subagent("s2") == null and agents.subagent_count() == 2 and took < 1800, "agents: and the thrower is gone with its PC in about 1.3 s (%d ms)" % took)
 	store.apply({"type": "agent.spawned", "session": "h4", "seq": 6, "agent": _agent("s3", "main", "working")})
 	_check(agents.subagent("s3").slot == s2_slot, "agents: a freed slot is reused")
 
-	# Resumed while walking back: back at its PC.
+	# Resumed mid-throw: back at its PC, the paper put away.
 	var s3 := agents.subagent("s3")
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 7, "agent": "s3", "state": "done", "reason": null})
-	await _frames(10)
+	var s3_paper := s3.get_node("Worker/Paper") as Node3D
+	await _until(func() -> bool: return s3_paper.top_level, 1.0)
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 8, "agent": "s3", "state": "working", "reason": null})
 	await _frames(30)
-	_check(agents.subagent("s3") == s3 and not s3.is_leaving() and s3.worker_position().distance_to(s3.global_position) < 0.01, "agents: resumed on the way back, it returns to its PC")
+	_check(agents.subagent("s3") == s3 and not s3.is_leaving() and s3.worker_position().distance_to(s3.global_position) < 0.01 and not s3_paper.visible and not s3_paper.top_level, "agents: resumed mid-throw, it is back at its PC, the paper put away")
 
 	# Error: stays in red for a while, then goes; resumed later, it comes back to its slot.
 	var s1_slot := s1.slot
@@ -2212,13 +2223,20 @@ func _agents(world: Node3D) -> void:
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 10, "agent": "s1", "state": "working", "reason": null})
 	_check(agents.subagent("s1") != null and agents.subagent("s1").slot == s1_slot, "agents: resumed later, it comes back to its slot")
 
-	# Walks to the orchestrator, 10+ m away, in about 4 s: every one of
-	# them gets there (a walk that never quite arrives gives up only
-	# after 20 s).
+	# Thrown to the orchestrator, 10+ m away, in the same short time:
+	# it bobs, and every one of them goes.
+	var body := orchestrator.get_node("Body") as Node3D
+	var body_y := body.position.y
+	thrown_at = Time.get_ticks_msec()
 	for a in ["s0", "s1", "s3"]:
 		store.apply({"type": "agent.state_changed", "session": "h4", "seq": 11, "agent": a, "state": "done", "reason": null})
-	await _until(func() -> bool: return agents.subagent_count() == 0, 8.0)
-	_check(agents.subagent_count() == 0, "agents: all walk to the orchestrator and go (%d left)" % agents.subagent_count())
+	await _until(func() -> bool: return body.position.y > body_y + 0.02, 2.0)
+	_check(body.position.y > body_y + 0.02, "agents: the orchestrator bobs as a paper lands")
+	await _until(func() -> bool: return agents.subagent_count() == 0, 3.0)
+	took = Time.get_ticks_msec() - thrown_at
+	_check(agents.subagent_count() == 0 and took < 1800, "agents: all throw to the orchestrator and go, in %d ms (%d left)" % [took, agents.subagent_count()])
+	await _frames(20)
+	_check(is_equal_approx(body.position.y, body_y), "agents: and it settles back")
 
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 12, "agent": "main", "state": "idle", "reason": null})
 	_check(store.activity("h4") == "idle", "activity: idle once everyone is done")
@@ -2319,14 +2337,14 @@ func _live(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("Renamed"), 8.0)
 	_check(world.store.sessions[id].get("title") == "Tidy the notes", "live: renaming it renames it")
 
-	# Subagents: the fake provider spawns them, they work and walk back.
+	# Subagents: the fake provider spawns them, they work and throw their reports back.
 	var agents := islands.agents(id)
 	panel.set_draft("agents 3")
 	panel.send()
 	await _until(func() -> bool: return agents.subagent_count() == 3, 8.0)
 	_check(agents.subagent_count() == 3, "live: three subagents appear")
 	await _until(func() -> bool: return agents.subagent_count() == 0, 18.0)
-	_check(agents.subagent_count() == 0, "live: and all walk back and go when done")
+	_check(agents.subagent_count() == 0, "live: and all throw their reports and go when done")
 	await _until(func() -> bool: return panel.shown_messages()[-1].contains("reported back"), 8.0)
 	_check(panel.shown_messages()[-1].contains("reported back"), "live: the orchestrator sums up")
 	var order: Array = world.store.session(id)["message_order"]

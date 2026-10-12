@@ -38,7 +38,7 @@ sequenceDiagram
     end
     Claude->>Sidecar: SubagentStop (its report)
     Sidecar-->>Claude: nothing to add
-    Sidecar->>World: subagent → done (runs its report to the parent, disappears)
+    Sidecar->>World: subagent → done (throws its report to its caller, which bobs; disappears)
     Claude->>Sidecar: UserPromptSubmit with a task-notification<br/>or a subagent hand-back (its report)
     Sidecar-->>Claude: nothing to add
     Sidecar->>World: orchestrator → working (not shown as a user message)

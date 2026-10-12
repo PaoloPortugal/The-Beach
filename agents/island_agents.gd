@@ -3,7 +3,7 @@ extends Node3D
 ## The agents of one session on its island (A02, A03, A04): keeps the
 ## orchestrator's state marker current, and puts a subagent at a free slot
 ## around the orchestrator (AgentPlacement) while it works or waits. A
-## done subagent walks its report back to its parent and goes; an errored
+## done subagent throws its report to its parent and goes; an errored
 ## one shows it for [member error_linger] seconds and goes. A resumed one
 ## comes back, to its old slot if that is still free. Subagents that
 ## already finished before the island appeared aren't shown.
@@ -70,7 +70,8 @@ func _on_agent(session: String, agent_id: String) -> void:
 			if node and not node.is_leaving():
 				node.show_state(state)
 				var parent: String = a["parent"] if a["parent"] != null else ""
-				node.report_to(func() -> Vector3: return _position_of(parent))
+				node.report_to(func() -> Vector3: return _catcher(parent).catch_point(),
+						func() -> void: _catcher(parent).bob())
 		"error":
 			if node and not node.is_leaving():
 				node.show_state(state)
@@ -85,7 +86,6 @@ func _spawn(agent_id: String) -> Subagent:
 	node.session_id = session_id
 	node.agent_id = agent_id
 	node.slot = slot
-	node.ground = island.height_at
 	# Facing the orchestrator, standing on the sand; where the ground under
 	# it and its PC differ, it sinks in a little rather than float.
 	var inward := -p.normalized()
@@ -125,13 +125,14 @@ func _fits(p: Vector2) -> bool:
 	return h > 0.3 and absf(h - island.height_at(pc.x, pc.y)) < SLOT_SLOPE and not island.props.is_near(p, PROP_CLEAR)
 
 
-## Where a subagent walks its report to: its parent subagent if that one
-## is still at its PC, else the orchestrator.
-func _position_of(parent: String) -> Vector3:
+## Who catches a subagent's report: its parent subagent if that one is
+## still at its PC, else the orchestrator. Either has catch_point() and
+## bob().
+func _catcher(parent: String) -> Variant:
 	var node: Subagent = _subagents.get(parent)
 	if node and not node.is_leaving():
-		return node.worker_position()
-	return orchestrator.global_position
+		return node
+	return orchestrator
 
 
 func _on_gone(node: Subagent) -> void:
