@@ -361,7 +361,7 @@ func _placement() -> void:
 		for j in i:
 			closest = minf(closest, points[i].distance_to(points[j]))
 	_check(closest > 2.0, "placement: slots at least 2 m apart (closest %.2f m)" % closest)
-	_check(points.all(func(p: Vector2) -> bool: return p.length() > 9.0), "placement: all outside the chat zone")
+	_check(points.all(func(p: Vector2) -> bool: return p.length() > 9.0), "placement: all outside its talking reach")
 	_check(AgentPlacement.slot_position(7) == AgentPlacement.slot_position(7), "placement: a slot is always in the same place")
 	var far := AgentPlacement.slot_position(5000)
 	_check(far.length() > 100.0 and is_finite(far.x), "placement: no maximum")
