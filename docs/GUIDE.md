@@ -705,9 +705,17 @@ puts everything back.
 - **Graphics:** the window (windowed, borderless fullscreen or
   fullscreen), vsync, a frame-rate cap, the render scale (draw the world
   at a lower resolution for speed; the text stays sharp), shadow quality
-  (high, low or off), and lightning in storms on or off. On computers
-  that run the game in its simpler compatibility mode there are no
-  shadows, so that setting is greyed out.
+  (high, low or off), anti-aliasing, and lightning in storms on or off.
+  - *Anti-aliasing (MSAA)* smooths the jagged, stair-stepped edges of
+    shapes: off, 2×, 4× (the default) or 8×. Higher is smoother and
+    slower; lower it first if the game runs slowly.
+  - *Screen-space anti-aliasing* (FXAA or SMAA; off by default) smooths
+    the whole picture a little more, at a small cost, and blurs it a
+    little. SMAA is the sharper of the two.
+
+  On computers that run the game in its simpler compatibility mode
+  there are no shadows and no screen-space anti-aliasing, so those two
+  are greyed out.
 - **Controls:** mouse sensitivity and field of view.
 - **Sound:** the chime when something waits on you while you're in
   another window (see When something waits for you (A05)).
