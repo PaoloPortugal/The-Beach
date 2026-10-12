@@ -19,6 +19,11 @@ const ZIPLINE_CLEAR := 2.0
 var generator: IslandGenerator
 ## Its trees, rocks and the like.
 var props := IslandProps.new()
+## Which valley's mouth its zipline stands at (W10; see [method
+## IslandGenerator.zipline_valley]).
+var zipline_valley := 0
+
+var _landings: Array[Vector3] = []
 
 
 func _ready() -> void:
@@ -45,10 +50,7 @@ func _ready() -> void:
 	add_child(props)
 	props.setup(generator.prop_spots())
 	_add_torches()
-	var ends := generator.zipline_ends()
-	if not ends.is_empty():
-		add_child(Zipline.new(ends[0], ends[1]))
-		props.clear_near(ends[0], ends[1], ZIPLINE_CLEAR)
+	_add_zipline()
 
 
 func height_at(x: float, z: float) -> float:
@@ -68,6 +70,15 @@ func top() -> float:
 ## The zipline up from its beach, or null (W10: mountains have one).
 func zipline() -> Zipline:
 	return get_node_or_null("Zipline") as Zipline
+
+
+## Where its bridges land now, local (W06): its zipline moves to another
+## valley's mouth if one runs through its cable (W10), once nobody is
+## riding it. The props cleared under the old cable stay cleared (user's,
+## 2026-10-12).
+func set_landings(landings: Array[Vector3]) -> void:
+	_landings = landings
+	_place_zipline()
 
 
 ## The night lights on it (W09).
@@ -95,3 +106,26 @@ func _add_torches() -> void:
 		torch.position = Vector3(dir.x * r, generator.surface_height(dir.x * r, dir.y * r), dir.y * r)
 		add_child(torch)
 		props.clear_near(torch.position, torch.position, TORCH_CLEAR)
+
+
+func _add_zipline() -> void:
+	var ends := generator.zipline_ends(zipline_valley)
+	if ends.is_empty():
+		return
+	var z := Zipline.new(ends[0], ends[1])
+	add_child(z)
+	z.ride_ended.connect(_place_zipline, CONNECT_DEFERRED)
+	props.clear_near(ends[0], ends[1], ZIPLINE_CLEAR)
+
+
+func _place_zipline() -> void:
+	var z := zipline()
+	if z == null or z.is_riding():
+		return
+	var v := generator.zipline_valley(_landings, zipline_valley)
+	if v == zipline_valley:
+		return
+	zipline_valley = v
+	remove_child(z)
+	z.queue_free()
+	_add_zipline()
