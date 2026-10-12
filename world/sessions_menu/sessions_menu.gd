@@ -51,8 +51,6 @@ var store: SessionStore
 var sidecar: SidecarClient
 var clusters: SessionClusters
 var launcher := SessionLauncher.new()
-## The attention cue (A05), for its sound toggle; the toggle hides without it.
-var attention: Attention
 ## How many times the stored sessions were asked for (tests watch this).
 var listings_asked := 0
 
@@ -89,7 +87,6 @@ var _last_dir := ""
 @onready var _cluster := OptionButton.new()
 @onready var _biome_row := HBoxContainer.new()
 @onready var _biome := OptionButton.new()
-@onready var _sound := CheckButton.new()
 @onready var _scroll: Control = $Panel/Layout/Scroll
 
 
@@ -119,13 +116,6 @@ func _ready() -> void:
 	_biome_row.add_child(_biome)
 	$Panel/Layout.add_child(_biome_row)
 	$Panel/Layout.move_child(_biome_row, _cluster_row.get_index() + 1)
-	# A05's chime, at the bottom (no settings screen yet).
-	_sound.text = "Sound when waiting (while you're in another window)"
-	_sound.focus_mode = Control.FOCUS_NONE
-	_sound.toggled.connect(func(on: bool) -> void:
-		if attention:
-			attention.sound_on = on)
-	$Panel/Layout.add_child(_sound)
 	_search.text_changed.connect(func(_t: String) -> void: _fill())
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
@@ -181,8 +171,6 @@ func open() -> void:
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
 	_biome.select(0) # and to Random
-	if attention:
-		_sound.set_pressed_no_signal(attention.sound_on)
 	_show(Page.MAIN)
 	_refresh_hint()
 
@@ -229,11 +217,6 @@ func back() -> void:
 ## Whether the menu is waiting for the system's folder picker.
 func waiting_for_picker() -> bool:
 	return _waiting
-
-
-## The attention cue's sound toggle (A05).
-func sound_toggle() -> CheckButton:
-	return _sound
 
 
 func hint_visible() -> bool:
@@ -309,7 +292,7 @@ func choose(text: String) -> void:
 
 
 # _input, not _unhandled_input: Tab would otherwise move the focus in the
-# search box, and Esc would free the mouse before the menu closes.
+# search box, and Esc would also open the settings menu (C10).
 func _input(event: InputEvent) -> void:
 	if _dialog.visible:
 		return # the picker handles its own keys
@@ -488,7 +471,6 @@ func _set_waiting(on: bool) -> void:
 	_cluster_row.visible = not on and _page != Page.MAIN
 	_biome_row.visible = not on and _page != Page.MAIN
 	_scroll.visible = not on
-	_sound.visible = not on and _page == Page.MAIN and attention != null
 	if _search.visible:
 		_search.grab_focus()
 

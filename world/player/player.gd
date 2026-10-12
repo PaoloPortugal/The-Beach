@@ -5,16 +5,17 @@ extends CharacterBody3D
 ## (W08): toward where you look, Space up, Ctrl down, floating at the
 ## surface or leaping out of it when you come up fast; out of the water
 ## only by walking up a beach. Holding Ctrl on land crouches, and slides
-## when you crouch at a run (W11). Esc frees the mouse
-## and a click captures it again.
+## when you crouch at a run (W11). A click captures the mouse when it's
+## free (Esc opens the settings menu, which frees it: C10).
 
 @export var walk_speed := 5.0
 @export var sprint_speed := 8.5
 @export var jump_velocity := 5.5
 @export var ground_accel := 50.0
 @export var air_accel := 12.0
-## Radians per pixel of mouse movement.
-@export var mouse_sensitivity := 0.0025
+## Radians per pixel of mouse movement: the settings' sensitivity (C10)
+## times BASE_SENSITIVITY.
+@export var mouse_sensitivity := BASE_SENSITIVITY
 @export var swim_speed := 3.5
 @export var swim_sprint_speed := 6.0
 ## How quickly the water brings you to the speed you're swimming at, m/s².
@@ -60,6 +61,7 @@ const WATER_Y := 0.0
 ## Ground facing up at least this much (about 70° from flat) is a slope you
 ## can swim up and stand on from the water, not a wall.
 const SLOPE_NORMAL := 0.35
+const BASE_SENSITIVITY := 0.0025
 const STAND_HEIGHT := 1.8
 const STAND_EYE_HEIGHT := 1.6
 
@@ -105,8 +107,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and captured:
 		rotate_y(-event.screen_relative.x * mouse_sensitivity)
 		_head.rotation.x = clampf(_head.rotation.x - event.screen_relative.y * mouse_sensitivity, -PI / 2 + 0.01, PI / 2 - 0.01)
-	elif event.is_action_pressed("ui_cancel") and captured:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed and not captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
