@@ -187,7 +187,9 @@ start or resume a session (**Biome**), or at random:
   on their tops, and pines. Its beach is under a cliff: a **zipline**
   takes you up. Stand by its post on the beach and press **E** to ride
   up; at the top, E by the post takes you back down. You can look
-  round while you ride.
+  round while you ride. The zipline stands at the foot of one of the
+  valleys up to the meadow. If a bridge comes in where it stands, it
+  moves to another valley, once nobody is riding it.
 - **Snowy**: snow, grey rock and snowy pines.
 - **Desert**: orange sand, cacti, dry shrubs and red rocks.
 
