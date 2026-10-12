@@ -383,7 +383,8 @@ func _settings(world: Node3D, player: Player) -> void:
 	var sessions: SessionsMenu = world.get_node("SessionsMenu")
 	_check(not settings.path.ends_with("/settings.cfg"), "C10: the test's own settings file")
 	_check(settings.value("controls/fov") == 80.0 and settings.value("graphics/shadows") == "high", "C10: no file, the defaults")
-	_check(world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "C10: no anti-aliasing by default")
+	var smaa := Viewport.SCREEN_SPACE_AA_SMAA if menu.screen_space_aa_available else Viewport.SCREEN_SPACE_AA_DISABLED
+	_check(world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa, "C10: SMAA by default (none under Compatibility), no MSAA")
 	_press("ui_cancel")
 	await _settle()
 	# The mouse itself can't be captured headless: the live check's.
@@ -413,9 +414,9 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(not sun.shadow_enabled and shadows.selected == 0, "C10: shadows off")
 	(menu.control("graphics/msaa") as OptionButton).item_selected.emit(1)
 	_check(world.get_viewport().msaa_3d == Viewport.MSAA_2X, "C10: MSAA 2x")
-	(menu.control("graphics/screen_space_aa") as OptionButton).item_selected.emit(2)
-	var smaa := Viewport.SCREEN_SPACE_AA_SMAA if menu.screen_space_aa_available else Viewport.SCREEN_SPACE_AA_DISABLED
-	_check(world.get_viewport().screen_space_aa == smaa, "C10: SMAA (none under Compatibility)")
+	(menu.control("graphics/screen_space_aa") as OptionButton).item_selected.emit(1)
+	var fxaa := Viewport.SCREEN_SPACE_AA_FXAA if menu.screen_space_aa_available else Viewport.SCREEN_SPACE_AA_DISABLED
+	_check(world.get_viewport().screen_space_aa == fxaa, "C10: FXAA (none under Compatibility)")
 	(menu.control("graphics/fps_cap") as OptionButton).item_selected.emit(2)
 	_check(Engine.max_fps == 60, "C10: the FPS cap")
 	(menu.control("graphics/render_scale") as HSlider).value = 0.7
@@ -437,7 +438,7 @@ func _settings(world: Node3D, player: Player) -> void:
 	var saved := Settings.new()
 	saved.path = settings.path
 	saved.load_file()
-	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "smaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false}
+	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false}
 	var lost := expect.keys().filter(func(k: String) -> bool:
 		return not (is_equal_approx(saved.value(k), expect[k]) if expect[k] is float else saved.value(k) == expect[k]))
 	_check(lost.is_empty(), "C10: every setting is kept between runs (not: %s)" % [lost])
@@ -465,17 +466,18 @@ func _settings(world: Node3D, player: Player) -> void:
 	bad.set_value("graphics", "shadows", "ultra")
 	bad.set_value("graphics", "fps_cap", 75)
 	bad.set_value("graphics", "msaa", 4)
+	bad.set_value("graphics", "screen_space_aa", "taa")
 	bad.set_value("controls", "fov", "wide")
 	bad.set_value("controls", "mouse_sensitivity", 50)
 	saved.path = settings.path + ".bad"
 	bad.save(saved.path)
 	saved.load_file()
-	_check(saved.value("graphics/shadows") == "high" and saved.value("graphics/fps_cap") == 0 and saved.value("graphics/msaa") == "off" and saved.value("controls/fov") == 80.0 and saved.value("controls/mouse_sensitivity") == 3.0, "C10: values it can't take are the defaults, out of range ones clamped")
+	_check(saved.value("graphics/shadows") == "high" and saved.value("graphics/fps_cap") == 0 and saved.value("graphics/msaa") == "off" and saved.value("graphics/screen_space_aa") == "smaa" and saved.value("controls/fov") == 80.0 and saved.value("controls/mouse_sensitivity") == 3.0, "C10: values it can't take are the defaults, out of range ones clamped")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(saved.path))
 
 	menu.open()
 	menu.reset_all()
-	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
+	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
 	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
 	menu.close()
 
@@ -623,15 +625,20 @@ func _sky(world: Node3D, player: Player) -> void:
 	day._process(15.0)
 	_check(absf(day.time - fposmod(t + 0.5, 1.0)) < 0.001, "--day-minutes shortens the day")
 	day.cycle = DayNight.CYCLE
-	# Performance: each change to the sky redraws its reflection map, so a
-	# change too small to see isn't sent.
-	day.set_hour(10.0)
+	# Performance: each change to the sky redraws its reflection map, a
+	# small one; the sun and the colours move every frame, smoothly.
+	day.set_hour(17.8)
 	var sky: ShaderMaterial = env.sky.sky_material
 	var sent: Vector3 = sky.get_shader_parameter("sun_direction")
-	day._process(0.5)
-	_check(sky.get_shader_parameter("sun_direction") == sent, "the sky isn't redrawn for a change too small to see")
-	day._process(5.0)
-	_check(sky.get_shader_parameter("sun_direction") != sent, "but is once it shows")
+	var top: Color = sky.get_shader_parameter("top_colour")
+	day._process(0.1)
+	_check(sky.get_shader_parameter("sun_direction") != sent and sky.get_shader_parameter("top_colour") != top, "the sun, moon and sky colours move every frame, smoothly")
+	_check(env.sky.radiance_size == Sky.RADIANCE_SIZE_64, "on a 64 px reflection map")
+	sent = sky.get_shader_parameter("sun_direction")
+	sky.set_shader_parameter("sun_direction", Vector3.UP)
+	day.apply()
+	_check(sky.get_shader_parameter("sun_direction") == Vector3.UP, "with the clock stopped, nothing is sent again")
+	sky.set_shader_parameter("sun_direction", sent)
 
 	day.set_hour(0.0)
 	var moon := -DayNight.sun_direction(day.time)
@@ -768,7 +775,11 @@ func _commands(world: Node3D, player: Player) -> void:
 	_check(c.run("/time set later").begins_with("Not a time"), "C09: a bad time is refused")
 	reply = c.run("/time speed 2")
 	var fast := day.cycle
-	var refused := c.run("/time speed 0").begins_with("Not a speed") and c.run("/time speed 2m").begins_with("Not a speed")
+	var refused := c.run("/time speed -1").begins_with("Not a speed") and c.run("/time speed 2m").begins_with("Not a speed")
+	var stopped := c.run("/time speed 0")
+	var at := day.time
+	day._process(60.0)
+	_check(stopped.begins_with("Speed 0: time stands still") and day.time == at and c.run("/time query").ends_with("time stands still (speed 0)."), "C09: /time speed 0 stops the clock (%s)" % stopped)
 	c.run("/time speed 1")
 	_check(fast == DayNight.CYCLE / 2.0 and reply == "Speed 2: a day now takes 14m." and refused and day.cycle == DayNight.CYCLE, "C09: /time speed 2 makes a day 14m, 1 puts it back (%s)" % reply)
 	var changing := weather.changes

@@ -1,3 +1,51 @@
+LIVE CHECK: perf pass 2
+  (the Mobile renderer)
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+(C10's check is below.)
+
+1. Walk, swim, cross a
+   bridge: does it feel
+   faster than on main?
+2. Day, then T: /time set
+   midnight, /weather storm,
+   /weather clear. Sun, sky,
+   clouds, rain, lightning
+   and shadows as before?
+3. At night, at an
+   orchestrator: the desk
+   lamp's light and the
+   torches look right?
+4. Night sky, look up: any
+   bands or a purple arc
+   near the top? Any grain
+   or noise in the sky?
+5. Dive under the water by
+   an island: the blue fog,
+   sea floor, the surface
+   from below as before?
+6. Settings (Esc): screen-
+   space AA is SMAA by
+   default, MSAA Off. Try
+   MSAA 2x and 4x: fast
+   enough? SMAA off vs on:
+   sharper, or worth it?
+7. The sun and moon: T,
+   /time speed 60, watch
+   them cross: smooth, no
+   steps? The sky colours
+   change smoothly too?
+   /time speed 0: the sun
+   stops, /time query says
+   so. /time speed 1 after.
+8. Compatibility still
+   works (no shadows, AA
+   greyed out, sky fine):
+     godot --path .
+     --rendering-method
+     gl_compatibility
+     -- --checklist
+
 LIVE CHECK: C10 settings menu
   godot --path . -- --checklist
 Page Down / wheel scrolls this.

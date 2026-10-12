@@ -84,11 +84,13 @@ static func parse_time(text: String) -> float:
 
 
 func _time(args: PackedStringArray) -> String:
-	var usage := "Usage: /time set <day|noon|sunset|night|midnight|sunrise|7m|10m22s>, /time add <time>, /time query, /time speed <multiplier, 1 normal>"
+	var usage := "Usage: /time set <day|noon|sunset|night|midnight|sunrise|7m|10m22s>, /time add <time>, /time query, /time speed <multiplier, 1 normal, 0 stops time>"
 	if args.is_empty():
 		return usage
 	match args[0]:
 		"query":
+			if is_inf(day_night.cycle):
+				return "It's %s (%s); time stands still (speed 0)." % [clock(now()), _part()]
 			return "It's %s (%s); a day takes %s (speed %s)." % [clock(now()), _part(), _length(day_night.cycle), _speed()]
 		"set", "add":
 			if args.size() < 2:
@@ -102,10 +104,14 @@ func _time(args: PackedStringArray) -> String:
 			if args.size() < 2:
 				return usage
 			# A multiplier (user's, 2026-10-09): 2 makes days go twice as
-			# fast (14m), 1 is normal (28m).
+			# fast (14m), 1 is normal (28m), 0 stops the clock (an endless
+			# day; the weather still changes).
 			var x := args[1].trim_suffix("x")
-			if not x.is_valid_float() or x.to_float() <= 0.0:
+			if not x.is_valid_float() or x.to_float() < 0.0:
 				return "Not a speed: %s. %s" % [args[1], usage]
+			if x.to_float() == 0.0:
+				day_night.cycle = INF
+				return "Speed 0: time stands still. /time speed 1 starts it again."
 			day_night.cycle = DayNight.CYCLE / x.to_float()
 			return "Speed %s: a day now takes %s." % [_speed(), _length(day_night.cycle)]
 	return usage

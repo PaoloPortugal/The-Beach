@@ -18,7 +18,7 @@ const DEFAULTS := {
 	"graphics/render_scale": 1.0,
 	"graphics/shadows": "high",
 	"graphics/msaa": "off",
-	"graphics/screen_space_aa": "off",
+	"graphics/screen_space_aa": "smaa",
 	"graphics/lightning": true,
 	"controls/mouse_sensitivity": 1.0,
 	"controls/fov": 80.0,
