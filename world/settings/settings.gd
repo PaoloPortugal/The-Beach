@@ -17,6 +17,8 @@ const DEFAULTS := {
 	"graphics/fps_cap": 0,
 	"graphics/render_scale": 1.0,
 	"graphics/shadows": "high",
+	"graphics/msaa": "4x",
+	"graphics/screen_space_aa": "off",
 	"graphics/lightning": true,
 	"controls/mouse_sensitivity": 1.0,
 	"controls/fov": 80.0,
@@ -28,6 +30,8 @@ const CHOICES := {
 	"graphics/window_mode": ["windowed", "borderless", "fullscreen"],
 	"graphics/fps_cap": [0, 30, 60, 120, 144, 240],
 	"graphics/shadows": ["off", "low", "high"],
+	"graphics/msaa": ["off", "2x", "4x", "8x"],
+	"graphics/screen_space_aa": ["off", "fxaa", "smaa"],
 }
 
 ## The range of each decimal setting: [min, max, step].
