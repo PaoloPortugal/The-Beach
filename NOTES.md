@@ -2487,8 +2487,8 @@ How it works:
   PWNED` `` and `a';ni PWNED;'b`: nothing runs, and each answer is that
   very folder (`sidecar/test/usage.test.ts`); also that other work runs
   while Windows is asked, a process past its timeout is stopped and
-  said to be, and a timed-out answer is asked again while others are
-  kept. These tests ask the real
+  said to be, a timed-out answer is asked again while others are
+  kept, and two asks at once share one. These tests ask the real
   Windows with up to 30 s per answer, not 10 s, so a slow runner isn't
   read as a volume without short names; the checks are the same (dev
   log 2026-10-09-c08-askwindows-flaky).
@@ -3446,7 +3446,7 @@ for more than 7 ms at a time (before, 0.8-0.95 s for 181, during which
 nothing else was handled). The provider keeps each file's description
 (`StoredCache`) while its size and modification time stay the same, and
 forgets files that are gone, so listing again only reads the folders and
-the files' times (about 50 ms for the same 181). A file that couldn't be
+the files' times (about 50 ms for the same 191). A file that couldn't be
 read isn't kept, so it's tried again. The cache holds only the listing
 fields (title, from the first message's line if untitled; project path;
 time), in memory, for the sidecar's lifetime. Tested with a temporary store:

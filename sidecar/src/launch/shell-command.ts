@@ -158,6 +158,9 @@ export function askOnce(ask: (p: string) => Promise<{ answer: string | null; tim
       answer = ask(p).then((r) => {
         if (r.timedOut) asked.delete(p)
         return r.answer
+      }, () => {
+        asked.delete(p) // a failed ask isn't kept either
+        return null
       })
       asked.set(p, answer)
     }
