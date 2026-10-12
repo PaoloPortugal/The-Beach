@@ -17,6 +17,7 @@ import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
+import { runningSessions, type Running } from './running.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
 import { HookServer } from './hook-server.ts'
@@ -67,6 +68,8 @@ export interface ClaudeOptions {
   hooksCheckMs?: number
   /** For tests: the environment the user's settings are found from (CLAUDE_CONFIG_DIR). */
   env?: NodeJS.ProcessEnv
+  /** For tests: replaces running `claude agents --json`; gets the `claude` found and the environment it would run with. */
+  runningSessions?: (claude: string, env: Record<string, string>) => Promise<Running>
 }
 
 
@@ -80,6 +83,8 @@ export class ClaudeProvider implements Provider {
   private readonly live = new Set<string>()
   /** The stored sessions' listing, kept between calls (S04). */
   private readonly stored = new StoredCache()
+  /** The `claude` the last find() gave, for asking which sessions run (running()). */
+  private foundPath: string | undefined
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
 
@@ -111,6 +116,11 @@ export class ClaudeProvider implements Provider {
    */
   async resume(host: SessionHost, nativeId: string): Promise<ProviderSession> {
     if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
+    // Running in a terminal the game doesn't follow: resuming it would run the conversation twice.
+    if ((await this.running()).has(nativeId.toLowerCase())) {
+      throw new CommandError('provider_error',
+        'That session is still running in a terminal. Continue it there, or type /exit in it and resume it again.')
+    }
     const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
     if (!stored) throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.')
     if (!path.isAbsolute(stored.project.path) || !fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
@@ -123,14 +133,37 @@ export class ClaudeProvider implements Provider {
     })
   }
 
-  /** Terminal sessions in Claude Code's store, newest first; the ones running here are left out. */
+  /**
+   * Terminal sessions in Claude Code's store, newest first. The ones running
+   * here are left out, and so are the ones Claude Code says are running
+   * anywhere else (S04 -> Sessions running elsewhere), asked meanwhile.
+   */
   async listStored(project?: string): Promise<StoredSession[]> {
-    return (await listStored({
+    const [running, list] = await Promise.all([this.running(), listStored({
       dir: this.opts.projectsDir ?? projectsDir(),
       ...(project ? { project } : {}),
       exclude: this.live,
       cache: this.stored,
-    })).map(({ file: _file, ...s }) => s)
+    })])
+    return list.filter((s) => !running.has(s.native_id.toLowerCase())).map(({ file: _file, ...s }) => s)
+  }
+
+  /** Claude's session ids running anywhere on this machine; empty when that can't be known. */
+  private async running(): Promise<Set<string>> {
+    // The `claude` found last, so a listing doesn't run `--version` first each time; a launch still finds it afresh.
+    let claude = this.foundPath
+    if (!claude) {
+      try { claude = (await this.find()).path } catch (e) {
+        this.log.info(`can't tell which sessions run elsewhere: ${e instanceof Error ? e.message : String(e)}`)
+        return new Set()
+      }
+    }
+    const answer = await (this.opts.runningSessions ?? runningSessions)(claude, cleanEnv(process.env, ClaudeProvider.UNSET_ENV))
+    if ('none' in answer) {
+      this.log.info(`can't tell which sessions run elsewhere: ${answer.none}`)
+      return new Set()
+    }
+    return answer.ids
   }
 
   private async start(host: SessionHost, o: {
@@ -243,12 +276,13 @@ export class ClaudeProvider implements Provider {
 
   private async find(): Promise<FoundClaude> {
     try {
-      if (this.opts.findClaude) return await this.opts.findClaude()
-      return await findClaude({
+      const found = this.opts.findClaude ? await this.opts.findClaude() : await findClaude({
         env: process.env,
         cleanEnv: cleanEnv(process.env, ClaudeProvider.UNSET_ENV),
         ...(this.opts.claudePath ? { override: this.opts.claudePath } : {}),
       })
+      this.foundPath = found.path
+      return found
     } catch (e) {
       if (e instanceof ClaudeNotFound) throw new CommandError('provider_error', e.message)
       throw e

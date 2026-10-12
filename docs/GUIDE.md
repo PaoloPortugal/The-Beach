@@ -124,13 +124,19 @@ beach, forest, mountain, snowy or desert island.
   If your system has no picker of its own, the game shows its own.
 - **▸ Resume a session…** lists your earlier Claude Code sessions, newest
   first, with their project and how long ago you last used them. Type in
-  the search box to filter them by title or project. The
-  first time after the game starts this can take a second ("Loading…");
-  after that it's quick. Click one to pick it
+  the search box to filter them by title or project. Each time the page
+  opens, the list takes about a second ("Loading…"), a little longer the
+  first time after the game starts. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions
   started in a terminal are listed (not ones from the VS Code extension
   or the Claude desktop app), and only as far back as Claude Code keeps
-  them (30 days by default).
+  them (30 days by default). Sessions still running in a terminal aren't
+  listed, so a conversation doesn't run twice; if one is resumed anyway
+  (it started running while the list was open), the note says to continue
+  it in its terminal, or type `/exit` there and resume it again. This
+  needs Claude Code's agent view (and a recent Claude Code): if you've
+  turned agent view off, running sessions are listed and can be resumed,
+  so check a session isn't open in a terminal before you resume it.
 - **✕ Stop waiting for the session starting** shows while a session is
   starting, so you can start another.
 
@@ -164,7 +170,9 @@ were. With no session running,
 the game just closes.
 
 The game can't end sessions for you: Claude Code has no clean way to do
-that from outside.
+that from outside. When you start the game again, sessions still running
+in their terminals don't come back to the world, and aren't listed
+under Resume until you `/exit` them.
 
 ## The islands and the ocean (W01, W02, W04)
 
