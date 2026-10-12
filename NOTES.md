@@ -4011,13 +4011,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the second optimization pass (branch `perf-pass2`,
-dev log 2026-10-12-perf-pass-2) is built and waits for the user's
-review and live check: the Mobile renderer instead of Forward+ (35-50 %
-less GPU time on the user's machine), the night sky dithered against
-Mobile's bands, SMAA on by default, and a smooth sun and moon (user's,
-asked during the review). The mountain bugs under Watch items
-wait for later.
+**Current focus:** none chosen yet, for the user to pick. The mountain
+bugs under Watch items wait for later.
+**Merged to `main` (2026-10-12), approved by the user: the second
+optimization pass** (dev log 2026-10-12-perf-pass-2): the Mobile
+renderer instead of Forward+ (35-50 % less GPU time on the user's
+machine), the night sky dithered against Mobile's bands, SMAA on by
+default, a smooth sun and moon on a 64 px reflection map, and
+`/time speed 0` stopping the clock. Live check passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: C10 settings
 menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics
 (window, vsync, FPS cap, render scale, shadows, MSAA and screen-space
