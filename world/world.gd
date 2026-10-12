@@ -55,8 +55,8 @@ var _teleport_when_risen := ""
 
 
 func _ready() -> void:
-	# The platform's deck is at y = 1. The sessions menu's "Platform" and
-	# the big map bring you back here (W08).
+	# The platform's deck is at y = 1. The sessions ring's ⌂ and the
+	# big map bring you back here (W08).
 	_player.spawn_point = Vector3(0.0, 1.1, 3.0)
 	_player.respawn()
 	_menu.player = _player

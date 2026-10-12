@@ -886,7 +886,7 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   a jump still counts if pressed up to 0.12 s before landing or after
   walking off an edge. Each press and each ledge gives one jump only.
 - *The sea.* The player wades into the shallows and swims where it's
-  deeper (W08); the sessions menu's "Platform" and the big map take it
+  deeper (W08); the sessions ring's ⌂ and the big map take it
   back to the spawn platform.
 
 The world scene (`world/world.tscn`, the main scene) puts the spawn
@@ -1057,7 +1057,7 @@ and sessions in the same repository are grouped automatically.
   since a cluster's islands are close.
 - *Sessions menu* (S03): a "Cluster:" row on the Add session and Resume
   pages with "Automatic (by repository)", each running cluster and "New
-  cluster"; back to Automatic each time the menu opens, hidden with the
+  cluster"; back to Automatic each time the create panel opens, hidden with the
   lists while the folder picker is open, and used by both New session and
   Resume.
   The sessions ring (W07) puts each cluster's sessions together as one
@@ -1382,25 +1382,40 @@ pointing; `SessionsMenu` opens it and acts.
   until they fit. Pointed at for 0.3 s, or clicked, a fold fans its
   sessions out in an outer ring centred on it (each 26°, the whole fan at
   most 180°); the pointer past the ring's rim and within a fanned
-  segment's width points at it. Pointing at the middle or another main
+  segment's own width of its middle (so up to half a segment past the
+  fan's ends) points at it. Pointing at the middle or another main
   segment folds it back. Cluster names hide while a fan shows.
 - *A segment* shows its island's biome (`RingIcons`,
   `world/sessions_menu/ring_icons.gd`; a beach while it has no island)
   and the state (`SessionStore.activity`) as a 6 px rim in the big map's
   colours (`WorldMap.STATE_COLOURS`): working blue, idle grey, waiting
   amber, pulsing at 1.2 Hz, stopped red. The middle shows the pointed
-  session's title, project and state (in its colour), ⌂'s "Platform",
-  a fold's cluster name and count, or the ➕ and "New session". A hint
+  session's title, project and state (in its colour), ⌂'s "Platform"
+  over "the spawn platform", a fold's cluster name and count, or the ➕
+  and "New session" ("New session (click)" while it is pointed at). A hint
   under the ring: "Release Tab to go · click + for a new session · Esc to
   cancel".
 - *Live.* The ring rebuilds every frame while it shows, so sessions
-  coming, going, renamed or changing state show at once; the pointer's
-  direction is pointed at again against the new segments.
+  coming, going, renamed or changing state show at once. What is
+  pointed at stays pointed at while the pointer doesn't move, so a
+  session arriving or ending mid-hold doesn't change what letting go
+  selects; only once it is gone is the pointer's direction pointed at
+  again against the new segments.
+- *Focus lost.* Tab let go in another window never reaches the game, so
+  when the window loses focus (`NOTIFICATION_APPLICATION_FOCUS_OUT`) the
+  ring closes without acting.
+- *The mouse put in the middle* (`warp_mouse`) may do nothing on Linux
+  under Wayland, where a program can't move the pointer; the ring then
+  opens pointing wherever the mouse is (Watch items → Mouse warp on
+  Wayland).
 
 Tests (world test): the empty ring (⌂ only, at the top, pointing at the
-middle), a quick tap and Esc opening nothing, the click on ➕ opening the
-create panel, a starting session's faded segment, h1 and h2 as one
-cluster's arc, the middle's text, pointing by direction, folding and
+middle), a quick tap and Esc opening nothing, the window losing focus
+closing it without acting, the click on ➕ only opening the create panel
+(no picker, no start, no notice), a starting session's faded segment,
+h1 and h2 as one cluster's arc, the middle's text, pointing by
+direction, a segment arriving not changing what a still pointer
+selects, folding and
 fanning out with `max_segments` lowered, and letting go on a session or
 ⌂; with the fake provider, a new session, a rename and a resumed session
 in the ring.
@@ -1506,9 +1521,9 @@ chosen as offered):*
   ground with the feet less than 1.2 m under ends swimming: that's how you
   walk out up a beach. The platform's and bridges' sides are walls.
 - *The way back* (`world.gd` → `go_to_platform`, which also drops a
-  teleport waiting for an island to rise): "⌂ Platform" under
-  "+ Add session…" in the sessions menu, and a click on the platform on
-  the big map (W06).
+  teleport waiting for an island to rise): the sessions ring's ⌂
+  (hold Tab, point at the top, let go; W07), and a click on the platform
+  on the big map (W06).
 - *Live check passed (2026-10-08)* with the user and the fake provider.
 
 *Follow-ups built (2026-10-08, branch `w08-tuning`):* the dolphin jump,
@@ -1752,7 +1767,7 @@ from screenshots).
   so it rises faster in the same time.
 - *Picking* (sessions menu): a "Biome:" row under the cluster's (Add
   session and Resume pages), with
-  Random and each kind, back to Random each time the menu opens, used by
+  Random and each kind, back to Random each time the create panel opens, used by
   New session (either picker) and Resume. The launcher passes it to
   `SessionIslands.choose_biome` with the session id when the reply
   comes, like the cluster. Any other session (already running, or
@@ -3392,8 +3407,10 @@ same process with no new bridge connection, the world got
 the new conversation and was answered.
 
 ### S03 Create session
-*Quick version built (user's direction, 2026-09-30: "a quick create session
-feature that we can design better later"). Scope: core.* A "create new
+*Built (2026-10-01; the create panel a placeholder, the ring since
+2026-10-12, W07). Scope: core.* (First a quick version, user's direction,
+2026-09-30: "a quick create session feature that we can design better
+later".) A "create new
 session" command from Godot; the sidecar launches a `claude` terminal (see
 S02). Attaching to sessions the user started themselves comes later (open
 question 5, decided); it uses the same hooks and channel, which such a
@@ -3762,9 +3779,9 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: you start on the spawn platform; Tab opens the sessions
-menu, which starts a session in a folder you pick or resumes a stored
-one, and you're taken to its island to chat with its orchestrator (S03,
+for the world: you start on the spawn platform; hold Tab for the sessions
+ring and click its + to start a session in a folder you pick or resume a
+stored one, and you're taken to its island to chat with its orchestrator (S03,
 S04, W01–W03, A01, C01, C02). That runs the
 real `claude`; to try the world without it, start Godot with
 `-- --sidecar-dev-fake` (e.g. `godot --path . -- --sidecar-dev-fake`, or
@@ -3926,10 +3943,14 @@ commands and /help; the console opened by its key (T), closed by Esc, a line
 run from it closing it and showing the reply), swimming (W08: floating at the surface, Space
 and Ctrl, diving where you look, the seabed underneath, the underwater
 fog, out of the water up a beach, the dolphin jump (out of the water,
-below the platform's deck, back in), back by the menu's "Platform" and
+below the platform's deck, back in), back by the sessions ring's ⌂ and
 the big map; the sea floor's range, banks and mounds, its colour
-gradient, and islands' underwater faces in its colours), the sessions menu (the
-hint, Tab and Esc, Godot's picker opening and cancelling back to the
+gradient, and islands' underwater faces in its colours), the sessions ring
+(W07: holding Tab, a quick tap and Esc opening nothing, the window losing
+focus closing it, the click on ➕, a starting session's faded segment,
+clusters as arcs, pointing by direction and kept while the pointer is
+still, folding and fanning out, letting go on a session or ⌂), the
+create panel (the hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost going back to Add a session, its Cancel
 closing the menu, the late answers ignored, a refused
@@ -4801,6 +4822,11 @@ exists.
   - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
     is the fallback home for the Linux build if Steam's sandboxing blocks
     launching the terminal and `claude`.
+- **Mouse warp on Wayland** (W07). The sessions ring puts the mouse in
+  its middle with `warp_mouse`, which Wayland doesn't allow programs to
+  do; untested (only Windows to test on). If it does nothing there, the
+  ring opens pointing wherever the mouse was: check it on Linux under
+  Wayland once there is a machine to try it on.
 - **Native folder picker on Windows** (S03). Godot 4.7.2 shows the
   system's picker from a hidden helper window created with no owner
   (`platform/windows/display_server_windows.cpp`, `_thread_fd_monitor`:

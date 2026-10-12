@@ -38,6 +38,11 @@ Page Down / wheel scrolls this.
    project folds into "N >";
    point at it: its sessions
    fan out; pick one?
-8. Looks: readable, sized
+8. Hold Tab, Alt+Tab to
+   another window, let go
+   there, come back: the
+   ring is closed and the
+   game playable?
+9. Looks: readable, sized
    right for the window? Try
    resizing the window.
