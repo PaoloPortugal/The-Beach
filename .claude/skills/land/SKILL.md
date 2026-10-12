@@ -75,7 +75,7 @@ design decision. Re-run whichever check covered the fix.
 Commit the docs in small commits (docs separate from code, like the
 history: "Docs: <ID> built; …"). Push the branch. Then tell the user:
 - what the feature does, in two or three lines;
-- the check results (suites, CI run, reviewer findings and what you did
+- the check results (suites, a CI run if there is one, reviewer findings and what you did
   about each);
 - what still needs a **live check** by the user, with the steps written to
   `tests/live/checklist.txt` (`godot --path . -- --checklist`);
