@@ -3710,7 +3710,10 @@ it exits, everything listed when it can't tell), with stand-ins for a
 that it's asked in the clean environment (a session's markers gone,
 `CLAUDE_CONFIG_DIR` kept) and with the `claude` found once, and against the real `claude` 2.1.296: a running terminal session was
 left out and its resume refused; on `main` the same session was listed
-and resumed.
+and resumed. *Live check passed (2026-10-12)* with the user: a session
+running in a plain terminal wasn't listed; after `/exit` it was, and
+resumed with its chat and island (a resume refused mid-way wasn't tried
+live; tested). It found the resumed chat's order bug (Watch items).
 
 The sidecar side, built with S02: `providers/claude/store.ts` lists
 `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<uuid>.jsonl`, newest first
@@ -4482,8 +4485,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** branch `s04-live-sessions` (2026-10-12): Resume
 leaves out sessions running in a terminal (S04 → Sessions running
 elsewhere); built, documented and checked (dev log
-2026-10-12-live-sessions), waiting for the user's live check and
-review. Before S07 is built, the user decides on the kept hook port
+2026-10-12-live-sessions), live check passed with the user, waiting
+for their review. Before S07 is built, the user decides on the kept hook port
 (S07 → To settle before building). **Next, decided by the user (2026-10-12):** (1) model,
 effort and mode pickers at launch: on the create panel and the Resume
 page, Model "Default" (no flag) or Opus, Sonnet, Haiku, Fable
@@ -4911,6 +4914,16 @@ exists.
 
 ### Watch items
 
+- **A resumed chat showing a reply before its message** (S02 → History,
+  S04; seen live by the user, 2026-10-12, to fix later). A session
+  started in a plain terminal ("this is a test", one reply, `/exit`),
+  then resumed from the world: the chat showed Claude's reply first, the
+  terminal the right order. Cause, from the transcript (2.1.296): Claude
+  Code had written the reply's line near the top of the file, before
+  the message's, though its `parentUuid` chain (message → attachments →
+  reply) and timestamps are in the right order; the history reader
+  takes file order. Fix to try: order by the `parentUuid` chain
+  (timestamps as a fallback), and check the live follower too.
 - **The message bubble vanishing over the sea** (C02; seen live by the
   user, 2026-10-12, to fix later). Parts of an orchestrator's bubble
   (panel and text) disappear where only sea is behind it, and draw fine
