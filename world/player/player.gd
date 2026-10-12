@@ -95,7 +95,6 @@ var _slide_wait := 0.0
 
 
 func _ready() -> void:
-	add_to_group("player")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_body.shape = _body.shape.duplicate() # its height changes when crouching
 
