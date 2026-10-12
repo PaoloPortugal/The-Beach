@@ -1,0 +1,25 @@
+LIVE CHECK: A02 report throw
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+
+Ask Claude for work with a few
+subagents (e.g. "use 3 Explore
+agents to look at ...").
+
+1. When one finishes: it
+   stands, throws its paper
+   in an arc to the
+   orchestrator, which bobs?
+   Then it and its desk go?
+2. From an outer ring, the
+   same quick throw (about
+   1 s from done to gone)?
+3. Does the orchestrator now
+   start on the report about
+   when the paper lands, not
+   long before?
+4. Several finishing at once:
+   all throw, nothing stuck?
+5. The paper easy enough to
+   follow (on sand, grass,
+   snow)?

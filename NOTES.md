@@ -31,8 +31,8 @@ general system, not a beach-specific one.
 **Agents.** The **orchestrator** sits at the centre of its island (a bigger
 model at a beach desk or under an umbrella). Walking up to it opens the
 chat panel. **Subagents** are small models at little PCs on the sand.
-They spawn when the orchestrator spawns them and, when they finish, run
-their report back to whoever called them and disappear. They show working,
+They spawn when the orchestrator spawns them and, when they finish,
+throw their report to whoever called them and disappear. They show working,
 waiting on you, done or error (A03). An agent waiting on a permission
 prompt or a question should visibly draw your attention. The agents'
 look was planned as the AI tool's logo; they get custom models by the
@@ -92,7 +92,7 @@ v1 slice.
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
-| A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd` |
+| A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd`, `agents/orchestrator/orchestrator.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
 | A04 | Procedural agent placement (v1)           | built   | A02           | `agents/agent_placement.gd` |
 | A05 | Permission attention cue                  | built   | A05           | `agents/attention_beacon.gd`, `world/attention.gd` |
@@ -1887,15 +1887,15 @@ to chat (C01, C11), and a `MessageAnchor` above its head
 where its message bubble floats (C02). It joins the `orchestrators` group.
 One is made per session, in the middle of its island, by `SessionIslands`
 (W01), with `session_id` set to the session it belongs to. A lamp on its
-desk lights up at night (W09).
+desk lights up at night (W09). It bobs as a subagent's report lands on
+its head (`catch_point()`, `bob()`; A02).
 
 ### A02 Subagents
 *Placeholder built (v1, 2026-09-30). Scope: core* (only the generic agent
 tree: `agent.spawned`, `agent.state_changed`, `parent`). Small models at
 little PCs on the island's sand. They appear when the orchestrator spawns
-them. When one finishes (`done`), it runs to the agent that called it (its
-`parent`) with a paper on its head, throws the report to it, and disappears
-(the placeholder walks there and shrinks away, with no throw yet; below). A
+them. When one finishes (`done`), it throws its report to the agent that
+called it (its `parent`) and disappears (below). A
 resumed subagent (back to `working`) reappears. Chat is orchestrator-only
 for now; whether to talk to subagents directly is open question 4.
 
@@ -1904,7 +1904,25 @@ orchestrator (the same primitives at about 60 % size) at a little box PC.
 It pops in at its PC when spawned. When done, it gets up and walks in a
 straight line to its parent (the orchestrator, or a parent subagent still
 there) with a white paper over its head, and shrinks away on arrival; no
-throw and no path-finding yet. A resumed subagent pops back in at its PC.
+throw and no path-finding yet (the walk was replaced by a throw,
+2026-10-12, below). A resumed subagent pops back in at its PC.
+
+*Decided (user's, 2026-10-12): the walk becomes a throw.* Claude Code
+hands a subagent's result to its caller before the world hears it's
+done (`SubagentStop`), so the orchestrator was already using a report
+the world showed still being walked back, 3 s from the first ring and
+more from the outer ones. That lag can't be removed, only shortened, so
+the walk goes: the subagent stands up at its PC and throws the paper in
+an arc. My recommendations, all taken:
+- **The same short flight from any distance** (about 0.6 s, a higher arc
+  from further), so every report lands about 1 s after `done`, outer
+  rings too (rejected: longer the farther, like a real throw, where the
+  far ones lag more; a very quick 0.3 s, which barely reads as a throw).
+- **Stand, throw, shrink:** a quick stand and wind-up, and once the
+  paper lands it shrinks away with its PC (rejected: throwing from its
+  seat, less of a gesture; lingering a second or two after).
+- **The caller bobs** as the paper lands, so you can tell it arrived
+  (rejected: nothing; the paper staying on its desk a few seconds).
 
 **How it works.** `Subagent` (`agents/subagent/`): a capsule body and
 sphere head at a little desk with a monitor, all primitives, facing +z.
@@ -1913,16 +1931,27 @@ Only the PC is solid; the body can be walked through. `IslandAgents`
 its middle, follows the session's agents in `SessionStore`:
 - `working` or `waiting`: the subagent pops in at a free slot (A04), or
   back at its PC if it was leaving.
-- `done`: its PC shrinks away, and it walks at 3 m/s in a straight line
-  towards its parent, following it if it moves, with a white paper over
-  its head, standing on the ground as it goes. The parent is the calling
-  subagent if that one is still at its PC, else the orchestrator. It
-  shrinks away 1.4 m from it (or after 20 s, wherever it is).
+- `done` (`Subagent.report_to`): a white paper shows over its head; it
+  stands up (8 cm, turning to its catcher, 0.15 s), leans back and
+  forward (0.2 s), and lets go. The paper flies on its own (`top_level`)
+  for 0.6 s (`FLIGHT_TIME`) to the catcher's head, followed if it moves,
+  along the straight line plus an arc a quarter of the distance high (at
+  least 1 m), spinning. As it lands, the catcher bobs (12 cm, 0.25 s:
+  `bob()`), and the subagent shrinks away with its PC (0.3 s): about
+  1.25 s in all, wherever it sits. The catcher is the calling subagent
+  if that one is still at its PC, else the orchestrator.
 - `error`: it shows the error marker (A03) for `error_linger` (10 s),
   then shrinks away with its PC.
 - A resumed subagent gets its old slot back if it is still free.
 - Subagents already done or errored when the island appears (a session
   running before the world connected) aren't shown.
+
+Tested in the world test (`_agents`): the throw from its PC, the paper's
+arc towards a parent subagent, the catcher's bob as it lands, the
+thrower gone with its PC in under 1.8 s, resumed mid-throw (back at its
+PC, the paper put away), and three thrown to the orchestrator at once
+(its bob, all gone in under 1.8 s, the orchestrator settling back).
+Screenshots of three throws checked under Mobile (2026-10-12).
 
 ### A03 Agent state indicators
 *Minimal version built (2026-09-30). Scope: core.* A visible state on each
@@ -3478,7 +3507,7 @@ terminal was considered and rejected (dev log 2026-09-29-claude-cli-route).
   (no channel in the new processes), only say so. The session ends when
   the original `claude` exits.
 - A subagent's final report isn't sent to the world (no protocol field;
-  A02's "throws the report" could use it).
+  A02's thrown paper could carry it one day).
 - Parallel spawns of the same agent type may pair with the wrong task.
 - Not yet seen live: questions and permission prompts from subagents,
   and the `Notification` waiting cases.
@@ -4067,7 +4096,10 @@ choices and commands through a recording stand-in for the sidecar (C06,
 C07), C08's header, turn hints and limits corner (a line per provider,
 growing upwards, a window that's over hidden, a provider's labels as
 plain text in its order), the session ending under
-you: its orchestrator goes and the chat closes), walking up to chat (A01,
+you: its orchestrator goes and the chat closes), the subagents (A02,
+A03, A04: placement and slots, their state signs, a done one throwing
+its report to its caller, which bobs, gone within 1.8 s, resumed
+mid-throw, an error lingering), walking up to chat (A01,
 C01, C02, C05), and the crosshair (C11: looking away, E doing nothing,
 looking at it growing with its hint, a wall, out of reach, the ring
 off, without the controls). With `--sidecar-dev-fake` it also starts a session
@@ -4281,7 +4313,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none set; the user picks the next feature.
+**Current focus:** A02's report throw, branch `a02-report-throw`, ready
+for the user's review and live check: a done subagent stands up and
+throws its paper in a 0.6 s arc to its caller, which bobs, instead of
+walking it there (dev log 2026-10-12-report-throw).
 **Merged to `main` (2026-10-12), approved by the user: C11, the
 crosshair** (dev log 2026-10-12-crosshair): a ring in the middle of the
 screen that doubles in size on what you can use within reach, with
