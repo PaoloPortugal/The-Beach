@@ -9,10 +9,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, describeAsync, hasReply, listStored, readHistory, findStored, StoredCache } from '../src/providers/claude/store.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
+import type { Running } from '../src/providers/claude/running.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { connect, RecordingLog, testServer } from './helpers.ts'
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+/** Claude Code can't tell which sessions run (agent view off): nothing is left out. */
+const NOT_KNOWN = async (): Promise<Running> => ({ none: 'test' })
+const FOUND = async () => ({ path: process.execPath, version: '2.1.284' })
 const jsonl = (...entries: object[]) => entries.map((e) => JSON.stringify(e)).join('\n') + '\n'
 
 function store() {
@@ -136,7 +140,7 @@ test('listing doesn\'t block: other work runs while the files are read', async (
 
 test('the provider keeps its listing between calls, and shows what changed', async () => {
   const s = store()
-  const provider = new ClaudeProvider({ projectsDir: s.dir })
+  const provider = new ClaudeProvider({ projectsDir: s.dir, findClaude: FOUND, runningSessions: NOT_KNOWN })
   const first = await provider.listStored()
   fs.appendFileSync(path.join(s.dir, 'a', `${ID(1)}.jsonl`), jsonl({ type: 'custom-title', customTitle: 'renamed' }))
   const second = await provider.listStored()
@@ -319,10 +323,11 @@ test('hasReply: only a transcript with a reply from Claude (not just /clear\'s e
   assert.equal(hasReply(path.join(dir, 'missing.jsonl')), false)
 })
 
-function provider(projectsDir: string) {
+function provider(projectsDir: string, runningSessions: (claude: string, env: Record<string, string>) => Promise<Running> = NOT_KNOWN) {
   const opened: string[] = []
   const p = new ClaudeProvider({
     log: new RecordingLog(),
+    runningSessions,
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
     openTerminal: async (req) => { opened.push(req.argv[2]!); return 'fake' },
@@ -402,4 +407,68 @@ test('a first prompt given at create is sent as world chat once the session is u
     for (let i = 0; i < 100 && got.length === 0; i++) await new Promise((res) => setTimeout(res, 10))
     assert.deepEqual(got, [{ type: 'chat', text: 'start with the tests' }])
   } finally { sock?.destroy(); await c.close(); await srv.close(); await p.shutdown() }
+})
+
+test("running in a terminal the game doesn't follow: not listed, and not resumed (the conversation would run twice)", async () => {
+  const s = store()
+  let running: Running = { ids: new Set([ID(6)]) }
+  const { p, opened } = provider(s.dir, async () => running)
+  const srv = await testServer([p])
+  const c = await connect(srv.port, srv.token)
+  try {
+    await c.sync()
+    const listed = (await c.command({ type: 'session.list_stored', provider: 'claude' })).result as { sessions: any[] }
+    assert.deepEqual(listed.sessions.map((x) => x.native_id), [ID(1), ID(2), ID(8)])
+    const bad = await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(6) })
+    assert.deepEqual([bad.type, bad.code], ['error', 'provider_error'])
+    assert.match(String(bad.message), /still running in a terminal/)
+    assert.deepEqual(opened, [], 'no terminal opened')
+    // Once it has exited there, it's listed and resumable again.
+    running = { ids: new Set() }
+    const after = (await c.command({ type: 'session.list_stored', provider: 'claude' })).result as { sessions: any[] }
+    assert.deepEqual(after.sessions.map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
+    assert.equal((await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(6) })).type, 'ok')
+    assert.deepEqual(c.invalid, [])
+  } finally { await c.close(); await srv.close(); await p.shutdown() }
+})
+
+test("when Claude Code can't say what runs, everything is listed and the reason is logged", async () => {
+  const s = store()
+  const log = new RecordingLog()
+  const p = new ClaudeProvider({ log, projectsDir: s.dir, findClaude: FOUND, runningSessions: async () => ({ none: 'disabled by the disableAgentView setting' }) })
+  assert.deepEqual((await p.listStored()).map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
+  assert.ok(log.lines.some((l) => l.includes('disableAgentView')))
+})
+
+test('asking which sessions run: the claude found, in the clean environment launches get, found once', async () => {
+  const s = store()
+  const saved = { CLAUDECODE: process.env.CLAUDECODE, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR }
+  process.env.CLAUDECODE = '1'
+  process.env.CLAUDE_CONFIG_DIR = path.join(os.tmpdir(), 'user-config')
+  try {
+    let finds = 0
+    const asked: Array<{ claude: string; env: Record<string, string> }> = []
+    const p = new ClaudeProvider({
+      projectsDir: s.dir,
+      findClaude: async () => { finds++; return FOUND() },
+      runningSessions: async (claude, env) => { asked.push({ claude, env }); return { ids: new Set() } },
+    })
+    await p.listStored()
+    await p.listStored()
+    assert.equal(finds, 1, 'the claude found is kept for asking')
+    assert.equal(asked.length, 2)
+    assert.equal(asked[0]!.claude, process.execPath)
+    assert.equal(asked[0]!.env.CLAUDECODE, undefined, "a session's markers are left out")
+    assert.equal(asked[0]!.env.CLAUDE_CONFIG_DIR, path.join(os.tmpdir(), 'user-config'), "the user's settings are kept")
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v }
+  }
+})
+
+test("when claude isn't found, everything is listed and the reason is logged", async () => {
+  const s = store()
+  const log = new RecordingLog()
+  const p = new ClaudeProvider({ log, projectsDir: s.dir, findClaude: async () => { throw new Error('no claude here') } })
+  assert.deepEqual((await p.listStored()).map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
+  assert.ok(log.lines.some((l) => l.includes('no claude here')))
 })
