@@ -35,7 +35,8 @@ They spawn when the orchestrator spawns them and, when they finish, run
 their report back to whoever called them and disappear. They show working,
 waiting on you, done or error (A03). An agent waiting on a permission
 prompt or a question should visibly draw your attention. The agents'
-look was planned as the AI tool's logo; that is open question 7 (branding).
+look was planned as the AI tool's logo; they get custom models by the
+user instead (open question 7, decided 2026-10-12).
 
 **Terminal and world together.** Each session is a normal `claude` running
 in a terminal window, and the world is a second window onto it: you can
@@ -68,7 +69,7 @@ designed yet (see Known issues and next steps → Deferred ideas).
 **Art direction.** Low-poly. Assets are made by the user or come from CC0 packs
 such as Kenney, **never AI-generated**. Kenney packs are the likely source
 for terrain and environment, which leaves custom modelling effort for the
-agent models (their look: open question 7).
+agent models (custom ones by the user, open question 7).
 
 ## Feature index
 
@@ -1872,11 +1873,12 @@ uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
-centre of its island, at a beach desk or under an umbrella (look: open
-question 7). It's the main way you interact with a session (see C01).
+centre of its island, at a beach desk or under an umbrella (look: the
+user's custom models, coming later; open question 7). It's the main way you interact with a session (see C01).
 
 *Decided (user's, 2026-09-30):* a plain placeholder at a desk until open
-question 7 is settled.
+question 7 is settled. *Settled (user's, 2026-10-12):* custom models,
+which the user adds later; the placeholder stays until then.
 
 **How it works.** `agents/orchestrator/`: a capsule body and a sphere head
 behind a desk, all Godot primitives (no art assets), facing +z. It has a
@@ -4239,11 +4241,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
    Anthropic's channel examples use the TypeScript MCP SDK.
-7. **Agent look and branding.** The agents were planned as "logo" models
-   (the AI tool's logo on a little PC). Anthropic's terms don't allow using
+7. ~~**Agent look and branding.**~~ *Decided (user's, 2026-10-12):
+   custom models,* made by the user and added later; the placeholders
+   stay until then. The agents were planned as "logo" models (the AI
+   tool's logo on a little PC), but Anthropic's terms don't allow using
    their logos in a product without permission (Watch items → Claude
-   branding), so a public release needs an original look. Decide before
-   modelling the agents (A01, A02).
+   branding), so a public release needed an original look (A01, A02).
 8. ~~**The M1 world's feel**~~ *Mostly decided (user's, 2026-09-30),
    recorded in W01, W02, W03, A01, C01 and C02:* first-person camera
    (not the third person I recommended); movement, ocean, placeholder
@@ -4778,7 +4781,8 @@ exists.
   Other use of their logos needs written permission. This affects the "logo
   model" agents (A01, A02) in a public release, and the Steam store page:
   "Requires Claude Code" in plain text is fine; the name, capsule art,
-  logo and trailer must not use their names or logos.
+  logo and trailer must not use their names or logos. The agents get
+  the user's own custom models instead (open question 7, 2026-10-12).
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
   sidecar should detect missing hook events and explain this.

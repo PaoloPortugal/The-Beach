@@ -1,7 +1,7 @@
 class_name Subagent
 extends Node3D
 ## A subagent (A02): a smaller placeholder orchestrator at a little PC,
-## until the agents' look is decided (open question 7). Faces +z, with its
+## until the user's custom models come (open question 7). Faces +z, with its
 ## PC in front of it. It pops in at its PC; when done it gets up and walks
 ## in a straight line to whoever called it with a paper over its head, and
 ## shrinks away there. Nothing of it collides but the PC, and the walk
