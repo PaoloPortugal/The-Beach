@@ -55,8 +55,8 @@ var _teleport_when_risen := ""
 
 
 func _ready() -> void:
-	# The platform's deck is at y = 1. The sessions menu's "Platform" and
-	# the big map bring you back here (W08).
+	# The platform's deck is at y = 1. The sessions ring's ⌂ and the
+	# big map bring you back here (W08).
 	_player.spawn_point = Vector3(0.0, 1.1, 3.0)
 	_player.respawn()
 	_menu.player = _player
@@ -75,6 +75,7 @@ func _ready() -> void:
 	_chat.setup(store, Sidecar)
 	_menu.setup(store, Sidecar, _islands.clusters)
 	_menu.launcher.islands = _islands
+	_menu.ring.islands = _islands
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
 	add_child(attention)

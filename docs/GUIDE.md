@@ -34,8 +34,8 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: you arrive on a wooden platform in the open sea. Press Tab
-to start a session.
+press F5: you arrive on a wooden platform in the open sea. Hold Tab
+and click the + to start a session.
 
 The game picks its graphics mode by itself. If it won't start or looks
 wrong, you can force the simpler mode by starting it with
@@ -44,29 +44,47 @@ without the sun's shadows.
 
 ## The sessions menu (S03, S04, W07)
 
-This is a quick first version, a placeholder: the menu will be designed
-properly later.
+**Hold Tab** anywhere (except while chatting) to bring up the sessions
+ring: your running sessions arranged in a circle around a big **+**.
+Move the mouse toward a session and **let go of Tab** to go straight to
+its island, in front of its orchestrator (if the island is still rising,
+once it's up). Only the direction counts, so you don't have to land
+exactly on it. The ring has its own pointer, a white dot, held to the
+ring as if on a spring: it stops giving at the edge and springs back
+when you ease off (it reaches out further over a cluster's sessions when
+they fan out). Letting go with the pointer in the middle, or pressing
+**Esc**, just closes the ring, so a quick tap of Tab does nothing; so
+does switching to another window while holding Tab. What you point at
+stays selected while the mouse is still, even if another session comes
+or goes meanwhile. While
+no session is running, "Hold Tab for sessions" reminds you at the bottom
+of the screen. The ring's icons are a first version, like the rest of
+the game's screens for now.
 
-Press **Tab** anywhere (except while chatting) to open the sessions menu.
-It opens on its first page, **Sessions**, with the sessions running now.
-**+ Add session…** takes you to **Add a session**, where you choose to
-start a new session or resume an earlier one. **Esc** goes back a page,
-and closes the menu from the first page; **Tab** closes it from any
-page. While no session is running, "Press Tab for sessions" reminds you
-at the bottom of the screen. Type in the search box at the top to filter
-the running sessions by title, project or cluster, or, on the Resume
-page, your earlier sessions by title or project.
-
-On **Add a session** (and on the Resume page after it), **Cluster** says
-which cluster a session you start or resume joins (see Clusters below).
-**Automatic (by repository)**, the choice each time the menu opens, puts
-it with the other sessions of its git repository. You can pick one of
-the running clusters instead, or **New cluster** to give it a cluster of
-its own.
-
-Under that, **Biome** says what kind of island it gets (see Kinds of
-island below): **Random**, the choice each time the menu opens, or a
-beach, forest, mountain, snowy or desert island.
+- **The house at the top** takes you back to the spawn platform,
+  wherever you are, in the water too. It's always there.
+- **Each session** shows the kind of island it has (palm tree, tree,
+  mountain, snowflake or cactus: see Kinds of island below), with a
+  coloured edge for what it's doing: blue working, grey idle, orange
+  waiting for you (pulsing), red stopped. A session counts as working
+  while any of its subagents works, even if its orchestrator is idle.
+  Point at one and the middle shows its name, its project and what it's
+  doing.
+- **A cluster's sessions sit together** as one stretch of the ring, with
+  a small gap before the next cluster and the cluster's name outside it
+  (see Clusters below). The order stays put, so you always find a session
+  in the same place: clusters in the order of their places around the
+  platform, and each cluster's sessions in the order of their islands.
+- **With more than 12 sessions**, the busiest clusters each fold into a
+  single piece showing how many sessions it holds ("9 ▸"). Point at it
+  for a moment (or click it) and its sessions fan out in an arc (at
+  most half a circle) just outside the ring; point at one there and let go of Tab. Pointing
+  anywhere else folds it back.
+- **A session still starting** shows as a faded piece with three dots;
+  you can't go to it yet.
+- **Click the + in the middle** (while still holding Tab) to open the
+  panel for starting or resuming a session (below). You can let go of Tab
+  once it's open.
 
 Sessions are named the way Claude Code names them. A new one shows as
 "New session" until your first message, which names it for now. If you
@@ -77,47 +95,48 @@ chatting with in the game keeps its first message as its name. If you rename it 
 is used instead, everywhere in the game. The Resume list uses the same
 names as Claude Code's own `/resume` list.
 
-On the first page:
+### Starting or resuming a session
 
-- **+ Add session…** takes you to Add a session (below).
-- **⌂ Platform** takes you back to the spawn platform, wherever you are,
-  in the water too.
-- **✕ Stop waiting for the session starting** shows while a session is
-  starting, so you can start another.
-- **Running** lists the sessions running now, grouped under their
-  cluster's name, with what each is doing
-  (working, waiting for you, stopped, idle). A session counts as working
-  while any of its subagents works, even if its orchestrator is idle. Click one to go straight to
-  its island, in front of its orchestrator (if the island is still
-  rising, once it's up). The order stays put, so
-  you always find a session in the same place: clusters in the order
-  of their places around the platform, and each cluster's sessions in
-  the order of their islands.
+The **+** opens **Add a session**. **Esc** goes back a page, and closes
+the panel from Add a session; **Tab** closes it from any page. This panel
+is still a quick first version, a placeholder: it will be designed
+properly later.
 
-On Add a session:
+**Cluster** says which cluster a session you start or resume joins (see
+Clusters below). **Automatic (by repository)**, the choice each time the
+panel opens, puts it with the other sessions of its git repository. You
+can pick one of the running clusters instead, or **New cluster** to give
+it a cluster of its own.
+
+Under that, **Biome** says what kind of island it gets (see Kinds of
+island below): **Random**, the choice each time the panel opens, or a
+beach, forest, mountain, snowy or desert island.
 
 - **+ New session…** opens your system's own folder picker (File
   Explorer on Windows, the usual open panel on macOS and Linux) to
   choose the project folder you want to work in. Cancelling it takes you
-  back to Add a session. While it's open, the menu waits with a note: if the
+  back to Add a session. While it's open, the panel waits with a note: if the
   picker ends up hidden behind the game (this can happen on Windows),
   switch to it (Alt+Tab or the taskbar), press **Cancel** (or Tab) to
   get back to the game, or Esc to go back to Add a session; choosing a
   folder in it afterwards does nothing.
   If your system has no picker of its own, the game shows its own.
 - **▸ Resume a session…** lists your earlier Claude Code sessions, newest
-  first, with their project and how long ago you last used them. The
+  first, with their project and how long ago you last used them. Type in
+  the search box to filter them by title or project. The
   first time after the game starts this can take a second ("Loading…");
   after that it's quick. Click one to pick it
   up again where you left off: its chat comes back too. Only sessions
   started in a terminal are listed (not ones from the VS Code extension
   or the Claude desktop app), and only as far back as Claude Code keeps
   them (30 days by default).
+- **✕ Stop waiting for the session starting** shows while a session is
+  starting, so you can start another.
 
 Starting or resuming opens Claude Code in a terminal, and
 a note at the top of the screen tells you to confirm there (see Claude
 Code sessions below). If nothing has happened after two minutes it says
-"Still starting; check the terminal, or stop waiting in the menu (Tab)."
+"Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +)."
 Once you've confirmed, the session's island rises out of the seabed, and
 once it's up you're taken to it, right in front of its orchestrator
 (unless you've turned that off in the settings: Settings (C10)).
@@ -127,10 +146,10 @@ before it's ready (for example you chose not to trust the folder, or
 closed its window), the note says "The session didn't start." straight
 away.
 
-One session starts at a time. While one is starting, the menu has
+One session starts at a time. While one is starting, the panel has
 **✕ Stop waiting for the session starting**: it lets you start another.
-If the first one does come up later, its island rises and it's listed
-under Running, but you aren't taken there.
+If the first one does come up later, its island rises and it joins the
+ring, but you aren't taken there.
 
 ## Quitting the game (S05)
 
@@ -167,7 +186,7 @@ one of its bridges, the empty island stays until you leave it (walk
 away over a bridge, swim away, or go to another session or the
 platform); then it sinks back into the seabed and is gone. Islands of the same project sit
 together in a cluster (below), and bridges join them to each other and,
-for the 8 clusters nearest it, to the platform (W06); the sessions menu (Tab) takes you straight to
+for the 8 clusters nearest it, to the platform (W06); the sessions ring (hold Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the
 horizon. The water is clear over the shallows and deepens to dark blue
 over deep water, so you can see the sea floor (see Swimming and the sea
@@ -232,16 +251,16 @@ repository and the worktrees Claude Code makes under `.claude/worktrees`).
 A folder that isn't in a git repository gets a cluster of its own. A new
 cluster is named after the repository's folder; if the name is taken, a
 number is added ("game 2"). To put a session somewhere else, choose a
-running cluster or **New cluster** in the sessions menu before starting
+running cluster or **New cluster** in the sessions menu's + panel before starting
 or resuming it (a new cluster you ask for is named after the session's
 folder).
 
 Clusters last only while they have sessions: when a cluster's last
-session ends, it's gone from the menu at once, and its place around the
+session ends, it's gone from the ring at once, and its place around the
 platform is free again once its last island has sunk. The game doesn't remember them after it closes.
 
-A cluster shows in the sessions menu, as a heading in the Running list,
-and on the maps (W06); nothing on the islands says which cluster
+A cluster shows in the sessions ring, as its own stretch of the ring
+with its name, and on the maps (W06); nothing on the islands says which cluster
 they're in yet.
 
 ## Bridges and the maps (W06)
@@ -260,7 +279,7 @@ up close it has all its planks again.
 
 A cluster far out at sea (the 9th and later) has bridges between its
 own islands but none back to the platform: go there with the sessions
-menu (Tab) or by clicking it on the big map.
+ring (hold Tab) or by clicking it on the big map.
 
 A cluster with a huge number of islands (about 160 for one of the 8
 near clusters, about 70 for a far one) can start to reach into another
@@ -296,7 +315,8 @@ You see the world through your character's eyes.
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
 | Settings (frees the mouse pointer) | Esc (Esc again closes them; click in the game to take the pointer back) |
-| Sessions menu: start, resume or go to a session or the platform | Tab (Esc goes back a page; Tab closes it) |
+| Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
+| Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat, next to the orchestrator | E (Esc closes the chat) |
 | Ride a mountain's zipline, by its post | E |
@@ -351,8 +371,8 @@ one sinks back into it, and you can watch both through the water.
 You get out of the water by swimming to a beach and walking up it. You
 can't climb or leap onto the platform or a bridge's railed sides from the
 water. To get back to
-the platform from anywhere, choose **⌂ Platform** in the sessions menu
-(Tab), or click the platform on the big map (M).
+the platform from anywhere, hold Tab, point at the house at the top of
+the sessions ring and let go, or click the platform on the big map (M).
 
 ## Day, night and the weather (W09)
 
@@ -653,8 +673,8 @@ placeholder.
   other islands and from the starting platform. It fades away once
   you've answered, in the game or in the terminal.
 - **A count:** "2 sessions waiting" in the top-right corner, as long as
-  any session waits for you. Open the sessions menu (Tab) to go there:
-  the Running list says which ones are "waiting for you".
+  any session waits for you. Hold Tab for the sessions ring to go there:
+  the waiting ones have a pulsing orange edge.
 - **In another window:** if you're in the terminal or another program
   when something starts waiting, the game's taskbar button flashes (on
   macOS its Dock icon bounces) and a short chime plays. While you're in
