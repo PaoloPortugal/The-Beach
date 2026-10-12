@@ -3916,9 +3916,9 @@ the mouse wheel, over the list or while walking, or Page Up and Page
 Down scroll a list taller than the window) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
-second when the file changes. Write the current live check's steps
-there; replace them for the next one (a check still to do stays, below
-the new one). `world.gd` adds the overlay
+second when the file changes. It holds only the current live check's
+steps (user's, 2026-10-12): replace them for the next one, and empty it
+once the check passes. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
 **Claude Code workflow (dev tool;** user's request, 2026-10-03; dev log
@@ -4050,12 +4050,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the three bugs the user asked for (2026-10-12):
-W10's mountain bugs are merged; branch `sidecar-no-blocking`, ready for
-the user's review: listing stored sessions (S04) and asking Windows for
-short names (C08) no longer block the sidecar, and a timed-out answer
-isn't kept (dev log 2026-10-12-sidecar-no-blocking). Then the proper
-sessions menu (W07/S03), whose layout is for the user to decide first.
+**Current focus:** the proper sessions menu (W07/S03); its layout,
+grouping and feel are for the user to decide before anything is built.
+**Merged to `main` (2026-10-12), approved by the user: the sidecar
+without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
+stored sessions (S04) and asking Windows for short names (C08) no
+longer block the sidecar, and a timed-out answer isn't kept. Live check
+passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: W10's mountain
 bugs** (dev log 2026-10-12-w10-mountain-bugs): a mountain's torches and
 zipline posts stand on the built mesh, and its zipline moves to a
