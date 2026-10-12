@@ -625,19 +625,20 @@ func _sky(world: Node3D, player: Player) -> void:
 	day._process(15.0)
 	_check(absf(day.time - fposmod(t + 0.5, 1.0)) < 0.001, "--day-minutes shortens the day")
 	day.cycle = DayNight.CYCLE
-	# Performance: each change to the sky redraws its reflection map, so a
-	# colour change too small to see isn't sent; the sun moves every frame,
-	# on a small map.
+	# Performance: each change to the sky redraws its reflection map, a
+	# small one; the sun and the colours move every frame, smoothly.
 	day.set_hour(17.8)
 	var sky: ShaderMaterial = env.sky.sky_material
 	var sent: Vector3 = sky.get_shader_parameter("sun_direction")
 	var top: Color = sky.get_shader_parameter("top_colour")
 	day._process(0.1)
-	_check(sky.get_shader_parameter("top_colour") == top, "the sky isn't redrawn for a colour change too small to see")
-	_check(sky.get_shader_parameter("sun_direction") != sent, "but the sun and moon move every frame, smoothly")
+	_check(sky.get_shader_parameter("sun_direction") != sent and sky.get_shader_parameter("top_colour") != top, "the sun, moon and sky colours move every frame, smoothly")
 	_check(env.sky.radiance_size == Sky.RADIANCE_SIZE_64, "on a 64 px reflection map")
-	day._process(30.0)
-	_check(sky.get_shader_parameter("top_colour") != top, "and a colour change is sent once it shows")
+	sent = sky.get_shader_parameter("sun_direction")
+	sky.set_shader_parameter("sun_direction", Vector3.UP)
+	day.apply()
+	_check(sky.get_shader_parameter("sun_direction") == Vector3.UP, "with the clock stopped, nothing is sent again")
+	sky.set_shader_parameter("sun_direction", sent)
 
 	day.set_hour(0.0)
 	var moon := -DayNight.sun_direction(day.time)

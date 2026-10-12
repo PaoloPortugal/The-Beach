@@ -40,8 +40,6 @@ const NIGHT_AMBIENT := Color(0.32, 0.40, 0.62)
 const DAY_AMBIENT_ENERGY := 0.6
 const NIGHT_AMBIENT_ENERGY := 0.35
 
-## The smallest change a sky uniform is set for (_set_sky).
-const SKY_STEP := 1.0 / 255.0
 ## The darkness now, for night lights made after it was last sent.
 static var current_darkness := 0.0
 
@@ -60,7 +58,7 @@ var _environment: Environment
 var _light: DirectionalLight3D
 var _sky: ShaderMaterial
 var _sent_darkness := -1.0
-# The sky's uniforms as last set (_set_sky).
+# The sky's colours and levels as last set (_set_sky).
 var _sky_values := {}
 
 
@@ -73,7 +71,7 @@ func setup(environment: Environment, light: DirectionalLight3D, p_weather: Weath
 	_sky.shader = preload("res://world/sky/sky.gdshader")
 	var sky := Sky.new()
 	sky.sky_material = _sky
-	# The sun's direction is set every frame, and each change redraws the
+	# The sun's direction changes every frame, and each change redraws the
 	# reflection map: at 64 px that's cheap and looks the same as 256.
 	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	_environment.sky = sky
@@ -170,8 +168,7 @@ func apply() -> void:
 	horizon = horizon.lerp(Color(0.72, 0.76, 0.88), flash * 0.7)
 	_set_sky("top_colour", top)
 	_set_sky("horizon_colour", horizon)
-	# Every frame, so the sun and moon move smoothly (_set_sky).
-	_sky.set_shader_parameter("sun_direction", sun)
+	_set_sky("sun_direction", sun)
 	_set_sky("sun_colour", colour if day else SUNSET_COLOUR)
 	_set_sky("stars", darkness * (1.0 - cover))
 	_set_sky("discs", 1.0 - cover * 0.9)
@@ -196,19 +193,11 @@ func apply() -> void:
 		get_tree().call_group(NightLight.GROUP, "set_darkness", darkness)
 
 
-# Sets a sky uniform only when it has changed enough to show: each change
-# makes Godot redraw the sky's reflection map, so not every frame. A
-# colour step of 1/255 (a lightning flash still updates every frame). The
-# sun's direction is set every frame instead: in steps its disc jumped.
+# Sets a sky uniform when it has changed: each change makes Godot redraw
+# the sky's reflection map (64 px, so cheap). While the clock runs the sun
+# moves every frame, smoothly; stopped (/time speed 0), nothing is redrawn.
 func _set_sky(key: String, value: Variant) -> void:
-	var last: Variant = _sky_values.get(key)
-	if last != null:
-		var change := 0.0
-		if value is Color:
-			change = maxf(maxf(absf(value.r - last.r), absf(value.g - last.g)), absf(value.b - last.b))
-		else:
-			change = absf(value - last)
-		if change < SKY_STEP:
-			return
+	if _sky_values.get(key) == value:
+		return
 	_sky_values[key] = value
 	_sky.set_shader_parameter(key, value)
