@@ -477,12 +477,14 @@ func _settings(world: Node3D, player: Player) -> void:
 	menu.sound_toggle().button_pressed = false
 	_check(not world.attention.sound_on, "C10: the waiting chime's toggle, moved from the sessions menu")
 	(menu.control("game/go_to_new_island") as CheckButton).button_pressed = false
+	(menu.control("game/crosshair") as CheckButton).button_pressed = false
+	_check(not world.crosshair.ring_on, "C10/C11: the crosshair's toggle hides its ring")
 	menu.close()
 
 	var saved := Settings.new()
 	saved.path = settings.path
 	saved.load_file()
-	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false}
+	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false, "game/crosshair": false}
 	var lost := expect.keys().filter(func(k: String) -> bool:
 		return not (is_equal_approx(saved.value(k), expect[k]) if expect[k] is float else saved.value(k) == expect[k]))
 	_check(lost.is_empty(), "C10: every setting is kept between runs (not: %s)" % [lost])
@@ -521,7 +523,7 @@ func _settings(world: Node3D, player: Player) -> void:
 
 	menu.open()
 	menu.reset_all()
-	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on, "C10: Reset to defaults puts every setting back, the chime too")
+	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on and world.crosshair.ring_on, "C10: Reset to defaults puts every setting back, the chime and the crosshair too")
 	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
 	menu.close()
 
