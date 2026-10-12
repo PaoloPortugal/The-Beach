@@ -3674,29 +3674,28 @@ renderers (`--rendering-method gl_compatibility` for Compatibility).
 
 **Continuous integration** (user's request, 2026-10-02; dev log
 2026-10-02-ci). `.github/workflows/tests.yml` (GitHub Actions) runs
-everything above on Windows and Linux at once, and on macOS too on
+everything above on Windows, macOS and Linux at once, on pushes to
 `main` and by hand (below): per OS a sidecar
 job (`npm ci`, typecheck, `npm test`) and a Godot job (Godot
 `GODOT_VERSION` downloaded from its GitHub release and cached, the
 project imported, then each command above as its own step, so the
 failing suite is named). It never runs the real `claude` (the Godot
 suites use the fake provider) and needs no secrets; the workflow can
-only read the repository. Runs on every push (a newer push to the same
-branch cancels the older run), except pushes that only touch docs or
-the live checklist, and by hand from the Actions tab (Run workflow,
-any branch). **macOS only on `main` and by hand** (user's choice,
-2026-10-02): the repo is private, so runs use the account's Actions
-minutes, and a minute counts ten times on macOS and twice on Windows.
-A run on all three cost about 44 minutes (each job rounded up to a
-minute), 30 of them macOS, so about 45 pushes a month on the free
-2,000; without macOS a branch push costs about 14. Nothing here is
-built for macOS on its own and no one develops on a Mac, so checking it
-when a branch merges (or by hand before, with Run workflow) catches the
-same breakage for a third of the cost. *Once the repo is public*
-(user's, 2026-10-07): Actions minutes are free for public repositories,
-so macOS then runs on every push with Windows and Linux; until then,
-keep it as is. The system list is one
-expression in both jobs' matrices; the Godot job picks its release
+only read the repository. **Runs only on pushes to `main`** (user's
+choice, 2026-10-12: "we're using way too many minutes"), except pushes
+that only touch docs or the live checklist, and by hand from the
+Actions tab (Run workflow, any branch); a newer run on the same branch
+cancels the older one. A feature branch is checked locally (the
+`verify` skill) and by CI once merged. The repo is private, so runs use
+the account's Actions minutes, and a minute counts ten times on macOS
+and twice on Windows: a run on all three costs about 44 minutes (each
+job rounded up to a minute), 30 of them macOS, so about 45 runs a month
+on the free 2,000. *Before* (2026-10-02 to 2026-10-12): every push ran
+Windows and Linux, about 14 minutes each, with macOS only on `main` and
+by hand. *Once the repo is public* (user's, 2026-10-07): Actions minutes
+are free for public repositories, so CI can then run on every push;
+until then, keep it as is. The system list is the same in both jobs'
+matrices; the Godot job picks its release
 archive and binary from the runner's OS, so bumping Godot means
 changing `GODOT_VERSION` only. The actions are pinned to major versions
 (`checkout@v7`, `setup-node@v7`, `cache@v6`); bump them when a run's
@@ -3857,6 +3856,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** a settings menu with graphics settings (it gets
 `Weather.lightning_enabled`'s switch), next after W11 (user's,
 2026-10-08). The mountain bugs under Watch items wait for later.
+**Merged to `main` (2026-10-12), approved by the user: CI only on
+`main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
+on all three systems, and by hand; a branch is checked locally.
 **Merged to `main` (2026-10-10), approved by the user: W11 crouch and
 slide** (dev log 2026-10-10-w11-crouch-slide): hold Ctrl to crouch
 (1.1 m, 2.5 m/s), slide at a sprint with slopes mattering, slide jumps
@@ -3997,7 +3999,8 @@ waiting agents, a count in the corner, a taskbar flash and chime when
 the game is in the background; the chime is Kenney's `question_002`,
 the user's pick); **live check passed (2026-10-02)**. **Merged to `main` (2026-10-02), reviewed by the user:
 CI**: GitHub Actions runs every test on Windows and Linux on every push,
-and on macOS too on `main` and by hand (Running it → Continuous
+and on macOS too on `main` and by hand (since 2026-10-12, on all three
+only on pushes to `main` and by hand: Running it → Continuous
 integration); read results with `gh`. **Also merged to `main`
 (2026-10-02)**, each live-checked with the user and reviewed: **W05 clusters** (renamed from archipelagos by
 the user), the **start exit** fix (the world stops waiting at once when
