@@ -4924,6 +4924,13 @@ exists.
   reply) and timestamps are in the right order; the history reader
   takes file order. Fix to try: order by the `parentUuid` chain
   (timestamps as a fallback), and check the live follower too.
+- **"no MCP server configured with that name" on a resume** (S02, S04;
+  seen live by the user, 2026-10-12, 2.1.296). A session resumed from
+  the world showed `server:world-bridge · no MCP server configured with
+  that name` under the channels banner, yet chat worked both ways
+  (checked by the user). Harmless so far; likely the channel check
+  running before our `--mcp-config` server is registered. If chat ever
+  fails after a resume, start here.
 - **The message bubble vanishing over the sea** (C02; seen live by the
   user, 2026-10-12, to fix later). Parts of an orchestrator's bubble
   (panel and text) disappear where only sea is behind it, and draw fine
