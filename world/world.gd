@@ -7,7 +7,8 @@ extends Node3D
 ## Bridges join each cluster's islands and the platform, a minimap
 ## shows the cluster you're in, and M opens a map of the world (W06).
 ## The plan's usage limits are in the bottom-right corner (C08). The day
-## turns to night and back, and the weather changes (W09).
+## turns to night and back, and the weather changes (W09). Esc opens the
+## settings menu (C10), whose settings this applies.
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -32,6 +33,11 @@ var weather := Weather.new()
 var clouds := Clouds.new()
 var rain := Rain.new()
 var lightning_bolt := LightningBolt.new()
+## The game's settings (C10), saved between runs; tests point its path
+## elsewhere before the world is added.
+var settings := Settings.new()
+## Esc, with nothing else open (C10).
+var settings_menu := SettingsMenu.new()
 ## Where the debug commands (C09) are typed; null outside debug builds.
 var debug_console: DebugConsole
 
@@ -49,11 +55,6 @@ var _teleport_when_risen := ""
 
 
 func _ready() -> void:
-	# Under the Compatibility renderer, sun shadows wash the island out to
-	# white (Godot 4.7.2, seen on AMD; NOTES → Watch items), so they're off
-	# there.
-	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
-		$Sun.shadow_enabled = false
 	# The platform's deck is at y = 1. The sessions menu's "Platform" and
 	# the big map bring you back here (W08).
 	_player.spawn_point = Vector3(0.0, 1.1, 3.0)
@@ -89,16 +90,19 @@ func _ready() -> void:
 	world_map.setup(_islands, _player, store, minimap)
 	world_map.go_to.connect(teleport)
 	world_map.go_to_platform.connect(go_to_platform)
-	_menu.attention = attention
 	_islands.player = _player
 	_islands.island_added.connect(func(_id: String, _island: Island, orchestrator: Orchestrator) -> void:
 		_chat.watch(orchestrator))
 	_islands.island_risen.connect(func(id: String) -> void:
 		if id == _teleport_when_risen:
 			teleport(id))
-	_menu.launcher.session_started.connect(teleport)
+	# Being taken to a session you started can be turned off (C10).
+	_menu.launcher.session_started.connect(func(id: String) -> void:
+		if settings.value("game/go_to_new_island"):
+			teleport(id))
 	_menu.go_to.connect(teleport)
 	_menu.go_to_platform.connect(go_to_platform)
+	_setup_settings()
 	store.attach(Sidecar)
 	# Dev tool: the current live check's steps, top left (NOTES → Running it).
 	if "--checklist" in OS.get_cmdline_user_args():
@@ -138,6 +142,47 @@ func _setup_sky() -> void:
 	var minutes := args.find("--day-minutes")
 	if minutes >= 0 and minutes + 1 < args.size() and args[minutes + 1].to_float() > 0.0:
 		day_night.cycle = args[minutes + 1].to_float() * 60.0
+
+
+# The settings menu (C10): loads the saved settings and applies them, and
+# again on every change.
+func _setup_settings() -> void:
+	settings.load_file()
+	settings.changed.connect(apply_settings)
+	settings_menu.name = "SettingsMenu"
+	# Under the Compatibility renderer, sun shadows wash the island out to
+	# white (Godot 4.7.2, seen on AMD; NOTES → Watch items), so they're off
+	# there whatever the setting.
+	settings_menu.shadows_available = RenderingServer.get_current_rendering_method() != "gl_compatibility"
+	add_child(settings_menu)
+	settings_menu.setup(settings, _player, attention)
+	apply_settings()
+
+
+## Applies every setting (C10). The window and vsync are left alone
+## without a real window (headless tests).
+func apply_settings() -> void:
+	if DisplayServer.get_name() != "headless":
+		var mode: int = {
+			"windowed": DisplayServer.WINDOW_MODE_WINDOWED,
+			"borderless": DisplayServer.WINDOW_MODE_FULLSCREEN,
+			"fullscreen": DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN,
+		}[settings.value("graphics/window_mode")]
+		if DisplayServer.window_get_mode() != mode and not (mode == DisplayServer.WINDOW_MODE_WINDOWED and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_MAXIMIZED):
+			DisplayServer.window_set_mode(mode)
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.value("graphics/vsync") else DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = settings.value("graphics/fps_cap")
+	get_viewport().scaling_3d_scale = settings.value("graphics/render_scale")
+	# Shadows: high as built (4 splits, Godot's 4096 atlas), low with 2
+	# splits on a 2048 atlas, off. Always off under Compatibility.
+	var shadows: String = settings.value("graphics/shadows")
+	var sun: DirectionalLight3D = $Sun
+	sun.shadow_enabled = shadows != "off" and settings_menu.shadows_available
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if shadows == "high" else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	RenderingServer.directional_shadow_atlas_set_size(4096 if shadows == "high" else 2048, true)
+	weather.lightning_enabled = settings.value("graphics/lightning")
+	_player.mouse_sensitivity = Player.BASE_SENSITIVITY * settings.value("controls/mouse_sensitivity")
+	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")
 
 
 # The debug commands (C09), in debug builds only: T opens their line.

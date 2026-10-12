@@ -88,3 +88,4 @@ reading; look things up by feature ID.
 | 2026-10-09 | [C08: the short-name tests on a slow Windows runner](2026-10-09-c08-askwindows-flaky.md) | C08, tooling |
 | 2026-10-10 | [W11: crouch and slide](2026-10-10-w11-crouch-slide.md) | W11, W03, W08 |
 | 2026-10-12 | [CI: only on main](2026-10-12-ci-main-only.md) | tooling |
+| 2026-10-12 | [C10: the settings menu](2026-10-12-c10-settings.md) | C10, A05, W03, W04, W09, C01, S03 |
