@@ -1,7 +1,7 @@
 class_name Orchestrator
 extends Node3D
-## A session's orchestrator (A01): a plain placeholder at a desk until its
-## look is decided (open question 7). Looked at from close enough, the
+## A session's orchestrator (A01): a plain placeholder at a desk until the
+## user's custom models come (open question 7). Looked at from close enough, the
 ## crosshair offers to talk to it ([member talk]; C01, C11). Its state marker (A03) sits
 ## between its head and its message bubble. A lamp on its desk lights up
 ## at night (W09).
