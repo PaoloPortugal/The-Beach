@@ -2551,9 +2551,10 @@ The rest of the syntax waits for the user's live check.
     `night` (24m 30s). Counted on W09's 28-minute day, as a point of it,
     so they still fit after `/time speed`.
   - `/time query` says the time, day or night, the day's length and
-    its speed; `/time speed <n>` (a number above 0, "2" or "2x") makes
+    its speed; `/time speed <n>` (a number, "2" or "2x") makes
     the day go n times as fast (`DayNight.cycle` = 28m / n); 1 is
-    normal.
+    normal, 0 stops the clock (`cycle` = `INF`; the weather still
+    changes; user's, 2026-10-12: 0 was refused until then).
   - `/weather <clear|cloudy|rain|windy|storm>` sets it at once
     (`Weather.set_kind`, which starts a new spell, 3-8 minutes, after
     which it changes by itself as usual); `/weather query`.
