@@ -1,0 +1,43 @@
+LIVE CHECK: the sessions ring
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+
+1. No session running: "Hold
+   Tab for sessions" at the
+   bottom? Hold Tab: a ring
+   with only the house at the
+   top, a + in the middle?
+   Tap Tab quickly: nothing
+   opens?
+2. Hold Tab, click the +:
+   Add a session (cluster,
+   biome, New, Resume) opens;
+   let go of Tab, it stays?
+   Start a session there.
+3. Start 2-3 more (two in
+   the same project, one in
+   another folder, Biomes
+   different). Hold Tab:
+   each project's sessions
+   together, its name outside
+   the ring, biome icons?
+4. Move the mouse toward one:
+   it grows, the middle shows
+   title, project, state?
+   Let go: you're at its
+   orchestrator?
+5. Make one wait (a
+   permission): its edge
+   pulses orange in the ring?
+6. Point at the house, let
+   go: back on the platform?
+   Esc while holding Tab:
+   closes, nothing happens?
+7. Optional, many sessions:
+   with 13+ running, a busy
+   project folds into "N >";
+   point at it: its sessions
+   fan out; pick one?
+8. Looks: readable, sized
+   right for the window? Try
+   resizing the window.

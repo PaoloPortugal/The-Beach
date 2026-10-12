@@ -35,3 +35,4 @@ Every new one Claude writes or rewrites gets a row.
 | `agents/state_marker.gd` | Claude (Claude Code) | Placeholder state markers (A03, 2026-09-30). |
 | `agents/attention_beacon.gd` | Claude (Claude Code) | Placeholder beacon (A05, 2026-10-02; W04's green one too). |
 | `world/minimap.gd`, `world/world_map.gd` | Claude (Claude Code) | Placeholder maps drawn in code (W06, 2026-10-07). |
+| `world/sessions_menu/session_ring.gd`, `world/sessions_menu/ring_icons.gd` | Claude (Claude Code) | The sessions ring drawn in code (W07, 2026-10-12): its segments, rims and text, and placeholder icons (a house, a plus, dots and one per biome: palm, tree, peak, snowflake, cactus) until real ones, the user's or CC0. |
