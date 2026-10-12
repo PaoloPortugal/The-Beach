@@ -108,11 +108,26 @@ From the docs-sync and security reviews before handing it over:
 - A test that the click on the plus only opens the panel: no picker,
   no start, no notice.
 - `warp_mouse` may do nothing under Wayland: a Watch item (only Windows
-  to test on).
+  to test on); retired once the ring got its own pointer (below).
 - Docs that still said "sessions menu (Tab)", "Platform" in the menu or
   S03's "quick version" now name the ring and the create panel.
 - Not changed: a long or right-to-left title can overflow the middle
   circle (cosmetic, older than this branch; the UI pass will redo it).
+
+## The ring's own pointer
+
+After the live check with real Claude, the user wanted the mouse held
+to the ring, "locked by a spring to the center": no further than the
+ring, except out to a fanned cluster's sessions. Offered and chosen: our
+own pointer (the system's mouse stays captured, a dot moved by its
+motion), with a rubber-band edge (gives up to 14 px, springs back onto
+the rim). Rejected: warping the system's arrow back (flickers, and does
+nothing on Wayland), a hard stop, and a spring always pulling to the
+middle (a still mouse would point at the + again). It also retires the
+Wayland Watch item: nothing is warped any more. A click now acts on the
+ring's pointer, not where the system's mouse is. Headless, the mouse
+mode stays visible whatever is asked, so the tests check the pointer and
+the live check the capture.
 
 ## Many clusters
 

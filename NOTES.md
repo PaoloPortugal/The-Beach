@@ -1318,8 +1318,18 @@ Genshin Impact's quick menu; the details my recommendations, chosen as
 offered unless marked user's). Built (2026-10-12; dev log
 2026-10-12-sessions-ring).
 - **Hold Tab** (user's): while it is held, the running sessions are
-  arranged in a ring; the mouse is freed and the player stops, the
-  world keeps going (no slow motion).
+  arranged in a ring; the player stops, the world keeps going (no slow
+  motion).
+- **The ring's own pointer** (user's, 2026-10-12, after the live check
+  with real Claude; my recommendations, chosen): the system's mouse
+  stays captured and the ring draws a dot of its own, moved by the
+  mouse and held to the ring as if on a spring: free up to the rim (out
+  to a fanned cluster's sessions where a fan shows), past it a rubber
+  band that gives a little and springs back onto the rim. Rejected: the
+  system's arrow pulled back onto the rim (flickers on fast moves, does
+  nothing on Wayland); a hard stop at the rim (feels dead); a spring
+  always pulling to the middle like a joystick (a still mouse would
+  point at the ➕ again).
 - **Pointing** goes by direction from the centre, past a small middle
   zone, not by touching the segment. The pointed segment grows and the
   middle shows "title · project · state".
@@ -1354,10 +1364,12 @@ offered unless marked user's). Built (2026-10-12; dev log
 `SessionsMenu` layer, under its panel) draws the ring and works out the
 pointing; `SessionsMenu` opens it and acts.
 - *Opening.* Tab (`sessions_menu`) pressed while you have the controls
-  opens it: the player stops, the mouse is freed and put in the middle,
-  pointing at the ➕. While it shows, `SessionsMenu._input` takes the
-  mouse (motion points), the left button, Tab and Esc; Tab's repeats are
-  swallowed.
+  opens it: the player stops, the mouse stays captured and the ring's
+  pointer starts in the middle, pointing at the ➕. While it shows,
+  `SessionsMenu._input` takes the mouse (its motion moves the pointer,
+  `move_pointer`), the left button (acting on what the pointer points
+  at, wherever the system's mouse is), Tab and Esc; Tab's repeats are
+  swallowed. The create panel frees the mouse.
 - *Acting.* Tab released: a session → `go_to` (teleport), ⌂ →
   `go_to_platform`, anything else (the middle, a fold) → just closed. A
   left click: the ➕ → the create panel (S03), a fold → fanned out at
@@ -1373,9 +1385,18 @@ pointing; `SessionsMenu` opens it and acts.
   that, the ➕ circle 46 %. A pointed segment grows 12 % outward. Cluster
   names sit just outside the rim by the middle of their arc, pushed
   sideways by half their width so they never cover it.
-- *Pointing* (`point_at`): inside the ➕ circle points at the middle;
-  elsewhere the segment whose middle is nearest the pointer's direction,
-  however far out.
+- *The pointer* (`move_pointer`; `point_at` puts it somewhere, for
+  tests): a white dot, 5 px with a dark outline, moved by the mouse's
+  motion (`relative`). It goes freely out to the rim as a pointed
+  segment grows it (outer radius + 12 % of the ring's width), or across
+  a fan (where the fan's hit zone is, below) to the fan's outer edge.
+  Pushed past, it moves less and less, at most `STRETCH` (14 px) past
+  (limit + 14 × (1 − e^(−push/14))); a push piles up at most 3 × 14 px
+  past, so easing off answers at once; the push left decays by
+  e^(−14 t) (`SPRING`), so it is back on the rim in about a third of a
+  second.
+- *Pointing* (`_point_at`): inside the ➕ circle points at the middle;
+  elsewhere the segment whose middle is nearest the pointer's direction.
 - *Folding.* Past `max_segments` (12) sessions (a starting one counts),
   the cluster with the most sessions folds into one segment ("9 ▸", its
   rim the most urgent of its sessions' states), then the next busiest,
@@ -1404,14 +1425,13 @@ pointing; `SessionsMenu` opens it and acts.
 - *Focus lost.* Tab let go in another window never reaches the game, so
   when the window loses focus (`NOTIFICATION_APPLICATION_FOCUS_OUT`) the
   ring closes without acting.
-- *The mouse put in the middle* (`warp_mouse`) may do nothing on Linux
-  under Wayland, where a program can't move the pointer; the ring then
-  opens pointing wherever the mouse is (Watch items → Mouse warp on
-  Wayland).
 
 Tests (world test): the empty ring (⌂ only, at the top, pointing at the
 middle), a quick tap and Esc opening nothing, the window losing focus
-closing it without acting, the click on ➕ only opening the create panel
+closing it without acting, the pointer starting in the middle, giving at
+most 14 px when pushed far past the rim and springing back onto it, a
+click acting on the pointer wherever the mouse is, the pointer free out
+to a fan, the click on ➕ only opening the create panel
 (no picker, no start, no notice), a starting session's faded segment,
 h1 and h2 as one cluster's arc, the middle's text, pointing by
 direction, a segment arriving not changing what a still pointer
@@ -3948,8 +3968,8 @@ the big map; the sea floor's range, banks and mounds, its colour
 gradient, and islands' underwater faces in its colours), the sessions ring
 (W07: holding Tab, a quick tap and Esc opening nothing, the window losing
 focus closing it, the click on ➕, a starting session's faded segment,
-clusters as arcs, pointing by direction and kept while the pointer is
-still, folding and fanning out, letting go on a session or ⌂), the
+clusters as arcs, the ring's own pointer held to it, pointing by
+direction and kept while the pointer is still, folding and fanning out, letting go on a session or ⌂), the
 create panel (the hint, Tab and Esc, Godot's picker opening and cancelling back to the
 menu; the system's picker through a stand-in: the waiting note,
 cancelling, Esc while it is lost going back to Add a session, its Cancel
@@ -4846,11 +4866,6 @@ exists.
   (or far) clusters merge into one "+N clusters" segment that fans out
   clusters, then a cluster's sessions; and a fan capped at about 12 per
   row, a second row further out past that.
-- **Mouse warp on Wayland** (W07). The sessions ring puts the mouse in
-  its middle with `warp_mouse`, which Wayland doesn't allow programs to
-  do; untested (only Windows to test on). If it does nothing there, the
-  ring opens pointing wherever the mouse was: check it on Linux under
-  Wayland once there is a machine to try it on.
 - **Native folder picker on Windows** (S03). Godot 4.7.2 shows the
   system's picker from a hidden helper window created with no owner
   (`platform/windows/display_server_windows.cpp`, `_thread_fd_monitor`:

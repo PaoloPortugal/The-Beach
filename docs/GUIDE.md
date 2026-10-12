@@ -49,7 +49,10 @@ ring: your running sessions arranged in a circle around a big **+**.
 Move the mouse toward a session and **let go of Tab** to go straight to
 its island, in front of its orchestrator (if the island is still rising,
 once it's up). Only the direction counts, so you don't have to land
-exactly on it. Letting go with the pointer in the middle, or pressing
+exactly on it. The ring has its own pointer, a white dot, held to the
+ring as if on a spring: it stops giving at the edge and springs back
+when you ease off (it reaches out further over a cluster's sessions when
+they fan out). Letting go with the pointer in the middle, or pressing
 **Esc**, just closes the ring, so a quick tap of Tab does nothing; so
 does switching to another window while holding Tab. What you point at
 stays selected while the mouse is still, even if another session comes
