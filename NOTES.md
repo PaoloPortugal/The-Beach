@@ -4644,9 +4644,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next (user's order): S07; before it's built, the
-user decides on the kept hook port (S07 → To settle before building).
-Subagents stay read-only in the world (Open questions → 4).
+**Current focus:** next (user's order): S07, its last open question
+settled (2026-10-13: the hook port is kept; S07 → A program on the kept
+port). Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-13), approved by the user: C12, model,
 effort and mode at launch** (dev log 2026-10-13-c12-launch-pickers):
 Model, Effort and Mode selectors on the create panel and the Resume
