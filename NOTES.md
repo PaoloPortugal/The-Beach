@@ -4130,12 +4130,26 @@ can come back.
   streaming, prompt options ("Yes, and don't ask again …", C05),
   questions (C05), plans (C07), the current mode (C06; it only comes
   with hooks), the stop (S02 → Stopping), sign-in notices (S06) and the
-  `hooks_unavailable` check. The world says so with a notice (wording
-  when built). Resuming the session later from the world (after `/exit`)
+  `hooks_unavailable` check. The world says so with a general notice
+  (below). Resuming the session later from the world (after `/exit`)
   gives it everything again.
 - **While the game is closed** everything happens in the terminal, as
   today (hooks fail, and Claude Code falls back to its own prompts:
   Security rules → Fail safe).
+
+**Decided before building (user's, 2026-10-13):**
+- **The game waits for them.** Finding running sessions takes about a
+  second (`claude agents --json`); the game holds its start until the
+  sidecar has looked (its first `sync.completed`), so reattached islands
+  are standing from the first frame. Rejected: islands appearing a
+  moment after the world loads.
+- **One general notice for the reduced mode** (old port taken): "This
+  session started before the game restarted, so some features may not
+  work fully." Deliberately not a list, so it never goes out of date;
+  what works and what doesn't is kept here and in the guide only.
+- **The quit-warning line** (S05): "On a computer shared with other
+  accounts, end them with /exit before quitting: while the game is
+  closed, another account could reach them."
 
 **A program on the kept port** (security review, 2026-10-12; *decided
 by the user, 2026-10-13: the port stays*). Running sessions send their
