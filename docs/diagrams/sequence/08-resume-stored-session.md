@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S04). NOTES.md → S04.
+> **Status:** Built (S04, C12). NOTES.md → S04, S02 → Model, effort and mode at launch.
 
 ```mermaid
 sequenceDiagram
@@ -30,7 +30,7 @@ sequenceDiagram
         Sidecar-->>World: ok { sessions } (terminal sessions, newest first,<br/>none that are running here<br/>or that Claude Code says run in another terminal)
     end
     User->>World: pick one
-    World->>Sidecar: session.resume (native_id)
+    World->>Sidecar: session.resume (native_id, launch: model, effort, mode picked)
     Sidecar->>Agents: still running in a terminal?
     Agents-->>Sidecar: the live sessions' ids
     opt it still runs
@@ -38,9 +38,17 @@ sequenceDiagram
     end
 
     Store->>Sidecar: its whole transcript: the chat and tool calls so far<br/>(subagents' calls from their own transcripts)
-    Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel
+    Sidecar->>Claude: open a terminal with our launcher: claude --resume <id><br/>in the session's folder, with our hooks and channel<br/>(and --model / --effort / --permission-mode if picked)
     Sidecar-->>World: ok { session }
     Note over Claude,Sidecar: From here it's flow 1: the confirmation, the bridge<br/>connects, session.created. The session keeps its id.
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok { messages, tools } (the earlier chat and tool calls,<br/>then what's new)
 ```
+
+The Resume page has the same Model, Effort and Mode choices as Add a
+session (C12); a choice not offered in `hello`'s `launch_options` is
+refused before anything opens. Resumed without a model picked, Claude
+Code restores the conversation's own model and fires `PostModelSwitch`
+(source `resume`), which the sidecar reads for the chat header; with
+`--model` it fires none (NOTES.md → S02 → Model, effort and mode at
+launch).

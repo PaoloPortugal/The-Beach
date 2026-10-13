@@ -23,6 +23,7 @@ here; each section is labelled with its feature ID.
 - [What Claude did: the tool calls (C04)](#what-claude-did-the-tool-calls-c04)
 - [Answering Claude's requests (C05)](#answering-claudes-requests-c05)
 - [Permission modes and plans (C06, C07)](#permission-modes-and-plans-c06-c07)
+- [Model, effort and mode at launch (C12)](#model-effort-and-mode-at-launch-c12)
 - [Token usage (C08)](#token-usage-c08)
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
@@ -112,6 +113,10 @@ it a cluster of its own.
 Under that, **Biome** says what kind of island it gets (see Kinds of
 island below): **Random**, the choice each time the panel opens, or a
 beach, forest, mountain, snowy or desert island.
+
+Then **Model**, **Effort** and **Mode** say what Claude Code starts
+with; each is **Default** every time the panel opens (see Model, effort
+and mode at launch below).
 
 - **+ New session…** opens your system's own folder picker (File
   Explorer on Windows, the usual open panel on macOS and Linux) to
@@ -574,7 +579,8 @@ before it asks you. In the terminal, Shift+Tab moves between four:
 - **Auto:** Claude rarely asks at all.
 
 A new session starts in Claude Code's own choice (Auto where it's
-available).
+available), unless you pick a mode when you start it (see Model, effort
+and mode at launch below).
 
 **The current mode** shows at the top right of the chat, for example
 **Mode: Auto**. It appears with the session's first message. If you
@@ -609,6 +615,33 @@ own choices:
 While a plan waits, the line above the message box says so. You can
 answer in the terminal instead: whichever answers first counts. As on
 the other cards, these buttons only work with a click.
+
+## Model, effort and mode at launch (C12)
+
+When you start or resume a session (hold Tab, click **+**), three
+choices under Biome say what Claude Code starts with:
+- **Model:** **Default** (Claude Code's own choice), **Opus**,
+  **Sonnet**, **Haiku** or **Fable**, each the newest of its kind.
+- **Effort:** how hard Claude thinks: **Default**, **Low**, **Medium**,
+  **High**, **Extra high** or **Max**.
+- **Mode:** the permission mode (see above): **Default** (Claude Code's
+  own choice), **Manual**, **Accept edits**, **Plan** or **Auto**.
+
+Each goes back to **Default** every time the panel opens, so a choice
+only counts for the session you start with it. They work the same on
+the Resume page. Picking one is the same as starting `claude` with it
+yourself; the terminal shows the result, and the game never changes your
+Claude Code settings. Bypass permissions isn't offered.
+
+**In the chat**, beside the mode at the top right, you see the
+session's model and effort, for example **Opus 5.5 · High effort**.
+They appear once Claude Code tells the game, usually by the end of
+Claude's first reply, and follow any change you make in the terminal
+(for example with `/model`). In Plan mode Claude Code may answer with a
+stronger model than the one you picked (it does this on purpose for
+planning); the chat shows the model you picked, as the terminal does.
+If you use your own status line in Claude Code, the model of a new
+session may only show after it changes.
 
 ## Token usage (C08)
 
@@ -832,7 +865,8 @@ reinstalling the game restores it if it goes missing.
 The world runs **Claude Code**, Anthropic's coding assistant, as your AI
 tool. Parts of the world described here are still being built: chatting
 (C02), the tool-call log (C04), answering prompts and questions (C05),
-the permission mode and plans (C06, C07) and token usage (C08) work,
+the permission mode and plans (C06, C07), choosing the model, effort
+and mode at launch (C12) and token usage (C08) work,
 but stopping from the world doesn't have a button yet, so use the
 terminal for that.
 
