@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 import { titleIn, type Titles } from './store.ts'
-import { callUsageIn, modelIn, type CallUsage } from './usage.ts'
+import { callUsageIn, type CallUsage } from './usage.ts'
 
 /** How often the file is checked for new lines. */
 export const POLL_MS = 250
@@ -30,8 +30,6 @@ export type TranscriptSignal =
   | { kind: 'title'; titles: Partial<Titles> }
   /** An API call of the main conversation and its tokens (C08); repeated once per entry of the call. */
   | { kind: 'usage'; call: CallUsage }
-  /** The model that call used (C12), as Claude Code names it. */
-  | { kind: 'model'; model: string }
 
 /** Claude Code's session ids are UUIDs. */
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -49,10 +47,7 @@ export function signalsIn(line: string): TranscriptSignal[] {
   const titles = titleIn(e)
   if (titles) return [{ kind: 'title', titles }]
   const call = callUsageIn(e)
-  if (call) {
-    const model = modelIn(e)
-    return [{ kind: 'usage', call }, ...(model ? [{ kind: 'model' as const, model }] : [])]
-  }
+  if (call) return [{ kind: 'usage', call }]
   // Subagents' own entries (their transcripts are separate files anyway).
   if (e.type !== 'user' || e.isSidechain === true) return []
   const content = (e.message as { content?: unknown } | undefined)?.content

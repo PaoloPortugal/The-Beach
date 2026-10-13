@@ -132,8 +132,6 @@ export class ClaudeProvider implements Provider {
     return this.start(host, {
       project: stored.project, name: stored.title ?? path.basename(stored.project.path), titles: readTitles(stored.file),
       nativeId, resume: true, history: read.history, usage: read.usage, launch,
-      // Claude Code keeps a resumed session's model unless one was picked (model-config docs).
-      model: launch?.model ? null : read.model ?? null,
     })
   }
 
@@ -175,8 +173,8 @@ export class ClaudeProvider implements Provider {
     project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: History
     /** A resumed conversation's usage so far (C08). */
     usage: UsageCounter | null; prompt?: string
-    /** The user's launch choices (C12), and a resumed conversation's model. */
-    launch: LaunchChoice | undefined; model?: string | null
+    /** The user's launch choices (C12). */
+    launch: LaunchChoice | undefined
   }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
@@ -186,7 +184,7 @@ export class ClaudeProvider implements Provider {
     const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.titles, this.log,
       () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
-      o.usage ?? undefined, o.model ?? null)
+      o.usage ?? undefined)
     // After /clear the old conversation is stored, not running: it may be listed and resumed.
     session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
