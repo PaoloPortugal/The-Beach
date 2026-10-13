@@ -35,6 +35,8 @@ const NOTICE_TEXT := {
 	"conversation_cleared": "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.",
 	"conversation_resumed": "This session switched to an earlier conversation (/resume). The chat now shows that conversation.",
 	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
+	# S07: deliberately general (user's wording), so it never goes out of date.
+	"reattached_limited": "This session started before the game restarted, so some features may not work fully.",
 }
 
 ## Notices about the session switching conversations.

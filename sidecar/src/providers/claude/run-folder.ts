@@ -11,6 +11,12 @@ import type { Project } from '../../protocol.ts'
 export const RUN_RECORD_VERSION = 1
 export const RUN_RECORD_FILE = 'session.json'
 export const HOOK_PORT_FILE = 'hook-port.json'
+/**
+ * The process id of the sidecar holding the session now. Another game
+ * running at the same time (or a test's sidecar) leaves a folder alone
+ * while its holder is alive, so it never takes over a session that is held.
+ */
+export const HOLDER_FILE = 'holder.pid'
 /** Run folders' names: `session-` and mkdtemp's six characters. Nothing else in the folder is touched. */
 export const RUN_DIR_NAME = /^session-[A-Za-z0-9]{6}$/
 
@@ -70,4 +76,9 @@ export function readHookPort(dir: string): number | null {
 
 export function writeHookPort(dir: string, port: number): void {
   fs.writeFileSync(path.join(dir, HOOK_PORT_FILE), JSON.stringify({ port }), { mode: 0o600 })
+}
+
+/** Marks this sidecar as the one holding the session in `runDir`. */
+export function writeHolder(runDir: string): void {
+  fs.writeFileSync(path.join(runDir, HOLDER_FILE), String(process.pid), { mode: 0o600 })
 }

@@ -3,9 +3,10 @@ extends CanvasLayer
 ## Closing the game while sessions run (S05; user's decision, 2026-10-01).
 ## The game can't end a session cleanly (Claude Code offers no way from
 ## outside; NOTES → Watch items), and quitting doesn't end them either:
-## they keep running in their terminals, out of the world's reach. So
-## closing the window with sessions running asks first, listing them with
-## what they're doing, and says to end them in their terminals. With none
+## they keep running in their terminals, out of the world's reach until
+## the game starts again (S07). So closing the window with sessions
+## running asks first, listing them with what they're doing, and says how
+## to end them in their terminals. With none
 ## running, the game just quits. A PLACEHOLDER, like all UI for now.
 ## The list scrolls once it's taller than the window allows, so the
 ## buttons always stay on screen, however many sessions run.
@@ -14,6 +15,10 @@ extends CanvasLayer
 const WIDTH := 560.0
 ## Room kept between the dialog and the window's edges.
 const MARGIN := 16.0
+## What to do, under the list (user's wording). They come back when the
+## game starts again (S07); the second paragraph says how to close the gap
+## of hooks that outlive the game (NOTES → Security rules → Known gap).
+const FOOTER := "Quitting won't end them: they keep running in their terminals, and come back when you start the game again. To end one, type /exit in its terminal.\n\nOn a computer shared with other accounts, end them with /exit before quitting: while the game is closed, another account could reach them."
 
 var store: SessionStore
 var player: Player
@@ -124,7 +129,7 @@ func _show() -> void:
 		_footer.text = ""
 	else:
 		_header.text = "1 session is still running:" if n == 1 else "%d sessions are still running:" % n
-		_footer.text = "Quitting won't end them: they keep running in their terminals, and the game can't reach them any more. To end one, type /exit in its terminal."
+		_footer.text = FOOTER
 	_scroll.visible = n > 0
 	_footer.visible = n > 0
 	_fit()
