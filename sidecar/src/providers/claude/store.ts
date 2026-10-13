@@ -37,7 +37,7 @@ const HISTORY_MAX_BYTES = 64 * 1024 * 1024
  * isMeta; 2.1.285): `<command-name>/clear</command-name>`, then a system
  * local_command entry, after an isMeta `<local-command-caveat>`. Not chat.
  */
-const LOCAL_COMMAND = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/
+export const LOCAL_COMMAND = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 

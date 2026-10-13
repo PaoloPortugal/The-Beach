@@ -12,6 +12,7 @@ import type { Log } from '../../log.ts'
 import type { BridgeLink } from './bridge-server.ts'
 import type { HookLink, HookPayload } from './hook-server.ts'
 import { TranscriptFollower, type TranscriptSignal } from './transcript.ts'
+import { TranscriptHooks, type Fed } from './transcript-hooks.ts'
 import {
   HookTranslator, MAIN, PLAN_TOOL, QUESTION_TOOL, permissionReply, questionReply, unwrapChannel, type RelayedPermission,
 } from './hooks.ts'
@@ -104,6 +105,9 @@ export const REATTACHED_LIMITED = {
   message: 'This session started before the game restarted, so some features may not work fully.',
 }
 
+/** Why the world can't stop a session in the limited mode: the stop lands through its hooks. */
+export const LIMITED_STOP_ERROR = 'This session can only be stopped in its terminal (Esc).'
+
 /** Why the world can't send to a conversation that moved. */
 export const MOVED_ERROR = 'This conversation moved to another Claude Code session; continue it in the terminal.'
 /** Why the world can't send while the bridge isn't connected. */
@@ -173,6 +177,11 @@ export class ClaudeSession implements ProviderSession {
    * since launch, so the same whether transcripts are on or off.
    */
   private readonly chat: HistoryLog
+  /**
+   * Taken back with its hooks out of reach (S07's limited mode): seen from
+   * its transcript alone, read as the hooks it stands for.
+   */
+  private limited: TranscriptHooks | null = null
   /** Whether any hook has arrived yet. */
   private hooksSeen = false
   /** Checking that hooks arrive (once, after the first world message sent while idle). */
@@ -291,7 +300,8 @@ export class ClaudeSession implements ProviderSession {
       project: this.project,
       title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
-      capabilities: {
+      // Without hooks there are no questions, plans, mode or stop (S07).
+      capabilities: this.limited ? { usage: {}, model_info: {} } : {
         questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {},
       },
       extensions: [],
@@ -309,11 +319,18 @@ export class ClaudeSession implements ProviderSession {
    * from now on, and its launcher watched until the bridge reconnects (from
    * then on the bridge closing says Claude Code exited). `limited`: its
    * hooks go to a port the game no longer has (taken while it was closed),
-   * so it runs with less, and says so; no hooks check either.
+   * so it runs with less, and says so; no hooks check either. It is then
+   * seen from its transcript alone: a busy session stays working until its
+   * transcript shows the turn's end.
    */
   restored(o: { state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean }) {
     this.translator.assume(o.state, o.reason)
-    if (o.limited) this.hooksChecked = true
+    if (o.limited) {
+      this.hooksChecked = true
+      this.limited = new TranscriptHooks()
+      this.translator.withoutPromptHooks()
+      this.transcript.followAll()
+    }
     if (o.transcript) {
       this.transcriptDir = path.dirname(o.transcript)
       this.transcript.follow(o.transcript)
@@ -558,7 +575,26 @@ export class ClaudeSession implements ProviderSession {
       if (this.usage.add(s.call)) this.sendUsage()
       return
     }
+    if (s.kind === 'entry' || s.kind === 'subagent') {
+      if (!this.limited) return
+      const fed = s.kind === 'entry' ? this.limited.entry(s.entry, s.agent) : this.limited.subagent(s.agent, s.type, s.toolUseId, s.background)
+      return this.feed(fed)
+    }
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
+  }
+
+  /** The limited mode's hooks, read from the transcript: reports only, nothing to answer or hold. */
+  private feed(fed: Fed[]) {
+    for (const f of fed) {
+      if ('denied' in f) {
+        this.emitAll(this.translator.rejectedInTerminal(f.denied))
+        continue
+      }
+      const p = f.hook
+      this.emitAll(this.translator.translate(p))
+      // A relayed prompt waiting for its call can be shown now.
+      if (p.hook_event_name === 'PreToolUse') this.retryRelays()
+    }
   }
 
   /**
@@ -787,6 +823,7 @@ export class ClaudeSession implements ProviderSession {
   async interrupt(): Promise<void> {
     // The stop lands through this conversation's hooks, which a moved one no longer sends.
     if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
+    if (this.limited) throw new CommandError('not_supported', LIMITED_STOP_ERROR)
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
     // Prompts still waiting for their hooks are shown now, to be declined with the rest.
     for (const [id, { relay, timer }] of [...this.waitingRelays]) {

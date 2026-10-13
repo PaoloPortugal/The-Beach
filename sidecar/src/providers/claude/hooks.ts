@@ -180,6 +180,9 @@ export class HookTranslator {
   /** Each subagent's Agent call, for its own calls' `within` (C04). */
   private readonly spawnedBy = new Map<Id, Id>()
 
+  /** Whether prompts' PermissionRequest hooks come (see withoutPromptHooks). */
+  private promptHooks = true
+
   /** The sign_in_needed notice's message while it is up (S06). */
   private signInNeeded: string | null = null
 
@@ -195,6 +198,15 @@ export class HookTranslator {
   assume(state: State, reason: string | null): void {
     this.states.set(MAIN, state)
     this.reasons.set(MAIN, reason)
+  }
+
+  /**
+   * No PermissionRequest hook will come with a prompt's options (S07's
+   * limited mode: the hooks can't reach us), so a relayed prompt is shown
+   * as soon as its tool call is known, without them.
+   */
+  withoutPromptHooks(): void {
+    this.promptHooks = false
   }
 
   /** The orchestrator's state and reason now. */
@@ -463,7 +475,7 @@ export class HookTranslator {
     }
     const summary = summarizeTool(tool, input, this.cwd)
     const small = jsonBytes(input) <= INPUT_MAX
-    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: null })
+    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: this.promptHooks ? null : [] })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
   }
@@ -753,7 +765,10 @@ export class HookTranslator {
     // SubagentStart doesn't name the parent: take the oldest Agent call for
     // this agent type (or the oldest at all). Exact one at a time; with
     // parallel spawns of one type the tasks may pair up in the wrong order.
-    let i = this.spawning.findIndex((s) => s.type === type)
+    // Read from the transcript (S07's limited mode), the call is known.
+    const by = str(p.spawned_by)
+    let i = by ? this.spawning.findIndex((s) => s.call === by) : -1
+    if (i < 0) i = this.spawning.findIndex((s) => s.type === type)
     if (i < 0) i = this.spawning.length > 0 ? 0 : -1
     const call = i >= 0 ? this.spawning.splice(i, 1)[0]! : null
     const parent = call && this.states.has(call.caller) ? call.caller : MAIN

@@ -21,6 +21,8 @@ import {
 import type { AgentEntry, Running } from '../src/providers/claude/running.ts'
 import { ClaudeProvider, type ClaudeOptions } from '../src/providers/claude/index.ts'
 import { REATTACHED_LIMITED } from '../src/providers/claude/session.ts'
+import { TranscriptHooks, type Fed } from '../src/providers/claude/transcript-hooks.ts'
+import { TranscriptFollower, type TranscriptSignal } from '../src/providers/claude/transcript.ts'
 import { RESTORE_WAIT_MS, restoreSessions } from '../src/serve.ts'
 import type { Provider } from '../src/provider.ts'
 import { bridgeOf, connect, RecordingLog, tempSessionsDir, testServer, type Msg } from './helpers.ts'
@@ -531,6 +533,227 @@ test('restore: a session it took back isn\'t taken twice, nor resumed', async ()
     assert.equal(res.type, 'error')
   } finally { await r.close() }
 })
+
+// ---- limited mode: seen from the transcript alone ----
+
+const hooksOf = (fed: Fed[]) => fed.map((f) => ('denied' in f ? { denied: f.denied } : f.hook))
+
+test('limited: transcript entries read as the hooks they stand for (shapes as 2.1.296 writes them)', () => {
+  const t = new TranscriptHooks()
+  const user = (content: unknown, more: object = {}) => ({ type: 'user', uuid: 'u1', message: { role: 'user', content }, ...more })
+  // What the user said: typed, or from the world (meta, in our channel).
+  assert.deepEqual(hooksOf(t.entry(user('fix the login'))), [{ hook_event_name: 'UserPromptSubmit', prompt: 'fix the login', prompt_id: 'u1' }])
+  const world = '<channel source="world-bridge" sender="user">\nfrom the world\n</channel>'
+  assert.deepEqual(hooksOf(t.entry(user(world, { isMeta: true }))), [{ hook_event_name: 'UserPromptSubmit', prompt: world, prompt_id: 'u1' }])
+  // Not the user's: Claude Code's own context, slash commands, the interruption marker, a compaction summary.
+  assert.deepEqual(t.entry(user('<system-reminder>x</system-reminder>', { isMeta: true })), [])
+  assert.deepEqual(t.entry(user('<command-name>/model</command-name>')), [])
+  assert.deepEqual(t.entry(user([{ type: 'text', text: '[Request interrupted by user]' }])), [])
+  assert.deepEqual(t.entry(user('summary', { isCompactSummary: true })), [])
+  // A task's notification, and a hand-back as Claude Code writes it: the translator tells them apart.
+  const task = '<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>'
+  assert.deepEqual(hooksOf(t.entry(user(task))), [{ hook_event_name: 'UserPromptSubmit', prompt: task, prompt_id: 'u1' }])
+  const handback = '<agent-message from="a1">\n[Subagent hand-back] report'
+  assert.deepEqual(hooksOf(t.entry(user(`Another Claude session sent a message:\n${handback}`, { isMeta: true }))),
+    [{ hook_event_name: 'UserPromptSubmit', prompt: handback, prompt_id: 'u1' }])
+
+  // A reply, whole; a second text block of the same API message gets its own id. Thinking isn't shown.
+  const reply = (content: object[], more: object = {}) => ({ type: 'assistant', message: { id: 'msg_1', content }, ...more })
+  assert.deepEqual(hooksOf(t.entry(reply([{ type: 'thinking', thinking: 'hm' }, { type: 'text', text: 'On it.' }]))),
+    [{ hook_event_name: 'MessageDisplay', message_id: 'msg_1', message_text: 'On it.' }])
+  assert.deepEqual(hooksOf(t.entry(reply([{ type: 'text', text: 'And more.' }]))),
+    [{ hook_event_name: 'MessageDisplay', message_id: 'msg_1:2', message_text: 'And more.' }])
+  // Tool calls and their results.
+  assert.deepEqual(hooksOf(t.entry(reply([{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'ls' } }]))),
+    [{ hook_event_name: 'PreToolUse', tool_use_id: 'toolu_1', tool_name: 'Bash', tool_input: { command: 'ls' } }])
+  assert.deepEqual(hooksOf(t.entry(user([{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'a.txt' }]))),
+    [{ hook_event_name: 'PostToolUse', tool_use_id: 'toolu_1' }])
+  assert.deepEqual(hooksOf(t.entry(user([{ type: 'tool_result', tool_use_id: 'toolu_2', is_error: true, content: 'Exit code 1' }]))),
+    [{ hook_event_name: 'PostToolUseFailure', tool_use_id: 'toolu_2', error: 'Exit code 1' }])
+  // Refused by a rule: denied. A "No" in the terminal is the follower's own signal.
+  assert.deepEqual(hooksOf(t.entry(user([{ type: 'tool_result', tool_use_id: 'toolu_3', is_error: true }], { toolDenialKind: 'permission-rule' }))), [{ denied: 'toolu_3' }])
+  assert.deepEqual(t.entry(user([{ type: 'tool_result', tool_use_id: 'toolu_4', is_error: true }], { toolDenialKind: 'user-rejected' })), [])
+  // The turn's end; an API error ends it as an error, and its turn_duration changes nothing.
+  assert.deepEqual(hooksOf(t.entry({ type: 'system', subtype: 'turn_duration', durationMs: 10 })), [{ hook_event_name: 'Stop' }])
+  assert.deepEqual(hooksOf(t.entry(reply([{ type: 'text', text: 'API Error' }], { isApiErrorMessage: true, error: 'rate_limit' }))),
+    [{ hook_event_name: 'StopFailure', error: 'rate_limit' }])
+  assert.deepEqual(t.entry({ type: 'system', subtype: 'turn_duration' }), [])
+  assert.deepEqual(hooksOf(t.entry({ type: 'system', subtype: 'turn_duration' })), [{ hook_event_name: 'Stop' }])
+  assert.deepEqual(t.entry({ type: 'system', subtype: 'stop_hook_summary' }), [])
+  // The main file's sidechain entries, and anything unknown, are skipped.
+  assert.deepEqual(t.entry(reply([{ type: 'text', text: 'x' }], { isSidechain: true })), [])
+  assert.deepEqual(t.entry({ type: 'permission-mode', permissionMode: 'auto' }), [])
+  assert.deepEqual(t.entry(user(42)), [])
+})
+
+test('limited: subagents: started from their file, their calls theirs, a foreground one done when its call returns', () => {
+  const t = new TranscriptHooks()
+  assert.deepEqual(hooksOf(t.subagent('a1', 'Explore', 'toolu_A', false)),
+    [{ hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'Explore', spawned_by: 'toolu_A' }])
+  assert.deepEqual(hooksOf(t.subagent('a2', null, 'toolu_B', true)), [{ hook_event_name: 'SubagentStart', agent_id: 'a2', spawned_by: 'toolu_B' }])
+  // Its own file: its calls and replies carry its id; its task prompt isn't the user's.
+  assert.deepEqual(t.entry({ type: 'user', isSidechain: true, message: { content: 'look around' } }, 'a1'), [])
+  assert.deepEqual(hooksOf(t.entry({ type: 'assistant', isSidechain: true, message: { id: 'm', content: [{ type: 'tool_use', id: 't1', name: 'Read', input: {} }] } }, 'a1')),
+    [{ hook_event_name: 'PreToolUse', tool_use_id: 't1', tool_name: 'Read', tool_input: {}, agent_id: 'a1' }])
+  assert.deepEqual(hooksOf(t.entry({ type: 'user', isSidechain: true, message: { content: [{ type: 'tool_result', tool_use_id: 't1' }] } }, 'a1')),
+    [{ hook_event_name: 'PostToolUse', tool_use_id: 't1', agent_id: 'a1' }])
+  assert.deepEqual(t.entry({ type: 'system', subtype: 'turn_duration' }, 'a1'), [], 'a subagent\'s turn isn\'t the session\'s')
+  const result = (id: string) => ({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id }] } })
+  assert.deepEqual(hooksOf(t.entry(result('toolu_A'))), [{ hook_event_name: 'PostToolUse', tool_use_id: 'toolu_A' }, { hook_event_name: 'SubagentStop', agent_id: 'a1' }])
+  // A background one's call returns at once; its task notification ends it.
+  assert.deepEqual(hooksOf(t.entry(result('toolu_B'))), [{ hook_event_name: 'PostToolUse', tool_use_id: 'toolu_B' }])
+})
+
+test('limited: the follower hands over every entry, and subagents started from now on, each once its meta is there', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tr-'))
+  const file = path.join(dir, `${ID(1)}.jsonl`)
+  const subs = path.join(dir, ID(1), 'subagents')
+  fs.mkdirSync(subs, { recursive: true })
+  fs.writeFileSync(file, jsonl({ type: 'user', message: { content: 'the past' } }))
+  fs.writeFileSync(path.join(subs, 'agent-old.jsonl'), jsonl({ type: 'assistant', message: { id: 'x', content: [] } }))
+  const seen: TranscriptSignal[] = []
+  const f = new TranscriptFollower((s) => seen.push(s))
+  f.followAll()
+  f.follow(file)
+  try {
+    fs.appendFileSync(file, jsonl({ type: 'custom-title', customTitle: 'named' }, { type: 'system', subtype: 'turn_duration' }))
+    fs.writeFileSync(path.join(subs, 'agent-a1.jsonl'), jsonl({ type: 'user', isSidechain: true, message: { content: 'task' } }))
+    fs.writeFileSync(path.join(subs, 'not-an-agent.jsonl'), jsonl({ type: 'user' }))
+    f.poll()
+    assert.deepEqual(seen, [
+      { kind: 'entry', entry: { type: 'custom-title', customTitle: 'named' } },
+      { kind: 'title', titles: { custom: 'named' } },
+      { kind: 'entry', entry: { type: 'system', subtype: 'turn_duration' } },
+    ], 'a1 waits for its meta; the one there before is the past')
+    fs.writeFileSync(path.join(subs, 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore', toolUseId: 'toolu_A', requestShape: 'foreground' }))
+    fs.appendFileSync(path.join(subs, 'agent-old.jsonl'), jsonl({ type: 'assistant', message: { id: 'y', content: [] } }))
+    seen.length = 0
+    f.poll()
+    assert.deepEqual(seen, [
+      { kind: 'subagent', agent: 'a1', type: 'Explore', toolUseId: 'toolu_A', background: false },
+      { kind: 'entry', entry: { type: 'user', isSidechain: true, message: { content: 'task' } }, agent: 'a1' },
+    ])
+    // No meta at all: started without it after a while.
+    fs.writeFileSync(path.join(subs, 'agent-a2.jsonl'), '')
+    seen.length = 0
+    for (let i = 0; i < 10; i++) f.poll()
+    assert.deepEqual(seen, [{ kind: 'subagent', agent: 'a2', type: null, toolUseId: null, background: false }])
+  } finally { f.stop() }
+
+  // Without followAll: only the signals, as before.
+  const plain: TranscriptSignal[] = []
+  const g = new TranscriptFollower((s) => plain.push(s))
+  g.follow(file)
+  try {
+    fs.appendFileSync(file, jsonl({ type: 'ai-title', aiTitle: 'x' }, { type: 'system', subtype: 'turn_duration' }))
+    fs.writeFileSync(path.join(subs, 'agent-a3.jsonl'), '')
+    fs.writeFileSync(path.join(subs, 'agent-a3.meta.json'), '{}')
+    g.poll()
+    assert.deepEqual(plain, [{ kind: 'title', titles: { ai: 'x' } }])
+  } finally { g.stop() }
+})
+
+test('restore, limited: a busy session stays working until its transcript ends the turn; replies, calls, prompts and subagents from it', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port } })
+  const file = transcript(projects, f.record.native_id, f.record.project.path,
+    { type: 'user', uuid: 'u1', message: { content: 'fix the login' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
+  })
+  const add = (...entries: object[]) => fs.appendFileSync(file, jsonl(...entries))
+  try {
+    const s = r.snapshots[0]!
+    assert.deepEqual(s.agents.map((a: any) => a.state), ['working'])
+    assert.deepEqual(Object.keys(s.capabilities).sort(), ['model_info', 'usage'], 'no questions, plans, mode or stop without hooks')
+    await sleep(600)
+    assert.equal(r.c.received.filter((m) => m.type === 'agent.state_changed').length, 0, 'still working: nothing says otherwise')
+
+    // A reply, whole; a tool call.
+    add({ type: 'assistant', message: { id: 'msg_1', content: [{ type: 'text', text: 'Looking.' }] } },
+      { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'git push', description: 'd' } }] } })
+    const started = await r.c.next('message.started')
+    assert.equal(started.role, 'assistant')
+    assert.deepEqual(pick(await r.c.next('message.completed'), 'message', 'text'), { message: 'msg_1', text: 'Looking.' })
+    assert.equal(r.c.received.some((m) => m.type === 'message.delta'), false, 'not streamed')
+    assert.deepEqual(pick(await r.c.next('tool.started'), 'tool_call', 'tool', 'summary'), { tool_call: 'toolu_1', tool: 'Bash', summary: 'Run: git push' })
+
+    // Its prompt, relayed by the bridge, matched to the call at once (no options to wait for), and answered from the world.
+    const b = await bridgeBack(f.runDir)
+    b.sock.write(JSON.stringify({ type: 'permission_request', request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"git push","description":"d"}' }) + '\n')
+    const asked = await r.c.next('permission.requested', 800) as any
+    assert.equal(asked.permission.agent, 'main')
+    assert.equal(asked.permission.summary, 'Run: git push')
+    assert.equal(asked.permission.options, undefined)
+    assert.equal((await r.c.next('agent.state_changed')).state, 'waiting')
+    assert.equal((await r.c.command({ type: 'permission.respond', session: s.session, permission: 'abcde', decision: 'allow' })).type, 'ok')
+    await until(() => b.lines.some((l) => l.type === 'verdict'))
+    assert.deepEqual(b.lines.find((l) => l.type === 'verdict'), { type: 'verdict', request_id: 'abcde', behavior: 'allow' })
+    add({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'done' }] } })
+    assert.deepEqual(pick(await r.c.next('tool.finished'), 'tool_call', 'status'), { tool_call: 'toolu_1', status: 'ok' })
+
+    // A subagent: its Agent call, then its own file.
+    add({ type: 'assistant', message: { id: 'msg_2', content: [{ type: 'tool_use', id: 'toolu_A', name: 'Agent', input: { subagent_type: 'Explore', description: 'look around' } }] } })
+    await r.c.next((m) => m.type === 'tool.started' && m.tool_call === 'toolu_A')
+    const subs = path.join(path.dirname(file), f.record.native_id, 'subagents')
+    fs.mkdirSync(subs, { recursive: true })
+    fs.writeFileSync(path.join(subs, 'agent-a1.meta.json'), JSON.stringify({ agentType: 'Explore', toolUseId: 'toolu_A', requestShape: 'foreground' }))
+    fs.writeFileSync(path.join(subs, 'agent-a1.jsonl'), jsonl({ type: 'user', isSidechain: true, message: { content: 'look around' } }))
+    const spawned = (await r.c.next('agent.spawned')).agent as Record<string, any>
+    assert.deepEqual(pick(spawned, 'agent', 'parent', 'name', 'task', 'state'), { agent: 'a1', parent: 'main', name: 'Explore', task: 'look around', state: 'working' })
+    fs.appendFileSync(path.join(subs, 'agent-a1.jsonl'), jsonl({ type: 'assistant', isSidechain: true, message: { id: 'm', content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'a.ts' } }] } }))
+    assert.deepEqual(pick(await r.c.next('tool.started'), 'tool_call', 'agent', 'within'), { tool_call: 't1', agent: 'a1', within: 'toolu_A' })
+    add({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_A', content: 'report' }] } })
+    await r.c.next((m) => m.type === 'tool.finished' && m.tool_call === 'toolu_A')
+    assert.deepEqual(pick(await r.c.next('agent.state_changed'), 'agent', 'state'), { agent: 'a1', state: 'done' })
+
+    // The turn's end: idle at last.
+    add({ type: 'assistant', message: { id: 'msg_3', content: [{ type: 'text', text: 'Pushed.' }] } }, { type: 'system', subtype: 'turn_duration', durationMs: 1 })
+    await r.c.next((m) => m.type === 'message.completed' && m.text === 'Pushed.')
+    assert.deepEqual(pick(await r.c.next('agent.state_changed'), 'agent', 'state'), { agent: 'main', state: 'idle' })
+
+    // The user types in the terminal: their message, and working again; Esc ends it.
+    add({ type: 'user', uuid: 'u2', message: { content: 'and the tests' } })
+    assert.deepEqual(pick(await r.c.next('message.completed'), 'message', 'text'), { message: 'u2', text: 'and the tests' })
+    assert.equal((await r.c.next('agent.state_changed')).state, 'working')
+    add({ type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+    assert.equal((await r.c.next('agent.state_changed')).state, 'idle')
+
+    // Everything said is in the history; a stop from the world is refused (Esc in the terminal).
+    const history = (await r.c.command({ type: 'session.get_history', session: s.session })).result as { messages: any[] }
+    assert.deepEqual(history.messages.map((m) => m.text), ['fix the login', 'Looking.', 'Pushed.', 'and the tests'])
+    const stop = await r.c.command({ type: 'interrupt.request', session: s.session })
+    assert.equal(stop.type, 'error')
+    assert.equal(stop.code, 'not_supported')
+    assert.deepEqual(r.c.invalid, [])
+    b.sock.destroy()
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, kept port: the transcript only fills the gaps, as for any session', async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const kept = await freePort()
+  writeHookPort(root, kept)
+  const f = runFolder(root, { record: { hook_port: kept } })
+  const file = transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', message: { content: 'hi' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
+  })
+  try {
+    assert.ok('interrupt' in r.snapshots[0]!.capabilities)
+    fs.appendFileSync(file, jsonl({ type: 'assistant', message: { id: 'msg_1', content: [{ type: 'text', text: 'from the transcript' }] } }, { type: 'system', subtype: 'turn_duration' }))
+    const unread = await r.c.quiet(700)
+    assert.deepEqual(unread.filter((m) => m.type.startsWith('message.') || m.type === 'agent.state_changed'), [], 'its hooks say these')
+  } finally { await r.close() }
+})
+
+const pick = (o: Record<string, any>, ...keys: string[]) => Object.fromEntries(keys.map((k) => [k, o[k]]))
 
 // ---- the sidecar's start ----
 
