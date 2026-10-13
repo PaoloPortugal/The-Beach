@@ -4826,6 +4826,24 @@ exists.
 
 **After v1.** The remaining features in the index. They are not ordered yet.
 
+**Reveal and release** (user's plan, 2026-10-12). The goal is to release
+the user's vision first; others using the MIT code afterwards is fine.
+- *Until the reveal:* the repository stays private and nothing is shown
+  publicly, since the parts that set the game apart (downtime, the hub,
+  the UI) exist only in these notes and would be easy to copy before
+  they're built. Groundwork that shows nothing is fine meanwhile: the
+  final name (Conventions → Renaming the project), the terms checks
+  (Watch items → Anthropic's terms, Steam), what a trailer should show.
+- *The reveal* comes when the release-gate features are built and the
+  Steam page is ready: a good UI (a pass across the "UI placeholder"
+  features), the downtime activities and the hub (Deferred ideas →
+  Downtime, The hub), and read-only islands (Deferred ideas). Shown
+  with the Steam page, videos and devlogs.
+- *Release* follows a short gap after the reveal (a few months, enough
+  for wishlists and an audience, too short for a copy to catch up),
+  on Steam (paid) with the repository made public (free, MIT) at the
+  same time. Codex, OpenCode and Copilot CLI come after it.
+
 ### Deferred ideas (not features yet)
 
 - **The terminal's other prompt options:** built (C05, 2026-10-03).
