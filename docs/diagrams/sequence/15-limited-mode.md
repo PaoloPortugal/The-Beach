@@ -30,10 +30,10 @@ sequenceDiagram
     Sidecar-->>World: ok
     Bridge->>Claude: the message (channel)
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)
+        Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)<br/>providers/claude/session.ts (searchTranscript, limitedSwitch)
         opt no transcript yet (nothing prompted before the restart)
-            loop every second until written
-                Sidecar->>Log: look for it (findStored)
+            loop every second for a minute, then every 10 s, until written
+                Sidecar->>Log: look for it (findStored: this project's working folder only)
             end
             Note over Sidecar: found: read from its start
         end
@@ -49,7 +49,7 @@ sequenceDiagram
     end
     Claude->>Bridge: a permission prompt (relay)
     Bridge->>Sidecar: permission_request
-    Note over Sidecar: tied only to the call whose input its preview shows;<br/>none after 1 s: shown from the preview
+    Note over Sidecar: tied only to the call whose input its preview shows<br/>(a cut-short preview waits the full 1 s);<br/>none by then: shown from the preview
     Sidecar->>World: permission.requested (no options), agent.state_changed waiting
     User->>World: Yes or No
     World->>Sidecar: permission.respond
@@ -62,7 +62,7 @@ sequenceDiagram
     opt /clear or /resume
         Claude->>Relay: SessionStart
         Relay->>Sidecar: POST /hook (relay.json: the new port)
-        Note over Sidecar: followed as usual (flow 9), once its transcript folder is known<br/>(the program on the old port has the token too)
+        Note over Sidecar: followed as usual (flow 9) once its transcript folder is known<br/>(the program on the old port has the token too)#59; before that, only to<br/>this project's transcript: /resume at once, /clear once written
     end
 ```
 
@@ -74,8 +74,9 @@ calls and subagents (each from its own file under
 `<session>/subagents/`, tied to its Agent call by its `.meta.json`), the
 turn's end (Claude Code's `turn_duration` entry), Esc and a terminal
 "No". A session busy at the restart stays working until then. One with
-no transcript yet at the restart has it looked for every second until
-Claude Code writes it, and read from its start.
+no transcript yet at the restart has it looked for (every second for a
+minute, then every 10 s; only a file with this project's working
+folder) until Claude Code writes it, and read from its start.
 
 **Left to the terminal:** prompt options, questions, plans, the current
 mode, the stop (`interrupt.request` gets `not_supported`), sign-in
@@ -89,6 +90,8 @@ gap). Hooks posted to our new port with the session's token can only
 come from it, so they're dropped (a forged prompt gets an empty answer:
 neither shown nor allowed); only what the two relays post is taken
 there, `SessionStart` (`/hook`) and the status line (`/status`). A
-`/clear` or `/resume` is followed only once the project's transcript
-folder is known, so that program can't switch the world to another
-folder's conversation.
+`/clear` or `/resume` is followed only into the project's transcript
+folder once that's known, and before that only to a transcript of this
+project that Claude Code wrote (a `/resume`'s at once, a `/clear`'s once
+written), so that program can't switch the world to another project's
+conversation.

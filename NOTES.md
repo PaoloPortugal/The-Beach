@@ -3406,7 +3406,9 @@ without a prompt). A whole preview must equal the call's input exactly
 (spacing inside strings counts); one cut short must be a prefix of it
 (compared without whitespace), and if it fits open calls with different
 inputs it's tied to none of them (security review, second round,
-2026-10-13). It
+2026-10-13). Without prompt hooks (S07's limited mode) a cut-short
+preview always waits the full second, so its own call, read late from
+the transcript, can still make it a tie (third round). It
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -4179,9 +4181,12 @@ start, and a session found after that arrives on its own as a
   accepted, `holder.pid` becomes this sidecar's, its relay files are
   pointed at this sidecar's hook port with the old token (every time,
   so none is left on a port an earlier, limited sidecar had),
-  `bridge.json` gets a fresh token, and only then (so a file it can't
-  write leaves nothing half taken, and a later start tries again) it
-  is adopted into the registry: a
+  `bridge.json` gets a fresh token and proof, and only then it is
+  adopted (so a file it can't write leaves no session and no bridge
+  token, and a later start tries again; `holder.pid` may stay this
+  sidecar's until it exits, and a relay already pointed here is refused,
+  its token let go, so Claude Code carries on). Adopted into the
+  registry: a
   `session.snapshot` with its `started_at`, the chat so far from its
   transcript (as for a resume, S04), and its state from `agents`
   (`busy` working, `waiting` waiting for input, `idle`) until its next
@@ -4204,13 +4209,17 @@ closed): the session still comes back, with less, until it ends, and
 the world shows the notice `reattached_limited`: "This
 session started before the game restarted, so some features may not
 work fully." (user's wording, 2026-10-13: deliberately general, so it
-never goes out of date; what works is kept here and in the guide).
+never goes out of date; what works is kept here and in the guide; no
+`/exit` hint in it either, the guide gives that: user's decision,
+2026-10-13).
 - **Still working:** chat from the world, Yes and No on permission
   prompts (the channel relay), `/clear` and `/resume` followed (the
-  `SessionStart` relay; only once the project's transcript folder is
-  known, from its transcript, since the program on its old port has the
-  token too and could post a switch to another folder; so not with
-  transcripts off), token usage and the model (the status line relay).
+  `SessionStart` relay; the program on its old port has the token too,
+  so a switch is followed only to the project's own transcript folder
+  once that's known; before that, only to a transcript Claude Code wrote
+  with this project's working folder: a `/resume`'s at once, a
+  `/clear`'s once its first prompt writes it; so not with transcripts
+  off), token usage and the model (the status line relay).
 - **From the transcript, a moment late** (flow 15;
   `TranscriptFollower.followAll`, `transcript-hooks.ts`): each entry is
   read as the hook it stands for and goes through the same translator:
@@ -4224,12 +4233,16 @@ never goes out of date; what works is kept here and in the guide).
   "No". A session busy at the restart stays working until its
   transcript shows the turn's end. One with no transcript yet (nothing
   prompted before the restart) has no hook to name it: it's looked for
-  every second (`findStored`) until Claude Code writes it, then read
-  from its start (found while fixing the second security review,
-  2026-10-13). A relayed prompt is matched to its
-  call as soon as the call is in the transcript, without options (only
-  to the call whose input its preview shows, as always: S02 →
-  Permissions).
+  (`findStored`, only a file whose working folder is this project's)
+  every second for a minute, then every 10 s, until Claude Code writes
+  it, then read from its start (found while fixing the second security
+  review, 2026-10-13). A transcript `findStored` can't describe yet (no
+  title: only slash commands so far) is found once it has one. A relayed
+  prompt is matched to its call as soon as the call is in the
+  transcript, without options (only to the call whose input its preview
+  shows, as always: S02 → Permissions); a cut-short preview always waits
+  the full second, so a call read after the relay can still make it a
+  tie (security review, third round).
 - **Lost, left to the terminal:** streaming, prompt options ("Yes, and
   don't ask again …", C05), questions (C05), plans (C07), the current
   mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
@@ -4295,11 +4308,14 @@ launched before S07.
 
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
-bridge reconnect, limited mode from the transcript, its prompt matching,
+bridge reconnect, limited mode from the transcript (found later, `/clear`
+before the first prompt, never another project's), its prompt matching,
 dropped hooks and a forged switch ignored, relays pointed back, a
 takeover that fails to write a file), `bridge.test.ts` (reconnect,
 spent tokens, nothing acted on before `welcome`, the welcome's proof),
-`permissions.test.ts` (whole and cut-short previews),
+`permissions.test.ts` (whole and cut-short previews, a cut-short one
+waiting without prompt hooks), `process.test.ts` (the tests' own
+sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
 after it), `tests/core/sidecar_client_test.gd` (the suites' own
@@ -4481,9 +4497,10 @@ Godot's user data folder (per user: Linux's temp folder is shared, and
 another account could plant run folders there) before the autoload
 starts it; the sidecar's own process tests give each sidecar a fresh
 temporary one; the
-sidecar uses that folder when it's absolute (`launch/app-data.ts`). A
-test never touches the user's own sessions folder (checked by the
-sidecar client test).
+sidecar uses that folder when it's absolute (`launch/app-data.ts`), and
+logs "sessions folder: the tests' own" when it does. A test never
+touches the user's own sessions folder (checked by the sidecar client
+test and `process.test.ts`).
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
