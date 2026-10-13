@@ -62,6 +62,8 @@ test('launchArgs: a flag per choice made, none for Default', () => {
   assert.deepEqual(launchArgs({ model: 'haiku' }), ['--model', 'haiku'])
   assert.deepEqual(launchArgs({ model: 'opus', effort: 'max', mode: 'plan' }),
     ['--model', 'opus', '--effort', 'max', '--permission-mode', 'plan'])
+  // Not offered: dropped even if a caller skipped the sidecar's check.
+  assert.deepEqual(launchArgs({ model: '--settings', effort: 'ultracode', mode: 'bypassPermissions' }), [])
 })
 
 test('modelChoice: Claude Code\'s ids in the user\'s words; others as they are; not-models null', () => {
@@ -72,13 +74,13 @@ test('modelChoice: Claude Code\'s ids in the user\'s words; others as they are; 
   assert.deepEqual(modelChoice('claude-fable-5-1'), { id: 'claude-fable-5-1', label: 'Fable 5.1' })
   assert.deepEqual(modelChoice('claude-mystery-9'), { id: 'claude-mystery-9', label: 'claude-mystery-9' })
   assert.deepEqual(modelChoice('gpt-x'), { id: 'gpt-x', label: 'gpt-x' })
-  for (const not of ['', '<synthetic>', 'x'.repeat(201), null, 5, { id: 'claude-opus-5' }]) assert.equal(modelChoice(not), null)
+  for (const not of ['', '<synthetic>', 'x'.repeat(201), null, 5, { id: 'claude-opus-5' }, 'gpt\nx', 'gpt\u202ex']) assert.equal(modelChoice(not), null)
 })
 
 test('effortChoice: the launch list\'s words; an unknown level as it is; not-levels null', () => {
   assert.deepEqual(effortChoice('xhigh'), { id: 'xhigh', label: 'Extra high' })
   assert.deepEqual(effortChoice('ultracode'), { id: 'ultracode', label: 'ultracode' })
-  for (const not of ['', 'x'.repeat(51), undefined, 3]) assert.equal(effortChoice(not), null)
+  for (const not of ['', 'x'.repeat(51), undefined, 3, 'hi\u0007gh']) assert.equal(effortChoice(not), null)
 })
 
 test('PostModelSwitch is one of the reported hooks', () => {
@@ -185,8 +187,9 @@ async function session() {
 test('the model from SessionStart, PostModelSwitch and the status line; the effort from the orchestrator\'s hooks', { timeout: 20_000 }, async () => {
   const x = await session()
   try {
-    // Before it's up: kept, and in the snapshot it comes up with.
-    assert.deepEqual(await x.send('SessionStart', { source: 'startup', model: 'claude-haiku-5-5' }), { status: 200, body: '' })
+    // Before it's up: kept, and in the snapshot it comes up with. SessionStart
+    // is relayed only for clear and resume, so a resume's.
+    assert.deepEqual(await x.send('SessionStart', { source: 'resume', model: 'claude-haiku-5-5' }), { status: 200, body: '' })
     await x.send('Stop', { effort: { level: 'low' } })
     const created = (await x.c.next('session.created')).session as Record<string, unknown>
     assert.deepEqual(created.capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {} })
