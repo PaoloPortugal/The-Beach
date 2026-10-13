@@ -518,8 +518,11 @@ export class HookTranslator {
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
-    const pick = [...this.openTools.entries()]
-      .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input)).at(-1)
+    const matches = [...this.openTools.entries()]
+      .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input))
+    // Calls with different inputs that all fit a cut-short preview: which one it is can't be told.
+    const one = new Set(matches.map(([, c]) => JSON.stringify(c.input))).size <= 1
+    const pick = one ? matches.at(-1) : undefined
     // Its options come with its PermissionRequest hook; wait for that too.
     if ((!pick || pick[1].options === null) && !force) return null
     const out: SessionEvent[] = []
@@ -887,12 +890,13 @@ function parseObject(s: string): Record<string, unknown> | null {
  * (both sides alike) and allow a cut-off end.
  */
 export function previewMatches(preview: string, input: Record<string, unknown>): boolean {
-  const squash = (s: string) => s.replace(/\s+/g, '')
-  const full = squash(JSON.stringify(input))
+  // A whole preview: the same input exactly (spacing inside strings counts).
   const parsed = parseObject(preview)
-  if (parsed) return squash(JSON.stringify(parsed)) === full
+  if (parsed) return JSON.stringify(parsed) === JSON.stringify(input)
+  // Cut short: a prefix, compared without whitespace (its spacing differs).
+  const squash = (s: string) => s.replace(/\s+/g, '')
   const p = squash(preview).replace(/(\.\.\.|…)$/, '')
-  return p.length >= 8 && full.startsWith(p)
+  return p.length >= 8 && squash(JSON.stringify(input)).startsWith(p)
 }
 
 /** A message from the world arrives wrapped in our channel's tag; show only the text. */

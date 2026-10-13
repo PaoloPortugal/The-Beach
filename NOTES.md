@@ -4455,8 +4455,11 @@ one that needs to would first have to teach the watch to expect it.
 Every suite starts the real sidecar through the `Sidecar` autoload
 (unless `--sidecar-dev-fake`), and a sidecar takes back the sessions in
 its run folders at start. So the error watch, which every suite
-installs, also sets `SIDECAR_TEST_SESSIONS_DIR` to a folder in the temp
-folder (`sidecar-test-sessions`) before the autoload starts it; the
+installs, also sets `SIDECAR_TEST_SESSIONS_DIR` to `test-sessions` in
+Godot's user data folder (per user: Linux's temp folder is shared, and
+another account could plant run folders there) before the autoload
+starts it; the sidecar's own process tests give each sidecar a fresh
+temporary one; the
 sidecar uses that folder when it's absolute (`launch/app-data.ts`). A
 test never touches the user's own sessions folder (checked by the
 sidecar client test).

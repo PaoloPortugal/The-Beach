@@ -459,6 +459,12 @@ export class ClaudeSession implements ProviderSession {
     // starts; read it now in case the next poll hasn't come yet.
     this.transcript.poll()
     if (this.movedTo !== null || typeof id !== 'string' || !SESSION_ID.test(id)) return false
+    // Limited (S07): the program on its old port has its token too, so a
+    // switch is followed only to the project's own folder, known by then.
+    if (this.limited && this.transcriptDir === null) {
+      this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, its folder unknown)`)
+      return false
+    }
     // A transcript in another folder isn't this project's (never seen).
     if (typeof file !== 'string' || !path.isAbsolute(file) ||
         (this.transcriptDir !== null && path.dirname(file) !== this.transcriptDir)) {

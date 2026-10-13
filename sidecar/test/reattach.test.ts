@@ -476,7 +476,7 @@ async function bridgeBack(runDir: string) {
   await new Promise((res) => sock.once('connect', res))
   sock.write(JSON.stringify({ type: 'hello', token: where.token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
   await until(() => lines.length > 0)
-  return { sock, lines }
+  return { sock, lines, proof: where.proof }
 }
 
 test('restore: the bridge reconnects; chat goes down it; from then on its closing ends the session, not the launcher', { timeout: 15_000 }, async () => {
@@ -490,7 +490,7 @@ test('restore: the bridge reconnects; chat goes down it; from then on its closin
   try {
     const id = r.snapshots[0]!.session
     const b = await bridgeBack(f.runDir)
-    assert.deepEqual(b.lines, [{ type: 'welcome' }])
+    assert.deepEqual(b.lines, [{ type: 'welcome', proof: b.proof }])
     // Nothing new is announced: it was there already.
     assert.deepEqual((await r.c.quiet()).filter((m) => m.type === 'session.created' || m.type === 'session.snapshot'), [])
     assert.equal((await r.c.command({ type: 'message.send', session: id, text: 'back again' })).type, 'ok')

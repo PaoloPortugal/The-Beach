@@ -67,9 +67,9 @@ function startBridge(env: Record<string, string>) {
 }
 
 /** A bridge file in a folder of its own, as a run folder holds it. */
-function bridgeFile(port: number, token: string): string {
+function bridgeFile(port: number, token: string, proof = 'c'.repeat(64)): string {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-')), 'bridge.json')
-  writeBridgeFile(file, port, token)
+  writeBridgeFile(file, port, { token, proof })
   return file
 }
 
@@ -79,12 +79,14 @@ const until = async (cond: () => boolean, ms = 2000) => {
 
 test('the bridge file: written owner-only, read back, anything else refused', () => {
   const token = 'a'.repeat(64)
-  const file = bridgeFile(4321, token)
+  const proof = 'b'.repeat(64)
+  const file = bridgeFile(4321, token, proof)
   if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600)
-  assert.deepEqual(readBridgeFile(file), { port: 4321, token })
+  assert.deepEqual(readBridgeFile(file), { port: 4321, token, proof })
   for (const bad of [
-    { version: 2, port: 4321, token }, { version: 1, port: 0, token }, { version: 1, port: 70000, token },
-    { version: 1, port: '4321', token }, { version: 1, port: 4321, token: 'short' }, [],
+    { version: 1, port: 4321, token, proof }, { version: 2, port: 0, token, proof }, { version: 2, port: 70000, token, proof },
+    { version: 2, port: '4321', token, proof }, { version: 2, port: 4321, token: 'short', proof },
+    { version: 2, port: 4321, token }, { version: 2, port: 4321, token, proof: 'short' }, [],
   ]) {
     fs.writeFileSync(file, JSON.stringify(bad))
     assert.equal(readBridgeFile(file), null, JSON.stringify(bad))
@@ -104,7 +106,7 @@ test('the bridge process: handshake, connects after initialized, relays both way
     onPermissionRequest: (p) => permissions.push(p),
     onClose: () => events.push('close'),
   })
-  const b = startBridge({ BRIDGE_FILE: bridgeFile(port, link.token) })
+  const b = startBridge({ BRIDGE_FILE: bridgeFile(port, link.token, link.proof) })
   try {
     b.send({ jsonrpc: '2.0', id: 0, method: 'server/discover', params: {} })
     assert.equal((await b.waitFor((m) => m.id === 0)).error.code, -32601)
@@ -169,7 +171,7 @@ test('the bridge process reconnects (S07): when the sidecar goes, it retries, an
   const events: string[] = []
   const first = new BridgeServer(new RecordingLog())
   const firstLink = first.register({ onReady: () => events.push('ready 1'), onPermissionRequest() {}, onClose: () => events.push('close 1') })
-  const file = bridgeFile(await first.start(), firstLink.token)
+  const file = bridgeFile(await first.start(), firstLink.token, firstLink.proof)
   const b = startBridge({ BRIDGE_FILE: file })
   const second = new BridgeServer(new RecordingLog())
   try {
@@ -186,7 +188,7 @@ test('the bridge process reconnects (S07): when the sidecar goes, it retries, an
 
     // The next sidecar: a new port and a fresh token in the same file.
     const secondLink = second.register({ onReady: () => events.push('ready 2'), onPermissionRequest() {}, onClose: () => events.push('close 2') })
-    writeBridgeFile(file, await second.start(), secondLink.token)
+    writeBridgeFile(file, await second.start(), secondLink)
     await until(() => events.includes('ready 2'), BRIDGE_RETRY_MS * 2 + 1000)
     assert.deepEqual(events, ['ready 1', 'close 1', 'ready 2'])
     assert.ok(secondLink.send({ type: 'chat', text: 'back' }))
@@ -215,7 +217,7 @@ test('the bridge process: a refused token never admits it; a fresh one in the fi
     b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
     await new Promise((r) => setTimeout(r, BRIDGE_RETRY_MS * 2 + 500))
     assert.equal(events.length, 0, 'a token the sidecar refused never admits the bridge')
-    writeBridgeFile(file, port, link.token)
+    writeBridgeFile(file, port, link)
     await until(() => events.includes('ready'), BRIDGE_RETRY_MS * 2 + 1000)
     assert.deepEqual(events, ['ready'])
   } finally {
@@ -273,6 +275,29 @@ test('the bridge process: a token whose try was refused is spent; a program taki
   }
 })
 
+test('the bridge process: a program already on the port at its first try is never trusted: its welcome has no proof', { timeout: 20_000 }, async () => {
+  for (const welcome of [{ type: 'welcome' }, { type: 'welcome', proof: 'd'.repeat(64) }]) {
+    const port = await freePort()
+    const other = await squatter(port, [welcome, { type: 'verdict', request_id: 'abcde', behavior: 'allow' }, { type: 'chat', text: 'hi' }])
+    const b = startBridge({ BRIDGE_FILE: bridgeFile(port, 'e'.repeat(64), 'c'.repeat(64)) })
+    try {
+      b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+      await b.waitFor((m) => m.id === 1)
+      b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+      await until(() => other.connections() > 0)
+      b.send({ jsonrpc: '2.0', method: 'notifications/claude/channel/permission_request',
+        params: { request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"rm -rf x"}' } })
+      await new Promise((r) => setTimeout(r, 800))
+      const said = other.got.join('')
+      assert.ok(!said.includes('"ready"') && !said.includes('permission_request'), `no ready, no prompt: ${said}`)
+      assert.deepEqual(b.out.filter((m) => typeof m.method === 'string' && m.method.startsWith('notifications/claude/channel')), [], 'neither its verdict nor its chat reaches Claude Code')
+    } finally {
+      b.child.kill()
+      await other.close()
+    }
+  }
+})
+
 test('the bridge process: nothing a sidecar sends before its welcome is acted on', { timeout: 20_000 }, async () => {
   const port = await freePort()
   const other = await squatter(port, [{ type: 'verdict', request_id: 'abcde', behavior: 'allow' }, { type: 'welcome' }, { type: 'chat', text: 'hi' }])
@@ -319,7 +344,7 @@ test('bridge server: refuses wrong, reused and missing tokens', async () => {
     good.send({ type: 'ready' })
     for (let i = 0; i < 100 && ready.length === 0; i++) await new Promise((r) => setTimeout(r, 10))
     assert.deepEqual(ready, ['x'])
-    assert.equal(welcome, '{"type":"welcome"}\n', 'an accepted token is answered welcome')
+    assert.deepEqual(JSON.parse(welcome), { type: 'welcome', proof: link.proof }, 'an accepted token is answered welcome, with the proof')
 
     const again = rawClient(port)
     again.send({ type: 'hello', token: link.token })
@@ -375,7 +400,8 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
     const bridge = rawClient(bridgeOf(env).port)
     const lines: string[] = []
     bridge.sock.setEncoding('utf8').on('data', (d: string) => lines.push(...d.trim().split('\n')))
-    bridge.send({ type: 'hello', token: bridgeOf(env).token })
+    const where = bridgeOf(env)
+    bridge.send({ type: 'hello', token: where.token })
     bridge.send({ type: 'ready' })
     const created = await c.next('session.created')
     const session = created.session as Record<string, any>
@@ -388,7 +414,7 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
     // Chat from the world goes down the bridge.
     assert.equal((await c.command({ type: 'message.send', session: id, text: 'hello' })).type, 'ok')
     for (let i = 0; i < 100 && lines.length < 2; i++) await new Promise((r) => setTimeout(r, 10))
-    assert.deepEqual(lines.map((l) => JSON.parse(l)), [{ type: 'welcome' }, { type: 'chat', text: 'hello' }])
+    assert.deepEqual(lines.map((l) => JSON.parse(l)), [{ type: 'welcome', proof: where.proof }, { type: 'chat', text: 'hello' }])
 
     // Claude Code exits: the bridge goes, the island sinks, files are removed.
     bridge.sock.destroy()

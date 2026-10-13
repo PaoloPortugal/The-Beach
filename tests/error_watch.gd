@@ -29,7 +29,9 @@ var _count := 0
 func _init(tree: SceneTree) -> void:
 	_tree = tree
 	OS.add_logger(self)
-	var sessions := OS.get_temp_dir().path_join("sidecar-test-sessions")
+	# Per user (the temp folder is shared on Linux, where another account
+	# could plant run folders in it first).
+	var sessions := OS.get_user_data_dir().path_join("test-sessions")
 	DirAccess.make_dir_recursive_absolute(sessions)
 	OS.set_environment(TEST_SESSIONS_ENV, sessions)
 

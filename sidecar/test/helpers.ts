@@ -25,7 +25,7 @@ export function tempSessionsDir(): string {
 }
 
 /** Where a launched session's bridge would connect: its bridge file, named in its MCP config's env. */
-export function bridgeOf(env: { BRIDGE_FILE?: string }): { port: number; token: string } {
+export function bridgeOf(env: { BRIDGE_FILE?: string }): { port: number; token: string; proof: string } {
   const where = readBridgeFile(env.BRIDGE_FILE ?? '')
   assert.ok(where, 'the session has a usable bridge file')
   return where

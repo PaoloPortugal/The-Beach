@@ -20,13 +20,15 @@ export interface BridgeHandlers {
 
 export interface BridgeLink {
   readonly token: string
+  /** Sent back in welcome: proves to the bridge that this is the sidecar that wrote its file. */
+  readonly proof: string
   /** Sends to the bridge. False if it isn't connected. */
   send(msg: FromSidecar): boolean
   readonly connected: boolean
   unregister(): void
 }
 
-interface Slot { handlers: BridgeHandlers; socket: net.Socket | null; used: boolean }
+interface Slot { handlers: BridgeHandlers; socket: net.Socket | null; used: boolean; proof: string }
 
 export class BridgeServer {
   private readonly server = net.createServer((s) => this.accept(s))
@@ -51,10 +53,12 @@ export class BridgeServer {
   /** A new session's token. Each token admits one connection, once. */
   register(handlers: BridgeHandlers): BridgeLink {
     const token = crypto.randomBytes(32).toString('hex')
-    const slot: Slot = { handlers, socket: null, used: false }
+    const proof = crypto.randomBytes(32).toString('hex')
+    const slot: Slot = { handlers, socket: null, used: false, proof }
     this.slots.set(token, slot)
     return {
       token,
+      proof,
       get connected() { return slot.socket !== null && !slot.socket.destroyed },
       send: (msg) => {
         if (!slot.socket || slot.socket.destroyed) return false
@@ -101,8 +105,8 @@ export class BridgeServer {
           found.used = true
           found.socket = sock
           slot = found
-          // The bridge then knows its token is spent, and says ready.
-          sock.write(JSON.stringify({ type: 'welcome' } satisfies FromSidecar) + '\n')
+          // The bridge checks the proof, knows its token is spent, and says ready.
+          sock.write(JSON.stringify({ type: 'welcome', proof: found.proof } satisfies FromSidecar) + '\n')
           continue
         }
         this.handle(slot, m)

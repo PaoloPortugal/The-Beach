@@ -45,6 +45,18 @@ test('the input preview matches despite spacing and cut-offs, and only the same 
   assert.ok(previewMatches('{ "command": "echo spike-test-2 > perm2.txt", "descri…', input))
   assert.ok(!previewMatches('{ "command": "echo other", "description": "Write spike-test-2 to perm2.txt" }', input))
   assert.ok(!previewMatches('{', input), 'too short to tell')
+  assert.ok(!previewMatches('{ "command": "rm -r a b" }', { command: 'rm -r ab' }), 'a whole preview: spacing inside strings counts')
+})
+
+test('a cut-short preview that fits two calls with different inputs is tied to neither', () => {
+  const t = new HookTranslator(CWD)
+  asking(t, 'toolu_a', 'npm run build -- --target=web')
+  asking(t, 'toolu_b', 'npm run build -- --target=native')
+  const cut = { request_id: 'fffff', tool_name: 'Bash', description: 'Run the build', input_preview: '{ "command": "npm run build -- --tar…' }
+  assert.equal(t.permissionRequested(cut), null, 'waits')
+  const ev = t.permissionRequested(cut, true)!
+  assert.deepEqual((ev[0] as any).permission, { permission: 'fffff', agent: MAIN, tool: 'Bash', summary: 'Run the build' })
+  assert.ok(!types(t.permissionAnswered('fffff', 'deny')).some((x) => x.startsWith('finished')), 'neither call is closed by it')
 })
 
 test('a prompt is tied to its tool call: agent, summary, input; waiting, then allowed from the world', () => {
