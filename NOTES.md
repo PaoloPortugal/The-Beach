@@ -4658,9 +4658,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next (user's order): S07, its last open question
-settled (2026-10-13: the hook port is kept; S07 → A program on the kept
-port). Subagents stay read-only in the world (Open questions → 4).
+**Current focus:** S07 is being built on `s07-reattach` (its open
+questions settled 2026-10-13: the hook port is kept, the game waits for
+reattached sessions, one general reduced-mode notice; S07 → Decided
+before building). After it (user's order, 2026-10-13): read-only
+islands for sessions started outside the world (Deferred ideas →
+Read-only islands for sessions started outside the game). Subagents
+stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-13), approved by the user: C12, model,
 effort and mode at launch** (dev log 2026-10-13-c12-launch-pickers):
 Model, Effort and Mode selectors on the create panel and the Resume
