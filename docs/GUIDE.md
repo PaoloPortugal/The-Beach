@@ -211,7 +211,8 @@ replies, tool calls and subagents show up a moment late, replies whole
 ends. Left to the
 terminal: the prompts' other options, Claude's questions, plans, the
 permission mode, stopping it, and sign-in messages. Subagents already
-running when the game restarted don't show. To get everything back,
+running when the game restarted don't show, and with Claude Code's
+transcripts turned off, nothing shows a moment late. To get everything back,
 end the session with `/exit` and resume it from the world. The program
 that took the connection point gets what the session reports (your
 prompts, its tool calls) and could answer its permission prompts, so on
