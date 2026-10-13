@@ -918,16 +918,54 @@ test('restore, limited, nothing prompted yet: /clear is followed once its transc
     fs.mkdirSync(path.join(projects, 'other'))
     fs.writeFileSync(path.join(projects, 'other', `${f.record.native_id}.jsonl`),
       jsonl({ type: 'user', uuid: 'x1', cwd: path.join(os.tmpdir(), 'elsewhere'), entrypoint: 'cli', message: { content: 'not this one' } }))
-    // A /clear before the first prompt: no transcript of it yet.
-    const clear = { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(9), transcript_path: path.join(projects, 'proj', `${ID(9)}.jsonl`), cwd: f.record.project.path }
-    assert.equal((await post(port, f.record.hook_token, clear)).status, 200)
+    const start = (source: string, id: string, dir = path.join(projects, 'proj')) =>
+      post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: path.join(dir, `${id}.jsonl`), cwd: f.record.project.path })
+    // Forged: a /resume to another project's conversation; a /clear to one already written (even untitled).
+    transcript(projects, ID(5), path.join(os.tmpdir(), 'elsewhere'), { type: 'user', uuid: 'x5', message: { content: 'theirs' } })
+    fs.writeFileSync(path.join(projects, 'other', `${ID(6)}.jsonl`), '')
+    assert.equal((await start('resume', ID(5))).status, 200)
+    assert.equal((await start('clear', ID(6), path.join(projects, 'other'))).status, 200)
+    assert.equal(r.log.lines.filter((l) => l.includes('ignored a switch of conversation (limited')).length, 2)
+    // The first prompt writes its transcript, and a /clear comes before the next look finds it.
+    transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'before the clear' } })
+    assert.equal((await start('clear', ID(9))).status, 200)
     const quiet = await r.c.quiet(1500)
-    assert.deepEqual(quiet.filter((m) => m.type.startsWith('message.') || m.type === 'session.updated'), [], 'nothing taken yet')
-    // Its first prompt writes it: the switch, and the prompt.
-    transcript(projects, ID(9), f.record.project.path, { type: 'user', uuid: 'u9', message: { content: 'after the clear' } })
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
-    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
+    assert.deepEqual(quiet.filter((m) => m.type === 'message.completed').map((m) => m.text), ['before the clear'], 'its own, never another project\'s')
+    assert.ok(!quiet.some((m) => m.type === 'session.updated' && m.native_id !== undefined && m.native_id !== ID(9)))
+    // The cleared conversation's first prompt: the switch (not lost), and the prompt.
+    fs.appendFileSync(path.join(projects, 'proj', `${ID(9)}.jsonl`), jsonl({ type: 'user', uuid: 'u9', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'after the clear' } }))
+    if (!quiet.some((m) => m.type === 'session.updated' && m.native_id === ID(9))) {
+      await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
+    }
+    assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
     assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, limited, nothing prompted yet: a /resume to this project\'s conversation is followed from its end, its past the history', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const earlier = transcript(projects, ID(4), f.record.project.path,
+    { type: 'user', uuid: 'e1', message: { content: 'an earlier talk' } },
+    { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    assert.equal((await post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source: 'resume', session_id: ID(4), transcript_path: earlier, cwd: f.record.project.path })).status, 200)
+    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(4))
+    const seen = await r.c.quiet(1200)
+    assert.deepEqual(seen.filter((m) => m.type === 'message.completed'), [], 'its past isn\'t replayed as news')
+    const history = (await r.c.command({ type: 'session.get_history', session: r.snapshots[0]!.session })).result as { messages: any[] }
+    assert.deepEqual(history.messages.map((m) => m.text), ['an earlier talk', 'earlier reply'])
+    fs.appendFileSync(earlier, jsonl({ type: 'user', uuid: 'e2', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'and now' } }))
+    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'e2', text: 'and now' })
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })

@@ -59,18 +59,17 @@ test('a cut-short preview that fits two calls with different inputs is tied to n
   assert.ok(!types(t.permissionAnswered('fffff', 'deny')).some((x) => x.startsWith('finished')), 'neither call is closed by it')
 })
 
-test('without prompt hooks (limited), a cut-short preview waits the whole time, so a call read late still ties it to neither', () => {
+test('without prompt hooks (limited), a cut-short preview is tied to no call, shown at once from itself; a whole one is tied', () => {
   const t = new HookTranslator(CWD)
   t.withoutPromptHooks()
-  // An older call, auto-allowed and still running, that fits the preview.
+  // An older call, auto-allowed and still running, that fits the preview; the prompt's own never read.
   t.translate(bash('toolu_old', 'npm run build -- --target=web'))
   const cut = { request_id: 'ggggg', tool_name: 'Bash', description: 'Run the build', input_preview: '{ "command": "npm run build -- --tar…' }
-  assert.equal(t.permissionRequested(cut), null, 'not tied to the only call read so far')
-  // Its own call, read from the transcript after the relay.
-  t.translate(bash('toolu_new', 'npm run build -- --target=native'))
-  const ev = t.permissionRequested(cut, true)!
+  const ev = t.permissionRequested(cut)!
   assert.deepEqual((ev[0] as any).permission, { permission: 'ggggg', agent: MAIN, tool: 'Bash', summary: 'Run the build' })
-  // A whole preview is still tied at once.
+  assert.ok(!types(t.permissionAnswered('ggggg', 'deny')).some((x) => x.startsWith('finished')), 'the older call is not closed by it')
+  // A whole preview is tied to its call at once.
+  t.translate(bash('toolu_new', 'npm run build -- --target=native'))
   const whole = { request_id: 'hhhhh', tool_name: 'Bash', description: 'd', input_preview: '{ "command": "npm run build -- --target=native", "description": "d" }' }
   assert.equal((t.permissionRequested(whole)![0] as any).permission.summary, 'Run: npm run build -- --target=native')
 })

@@ -278,15 +278,27 @@ export async function listStored(opts: { dir?: string; project?: string; exclude
 }
 
 /** Finds one stored session by id, wherever its project is. */
-export function findStored(nativeId: string, dir = projectsDir()): StoredInfo | null {
+export function findStored(nativeId: string, dir = projectsDir(), accept?: (info: StoredInfo) => boolean): StoredInfo | null {
   if (!UUID.test(nativeId)) return null
   let slugs: string[]
   try { slugs = fs.readdirSync(dir) } catch { return null }
   for (const slug of slugs) {
     const file = path.join(dir, slug, `${nativeId}.jsonl`)
-    if (fs.existsSync(file)) return describe(file)
+    if (!fs.existsSync(file)) continue
+    // With `accept`, one it refuses doesn't hide another further on.
+    const info = describe(file)
+    if (!accept) return info
+    if (info && accept(info)) return info
   }
   return null
+}
+
+/** Whether a conversation's transcript is in any project's folder, whatever is in it. */
+export function transcriptExists(nativeId: string, dir = projectsDir()): boolean {
+  if (!UUID.test(nativeId)) return false
+  let slugs: string[]
+  try { slugs = fs.readdirSync(dir) } catch { return false }
+  return slugs.some((slug) => fs.existsSync(path.join(dir, slug, `${nativeId}.jsonl`)))
 }
 
 /**

@@ -25,7 +25,7 @@ import { HookServer, type HookLink } from './hook-server.ts'
 import {
   HOLDER_FILE, readHookPort, readRunRecord, RUN_DIR_NAME, writeHolder, writeHookPort, writeRunRecord, type RunRecord,
 } from './run-folder.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, type StoredInfo, type Titles } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, transcriptExists, type StoredInfo, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
 import type { UsageCounter } from './usage.ts'
@@ -331,11 +331,12 @@ export class ClaudeProvider implements Provider {
     // Claude Code's own id when it answered: /clear or /resume while the game was closed is followed.
     const nativeId = entry?.sessionId ?? f.record.native_id
     if (this.live.has(nativeId)) return
-    const stored = this.findOwn(nativeId, f.record.project.path)
-    const read = stored ? readConversation(stored.file) : null
-    const launch: Launch = { runDir: f.runDir, nativeId }
     // The hooks go to the port it was launched with: ours only if we got it back.
     const limited = f.record.hook_port !== hooks.port
+    // Limited, its folder is taken from this transcript: only this project's.
+    const stored = limited ? this.findOwn(nativeId, f.record.project.path) : findStored(nativeId, this.projects())
+    const read = stored ? readConversation(stored.file) : null
+    const launch: Launch = { runDir: f.runDir, nativeId }
     let session: ClaudeSession | null = null
     const hookLink: HookLink | null = hooks.adopt(f.record.hook_token, {
       onHook: (p, gone) => session?.onHook(p, gone), onStatus: (p) => session?.onStatus(p),
@@ -386,6 +387,7 @@ export class ClaudeProvider implements Provider {
       transcript: stored?.file ?? null,
       limited,
       findTranscript: (id) => this.findOwn(id, f.record.project.path)?.file ?? null,
+      transcriptExists: (id) => transcriptExists(id, this.projects()),
     })
     this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
   }
@@ -449,8 +451,11 @@ export class ClaudeProvider implements Provider {
 
   /** A stored conversation's transcript, only if it's this project's (its cwd). */
   private findOwn(nativeId: string, project: string): StoredInfo | null {
-    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
-    return stored && samePath(stored.project.path, project) ? stored : null
+    return findStored(nativeId, this.projects(), (s) => sameFolder(s.project.path, project))
+  }
+
+  private projects(): string {
+    return this.opts.projectsDir ?? projectsDir()
   }
 
   private sessionsRoot(): string {
@@ -556,4 +561,10 @@ export class ClaudeProvider implements Provider {
       throw e
     }
   }
+}
+
+/** The same folder, as written or once links and short names are resolved. */
+function sameFolder(a: string, b: string): boolean {
+  if (samePath(a, b)) return true
+  try { return samePath(fs.realpathSync.native(a), fs.realpathSync.native(b)) } catch { return false }
 }
