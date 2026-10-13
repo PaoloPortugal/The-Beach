@@ -12,6 +12,14 @@ extends Logger
 ##   if not _failed and _errors.ok():
 ##       print("PASS ...")
 ##       quit(0)
+##
+## Every suite installs it, so it also keeps the suite's sidecar (the
+## Sidecar autoload starts one) off the user's own sessions folder: a
+## test's sidecar must never take the user's running sessions back (S07).
+## It runs before the autoload starts the sidecar, which inherits this.
+
+## Read by the sidecar (sidecar/src/launch/app-data.ts).
+const TEST_SESSIONS_ENV := "SIDECAR_TEST_SESSIONS_DIR"
 
 var _tree: SceneTree
 var _mutex := Mutex.new()
@@ -21,6 +29,9 @@ var _count := 0
 func _init(tree: SceneTree) -> void:
 	_tree = tree
 	OS.add_logger(self)
+	var sessions := OS.get_temp_dir().path_join("sidecar-test-sessions")
+	DirAccess.make_dir_recursive_absolute(sessions)
+	OS.set_environment(TEST_SESSIONS_ENV, sessions)
 
 
 ## False if an error was logged.

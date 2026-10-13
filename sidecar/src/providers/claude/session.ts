@@ -358,6 +358,9 @@ export class ClaudeSession implements ProviderSession {
     // Comes through the relay (a command hook), not as one of the HTTP
     // hooks the checks below are about.
     if (p.hook_event_name === 'SessionStart') return this.sessionStarted(p)
+    // Limited (S07): its HTTP hooks go to the program on its old port, never
+    // here, so one that comes here with its token is that program's: dropped.
+    if (this.limited) return
     // Can come at startup (a resume restoring the model), before the
     // session is up: it says nothing about that.
     if (p.hook_event_name === 'PostModelSwitch') return this.noteModel(modelChoice(p.to_model))

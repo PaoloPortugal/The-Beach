@@ -27,9 +27,18 @@ export function appDataDir(
   return path.posix.join(state, APP_FOLDER)
 }
 
+/**
+ * Set by the Godot suites (tests/error_watch.gd) so a test's sidecar keeps
+ * its run folders apart and never takes the user's sessions back.
+ */
+export const TEST_SESSIONS_DIR = 'SIDECAR_TEST_SESSIONS_DIR'
+
 /** The folder holding one run folder per session the sidecar launched. */
 export function sessionsDir(
   platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = os.homedir(),
 ): string {
-  return (platform === 'win32' ? path.win32 : path.posix).join(appDataDir(platform, env, home), SESSIONS_FOLDER)
+  const p = platform === 'win32' ? path.win32 : path.posix
+  const test = env[TEST_SESSIONS_DIR]
+  if (test && p.isAbsolute(test)) return test
+  return p.join(appDataDir(platform, env, home), SESSIONS_FOLDER)
 }

@@ -76,7 +76,8 @@ export interface ClaudeOptions {
   runningSessions?: (claude: string, env: Record<string, string>) => Promise<Running>
   /**
    * The folder of run folders (S07); the user's app data folder otherwise.
-   * Every test passes a temporary one, so none touches the real folder.
+   * Every sidecar test passes a temporary one, and the Godot suites set
+   * TEST_SESSIONS_DIR (launch/app-data.ts), so none touches the real folder.
    */
   sessionsDir?: string
 }
@@ -359,12 +360,12 @@ export class ClaudeProvider implements Provider {
     const record = { native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token, started_at: f.record.started_at }
     this.followIds(s, record)
     if (nativeId !== f.record.native_id) this.rewriteRecord(f.runDir, record)
-    // The relays read their files on every run: they follow us to the new port, with the old token.
-    if (limited) {
-      for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
-        const at = path.join(f.runDir, file)
-        if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
-      }
+    // The relays read their files on every run: they follow us, with the old
+    // token. Always, so none is left on the port an earlier limited
+    // sidecar had (where any program could pick up what they post).
+    for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
+      const at = path.join(f.runDir, file)
+      if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
     }
     // A fresh one-time token: the bridge, retrying, reads it and connects.
     writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, s.link.token)

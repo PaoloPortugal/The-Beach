@@ -114,9 +114,14 @@ test('parallel calls of one tool: the prompt goes to the call whose input it sho
   t.permissionRequested(relayed('aaaaa', 'npm run build'))
   const ev = t.permissionAnswered('aaaaa', 'deny')
   assert.ok(types(ev).includes('finished toolu_long denied'), JSON.stringify(types(ev)))
-  // With no preview match, the newest open call of that tool without a prompt.
-  t.permissionRequested({ request_id: 'bbbbb', tool_name: 'Bash', description: 'x', input_preview: 'unreadable' })
-  assert.ok(types(t.permissionAnswered('bbbbb', 'deny')).includes('finished toolu_other denied'))
+  // With no preview match it waits (its own call may not be known yet), and is
+  // never tied to another call of that tool: forced, it is shown from the
+  // preview, so the card shows what a Yes approves.
+  const odd = { request_id: 'bbbbb', tool_name: 'Bash', description: 'x', input_preview: '{"command": "rm -rf build"}' }
+  assert.equal(t.permissionRequested(odd), null)
+  const ev2 = t.permissionRequested(odd, true)!
+  assert.deepEqual((ev2[0] as any).permission, { permission: 'bbbbb', agent: MAIN, tool: 'Bash', summary: 'Run: rm -rf build', input: { command: 'rm -rf build' } })
+  assert.ok(!types(t.permissionAnswered('bbbbb', 'deny')).some((x) => x.startsWith('finished')), 'no open call is closed by it')
 })
 
 test('a prompt with no tool call yet waits; forced, it is shown for the orchestrator from the preview', () => {

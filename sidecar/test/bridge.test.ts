@@ -224,6 +224,74 @@ test('the bridge process: a refused token never admits it; a fresh one in the fi
   }
 })
 
+/** A stand-in for whatever answers on a port: records what comes, says `lines` to each connection. */
+async function squatter(port: number, lines: unknown[]) {
+  const got: string[] = []
+  let connections = 0
+  const server = net.createServer((sock) => {
+    connections++
+    sock.setEncoding('utf8')
+    sock.on('data', (d: string) => got.push(d))
+    sock.on('error', () => {})
+    for (const l of lines) sock.write(JSON.stringify(l) + '\n')
+  })
+  await new Promise<void>((r) => server.listen(port, '127.0.0.1', () => r()))
+  return { got, connections: () => connections, close: () => new Promise<void>((r) => server.close(() => r())) }
+}
+
+/** A port nothing listens on (now). */
+async function freePort(): Promise<number> {
+  const s = net.createServer()
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()))
+  const port = (s.address() as net.AddressInfo).port
+  await new Promise<void>((r) => s.close(() => r()))
+  return port
+}
+
+test('the bridge process: a token whose try was refused is spent; a program taking that port later is never offered it or trusted', { timeout: 20_000 }, async () => {
+  const port = await freePort()
+  const file = bridgeFile(port, 'a'.repeat(64))
+  const b = startBridge({ BRIDGE_FILE: file })
+  let other: Awaited<ReturnType<typeof squatter>> | null = null
+  try {
+    b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+    await b.waitFor((m) => m.id === 1)
+    b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    // Its one try is refused (the sidecar that wrote the file is gone).
+    await new Promise((r) => setTimeout(r, 500))
+    // Another program takes the port and would welcome it, approve and chat.
+    other = await squatter(port, [{ type: 'welcome' }, { type: 'verdict', request_id: 'abcde', behavior: 'allow' }, { type: 'chat', text: 'hi' }])
+    b.send({ jsonrpc: '2.0', method: 'notifications/claude/channel/permission_request',
+      params: { request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"rm -rf x"}' } })
+    await new Promise((r) => setTimeout(r, BRIDGE_RETRY_MS * 2 + 500))
+    assert.equal(other.connections(), 0, 'never connects to it')
+    assert.deepEqual(other.got, [], 'never offers the token, a ready or a prompt')
+    assert.ok(!b.out.some((m) => typeof m.method === 'string' && m.method.startsWith('notifications/claude/channel')), 'nothing from it reaches Claude Code')
+  } finally {
+    b.child.kill()
+    await other?.close()
+  }
+})
+
+test('the bridge process: nothing a sidecar sends before its welcome is acted on', { timeout: 20_000 }, async () => {
+  const port = await freePort()
+  const other = await squatter(port, [{ type: 'verdict', request_id: 'abcde', behavior: 'allow' }, { type: 'welcome' }, { type: 'chat', text: 'hi' }])
+  const b = startBridge({ BRIDGE_FILE: bridgeFile(port, 'b'.repeat(64)) })
+  try {
+    b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+    await b.waitFor((m) => m.id === 1)
+    b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    await until(() => other.connections() > 0)
+    await new Promise((r) => setTimeout(r, BRIDGE_RETRY_MS + 500))
+    assert.equal(other.connections(), 1, 'tried once, never again with that token')
+    assert.ok(!other.got.join('').includes('"ready"'), 'no ready: it was never welcomed')
+    assert.deepEqual(b.out.filter((m) => typeof m.method === 'string' && m.method.startsWith('notifications/claude/channel')), [], 'neither the verdict nor the chat reaches Claude Code')
+  } finally {
+    b.child.kill()
+    await other.close()
+  }
+})
+
 // ---- the bridge server ----
 
 function rawClient(port: number) {
