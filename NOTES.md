@@ -4834,8 +4834,10 @@ exists.
   2026-10-07): built (C10, 2026-10-12).
 
 - **Read-only islands for sessions started outside the game**
-  (researched 2026-10-12; the user's decision: not now, kept as a
-  possibility). Islands for every `claude` started in a plain terminal,
+  (researched 2026-10-12; first decided not now, then brought forward
+  by the user the same day to be part of the public release: similar
+  projects, Agent World and Pixel Agents, already show every session on
+  the machine, and we shouldn't offer less). Islands for every `claude` started in a plain terminal,
   from `claude agents --json` (title, project, working / waiting /
   idle), with their chat read live from the transcript, but no chat,
   answers or stop from the world (a read-only mode through the chat
@@ -4955,6 +4957,21 @@ exists.
   (sign `claude` in with an API account). Before building, check its
   server against the Security rules: its auth is an optional password,
   and it can allow browser origins (CORS).
+  **GitHub Copilot CLI** added (user's, 2026-10-12): the most-requested
+  provider in Pixel Agents' issues. Like Codex and OpenCode it comes
+  after the commercial release; its place among them is undecided. Its
+  documented hooks (sessionStart with a startup / resume / new source,
+  preToolUse, permissionRequest, sessionEnd) look close to what S02
+  uses, but are unchecked: its docs say the hooks that can grant
+  permissions must use https, which needs reading against our setup.
+- **Changed-files board** (user's, 2026-10-12, seen in Agent World): a
+  session's changed files, each opening its diff, so you can see what
+  an agent did without leaving the world. Undesigned; to decide: its
+  provider scope (a `git diff` in the session's folder is
+  provider-independent, file edits from the transcript are per
+  provider and catch changes outside git), where it lives (the chat
+  panel, or something on the island), and whether it's per session or
+  per prompt.
 
 ### Watch items
 
