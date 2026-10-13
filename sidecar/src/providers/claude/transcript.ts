@@ -166,13 +166,16 @@ export class TranscriptFollower {
     this.everything = true
   }
 
-  /** The transcript a hook named. Starts (or moves) following it, from its end. */
-  follow(file: unknown): void {
+  /**
+   * The transcript a hook named. Starts (or moves) following it, from its
+   * end; or `fromStart`, when all of it is news (S07: found after the restart).
+   */
+  follow(file: unknown, fromStart = false): void {
     if (typeof file !== 'string' || !path.isAbsolute(file) || path.extname(file) !== '.jsonl') return
     if (file === this.main?.file) return
-    this.main = new LineReader(file, true)
+    this.main = new LineReader(file, !fromStart)
     this.subagents.clear()
-    if (this.everything) for (const id of this.subagentFiles()) this.subagents.set(id, { reader: null, polls: -1 })
+    if (this.everything && !fromStart) for (const id of this.subagentFiles()) this.subagents.set(id, { reader: null, polls: -1 })
     if (!this.timer) {
       this.timer = setInterval(() => this.poll(), POLL_MS)
       this.timer.unref()

@@ -65,6 +65,8 @@ export const HOOKS_UNAVAILABLE = {
 
 /** How often a starting session checks that its launcher still runs. */
 export const LAUNCHER_CHECK_MS = 1000
+/** How often a limited session with no transcript yet looks for it (S07). */
+export const TRANSCRIPT_SEARCH_MS = 1000
 
 /**
  * Until the bridge connects, Claude Code is showing its startup dialogs (the
@@ -168,6 +170,8 @@ export class ClaudeSession implements ProviderSession {
   private launchedAt = 0
   private startupTimer: NodeJS.Timeout | null = null
   private launcherCheck: NodeJS.Timeout | null = null
+  /** Limited, with no transcript yet: looking for it until Claude Code writes it. */
+  private transcriptSearch: NodeJS.Timeout | null = null
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -323,7 +327,11 @@ export class ClaudeSession implements ProviderSession {
    * seen from its transcript alone: a busy session stays working until its
    * transcript shows the turn's end.
    */
-  restored(o: { state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean }) {
+  restored(o: {
+    state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean
+    /** Where its transcript is now, if written: for a limited session that had none yet. */
+    findTranscript?: (nativeId: string) => string | null
+  }) {
     this.translator.assume(o.state, o.reason)
     if (o.limited) {
       this.hooksChecked = true
@@ -334,6 +342,18 @@ export class ClaudeSession implements ProviderSession {
     if (o.transcript) {
       this.transcriptDir = path.dirname(o.transcript)
       this.transcript.follow(o.transcript)
+    } else if (o.limited && o.findTranscript) {
+      // No prompt before the restart, so no transcript yet, and no hook to
+      // name it: looked for until written, then read from its start.
+      const find = o.findTranscript
+      this.transcriptSearch = setInterval(() => {
+        const file = find(this.nativeId)
+        if (file === null) return
+        this.stopTranscriptSearch()
+        this.transcriptDir = path.dirname(file)
+        this.transcript.follow(file, true)
+      }, TRANSCRIPT_SEARCH_MS)
+      this.transcriptSearch.unref()
     }
     this.announce(o.startedAt)
     this.sendUsage()
@@ -726,6 +746,11 @@ export class ClaudeSession implements ProviderSession {
     resolve?.(reply)
   }
 
+  private stopTranscriptSearch() {
+    if (this.transcriptSearch) clearInterval(this.transcriptSearch)
+    this.transcriptSearch = null
+  }
+
   private stopLauncherCheck() {
     if (this.launcherCheck) clearInterval(this.launcherCheck)
     this.launcherCheck = null
@@ -744,6 +769,7 @@ export class ClaudeSession implements ProviderSession {
     this.disposed = true
     if (this.startupTimer) clearTimeout(this.startupTimer)
     this.stopLauncherCheck()
+    this.stopTranscriptSearch()
     if (this.hooksCheck) clearTimeout(this.hooksCheck)
     for (const { timer } of this.waitingRelays.values()) clearTimeout(timer)
     this.waitingRelays.clear()

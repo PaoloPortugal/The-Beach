@@ -385,6 +385,7 @@ export class ClaudeProvider implements Provider {
       startedAt: f.record.started_at,
       transcript: stored?.file ?? null,
       limited,
+      findTranscript: (id) => findStored(id, this.opts.projectsDir ?? projectsDir())?.file ?? null,
     })
     this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
   }
