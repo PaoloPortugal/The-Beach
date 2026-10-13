@@ -4895,6 +4895,25 @@ exists.
   - *Open:* what catching unlocks, if anything (decorations, island
     looks); where the museum stands; how between-island courses are laid
     out next to the bridge tree; whether there's a reward loop at all.
+- **The hub** (user's, 2026-10-12): a designed place that replaces the
+  platform once it holds the downtime activities, a base you come back to
+  rather than only where you spawn.
+  - *Must keep the platform's roles:* where you spawn; the root of every
+    near cluster's bridge tree (`add_hub`, reach 8.5 m; far clusters stay
+    hubless); the fixed centre islands are placed around. A bigger hub
+    means a bigger reach, so bridges leave from further out and the
+    nearest islands sit further away: decide its size on purpose.
+  - *Could hold:* the museum (the collection's home); the parkour gate
+    where you pick and swap a course; maybe a physical place to start
+    sessions, such as a harbour that sends islands out to sea, with the
+    Tab ring kept as the quick way (an idea only).
+  - *Open:* an island (sand, its own look) or a built structure (pier,
+    dock town, lighthouse platform); how big (cozy, a few buildings in
+    view, versus a small town; more walking works against short,
+    droppable activities); whether it grows as the collection fills, so
+    the hub itself becomes the long-term reward. A first guess, not a
+    decision: a small, cozy hub island that grows a little with the
+    collection.
 - **Commands from the world** (probably a capability). Skills and custom
   commands could be sent through as requests, since Claude can run most
   skills itself (not guaranteed; skills marked user-only won't run that
