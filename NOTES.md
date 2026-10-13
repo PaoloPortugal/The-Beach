@@ -302,6 +302,24 @@ feature that touches them follows these rules, and each is tested:
   user's settings (per-session `--settings` instead). We never save our
   own copy of a session's conversation to disk, so a user who turned
   Claude Code's transcripts off keeps nothing on disk because of us.
+- **Known gap: hooks that outlive the sidecar** (documented 2026-10-13
+  at the user's request; not ours to close). Claude Code fixes an HTTP
+  hook's URL at launch and never checks who answers it. Once the
+  sidecar is gone (the game quit or crashed) while sessions it launched
+  still run, any program that takes our loopback port receives their
+  hooks: the session's content (prompts, tool input, file paths), the
+  hook token, and a `PermissionRequest` or `PreToolUse` it can answer
+  "allow", or with an `updatedInput` that rewrites the command before
+  it runs. Loopback ports aren't per user, and listening ports are
+  visible to every local account (`netstat`, `ss`), so on a machine
+  shared with other accounts another user could run commands as this
+  one. Malware already running as the user gains nothing new. Neither
+  a fresh nor a kept port closes it (a running session keeps its
+  launch-time port either way; S07 → Decided); only ending the
+  sessions does, which is why the quit warning says so (S05, with
+  S07). Closes if Claude Code lets a hook check its server (Watch
+  items → The hook port after the game quits); worth reporting to
+  Anthropic (user's suggestion, 2026-10-13).
 - **Few, pinned dependencies.** Every sidecar dependency is justified,
   version-pinned with a lockfile, updated deliberately, and under a license
   that allows redistribution in an MIT project.
@@ -4119,17 +4137,29 @@ can come back.
   today (hooks fail, and Claude Code falls back to its own prompts:
   Security rules → Fail safe).
 
+**A program on the kept port** (security review, 2026-10-12; *decided
+by the user, 2026-10-13: the port stays*). Running sessions send their
+hooks, token and tool input included, to whatever listens on their
+launch-time port, and can be answered "allow" (Security rules → Known
+gap: hooks that outlive the sidecar). A fresh port per launch doesn't
+close that: a running session never learns a new port, and listening
+ports are visible to every local account while the game runs. The kept
+port only makes it a little easier to aim at in advance, and if it's
+taken the sidecar falls back to a random one, so new sessions aren't
+exposed. A fresh port would put every reattached session in the
+degraded mode above. Rejected for that reason. With it, the user's
+three additions:
+- **The sidecar takes the port again first thing at start**, before
+  anything else listens.
+- **The quit warning says how to close the gap** (S05): with sessions
+  running, a line that on a computer shared with other accounts, typing
+  `/exit` in each one before quitting keeps others from reaching them.
+  No block, no setting. Built with S07 (or earlier on its own: the gap
+  exists today).
+- **The risk is written down:** Security rules → Known gap, and Watch
+  items → The hook port after the game quits.
+
 **To settle before building** (security review, 2026-10-12):
-- **A program on the kept port.** Running sessions send their hooks,
-  token and tool input included, to whatever listens on the old port,
-  and a `PermissionRequest` answer can say "allow". That already
-  happens after a quit (Watch items → The hook port after the game
-  quits), but a remembered, long-lived port makes it easier to aim at:
-  loopback ports aren't per user, so another account on the machine
-  could listen there while the game is closed. Open for the user:
-  whether the kept port stays (and the sidecar takes it again first
-  thing at start), or each launch gets a fresh port and reattached
-  sessions always run in the degraded mode above.
 - **Run folders are untrusted input.** The next sidecar checks every
   field of `session.json` (session id a UUID, process id an integer,
   port in range), deletes only folders it found by listing
@@ -5223,9 +5253,14 @@ the user's vision first; others using the MIT code afterwards is fine.
   keep sending their HTTP hooks to our loopback port once the sidecar
   is gone. Another local program, even another user's, could listen on
   that port and answer a `PermissionRequest` hook with "allow" (the
-  token is sent by Claude Code, not checked by it). Low risk; S07's
-  kept port shortens the gap but doesn't close it. Watch for a way for
-  hooks to check the server. 2.1.295's hook `onFailure: "block"`
+  token is sent by Claude Code, not checked by it), or rewrite a
+  command with `updatedInput` (Security rules → Known gap). Low
+  likelihood (another account on a shared machine), high impact. S07's
+  kept port neither causes nor closes it (S07 → A program on the kept
+  port, user's decision 2026-10-13). Watch for a way for hooks to check
+  the server (e.g. a hook over a named pipe or Unix socket, or a
+  response the server must sign); the user suggested reporting it to
+  Anthropic (2026-10-13). 2.1.295's hook `onFailure: "block"`
   doesn't help (it acts when the server can't be reached, not when a
   stranger answers, and blocking would break the fail-safe): keep the
   default.
