@@ -3407,8 +3407,9 @@ without a prompt). A whole preview must equal the call's input exactly
 (compared without whitespace), and if it fits open calls with different
 inputs it's tied to none of them (security review, second round,
 2026-10-13). Without prompt hooks (S07's limited mode) a cut-short
-preview always waits the full second, so its own call, read late from
-the transcript, can still make it a tie (third round). It
+preview is tied to no call and shown at once from itself: its own call
+is read late from the transcript, or never (a line too long to read),
+and only an older call might fit (third and fourth rounds). It
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -4215,11 +4216,16 @@ never goes out of date; what works is kept here and in the guide; no
 - **Still working:** chat from the world, Yes and No on permission
   prompts (the channel relay), `/clear` and `/resume` followed (the
   `SessionStart` relay; the program on its old port has the token too,
-  so a switch is followed only to the project's own transcript folder
+  so a switch is followed only into the project's own transcript folder
   once that's known; before that, only to a transcript Claude Code wrote
-  with this project's working folder: a `/resume`'s at once, a
-  `/clear`'s once its first prompt writes it; so not with transcripts
-  off), token usage and the model (the status line relay).
+  with this project's working folder: a `/resume`'s at once, from its
+  end, its past the history; a `/clear`'s, refused if a transcript of
+  that id is already in any project's folder, once its first prompt
+  writes it (the newest of up to 8 waiting); so not with transcripts
+  off). That program can still point the world at any conversation of
+  this project (a real `/resume` looks the same); messages from the
+  world still go to the terminal's own. Token usage and the model (the
+  status line relay).
 - **From the transcript, a moment late** (flow 15;
   `TranscriptFollower.followAll`, `transcript-hooks.ts`): each entry is
   read as the hook it stands for and goes through the same translator:
@@ -4233,16 +4239,18 @@ never goes out of date; what works is kept here and in the guide; no
   "No". A session busy at the restart stays working until its
   transcript shows the turn's end. One with no transcript yet (nothing
   prompted before the restart) has no hook to name it: it's looked for
-  (`findStored`, only a file whose working folder is this project's)
+  (`findStored`, only a file whose working folder is this project's,
+  compared as written or with links resolved; the same check picks the
+  transcript at a limited restore)
   every second for a minute, then every 10 s, until Claude Code writes
   it, then read from its start (found while fixing the second security
   review, 2026-10-13). A transcript `findStored` can't describe yet (no
   title: only slash commands so far) is found once it has one. A relayed
   prompt is matched to its call as soon as the call is in the
   transcript, without options (only to the call whose input its preview
-  shows, as always: S02 → Permissions); a cut-short preview always waits
-  the full second, so a call read after the relay can still make it a
-  tie (security review, third round).
+  shows, as always: S02 → Permissions); a cut-short preview is tied to
+  none and shown from itself (security review, third and fourth
+  rounds).
 - **Lost, left to the terminal:** streaming, prompt options ("Yes, and
   don't ask again …", C05), questions (C05), plans (C07), the current
   mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
@@ -4309,12 +4317,13 @@ launched before S07.
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
 bridge reconnect, limited mode from the transcript (found later, `/clear`
-before the first prompt, never another project's), its prompt matching,
+before the first prompt or just after it, `/resume` from its end, never
+another project's, forged switches refused), its prompt matching,
 dropped hooks and a forged switch ignored, relays pointed back, a
 takeover that fails to write a file), `bridge.test.ts` (reconnect,
 spent tokens, nothing acted on before `welcome`, the welcome's proof),
 `permissions.test.ts` (whole and cut-short previews, a cut-short one
-waiting without prompt hooks), `process.test.ts` (the tests' own
+tied to none without prompt hooks), `process.test.ts` (the tests' own
 sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or

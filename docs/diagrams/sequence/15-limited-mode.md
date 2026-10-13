@@ -49,7 +49,7 @@ sequenceDiagram
     end
     Claude->>Bridge: a permission prompt (relay)
     Bridge->>Sidecar: permission_request
-    Note over Sidecar: tied only to the call whose input its preview shows<br/>(a cut-short preview waits the full 1 s);<br/>none by then: shown from the preview
+    Note over Sidecar: a whole preview: tied to the call whose input it is#59;<br/>a cut-short one: tied to none, shown from the preview
     Sidecar->>World: permission.requested (no options), agent.state_changed waiting
     User->>World: Yes or No
     World->>Sidecar: permission.respond
@@ -93,5 +93,6 @@ there, `SessionStart` (`/hook`) and the status line (`/status`). A
 `/clear` or `/resume` is followed only into the project's transcript
 folder once that's known, and before that only to a transcript of this
 project that Claude Code wrote (a `/resume`'s at once, a `/clear`'s once
-written), so that program can't switch the world to another project's
-conversation.
+written, refused if already written), so that program can't switch the
+world to another project's conversation. It can still point it at
+another conversation of this project, as a real `/resume` would.
