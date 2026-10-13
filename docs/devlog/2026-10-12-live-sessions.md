@@ -144,3 +144,27 @@ either, flow 08's notes, and S07 sitting before S06 in NOTES.
   cleaned and only the folders stayed; likely sidecars that ended
   without their full cleanup. S07's start-up sweep of stale run folders
   will cover this; not chased further.
+
+## The kept port, settled (user's, 2026-10-13)
+
+The security review had left one question for the user: keep S07's hook
+port, or give each launch a fresh one. I recommended keeping it. A
+running session keeps sending hooks to its launch-time port whatever
+the next sidecar does, and listening ports are visible to every local
+account while the game runs, so a fresh port doesn't protect the
+sessions left running after a quit. All it would do is put every
+reattached session in the degraded mode. Keeping the port only makes it
+a little easier to aim at in advance. If the port is taken, the sidecar
+picks a random one, so new sessions aren't exposed. What does close the
+gap is ending the sessions.
+
+The user kept the port, with three additions: the sidecar takes the
+port first thing at start; the quit warning tells people on a computer
+shared with other accounts to `/exit` their sessions before quitting;
+and the risk is written down (Security rules → Known gap: hooks that
+outlive the sidecar, and the watch item). The user also asked for the
+vulnerability itself to be documented, since Claude Code's side looks
+unintentional and might be worth reporting to Anthropic: an HTTP hook
+can't check who answers it, so whatever takes the port can read the
+session and answer "allow", or rewrite a command with `updatedInput`.
+Rejected: a fresh port per launch.
