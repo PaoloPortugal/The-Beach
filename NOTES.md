@@ -4832,10 +4832,17 @@ the user's vision first; others using the MIT code afterwards is fine.
   publicly, since the parts that set the game apart (downtime, the hub,
   the UI) exist only in these notes and would be easy to copy before
   they're built. Groundwork that shows nothing is fine meanwhile: the
-  final name (Conventions → Renaming the project), the terms checks
-  (Watch items → Anthropic's terms, Steam), what a trailer should show.
-- *The reveal* comes when the release-gate features are built and the
-  Steam page is ready: a good UI (a pass across the "UI placeholder"
+  terms checks (Watch items → Anthropic's terms, Steam), what a trailer
+  should show.
+- *The name* must be chosen before the reveal (the user's to pick;
+  "The Beach" is only the codename). Wanted feel: a vacation or a
+  retreat; nothing with "agent" in it (overdone), nor "Claude"
+  (Anthropic's mark; other providers come later). Before settling,
+  check Steam, trademarks (USPTO, EUIPO), the domain and social
+  handles, then rename everywhere listed in Conventions → Renaming the
+  project.
+- *The reveal* comes when the name is chosen, the release-gate
+  features are built and the Steam page is ready: a good UI (a pass across the "UI placeholder"
   features), the downtime activities and the hub (Deferred ideas →
   Downtime, The hub), and read-only islands (Deferred ideas). Shown
   with the Steam page, videos and devlogs.
