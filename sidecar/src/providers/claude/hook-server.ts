@@ -46,14 +46,36 @@ export class HookServer {
     this.log = log
   }
 
-  async start(): Promise<number> {
+  /**
+   * Listens on `preferred` (the port kept from earlier starts, which
+   * sessions still running post their hooks to; NOTES.md -> S07), or on any
+   * free port when there's none or it's taken.
+   */
+  async start(preferred?: number): Promise<number> {
     if (this.port) return this.port
-    await new Promise<void>((resolve, reject) => {
-      this.server.once('error', reject)
-      this.server.listen(0, '127.0.0.1', () => resolve())
-    })
+    if (preferred !== undefined) {
+      try {
+        await this.listen(preferred)
+      } catch (e) {
+        this.log.warn(`the kept hook port ${preferred} is taken (${(e as NodeJS.ErrnoException).code ?? 'error'}); using another`)
+        await this.listen(0)
+      }
+    } else {
+      await this.listen(0)
+    }
     this.port = (this.server.address() as { port: number }).port
     return this.port
+  }
+
+  private listen(port: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const failed = (e: Error) => reject(e)
+      this.server.once('error', failed)
+      this.server.listen(port, '127.0.0.1', () => {
+        this.server.off('error', failed)
+        resolve()
+      })
+    })
   }
 
   /** The URL hooks post to. */
@@ -68,9 +90,18 @@ export class HookServer {
 
   /** A new session's token; valid until unregistered. */
   register(handlers: HookHandlers): HookLink {
-    const token = crypto.randomBytes(32).toString('hex')
+    return this.adopt(crypto.randomBytes(32).toString('hex'), handlers)!
+  }
+
+  /**
+   * A token issued by an earlier sidecar, from a running session's record
+   * (S07): its hooks carry it until Claude Code exits. Null if it isn't the
+   * shape we issue, or is already in use.
+   */
+  adopt(token: string, handlers: HookHandlers): HookLink | null {
+    if (!/^[0-9a-f]{64}$/.test(token) || this.slots.has(token)) return null
     this.slots.set(token, handlers)
-    return { token, unregister: () => { this.slots.delete(token) } }
+    return { token, unregister: () => { if (this.slots.get(token) === handlers) this.slots.delete(token) } }
   }
 
   close(): Promise<void> {

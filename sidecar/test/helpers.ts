@@ -1,5 +1,8 @@
 // Test helpers: an in-process server and a client that checks every message
 // it receives against the protocol schema.
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import http from 'node:http'
 import crypto from 'node:crypto'
 import assert from 'node:assert/strict'
@@ -7,10 +10,26 @@ import { WebSocket } from 'ws'
 import { startServer, type RunningServer } from '../src/server.ts'
 import { Registry } from '../src/registry.ts'
 import { checkMessage } from '../src/protocol.ts'
+import { readBridgeFile } from '../src/providers/claude/bridge.ts'
 import type { Log } from '../src/log.ts'
 import type { Provider } from '../src/provider.ts'
 
 export type Msg = Record<string, unknown> & { type: string }
+
+/**
+ * A fresh folder for a provider's run folders (ClaudeOptions.sessionsDir):
+ * no test touches the user's real app data folder (NOTES.md -> S07).
+ */
+export function tempSessionsDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'sessions-'))
+}
+
+/** Where a launched session's bridge would connect: its bridge file, named in its MCP config's env. */
+export function bridgeOf(env: { BRIDGE_FILE?: string }): { port: number; token: string } {
+  const where = readBridgeFile(env.BRIDGE_FILE ?? '')
+  assert.ok(where, 'the session has a usable bridge file')
+  return where
+}
 
 export class RecordingLog implements Log {
   lines: string[] = []

@@ -188,6 +188,21 @@ export class HookTranslator {
   }
 
   /**
+   * The orchestrator's state when the world takes over a session already
+   * running (S07), known from outside the hooks; no events (the session is
+   * announced in it).
+   */
+  assume(state: State, reason: string | null): void {
+    this.states.set(MAIN, state)
+    this.reasons.set(MAIN, reason)
+  }
+
+  /** The orchestrator's state and reason now. */
+  mainState(): { state: State; reason: string | null } {
+    return { state: this.states.get(MAIN) ?? 'idle', reason: this.reasons.get(MAIN) ?? null }
+  }
+
+  /**
    * The mode an orchestrator hook reports (every hook but MessageDisplay
    * and Notification carries it; a Shift+Tab shows with the next one).
    * A subagent's hooks are left out: the session's mode is the

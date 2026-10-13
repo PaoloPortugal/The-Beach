@@ -16,7 +16,7 @@ import { HookServer, type HookPayload } from '../src/providers/claude/hook-serve
 import { readRelayFile, runRelay, writeRelayFile, RELAY_TIMEOUT_MS } from '../src/launch/relay.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import type { ClaudeSession } from '../src/providers/claude/session.ts'
-import { RecordingLog } from './helpers.ts'
+import { RecordingLog, tempSessionsDir } from './helpers.ts'
 
 const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'main.ts')
 const TOKEN = 'b'.repeat(64)
@@ -189,7 +189,7 @@ test('relay mode: every failure still exits 0 with nothing on stdout, at once wh
 test('a launched session\'s SessionStart runs this executable in relay mode with its relay file', async () => {
   let argv: string[] = []
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.285' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],

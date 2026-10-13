@@ -18,9 +18,37 @@ import type { Provider } from './provider.ts'
 /** How long shutdown may take before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 3000
 
+/**
+ * How long the ready line waits for providers to find the sessions still
+ * running from before (S07): asking Claude Code takes about a second, at
+ * most 5 s, plus finding it. One found later still comes, as a snapshot.
+ */
+export const RESTORE_WAIT_MS = 8000
+
+/**
+ * Lets each provider take back its sessions still running (S07), before the
+ * server listens: the kept hook port is taken first thing. Never fails the
+ * start; waits at most `waitMs`.
+ */
+export async function restoreSessions(registry: Registry, providers: Provider[], log: Log, waitMs = RESTORE_WAIT_MS): Promise<void> {
+  const all = Promise.all(providers.map(async (p) => {
+    if (!p.restore) return
+    try {
+      await p.restore((make) => registry.adopt(p, make))
+    } catch (e) {
+      log.error(`${p.id}: couldn't look for running sessions: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }))
+  let timer: NodeJS.Timeout | undefined
+  const late = new Promise<void>((resolve) => { timer = setTimeout(() => { log.warn('still looking for running sessions; starting anyway'); resolve() }, waitMs) })
+  await Promise.race([all, late])
+  clearTimeout(timer)
+}
+
 export async function serve(providers: Provider[], log: Log = stderrLog): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
+  await restoreSessions(registry, providers, log)
   const server = await startServer({ registry, token, log })
 
   let stopping = false
