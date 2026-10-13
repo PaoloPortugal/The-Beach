@@ -15,12 +15,13 @@
 // port and a fresh one-time token. While not connected the bridge retries,
 // reading the file again, so after the game restarts the new sidecar gets
 // the session back (NOTES.md -> S07).
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
 
 export const BRIDGE_SERVER_NAME = 'world-bridge'
-export const BRIDGE_FILE_VERSION = 1
+export const BRIDGE_FILE_VERSION = 2
 /** How often a bridge that isn't connected tries again. */
 export const BRIDGE_RETRY_MS = 2000
 /** MCP revisions we can answer initialize in; newest first. */
@@ -43,34 +44,41 @@ type Json = Record<string, unknown>
  * Messages between the bridge and the sidecar, one JSON object per line.
  * The bridge sends hello first; the sidecar answers welcome once the token
  * is accepted (a token admits one connection, so the bridge never offers it
- * again), and the bridge then says ready.
+ * again), with the proof from the same bridge file: only the sidecar that
+ * wrote it knows that, so a program on its port is never trusted. The
+ * bridge then says ready.
  */
 export type ToSidecar =
   | { type: 'hello'; token: string }
   | { type: 'ready' }
   | { type: 'permission_request'; request_id: string; tool_name: string; description: string; input_preview: string }
 export type FromSidecar =
-  | { type: 'welcome' }
+  | { type: 'welcome'; proof: string }
   | { type: 'chat'; text: string }
   | { type: 'verdict'; request_id: string; behavior: 'allow' | 'deny' }
 
-/** Where the bridge connects: the sidecar's bridge port and a one-time token. */
-export interface BridgeFile { version: typeof BRIDGE_FILE_VERSION; port: number; token: string }
+/**
+ * Where the bridge connects: the sidecar's bridge port, a one-time token the
+ * bridge offers, and the proof the sidecar answers with.
+ */
+export interface BridgeFile { version: typeof BRIDGE_FILE_VERSION; port: number; token: string; proof: string }
+export interface BridgeWhere { port: number; token: string; proof: string }
 
 /** Writes the bridge file, readable only by this user. */
-export function writeBridgeFile(file: string, port: number, token: string): void {
-  const body: BridgeFile = { version: BRIDGE_FILE_VERSION, port, token }
+export function writeBridgeFile(file: string, port: number, link: { token: string; proof: string }): void {
+  const body: BridgeFile = { version: BRIDGE_FILE_VERSION, port, token: link.token, proof: link.proof }
   fs.writeFileSync(file, JSON.stringify(body), { mode: 0o600 })
 }
 
-/** The bridge file's port and token; null when it's missing, damaged or wrong. */
-export function readBridgeFile(file: string): { port: number; token: string } | null {
+/** The bridge file's port, token and proof; null when it's missing, damaged or wrong. */
+export function readBridgeFile(file: string): BridgeWhere | null {
   let b: Partial<BridgeFile>
   try { b = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<BridgeFile> } catch { return null }
   if (typeof b !== 'object' || b === null || b.version !== BRIDGE_FILE_VERSION) return null
   if (typeof b.port !== 'number' || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535) return null
   if (typeof b.token !== 'string' || !/^[0-9a-f]{64}$/.test(b.token)) return null
-  return { port: b.port, token: b.token }
+  if (typeof b.proof !== 'string' || !/^[0-9a-f]{64}$/.test(b.proof)) return null
+  return { port: b.port, token: b.token, proof: b.proof }
 }
 
 export interface BridgeIO {
@@ -155,9 +163,13 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
       // Dropped: the rest of what it sent (the same chunk) is never acted on.
       if (sock.destroyed) return
       if (welcomed) return onSidecar(line)
-      let m: { type?: unknown }
-      try { m = JSON.parse(line) as { type?: unknown } } catch { m = {} }
-      if (m.type !== 'welcome') { sock.destroy(); return }
+      let m: { type?: unknown; proof?: unknown }
+      try { m = JSON.parse(line) as { type?: unknown; proof?: unknown } } catch { m = {} }
+      if (m.type !== 'welcome' || !sameSecret(m.proof, where.proof)) {
+        io.log('no welcome with a valid proof: not our sidecar; dropped it')
+        sock.destroy()
+        return
+      }
       welcomed = true
       sidecar = sock
       toSidecar({ type: 'ready' })
@@ -216,6 +228,14 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
     io.input.on('end', () => { stop(); resolve() })
     io.input.on('close', () => { stop(); resolve() })
   })
+}
+
+/** Whether `given` is `expected`, compared in constant time. */
+function sameSecret(given: unknown, expected: string): boolean {
+  if (typeof given !== 'string') return false
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
 /** Calls `onLine` per newline-terminated line; lines over MAX_LINE are dropped. */

@@ -214,7 +214,7 @@ export class ClaudeProvider implements Provider {
     this.followIds(session, record)
     try {
       writeRunRecord(launch.runDir, record)
-      writeBridgeFile(path.join(launch.runDir, BRIDGE_FILE), bridges.port, session.link.token)
+      writeBridgeFile(path.join(launch.runDir, BRIDGE_FILE), bridges.port, session.link)
     } catch (e) {
       session.dispose()
       throw e
@@ -340,8 +340,24 @@ export class ClaudeProvider implements Provider {
       onHook: (p, gone) => session?.onHook(p, gone), onStatus: (p) => session?.onStatus(p),
     })
     if (!hookLink) throw new Error('its hook token is in use already')
+    // The bridge's slot, before the session: every file is written before
+    // it's adopted, so a failure leaves nothing half taken.
+    const link = bridges.register({
+      onReady: () => session?.bridgeHandlers().onReady(),
+      onPermissionRequest: (p) => session?.bridgeHandlers().onPermissionRequest(p),
+      onClose: () => session?.bridgeHandlers().onClose(),
+    })
     try {
       writeHolder(f.runDir)
+      // The relays read their files on every run: they follow us, with the
+      // old token. Always, so none is left on the port an earlier limited
+      // sidecar had (where any program could pick up what they post).
+      for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
+        const at = path.join(f.runDir, file)
+        if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
+      }
+      // A fresh one-time token: the bridge, retrying, reads it and connects.
+      writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, link)
       adopt((host) => {
         session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
           () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId) },
@@ -351,24 +367,16 @@ export class ClaudeProvider implements Provider {
       })
     } catch (e) {
       hookLink.unregister()
+      link.unregister()
       throw e
     }
     const s = session as unknown as ClaudeSession
     this.live.add(nativeId)
     s.hookLink = hookLink
-    s.link = bridges.register(s.bridgeHandlers())
+    s.link = link
     const record = { native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token, started_at: f.record.started_at }
     this.followIds(s, record)
     if (nativeId !== f.record.native_id) this.rewriteRecord(f.runDir, record)
-    // The relays read their files on every run: they follow us, with the old
-    // token. Always, so none is left on the port an earlier limited
-    // sidecar had (where any program could pick up what they post).
-    for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
-      const at = path.join(f.runDir, file)
-      if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
-    }
-    // A fresh one-time token: the bridge, retrying, reads it and connects.
-    writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, s.link.token)
     const status = entry?.status
     s.restored({
       state: status === 'busy' ? 'working' : status === 'waiting' ? 'waiting' : 'idle',
