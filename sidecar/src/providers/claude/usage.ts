@@ -52,12 +52,6 @@ export interface StatusFigures {
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null)
 
-/** The model an assistant entry's API call used (`message.model`), or null. Exported for tests. */
-export function modelIn(e: Record<string, unknown>): string | null {
-  const model = (e.message as { model?: unknown } | undefined)?.model
-  return typeof model === 'string' && model !== '' ? model : null
-}
-
 /** Epoch seconds as an ISO timestamp, or null if it isn't a sensible time. */
 function epoch(v: unknown): string | null {
   const s = num(v)

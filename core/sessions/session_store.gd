@@ -35,8 +35,9 @@ signal questions_changed(session: String)
 signal plans_changed(session: String)
 signal notices_changed(session: String)
 ## Some of the session's own fields changed (e.g. [code]native_id[/code]
-## after the provider started a new conversation in it, or [code]mode[/code],
-## the permission mode, C06); [param fields] names them.
+## after the provider started a new conversation in it, [code]mode[/code],
+## the permission mode, C06, or [code]model[/code] and [code]effort[/code],
+## C12); [param fields] names them.
 signal session_changed(session: String, fields: Array)
 ## The chat was replaced as a whole ([method replace_history]): lay it out
 ## again.
@@ -494,7 +495,7 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 	if known:
 		# Everything may have changed (a resync after a gap).
 		var fields := []
-		for key in ["title", "mode"]:
+		for key in ["title", "mode", "model", "effort"]:
 			if s.get(key) != old.get(key):
 				fields.append(key)
 		if not fields.is_empty():

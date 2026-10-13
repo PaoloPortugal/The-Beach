@@ -6,7 +6,8 @@ extends PanelContainer
 ## (C05, [PendingCard]). Messages are rendered as Markdown (C03,
 ## [MarkdownView]); after each one, the tool calls that followed it fold
 ## into one line (C04, [ToolFold]). The header shows the session's permission
-## mode (C06, when the session declares [code]permission_modes[/code]); a plan
+## mode (C06, when the session declares [code]permission_modes[/code]), and
+## beside it the model and effort level (C12, [code]model_info[/code]); a plan
 ## waiting for approval (C07) is a full-width message, answered on the card.
 ## Token usage (C08, when the session declares [code]usage[/code]): context
 ## and totals in the header, beside the mode, and each turn's output tokens
@@ -89,6 +90,7 @@ var _box_session := ""
 
 @onready var _title: Label = $Layout/Header/Title
 @onready var _mode: Label = $Layout/Header/Mode
+@onready var _model: Label = $Layout/Header/Model
 @onready var _usage: Label = $Layout/Header/Usage
 @onready var _notices: Label = $Layout/Notices
 @onready var _scroll: ScrollContainer = $Layout/Scroll
@@ -234,6 +236,12 @@ func status_text() -> String:
 ## The header's mode text ("Mode: Auto"), or "" when it isn't shown.
 func mode_text() -> String:
 	return _mode.text if _mode.visible else ""
+
+
+## The header's model text ("Opus 5.5 · High effort"), or "" when it isn't
+## shown (C12).
+func model_text() -> String:
+	return _model.text if _model.visible else ""
 
 
 ## The header's usage text ("Context 34% · ↑ 2.1M in · ↓ 48k out"), or ""
@@ -602,14 +610,17 @@ func _refresh_status() -> void:
 			_status.text = ""
 
 
-# The title, the usage, and the mode when the session declares
-# permission_modes and it is known.
+# The title, the usage, the mode when the session declares
+# permission_modes and it is known, and the model and effort when it
+# declares model_info and either is known.
 func _refresh_header() -> void:
 	var s := store.session(session_id)
 	_title.text = _session_title(s)
 	var mode = s.get("mode")
 	_mode.visible = s.get("capabilities", {}).has("permission_modes") and mode is String
 	_mode.text = "Mode: %s" % PermissionModes.name_of(mode) if _mode.visible else ""
+	_model.text = model_words(s.get("model"), s.get("effort")) if s.get("capabilities", {}).has("model_info") else ""
+	_model.visible = not _model.text.is_empty()
 	_refresh_usage()
 
 
@@ -650,6 +661,17 @@ func _refresh_hints() -> void:
 		hint.visible = ends.has(id)
 		if hint.visible:
 			hint.text = UsageText.turn(ends[id])
+
+
+## A model and effort level (protocol choices, or null) in the header's
+## words: "Opus 5.5 · High effort", either alone, or "" with neither.
+static func model_words(model: Variant, effort: Variant) -> String:
+	var parts: Array[String] = []
+	if model is Dictionary:
+		parts.append(str(model.get("label", "")))
+	if effort is Dictionary:
+		parts.append("%s effort" % str(effort.get("label", "")))
+	return " · ".join(parts)
 
 
 static func _session_title(s: Dictionary) -> String:

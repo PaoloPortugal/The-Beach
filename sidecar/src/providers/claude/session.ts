@@ -202,15 +202,21 @@ export class ClaudeSession implements ProviderSession {
   private prompt: string | null
   /** Token usage of the conversation the world follows (C08). */
   private readonly usage = new UsageCounter()
-  /** The model and effort level (C12), null until known; sent once up, then on change. */
-  private model: Choice | null
+  /**
+   * The session's model and effort level (C12), null until known; sent once
+   * up, then on change. The model from SessionStart, the status line and
+   * PostModelSwitch, as the terminal shows it, not from the transcript: a
+   * reply's model can differ
+   * (plan mode upgrades Haiku to Sonnet for its turns, checked on 2.1.296).
+   */
+  private model: Choice | null = null
   private effort: Choice | null = null
   /** The usage last sent, so only changes go out. */
   private usageSent = 'null'
 
   constructor(host: SessionHost, launch: Launch, project: Project, titles: Titles, log: Log,
     cleanup: () => void, startupTimeoutMs: number, history: History = { messages: [], tools: [] }, prompt?: string,
-    hooksCheckMs = HOOKS_CHECK_MS, usage?: UsageCounter, model: string | null = null) {
+    hooksCheckMs = HOOKS_CHECK_MS, usage?: UsageCounter) {
     this.host = host
     this.launch = launch
     this.nativeId = launch.nativeId
@@ -224,7 +230,6 @@ export class ClaudeSession implements ProviderSession {
     this.prompt = prompt ?? null
     this.hooksCheckMs = hooksCheckMs
     if (usage) this.usage.load(usage)
-    this.model = modelChoice(model)
   }
 
   bridgeHandlers() {
@@ -336,6 +341,9 @@ export class ClaudeSession implements ProviderSession {
    * nothing; the settings only ask for clear and resume anyway.
    */
   private sessionStarted(p: HookPayload): void {
+    // The model (C12), when Claude Code includes it: the process's, whichever
+    // conversation started. A launch's --model fires no PostModelSwitch.
+    this.noteModel(modelChoice(p.model))
     const source = p.source
     if (source !== 'clear' && source !== 'resume') return
     // Not up yet: nothing to switch (the fallback below still would).
@@ -502,7 +510,6 @@ export class ClaudeSession implements ProviderSession {
       if (this.usage.add(s.call)) this.sendUsage()
       return
     }
-    if (s.kind === 'model') return this.noteModel(modelChoice(s.model))
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 

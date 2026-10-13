@@ -1079,6 +1079,50 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "the sidecar is up")
 
+	# C12: the model, effort and mode selectors, from the provider's lists
+	# (the fake offers Claude's), Default first and back to it each time.
+	await _open_create(menu)
+	_check(menu.launch_choices("model") == ["Default", "Opus", "Sonnet", "Haiku", "Fable"] and menu.launch_choices("effort") == ["Default", "Low", "Medium", "High", "Extra high", "Max"] and menu.launch_choices("mode") == ["Default", "Manual", "Accept edits", "Plan", "Auto"], "C12: model, effort and mode offer Default, then the provider's list")
+	_check(menu.launch_visible("model") and menu.launch_visible("effort") and menu.launch_visible("mode") and menu.launch_choice().is_empty(), "C12: all three show, at Default: nothing picked")
+	menu.choose_launch("model", "Haiku")
+	menu.choose_launch("mode", "Plan")
+	_check(menu.launch_choice() == {"model": "haiku", "mode": "plan"}, "C12: a pick is the provider's id; Default is left out")
+	menu.choose("▸ Resume a session")
+	_check(menu.launch_visible("model") and menu.launch_choice() == {"model": "haiku", "mode": "plan"}, "C12: the Resume page shows them too, the picks kept")
+	_press("ui_cancel")
+	await _until(func() -> bool: return menu.page() == SessionsMenu.Page.ADD, 2.0)
+	_press("ui_cancel")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+	await _open_create(menu)
+	_check(menu.launch_choice().is_empty() and menu.launch_choices("model")[0] == "Default", "C12: reopened, all back to Default")
+	# What reaches the sidecar: the picks with a new session or a resume; none at Default.
+	var recorder := _LaterRecorder.new()
+	recorder.providers = sidecar.providers
+	menu.launcher.sidecar = recorder
+	menu.choose_launch("effort", "Max")
+	menu.choose_launch("mode", "Auto")
+	var folder_answer := [Callable()]
+	menu.native_picker = true
+	menu.show_native = func(_dir: String, callback: Callable) -> Error:
+		folder_answer[0] = callback
+		return OK
+	menu.choose("+ New session")
+	await _frames(2)
+	folder_answer[0].call(true, PackedStringArray([OS.get_user_data_dir()]), 0)
+	await _until(func() -> bool: return recorder.sent.size() == 1, 2.0)
+	_check(recorder.sent.size() == 1 and recorder.sent[0][0] == "session.create" and recorder.sent[0][1].get("launch") == {"effort": "max", "mode": "auto"}, "C12: a new session is asked for with the picks")
+	menu.native_picker = false
+	await _frames(2)
+	menu.launcher.create(OS.get_user_data_dir())
+	await _frames(2)
+	menu.launcher.resume("fake", "n1")
+	await _frames(2)
+	_check(recorder.sent.size() == 3 and not recorder.sent[1][1].has("launch") and not recorder.sent[2][1].has("launch"), "C12: with nothing picked, no launch is sent")
+	menu.launcher.sidecar = sidecar
+	recorder.free()
+	menu.launcher._say("") # the recorder's refusals
+	await _settle()
+
 	# The system's picker (none headless, so a stand-in that keeps its
 	# callback): the menu waits with a note and Cancel.
 	var answer := [Callable()]
@@ -2033,6 +2077,16 @@ class _Recorder extends SidecarClient:
 		return "r%d" % sent.size()
 
 
+# Records like [_Recorder], refusing on the next frame as the sidecar would,
+# so the launcher isn't left busy.
+class _LaterRecorder extends _Recorder:
+	func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
+		sent.append([type, fields])
+		if on_reply.is_valid():
+			on_reply.call_deferred({"type": "error", "message": "recorded"})
+		return "r%d" % sent.size()
+
+
 # C06 and C07: the mode in the header, a plan in the chat and on the card;
 # C05: a permission's other ways to allow (its options).
 func _modes_and_plans(store: SessionStore, panel: ChatPanel) -> void:
@@ -2111,6 +2165,23 @@ func _modes_and_plans(store: SessionStore, panel: ChatPanel) -> void:
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 31, "agent": "main", "state": "waiting", "reason": "permission"})
 	card.sidecar = real
 	recorder.free()
+	# C12: the model and effort beside the mode, with model_info.
+	_check(panel.model_text() == "", "C12: no model shown without model_info")
+	snap = store.session("h1").duplicate(true)
+	snap["seq"] = 32
+	snap["capabilities"] = {"permission_modes": {}, "plans": {}, "model_info": {}}
+	snap["model"] = null
+	snap["effort"] = null
+	store.apply({"type": "session.snapshot", "session": snap})
+	_check(panel.model_text() == "", "C12: nothing shown while neither is known")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 33, "effort": {"id": "high", "label": "High"}})
+	_check(panel.model_text() == "High effort", "C12: the effort alone")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 34, "model": {"id": "claude-opus-5-5", "label": "Opus 5.5"}})
+	_check(panel.model_text() == "Opus 5.5 · High effort" and panel.mode_text().begins_with("Mode: "), "C12: model and effort in the header, beside the mode")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 35, "effort": null})
+	_check(panel.model_text() == "Opus 5.5", "C12: a model with no effort level")
+	store.apply({"type": "session.updated", "session": "h1", "seq": 36, "model": {"id": "x", "label": "[b]x[/b]"}})
+	_check(panel.model_text() == "[b]x[/b]", "C12: a provider's label is plain text")
 
 
 func _button(card: PendingCard, text: String) -> BaseButton:
@@ -2383,6 +2454,7 @@ func _live(world: Node3D, player: Player) -> void:
 	# C06 and C07: the mode in the header, a switch on a prompt (one of its
 	# options, C05), a plan.
 	_check(panel.mode_text() == "Mode: Auto", "live: the session's mode in the header")
+	_check(panel.model_text() == "Opus 5.5 · High effort", "live: and its model and effort (C12; the fake's defaults)")
 	panel.set_draft("mode")
 	panel.send()
 	await _until(func() -> bool: return panel.mode_text() == "Mode: Manual", 8.0)
