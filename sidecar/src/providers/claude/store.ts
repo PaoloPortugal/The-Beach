@@ -235,7 +235,7 @@ function describeRead(file: string, st: fs.Stats, { head, tail }: { head: string
   }
 }
 
-function samePath(a: string, b: string): boolean {
+export function samePath(a: string, b: string): boolean {
   const norm = (p: string) => path.resolve(p).replace(/[\\/]+$/, '')
   return process.platform === 'win32' ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b)
 }

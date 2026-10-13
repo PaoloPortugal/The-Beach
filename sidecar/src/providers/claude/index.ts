@@ -25,7 +25,7 @@ import { HookServer, type HookLink } from './hook-server.ts'
 import {
   HOLDER_FILE, readHookPort, readRunRecord, RUN_DIR_NAME, writeHolder, writeHookPort, writeRunRecord, type RunRecord,
 } from './run-folder.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, StoredCache, type Titles } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, type StoredInfo, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
 import type { UsageCounter } from './usage.ts'
@@ -331,7 +331,7 @@ export class ClaudeProvider implements Provider {
     // Claude Code's own id when it answered: /clear or /resume while the game was closed is followed.
     const nativeId = entry?.sessionId ?? f.record.native_id
     if (this.live.has(nativeId)) return
-    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
+    const stored = this.findOwn(nativeId, f.record.project.path)
     const read = stored ? readConversation(stored.file) : null
     const launch: Launch = { runDir: f.runDir, nativeId }
     // The hooks go to the port it was launched with: ours only if we got it back.
@@ -385,7 +385,7 @@ export class ClaudeProvider implements Provider {
       startedAt: f.record.started_at,
       transcript: stored?.file ?? null,
       limited,
-      findTranscript: (id) => findStored(id, this.opts.projectsDir ?? projectsDir())?.file ?? null,
+      findTranscript: (id) => this.findOwn(id, f.record.project.path)?.file ?? null,
     })
     this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
   }
@@ -445,6 +445,12 @@ export class ClaudeProvider implements Provider {
       }
     }
     return this.hooks
+  }
+
+  /** A stored conversation's transcript, only if it's this project's (its cwd). */
+  private findOwn(nativeId: string, project: string): StoredInfo | null {
+    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
+    return stored && samePath(stored.project.path, project) ? stored : null
   }
 
   private sessionsRoot(): string {

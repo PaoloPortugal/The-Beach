@@ -65,8 +65,10 @@ export const HOOKS_UNAVAILABLE = {
 
 /** How often a starting session checks that its launcher still runs. */
 export const LAUNCHER_CHECK_MS = 1000
-/** How often a limited session with no transcript yet looks for it (S07). */
+/** How often a limited session with no transcript yet looks for it (S07): at first, then after a minute. */
 export const TRANSCRIPT_SEARCH_MS = 1000
+export const TRANSCRIPT_SEARCH_SLOW_MS = 10_000
+const TRANSCRIPT_SEARCH_FAST_FOR_MS = 60_000
 
 /**
  * Until the bridge connects, Claude Code is showing its startup dialogs (the
@@ -172,6 +174,10 @@ export class ClaudeSession implements ProviderSession {
   private launcherCheck: NodeJS.Timeout | null = null
   /** Limited, with no transcript yet: looking for it until Claude Code writes it. */
   private transcriptSearch: NodeJS.Timeout | null = null
+  /** This project's transcript of a conversation, once written (limited only). */
+  private findTranscript: ((nativeId: string) => string | null) | null = null
+  /** Limited, its folder unknown: a /clear or /resume waiting for its transcript. */
+  private pendingSwitch: { id: string; source: 'clear' | 'resume' } | null = null
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -329,7 +335,7 @@ export class ClaudeSession implements ProviderSession {
    */
   restored(o: {
     state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean
-    /** Where its transcript is now, if written: for a limited session that had none yet. */
+    /** This project's transcript of a conversation, if written: for a limited session that had none yet. */
     findTranscript?: (nativeId: string) => string | null
   }) {
     this.translator.assume(o.state, o.reason)
@@ -345,15 +351,8 @@ export class ClaudeSession implements ProviderSession {
     } else if (o.limited && o.findTranscript) {
       // No prompt before the restart, so no transcript yet, and no hook to
       // name it: looked for until written, then read from its start.
-      const find = o.findTranscript
-      this.transcriptSearch = setInterval(() => {
-        const file = find(this.nativeId)
-        if (file === null) return
-        this.stopTranscriptSearch()
-        this.transcriptDir = path.dirname(file)
-        this.transcript.follow(file, true)
-      }, TRANSCRIPT_SEARCH_MS)
-      this.transcriptSearch.unref()
+      this.findTranscript = o.findTranscript
+      this.searchTranscript(Date.now())
     }
     this.announce(o.startedAt)
     this.sendUsage()
@@ -435,7 +434,11 @@ export class ClaudeSession implements ProviderSession {
     const source = p.source
     if (source !== 'clear' && source !== 'resume') return
     // Not up yet: nothing to switch (the fallback below still would).
-    if (this.startupTimer || p.session_id === this.nativeId || !this.acceptNew(p)) return
+    if (this.startupTimer || p.session_id === this.nativeId) return
+    if (this.limited && this.transcriptDir === null && typeof p.session_id === 'string' && SESSION_ID.test(p.session_id)) {
+      return this.limitedSwitch(p.session_id, source)
+    }
+    if (!this.acceptNew(p)) return
     const file = p.transcript_path as string
     // /resume: the resumed conversation's chat, all of it (no prompt has
     // woken it yet). /clear: an empty chat.
@@ -746,8 +749,52 @@ export class ClaudeSession implements ProviderSession {
     resolve?.(reply)
   }
 
+  /** One look for the transcript (see restored), then the next, slower after a while. */
+  private searchTranscript(since: number) {
+    const find = this.findTranscript
+    if (!find || this.disposed) return
+    // A /clear or /resume typed since is newer than the conversation we know.
+    const pending = this.pendingSwitch
+    const switched = pending ? find(pending.id) : null
+    if (pending && switched) return this.foundTranscript(switched, pending)
+    const file = find(this.nativeId)
+    if (file) return this.foundTranscript(file, null)
+    const wait = Date.now() - since < TRANSCRIPT_SEARCH_FAST_FOR_MS ? TRANSCRIPT_SEARCH_MS : TRANSCRIPT_SEARCH_SLOW_MS
+    this.transcriptSearch = setTimeout(() => this.searchTranscript(since), wait)
+    this.transcriptSearch.unref()
+  }
+
+  /** The transcript is written: its folder is known, and it's followed. */
+  private foundTranscript(file: string, switched: { id: string; source: 'clear' | 'resume' } | null) {
+    this.stopTranscriptSearch()
+    this.findTranscript = null
+    this.pendingSwitch = null
+    this.transcriptDir = path.dirname(file)
+    if (switched) this.switchTo(switched.id, file, switched.source === 'resume' ? readConversation(file) : null)
+    // A resumed conversation's past is its history; everything else in it is news.
+    this.transcript.follow(file, switched?.source !== 'resume')
+  }
+
+  /**
+   * Limited, its folder unknown (S07): the program on its old port has the
+   * token too, so a switch is followed only to a transcript of this project
+   * that Claude Code wrote. A /resume's is there already; a /clear's can't
+   * be yet (one that is was never just started), so it's looked for.
+   */
+  private limitedSwitch(id: string, source: 'clear' | 'resume') {
+    const find = this.findTranscript
+    const file = find ? find(id) : null
+    if (!find || this.movedTo !== null || (source === 'resume') !== (file !== null)) {
+      this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, its folder unknown)`)
+      return
+    }
+    if (file) return this.foundTranscript(file, { id, source })
+    this.pendingSwitch = { id, source }
+    this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
+  }
+
   private stopTranscriptSearch() {
-    if (this.transcriptSearch) clearInterval(this.transcriptSearch)
+    if (this.transcriptSearch) clearTimeout(this.transcriptSearch)
     this.transcriptSearch = null
   }
 
