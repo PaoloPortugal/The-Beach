@@ -12,7 +12,7 @@ import { Registry } from '../src/registry.ts'
 import { checkMessage } from '../src/protocol.ts'
 import { ClaudeProvider, TRANSCRIPT_CHECK_MS, TRANSCRIPTS_OFF } from '../src/providers/claude/index.ts'
 import { SIGN_IN_NEEDED } from '../src/providers/claude/hooks.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 import type { Provider } from '../src/provider.ts'
 
 test('registry: a notice is sent and kept; the same code replaces it; a repeat is dropped', () => {
@@ -38,7 +38,7 @@ test('registry: a notice is sent and kept; the same code replaces it; a repeat i
 
 async function session() {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -52,9 +52,9 @@ async function session() {
   const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.Stop[0].hooks[0]
   const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
-  sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+  sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
   await c.next('session.created')
   const send = (body: object) => new Promise<void>((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port: Number(new URL(h.url).port), method: 'POST', path: '/hook',
@@ -93,7 +93,7 @@ test('through a session: a transcript being written means no notice', async () =
 
 async function hooklessSession() {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -108,9 +108,9 @@ async function hooklessSession() {
   const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.UserPromptSubmit[0].hooks[0]
   const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
-  sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+  sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
   await c.next('session.created')
   const hook = (body: object) => new Promise<void>((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port: Number(new URL(h.url).port), method: 'POST', path: '/hook',

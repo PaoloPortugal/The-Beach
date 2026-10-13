@@ -13,7 +13,7 @@ import path from 'node:path'
 import { HookTranslator, MAIN, previewMatches } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider, PERMISSION_MATCH_MS } from '../src/providers/claude/index.ts'
 import type { SessionEvent } from '../src/protocol.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 const hook = (name: string, fields: Record<string, unknown> = {}) =>
@@ -181,7 +181,7 @@ function post(port: number, auth: string, body: object) {
 
 async function liveSession() {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -196,12 +196,12 @@ async function liveSession() {
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0]
   const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
   // Play the bridge.
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
   const fromSidecar: any[] = []
-  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l))))
+  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l)).filter((m) => m.type !== 'welcome')))
   const toSidecar = (m: object) => sock.write(JSON.stringify(m) + '\n')
-  toSidecar({ type: 'hello', token: env.BRIDGE_TOKEN })
+  toSidecar({ type: 'hello', token: bridgeOf(env).token })
   toSidecar({ type: 'ready' })
   await c.next('session.created')
   const hookPort = Number(new URL(h.url).port)

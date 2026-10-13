@@ -2,26 +2,27 @@
 // may appear in the sidecar. It launches the user's own, unmodified `claude`
 // in a terminal and never reads, stores or passes on Claude credentials.
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import type { Provider, ProviderSession, SessionHost } from '../../provider.ts'
+import type { Adopt, Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
 import type { History, Launch as LaunchChoice, Project, StoredSession } from '../../protocol.ts'
 import { LAUNCH_OPTIONS, launchArgs } from './launch-options.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
-import { writeSessionFile } from '../../launch/launcher.ts'
+import { launcherPidFile, processAlive, programPidFile, readPidFile, writeSessionFile } from '../../launch/launcher.ts'
 import { writeRelayFile } from '../../launch/relay.ts'
 import { selfCommand } from '../../launch/self.ts'
+import { sessionsDir } from '../../launch/app-data.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
 import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
-import { runningSessions, type Running } from './running.ts'
-import { BRIDGE_SERVER_NAME } from './bridge.ts'
+import { runningSessions, type AgentEntry, type Running } from './running.ts'
+import { BRIDGE_SERVER_NAME, writeBridgeFile } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
-import { HookServer } from './hook-server.ts'
+import { HookServer, type HookLink } from './hook-server.ts'
+import { readHookPort, readRunRecord, RUN_DIR_NAME, writeHookPort, writeRunRecord, type RunRecord } from './run-folder.ts'
 import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, StoredCache, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
@@ -71,8 +72,20 @@ export interface ClaudeOptions {
   env?: NodeJS.ProcessEnv
   /** For tests: replaces running `claude agents --json`; gets the `claude` found and the environment it would run with. */
   runningSessions?: (claude: string, env: Record<string, string>) => Promise<Running>
+  /**
+   * The folder of run folders (S07); the user's app data folder otherwise.
+   * Every test passes a temporary one, so none touches the real folder.
+   */
+  sessionsDir?: string
 }
 
+/** A run folder's files (S07). The bridge file holds where the bridge connects. */
+const BRIDGE_FILE = 'bridge.json'
+const RELAY_FILE = 'relay.json'
+const STATUS_FILE = 'status.json'
+
+/** A run folder found at start whose session may still run. */
+interface Found { runDir: string; record: RunRecord; program: number }
 
 export class ClaudeProvider implements Provider {
   readonly id = 'claude'
@@ -80,7 +93,6 @@ export class ClaudeProvider implements Provider {
   readonly launchOptions = LAUNCH_OPTIONS
   private readonly opts: ClaudeOptions
   private readonly log: Log
-  private readonly runDirs = new Set<string>()
   /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
   private readonly live = new Set<string>()
   /** The stored sessions' listing, kept between calls (S04). */
@@ -152,20 +164,24 @@ export class ClaudeProvider implements Provider {
 
   /** Claude's session ids running anywhere on this machine; empty when that can't be known. */
   private async running(): Promise<Set<string>> {
-    // The `claude` found last, so a listing doesn't run `--version` first each time; a launch still finds it afresh.
-    let claude = this.foundPath
-    if (!claude) {
-      try { claude = (await this.find()).path } catch (e) {
-        this.log.info(`can't tell which sessions run elsewhere: ${e instanceof Error ? e.message : String(e)}`)
-        return new Set()
-      }
-    }
-    const answer = await (this.opts.runningSessions ?? runningSessions)(claude, cleanEnv(process.env, ClaudeProvider.UNSET_ENV))
+    const answer = await this.askRunning()
     if ('none' in answer) {
       this.log.info(`can't tell which sessions run elsewhere: ${answer.none}`)
       return new Set()
     }
     return answer.ids
+  }
+
+  /** `claude agents --json`'s answer, or why there's none. */
+  private async askRunning(): Promise<Running> {
+    // The `claude` found last, so a listing doesn't run `--version` first each time; a launch still finds it afresh.
+    let claude = this.foundPath
+    if (!claude) {
+      try { claude = (await this.find()).path } catch (e) {
+        return { none: e instanceof Error ? e.message : String(e) }
+      }
+    }
+    return (this.opts.runningSessions ?? runningSessions)(claude, cleanEnv(process.env, ClaudeProvider.UNSET_ENV))
   }
 
   private async start(host: SessionHost, o: {
@@ -185,12 +201,23 @@ export class ClaudeProvider implements Provider {
       () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
       o.usage ?? undefined)
-    // After /clear the old conversation is stored, not running: it may be listed and resumed.
-    session.onNativeId = (from, to) => { this.live.delete(from); this.live.add(to) }
     session.link = bridges.register(session.bridgeHandlers())
     session.hookLink = hooks.register({ onHook: (p, gone) => session.onHook(p, gone), onStatus: (p) => session.onStatus(p) })
+    // What a later sidecar needs to take the session back (S07).
+    const record = {
+      native_id: o.nativeId, project: o.project, hook_port: hooks.port, hook_token: session.hookLink.token,
+      started_at: new Date().toISOString(),
+    }
+    this.followIds(session, record)
+    try {
+      writeRunRecord(launch.runDir, record)
+      writeBridgeFile(path.join(launch.runDir, BRIDGE_FILE), bridges.port, session.link.token)
+    } catch (e) {
+      session.dispose()
+      throw e
+    }
     const settings = await this.writeSettings(launch, hooks, session.hookLink.token, o.project.path, host.id)
-    const mcpConfig = this.writeMcpConfig(launch, bridges.port, session.link.token)
+    const mcpConfig = this.writeMcpConfig(launch)
     const args = [
       // A resumed session keeps its id and name; a new one is named by Claude Code.
       ...(o.resume ? ['--resume', o.nativeId] : ['--session-id', o.nativeId]),
@@ -214,13 +241,160 @@ export class ClaudeProvider implements Provider {
     return session
   }
 
+  /**
+   * Run folders stay: sessions still running need them, and the next start
+   * takes those back (S07). Each is deleted once its session has ended.
+   */
   async shutdown(): Promise<void> {
     await this.bridges?.close()
     this.bridges = null
     await this.hooks?.close()
     this.hooks = null
-    for (const dir of this.runDirs) fs.rmSync(dir, { recursive: true, force: true })
-    this.runDirs.clear()
+  }
+
+  /**
+   * Takes back the sessions launched before the sidecar last stopped and
+   * still running (S07). The hook server comes first, on the kept port,
+   * before anything else listens. Then each run folder found by listing
+   * (never a path read from a file): its launcher's process must be alive,
+   * and, where `claude agents --json` answers, Claude Code must list its
+   * program's process, so a reused process id alone doesn't count. Folders
+   * of sessions gone are deleted; ones that can't be read are left alone.
+   */
+  async restore(adopt: Adopt): Promise<void> {
+    const hooks = await this.hookServer()
+    const root = this.sessionsRoot()
+    let names: string[]
+    try {
+      names = fs.readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && RUN_DIR_NAME.test(d.name)).map((d) => d.name)
+    } catch {
+      return
+    }
+    const found: Found[] = []
+    for (const name of names) {
+      const runDir = path.join(root, name)
+      const launcher = readPidFile(launcherPidFile(runDir))
+      if (launcher === null) {
+        // A terminal that never ran the launcher: gone, unless it may still be opening.
+        const age = Date.now() - (fs.statSync(runDir, { throwIfNoEntry: false })?.mtimeMs ?? 0)
+        if (age > (this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS)) this.remove(runDir, 'its terminal never started')
+        continue
+      }
+      if (!processAlive(launcher)) {
+        this.remove(runDir, 'its session ended')
+        continue
+      }
+      const record = readRunRecord(runDir)
+      const program = readPidFile(programPidFile(runDir))
+      if (!record || program === null) {
+        this.log.info(`run folder ${name}: ${record ? 'its program never started' : 'no usable record'}; left alone`)
+        continue
+      }
+      found.push({ runDir, record, program })
+    }
+    if (found.length === 0) return
+
+    const answer = await this.askRunning()
+    const agents = 'none' in answer ? null : answer.agents ?? null
+    if (agents === null) {
+      this.log.info(`can't ask Claude Code which sessions run (${'none' in answer ? answer.none : 'no entries'}); trusting their launchers`)
+    }
+    const bridges = await this.bridgeServer()
+    for (const f of found) {
+      const entry = agents === null ? null : agents.find((a) => a.pid === f.program) ?? null
+      if (agents !== null && entry === null) {
+        this.remove(f.runDir, 'Claude Code no longer lists it')
+        continue
+      }
+      try {
+        this.takeOver(adopt, hooks, bridges, f, entry)
+      } catch (e) {
+        this.log.error(`couldn't take back the session in ${path.basename(f.runDir)}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+  }
+
+  /** Takes back one running session (see restore). */
+  private takeOver(adopt: Adopt, hooks: HookServer, bridges: BridgeServer, f: Found, entry: AgentEntry | null) {
+    // Claude Code's own id when it answered: /clear or /resume while the game was closed is followed.
+    const nativeId = entry?.sessionId ?? f.record.native_id
+    if (this.live.has(nativeId)) return
+    const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
+    const read = stored ? readConversation(stored.file) : null
+    const launch: Launch = { runDir: f.runDir, nativeId }
+    // The hooks go to the port it was launched with: ours only if we got it back.
+    const limited = f.record.hook_port !== hooks.port
+    let session: ClaudeSession | null = null
+    const hookLink: HookLink | null = hooks.adopt(f.record.hook_token, {
+      onHook: (p, gone) => session?.onHook(p, gone), onStatus: (p) => session?.onStatus(p),
+    })
+    if (!hookLink) throw new Error('its hook token is in use already')
+    try {
+      adopt((host) => {
+        session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
+          () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId) },
+          this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
+          read?.usage)
+        return session
+      })
+    } catch (e) {
+      hookLink.unregister()
+      throw e
+    }
+    const s = session as unknown as ClaudeSession
+    this.live.add(nativeId)
+    s.hookLink = hookLink
+    s.link = bridges.register(s.bridgeHandlers())
+    const record = { native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token, started_at: f.record.started_at }
+    this.followIds(s, record)
+    if (nativeId !== f.record.native_id) this.rewriteRecord(f.runDir, record)
+    // The relays read their files on every run: they follow us to the new port, with the old token.
+    if (limited) {
+      for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
+        const at = path.join(f.runDir, file)
+        if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
+      }
+    }
+    // A fresh one-time token: the bridge, retrying, reads it and connects.
+    writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, s.link.token)
+    const status = entry?.status
+    s.restored({
+      state: status === 'busy' ? 'working' : status === 'waiting' ? 'waiting' : 'idle',
+      reason: status === 'waiting' ? 'input' : null,
+      startedAt: f.record.started_at,
+      transcript: stored?.file ?? null,
+      limited,
+    })
+    this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
+  }
+
+  /**
+   * Keeps the live ids and the run folder's record with the conversation the
+   * session follows. After /clear the old conversation is stored, not
+   * running: it may be listed and resumed.
+   */
+  private followIds(session: ClaudeSession, record: Omit<RunRecord, 'version'>) {
+    session.onNativeId = (from, to) => {
+      this.live.delete(from)
+      this.live.add(to)
+      record.native_id = to
+      this.rewriteRecord(session.launch.runDir, record)
+    }
+  }
+
+  private rewriteRecord(runDir: string, record: Omit<RunRecord, 'version'>) {
+    try {
+      writeRunRecord(runDir, record)
+    } catch (e) {
+      this.log.warn(`couldn't update a session's record: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  /** Deletes a run folder found by listing (restore), never one named in a file. */
+  private remove(runDir: string, why: string) {
+    this.log.info(`removed run folder ${path.basename(runDir)}: ${why}`)
+    fs.rmSync(runDir, { recursive: true, force: true })
   }
 
   private async bridgeServer(): Promise<BridgeServer> {
@@ -229,15 +403,35 @@ export class ClaudeProvider implements Provider {
     return this.bridges
   }
 
+  /**
+   * The hook server, on the kept port (S07): sessions launched before keep
+   * posting their hooks to it. The kept port is only written when none is
+   * kept yet, so a fallback port (the kept one was taken) never replaces it.
+   */
   private async hookServer(): Promise<HookServer> {
-    if (!this.hooks) this.hooks = new HookServer(this.log)
-    await this.hooks.start()
+    if (!this.hooks) {
+      this.hooks = new HookServer(this.log)
+      const root = this.sessionsRoot()
+      const kept = readHookPort(root)
+      const port = await this.hooks.start(kept ?? undefined)
+      if (kept === null) {
+        try {
+          fs.mkdirSync(root, { recursive: true, mode: 0o700 })
+          writeHookPort(root, port)
+        } catch (e) {
+          this.log.warn(`couldn't keep the hook port: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
     return this.hooks
+  }
+
+  private sessionsRoot(): string {
+    return this.opts.sessionsDir ?? sessionsDir()
   }
 
   private forget(runDir: string) {
     fs.rmSync(runDir, { recursive: true, force: true })
-    this.runDirs.delete(runDir)
   }
 
   /**
@@ -251,9 +445,9 @@ export class ClaudeProvider implements Provider {
    */
   private async writeSettings(launch: Launch, hooks: HookServer, token: string, project: string, id: string): Promise<string> {
     const self = this.opts.selfCommand ?? selfCommand
-    const relayFile = path.join(launch.runDir, 'relay.json')
+    const relayFile = path.join(launch.runDir, RELAY_FILE)
     writeRelayFile(relayFile, { url: hooks.url, token })
-    const statusFile = path.join(launch.runDir, 'status.json')
+    const statusFile = path.join(launch.runDir, STATUS_FILE)
     writeRelayFile(statusFile, { url: hooks.statusUrl, token })
     const ours = await ourStatusLine(project, self('statusline', statusFile), this.opts.env ? { env: this.opts.env } : {})
     if ('none' in ours) this.log.info(`session ${id}: no status line of ours: ${ours.none}`)
@@ -265,16 +459,17 @@ export class ClaudeProvider implements Provider {
 
   /**
    * The MCP config that makes Claude Code start our bridge: this executable
-   * in bridge mode, with the link's port and token in the bridge's own
+   * in bridge mode, with the path of its bridge file (where to connect, and
+   * a one-time token, rewritten by each sidecar; S07) in the bridge's own
    * environment (not Claude's: the bridge is Claude Code's child, so
    * commands Claude runs never see it).
    */
-  private writeMcpConfig(launch: Launch, port: number, token: string): string {
+  private writeMcpConfig(launch: Launch): string {
     const [command, ...args] = (this.opts.selfCommand ?? selfCommand)('bridge', 'claude')
     const file = path.join(launch.runDir, 'mcp.json')
     fs.writeFileSync(file, JSON.stringify({
       mcpServers: {
-        [BRIDGE_SERVER_NAME]: { command, args, env: { BRIDGE_PORT: String(port), BRIDGE_TOKEN: token } },
+        [BRIDGE_SERVER_NAME]: { command, args, env: { BRIDGE_FILE: path.join(launch.runDir, BRIDGE_FILE) } },
       },
     }), { mode: 0o600 })
     return file
@@ -295,11 +490,17 @@ export class ClaudeProvider implements Provider {
     }
   }
 
-  /** A private folder for this session's launch file, settings and bridge config. */
+  /**
+   * A private folder for this session's launch file, settings, bridge
+   * config and record, in the app data folder (S07). Mode 0700 on macOS and
+   * Linux; on Windows it relies on the per-user permissions of
+   * %LOCALAPPDATA% (chmod does nothing there).
+   */
   private prepare(nativeId: string): Launch {
-    const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-session-'))
+    const root = this.sessionsRoot()
+    fs.mkdirSync(root, { recursive: true, mode: 0o700 })
+    const runDir = fs.mkdtempSync(path.join(root, 'session-'))
     fs.chmodSync(runDir, 0o700)
-    this.runDirs.add(runDir)
     return { runDir, nativeId }
   }
 

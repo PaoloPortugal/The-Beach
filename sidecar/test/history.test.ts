@@ -8,12 +8,12 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 import { fitInputs, jsonBytes } from '../src/history.ts'
 
 test('history: user and assistant messages, completed ones only, as the world saw them', async () => {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -29,9 +29,9 @@ test('history: user and assistant messages, completed ones only, as the world sa
     const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
     const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.Stop[0].hooks[0]
     const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
-    sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+    sock = net.connect(bridgeOf(env).port, '127.0.0.1')
     await new Promise((res) => sock!.once('connect', res))
-    sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+    sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
     await c.next('session.created')
     const send = (body: object) => new Promise<void>((resolve, reject) => {
       const req = http.request({ host: '127.0.0.1', port: Number(new URL(h.url).port), method: 'POST', path: '/hook',

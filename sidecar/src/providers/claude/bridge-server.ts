@@ -101,6 +101,8 @@ export class BridgeServer {
           found.used = true
           found.socket = sock
           slot = found
+          // The bridge then knows its token is spent, and says ready.
+          sock.write(JSON.stringify({ type: 'welcome' } satisfies FromSidecar) + '\n')
           continue
         }
         this.handle(slot, m)

@@ -93,6 +93,17 @@ export const CONVERSATION_MOVED = {
   message: 'This conversation moved to another Claude Code session. Continue it in the terminal; the world can no longer send to it.',
 }
 
+/**
+ * The notice for a session taken over after a restart whose hooks can't
+ * reach the game any more (their port was taken while it was closed;
+ * NOTES.md -> S07). The user's wording, 2026-10-13: deliberately general,
+ * so it never goes out of date; what works is in NOTES and the guide.
+ */
+export const REATTACHED_LIMITED = {
+  code: 'reattached_limited',
+  message: 'This session started before the game restarted, so some features may not work fully.',
+}
+
 /** Why the world can't send to a conversation that moved. */
 export const MOVED_ERROR = 'This conversation moved to another Claude Code session; continue it in the terminal.'
 /** Why the world can't send while the bridge isn't connected. */
@@ -234,7 +245,13 @@ export class ClaudeSession implements ProviderSession {
 
   bridgeHandlers() {
     return {
-      onReady: () => { this.onReady(); this.flushPrompt() },
+      onReady: () => {
+        this.onReady()
+        // A session taken over after a restart (already up): its bridge is
+        // back, and its closing now says when Claude Code exits.
+        if (!this.startupTimer) this.stopLauncherCheck()
+        this.flushPrompt()
+      },
       onPermissionRequest: (p: RelayedPermission) => this.onPermissionRequest(p),
       onClose: () => this.onGone('the bridge closed'),
     }
@@ -261,6 +278,14 @@ export class ClaudeSession implements ProviderSession {
     this.stopLauncherCheck()
     // Timing for NOTES.md -> S02 -> Starting up (checkpoint 1 measurements).
     this.log.info(`session ${this.host.id} came up ${Date.now() - this.launchedAt} ms after launch`)
+    this.announce()
+    // A resumed conversation's usage so far.
+    this.sendUsage()
+    this.flushPrompt()
+  }
+
+  private announce(startedAt?: string) {
+    const { state, reason } = this.translator.mainState()
     this.host.announce({
       native_id: this.nativeId,
       project: this.project,
@@ -272,11 +297,34 @@ export class ClaudeSession implements ProviderSession {
       extensions: [],
       model: this.model,
       effort: this.effort,
-      agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
+      agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state, reason }],
+      ...(startedAt ? { started_at: startedAt } : {}),
     })
-    // A resumed conversation's usage so far.
+  }
+
+  /**
+   * Takes over a session an earlier sidecar launched, still running (S07):
+   * announced at once in the state Claude Code reports (`claude agents
+   * --json`) until the next hook says otherwise, its transcript followed
+   * from now on, and its launcher watched until the bridge reconnects (from
+   * then on the bridge closing says Claude Code exited). `limited`: its
+   * hooks go to a port the game no longer has (taken while it was closed),
+   * so it runs with less, and says so; no hooks check either.
+   */
+  restored(o: { state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean }) {
+    this.translator.assume(o.state, o.reason)
+    if (o.limited) this.hooksChecked = true
+    if (o.transcript) {
+      this.transcriptDir = path.dirname(o.transcript)
+      this.transcript.follow(o.transcript)
+    }
+    this.announce(o.startedAt)
     this.sendUsage()
-    this.flushPrompt()
+    if (o.limited) this.host.emit({ type: 'session.notice', notice: REATTACHED_LIMITED })
+    this.launcherCheck = setInterval(() => {
+      if (launcherGone(this.launch.runDir)) this.onGone('its terminal closed')
+    }, LAUNCHER_CHECK_MS)
+    this.launcherCheck.unref()
   }
 
   /** The world's first message, sent once the session is up and its bridge connected. */

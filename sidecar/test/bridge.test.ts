@@ -3,14 +3,15 @@
 // life from launch to exit.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { answerMcp, BRIDGE_SERVER_NAME, MCP_VERSIONS } from '../src/providers/claude/bridge.ts'
+import { answerMcp, BRIDGE_RETRY_MS, BRIDGE_SERVER_NAME, MCP_VERSIONS, readBridgeFile, writeBridgeFile } from '../src/providers/claude/bridge.ts'
 import { BridgeServer, HELLO_TIMEOUT_MS } from '../src/providers/claude/bridge-server.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const main = path.join(import.meta.dirname, '..', 'src', 'main.ts')
 
@@ -65,6 +66,34 @@ function startBridge(env: Record<string, string>) {
   return { child, send, out, waitFor, exited, stdoutRaw: () => stdoutRaw }
 }
 
+/** A bridge file in a folder of its own, as a run folder holds it. */
+function bridgeFile(port: number, token: string): string {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-')), 'bridge.json')
+  writeBridgeFile(file, port, token)
+  return file
+}
+
+const until = async (cond: () => boolean, ms = 2000) => {
+  for (const end = Date.now() + ms; !cond() && Date.now() < end;) await new Promise((r) => setTimeout(r, 20))
+}
+
+test('the bridge file: written owner-only, read back, anything else refused', () => {
+  const token = 'a'.repeat(64)
+  const file = bridgeFile(4321, token)
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600)
+  assert.deepEqual(readBridgeFile(file), { port: 4321, token })
+  for (const bad of [
+    { version: 2, port: 4321, token }, { version: 1, port: 0, token }, { version: 1, port: 70000, token },
+    { version: 1, port: '4321', token }, { version: 1, port: 4321, token: 'short' }, [],
+  ]) {
+    fs.writeFileSync(file, JSON.stringify(bad))
+    assert.equal(readBridgeFile(file), null, JSON.stringify(bad))
+  }
+  fs.writeFileSync(file, '{ not json')
+  assert.equal(readBridgeFile(file), null)
+  assert.equal(readBridgeFile(path.join(path.dirname(file), 'missing.json')), null)
+})
+
 test('the bridge process: handshake, connects after initialized, relays both ways, exits with stdin', async () => {
   const events: string[] = []
   const permissions: unknown[] = []
@@ -75,7 +104,7 @@ test('the bridge process: handshake, connects after initialized, relays both way
     onPermissionRequest: (p) => permissions.push(p),
     onClose: () => events.push('close'),
   })
-  const b = startBridge({ BRIDGE_PORT: String(port), BRIDGE_TOKEN: link.token })
+  const b = startBridge({ BRIDGE_FILE: bridgeFile(port, link.token) })
   try {
     b.send({ jsonrpc: '2.0', id: 0, method: 'server/discover', params: {} })
     assert.equal((await b.waitFor((m) => m.id === 0)).error.code, -32601)
@@ -122,16 +151,77 @@ test('the bridge process: handshake, connects after initialized, relays both way
 })
 
 test('without a sidecar, the bridge still answers MCP (Claude Code keeps working)', async () => {
-  const b = startBridge({ BRIDGE_PORT: '', BRIDGE_TOKEN: '' })
+  for (const env of [{ BRIDGE_FILE: '' }, { BRIDGE_FILE: path.join(os.tmpdir(), 'no-such-folder', 'bridge.json') }]) {
+    const b = startBridge(env)
+    try {
+      b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+      await b.waitFor((m) => m.id === 1)
+      b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+      b.send({ jsonrpc: '2.0', id: 2, method: 'ping' })
+      await b.waitFor((m) => m.id === 2)
+      b.child.stdin.end()
+      assert.equal(await b.exited, 0, 'exits with stdin, retrying or not')
+    } finally { b.child.kill() }
+  }
+})
+
+test('the bridge process reconnects (S07): when the sidecar goes, it retries, and takes the next sidecar\'s fresh token', { timeout: 20_000 }, async () => {
+  const events: string[] = []
+  const first = new BridgeServer(new RecordingLog())
+  const firstLink = first.register({ onReady: () => events.push('ready 1'), onPermissionRequest() {}, onClose: () => events.push('close 1') })
+  const file = bridgeFile(await first.start(), firstLink.token)
+  const b = startBridge({ BRIDGE_FILE: file })
+  const second = new BridgeServer(new RecordingLog())
   try {
     b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
     await b.waitFor((m) => m.id === 1)
     b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
-    b.send({ jsonrpc: '2.0', id: 2, method: 'ping' })
-    await b.waitFor((m) => m.id === 2)
+    await until(() => events.includes('ready 1'))
+    assert.deepEqual(events, ['ready 1'])
+
+    // The game quits: the sidecar and its token are gone. The bridge keeps
+    // trying, but never offers the spent token again.
+    await first.close()
+    await new Promise((r) => setTimeout(r, BRIDGE_RETRY_MS + 500))
+
+    // The next sidecar: a new port and a fresh token in the same file.
+    const secondLink = second.register({ onReady: () => events.push('ready 2'), onPermissionRequest() {}, onClose: () => events.push('close 2') })
+    writeBridgeFile(file, await second.start(), secondLink.token)
+    await until(() => events.includes('ready 2'), BRIDGE_RETRY_MS * 2 + 1000)
+    assert.deepEqual(events, ['ready 1', 'close 1', 'ready 2'])
+    assert.ok(secondLink.send({ type: 'chat', text: 'back' }))
+    assert.deepEqual((await b.waitFor((m) => m.method === 'notifications/claude/channel')).params, { content: 'back', meta: { sender: 'user' } })
+
     b.child.stdin.end()
     assert.equal(await b.exited, 0)
-  } finally { b.child.kill() }
+    await until(() => events.includes('close 2'))
+    assert.deepEqual(events, ['ready 1', 'close 1', 'ready 2', 'close 2'])
+  } finally {
+    b.child.kill()
+    await second.close()
+  }
+})
+
+test('the bridge process: a refused token never admits it; a fresh one in the file does', { timeout: 20_000 }, async () => {
+  const server = new BridgeServer(new RecordingLog())
+  const port = await server.start()
+  const events: string[] = []
+  const link = server.register({ onReady: () => events.push('ready'), onPermissionRequest() {}, onClose() {} })
+  const file = bridgeFile(port, 'f'.repeat(64))
+  const b = startBridge({ BRIDGE_FILE: file })
+  try {
+    b.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } })
+    await b.waitFor((m) => m.id === 1)
+    b.send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    await new Promise((r) => setTimeout(r, BRIDGE_RETRY_MS * 2 + 500))
+    assert.equal(events.length, 0, 'a token the sidecar refused never admits the bridge')
+    writeBridgeFile(file, port, link.token)
+    await until(() => events.includes('ready'), BRIDGE_RETRY_MS * 2 + 1000)
+    assert.deepEqual(events, ['ready'])
+  } finally {
+    b.child.kill()
+    await server.close()
+  }
 })
 
 // ---- the bridge server ----
@@ -155,10 +245,13 @@ test('bridge server: refuses wrong, reused and missing tokens', async () => {
     await wrong.closed
 
     const good = rawClient(port)
+    let welcome = ''
+    good.sock.setEncoding('utf8').on('data', (d: string) => { welcome += d })
     good.send({ type: 'hello', token: link.token })
     good.send({ type: 'ready' })
     for (let i = 0; i < 100 && ready.length === 0; i++) await new Promise((r) => setTimeout(r, 10))
     assert.deepEqual(ready, ['x'])
+    assert.equal(welcome, '{"type":"welcome"}\n', 'an accepted token is answered welcome')
 
     const again = rawClient(port)
     again.send({ type: 'hello', token: link.token })
@@ -189,7 +282,7 @@ test('bridge server: a silent connection is dropped after the hello timeout', { 
 test('a Claude session comes up when its bridge is ready and ends when it closes', async () => {
   const log = new RecordingLog()
   let mcpConfig = ''
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log,
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -211,10 +304,10 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
     // Play the bridge: connect with the token from the MCP config.
     const fs = await import('node:fs')
     const env = JSON.parse(fs.readFileSync(mcpConfig, 'utf8')).mcpServers['world-bridge'].env
-    const bridge = rawClient(Number(env.BRIDGE_PORT))
+    const bridge = rawClient(bridgeOf(env).port)
     const lines: string[] = []
     bridge.sock.setEncoding('utf8').on('data', (d: string) => lines.push(...d.trim().split('\n')))
-    bridge.send({ type: 'hello', token: env.BRIDGE_TOKEN })
+    bridge.send({ type: 'hello', token: bridgeOf(env).token })
     bridge.send({ type: 'ready' })
     const created = await c.next('session.created')
     const session = created.session as Record<string, any>
@@ -226,8 +319,8 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
 
     // Chat from the world goes down the bridge.
     assert.equal((await c.command({ type: 'message.send', session: id, text: 'hello' })).type, 'ok')
-    for (let i = 0; i < 100 && lines.length === 0; i++) await new Promise((r) => setTimeout(r, 10))
-    assert.deepEqual(JSON.parse(lines[0]!), { type: 'chat', text: 'hello' })
+    for (let i = 0; i < 100 && lines.length < 2; i++) await new Promise((r) => setTimeout(r, 10))
+    assert.deepEqual(lines.map((l) => JSON.parse(l)), [{ type: 'welcome' }, { type: 'chat', text: 'hello' }])
 
     // Claude Code exits: the bridge goes, the island sinks, files are removed.
     bridge.sock.destroy()
@@ -242,7 +335,7 @@ test('a Claude session comes up when its bridge is ready and ends when it closes
 test('a Claude session whose launcher exits before it comes up ends at once', async () => {
   // Claude Code exits at a startup prompt (folder trust declined) or its terminal is closed.
   const fs = await import('node:fs')
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -269,7 +362,7 @@ test('a Claude session whose launcher exits before it comes up ends at once', as
 })
 
 test('a Claude session that never comes up ends after the startup timeout', async () => {
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],

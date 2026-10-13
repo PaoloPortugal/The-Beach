@@ -19,7 +19,7 @@ import { STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { REPORTED_HOOKS } from '../src/providers/claude/hooks.ts'
 import { checkMessage } from '../src/protocol.ts'
 import { FakeProvider } from './fake-provider.ts'
-import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
+import { connect, RecordingLog, testServer, type Msg, tempSessionsDir } from './helpers.ts'
 
 const tmp = (prefix: string) => fs.mkdtempSync(path.join(os.tmpdir(), prefix))
 
@@ -37,7 +37,7 @@ function post(port: number, auth: string, body: object, at = '/hook') {
 
 function claude() {
   const launches: { args: string[] }[] = []
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.296' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],

@@ -29,6 +29,8 @@ export interface Entry {
    */
   holding: number
   held: Outgoing[]
+  /** Taken over from an earlier sidecar (S07): it comes up as a snapshot, not session.created. */
+  readonly adopted: boolean
 }
 
 export class Registry {
@@ -65,9 +67,27 @@ export class Registry {
 
   /** A new, not-yet-announced session. Starts with one hold (for its create command). */
   open(provider: Provider): Entry {
+    return this.add(provider, 1, false)
+  }
+
+  /**
+   * A session a provider took over at start (S07): no command is answering
+   * for it, so no hold, and its announce sends session.snapshot.
+   */
+  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession): void {
+    const entry = this.add(provider, 0, true)
+    try {
+      entry.control = make(entry.host)
+    } catch (e) {
+      this.discard(entry)
+      throw e
+    }
+  }
+
+  private add(provider: Provider, holding: number, adopted: boolean): Entry {
     const id = crypto.randomUUID()
     const entry: Entry = {
-      id, provider, control: null, state: null, ended: false, holding: 1, held: [],
+      id, provider, control: null, state: null, ended: false, holding, held: [], adopted,
       host: null as unknown as SessionHost,
     }
     ;(entry as { host: SessionHost }).host = this.makeHost(entry)
@@ -128,7 +148,7 @@ export class Registry {
       origin: 'app',
       project: withRepo(intro.project),
       title: intro.title,
-      started_at: new Date().toISOString(),
+      started_at: intro.started_at ?? new Date().toISOString(),
       capabilities: structuredClone(intro.capabilities),
       extensions: [...intro.extensions],
       agents: structuredClone(intro.agents),
@@ -140,7 +160,9 @@ export class Registry {
       ...('usage' in intro.capabilities ? { usage: null } : {}),
       notices: [],
     }
-    const msg = { type: 'session.created', session: state }
+    // A session taken over at start was already there: its island stands
+    // from the first frame (no rise; NOTES.md -> S07).
+    const msg = { type: entry.adopted ? 'session.snapshot' : 'session.created', session: state }
     const checked = checkMessage(msg)
     if (!checked.ok) throw new Error(`invalid session: ${checked.message}`)
     entry.state = state
