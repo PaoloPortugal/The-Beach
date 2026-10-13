@@ -54,8 +54,9 @@ Fable, no access):
   documented plan-mode upgrade. A transcript reply's model is what
   answered that turn, not the session's model.
 
-So the transcript was dropped as a source (my call, to confirm with the
-user): the model comes from `SessionStart`'s `model`, the status line's
+So the transcript was dropped as a source (my call, confirmed by the
+user on 2026-10-13 after the live check, where the header matched the
+terminal's with Haiku + Plan): the model comes from `SessionStart`'s `model`, the status line's
 `model.id` and `PostModelSwitch`, as the terminal shows it; the effort
 from the orchestrator's hooks' `effort.level` and the status line.
 Known limit: with the user's own status line, a new session's model may

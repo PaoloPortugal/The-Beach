@@ -2980,9 +2980,10 @@ header. Reverses C06's "No launch picker". Dev log
 - **Each starts at Default every time** the panel opens.
 - **The chat header shows model and effort beside the mode.** Decided
   with the model followed from the transcript too; built without it (my
-  call, 2026-10-13, from the probe: S02 → Model, effort and mode at
-  launch): a reply's model isn't the session's (plan mode answers a
-  Haiku session with Sonnet).
+  call from the probe, confirmed by the user 2026-10-13: S02 → Model,
+  effort and mode at launch): a reply's model isn't the session's (plan
+  mode answers a Haiku session with Sonnet), and the header should
+  match the terminal's.
 
 **How it works.**
 - **Protocol.** `hello`'s providers may carry `launch_options`: lists
@@ -3555,8 +3556,8 @@ capability; C12).** Code: `launch-options.ts`.
   session's model stays unknown until a switch reports it: our
   `SessionStart` is relayed only for clear and resume, and `--model` at
   launch fires no `PostModelSwitch`. The header then shows the effort
-  alone. Not checked yet: what the status line's `model.id` says in
-  plan mode's upgrade (the live check).
+  alone. In the live check (2026-10-13) the header matched the
+  terminal's with Haiku + Plan.
 - **Minimum version:** probed on 2.1.296 only. Whether 2.1.284 (our
   minimum) accepts `PostModelSwitch` in `--settings`, `--effort` and
   `xhigh` is unchecked (Watch items).
@@ -4614,13 +4615,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** C12, model, effort and mode at launch, is built on
-`launch-pickers` (dev log 2026-10-13-c12-launch-pickers), awaiting the
-user's review and live check with real Claude. Decided by the user
+`launch-pickers` (dev log 2026-10-13-c12-launch-pickers); live check
+passed with the user (2026-10-13), awaiting the merge. Decided by the user
 (2026-10-12): Model, Effort and Mode selectors on the create panel and
 the Resume page, each at Default every time (no flag: Claude Code's
 own choice), reversing C06's "no launch picker", and the model and
-effort beside the mode in the chat header. One departure to confirm:
-the model isn't followed from the transcript (C12 → Decided). Next
+effort beside the mode in the chat header; the model not followed from
+the transcript (my call, confirmed by the user; C12 → Decided). Next
 (user's order): S07; before it's built, the user decides on the kept
 hook port (S07 → To settle before building). Subagents stay read-only
 in the world (Open questions → 4).
