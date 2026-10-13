@@ -874,9 +874,10 @@ test('restore, limited: a SessionStart switching conversation is ignored while t
   const taken = await occupy()
   writeHookPort(root, taken.port)
   const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  // No transcript of it anywhere: its folder can't be known.
+  // No transcript of it yet (no prompt before the restart): its folder can't be known.
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
   const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'projects-')),
+    sessionsDir: root, projectsDir: projects,
     runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
   })
   try {
@@ -888,6 +889,16 @@ test('restore, limited: a SessionStart switching conversation is ignored while t
     assert.deepEqual(seen.filter((m) => m.type === 'session.updated' || m.type === 'session.notice'), [], 'not followed')
     assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited')))
     assert.equal(readRunRecord(f.runDir)!.native_id, f.record.native_id)
+
+    // Its first prompt writes the transcript: found, and read from its start.
+    const file = transcript(projects, f.record.native_id, f.record.project.path,
+      { type: 'user', uuid: 'u1', message: { content: 'first words' } })
+    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'u1', text: 'first words' })
+    // Its folder known now, a /clear in it is followed.
+    const cleared = { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(8), transcript_path: path.join(path.dirname(file), `${ID(8)}.jsonl`), cwd: f.record.project.path }
+    assert.equal((await post(port, f.record.hook_token, cleared)).status, 200)
+    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(8))
+    assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })
 
