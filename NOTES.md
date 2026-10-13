@@ -757,7 +757,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   can't reach; continue it in the provider's own window),
   `sign_in_needed` (the provider can't use the user's account; sort it
   out in its own window; Godot shows the provider's `message` as is,
-  S06). *(Shape accepted by the user, 2026-09-29, to be revisited if the
+  S06), `reattached_limited` (a session taken over after a restart
+  whose hooks can't reach the game; some features may not work fully
+  until it ends; S07, code name the user's, 2026-10-13). *(Shape accepted by the user, 2026-09-29, to be revisited if the
   world needs more.)*
 - `session.notice_cleared` (`code`): that notice no longer applies (e.g.
   `sign_in_needed` once the user signed in again); it leaves the

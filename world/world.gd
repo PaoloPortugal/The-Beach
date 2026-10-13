@@ -9,7 +9,8 @@ extends Node3D
 ## The plan's usage limits are in the bottom-right corner (C08). The day
 ## turns to night and back, and the weather changes (W09). Esc opens the
 ## settings menu (C10), whose settings this applies. The crosshair picks
-## what E acts on (C11).
+## what E acts on (C11). The world shows once the sidecar has taken back
+## the sessions still running from before a restart (S07).
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -41,6 +42,9 @@ var settings := Settings.new()
 var settings_menu := SettingsMenu.new()
 ## The crosshair, and what E acts on (C11).
 var crosshair := Crosshair.new()
+## Hides the world until the sidecar has taken back the sessions still
+## running from before a restart (S07).
+var loading_cover := LoadingCover.new()
 ## Where the debug commands (C09) are typed; null outside debug builds.
 var debug_console: DebugConsole
 
@@ -111,6 +115,9 @@ func _ready() -> void:
 	_menu.go_to_platform.connect(go_to_platform)
 	_setup_settings()
 	store.attach(Sidecar)
+	# Last, so its input check comes first.
+	add_child(loading_cover)
+	loading_cover.setup(Sidecar, _player)
 	# Dev tool: the current live check's steps, top left (NOTES → Running it).
 	if "--checklist" in OS.get_cmdline_user_args():
 		add_child(load("res://tests/live/checklist.tscn").instantiate())

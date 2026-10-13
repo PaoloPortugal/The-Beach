@@ -22,7 +22,9 @@ import { runningSessions, type AgentEntry, type Running } from './running.ts'
 import { BRIDGE_SERVER_NAME, writeBridgeFile } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
 import { HookServer, type HookLink } from './hook-server.ts'
-import { readHookPort, readRunRecord, RUN_DIR_NAME, writeHookPort, writeRunRecord, type RunRecord } from './run-folder.ts'
+import {
+  HOLDER_FILE, readHookPort, readRunRecord, RUN_DIR_NAME, writeHolder, writeHookPort, writeRunRecord, type RunRecord,
+} from './run-folder.ts'
 import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, StoredCache, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
@@ -256,7 +258,8 @@ export class ClaudeProvider implements Provider {
    * Takes back the sessions launched before the sidecar last stopped and
    * still running (S07). The hook server comes first, on the kept port,
    * before anything else listens. Then each run folder found by listing
-   * (never a path read from a file): its launcher's process must be alive,
+   * (never a path read from a file) and not held by another sidecar still
+   * running (a second game): its launcher's process must be alive,
    * and, where `claude agents --json` answers, Claude Code must list its
    * program's process, so a reused process id alone doesn't count. Folders
    * of sessions gone are deleted; ones that can't be read are left alone.
@@ -274,6 +277,12 @@ export class ClaudeProvider implements Provider {
     const found: Found[] = []
     for (const name of names) {
       const runDir = path.join(root, name)
+      // Held by another sidecar still running (a second game, or one just launching it): not ours to touch.
+      const holder = readPidFile(path.join(runDir, HOLDER_FILE))
+      if (holder !== null && holder !== process.pid && processAlive(holder)) {
+        this.log.info(`run folder ${name}: held by another running game; left alone`)
+        continue
+      }
       const launcher = readPidFile(launcherPidFile(runDir))
       if (launcher === null) {
         // A terminal that never ran the launcher: gone, unless it may still be opening.
@@ -331,6 +340,7 @@ export class ClaudeProvider implements Provider {
     })
     if (!hookLink) throw new Error('its hook token is in use already')
     try {
+      writeHolder(f.runDir)
       adopt((host) => {
         session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
           () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId) },
@@ -501,6 +511,12 @@ export class ClaudeProvider implements Provider {
     fs.mkdirSync(root, { recursive: true, mode: 0o700 })
     const runDir = fs.mkdtempSync(path.join(root, 'session-'))
     fs.chmodSync(runDir, 0o700)
+    try {
+      writeHolder(runDir)
+    } catch (e) {
+      this.forget(runDir)
+      throw e
+    }
     return { runDir, nativeId }
   }
 
