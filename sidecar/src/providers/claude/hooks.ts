@@ -518,17 +518,18 @@ export class HookTranslator {
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
-    // Without prompt hooks (S07 limited) nothing says its call was read: a
-    // cut-short preview may fit an older call only, so it waits the whole
-    // time, for its own call to be read and the tie rule below to apply.
-    if (!this.promptHooks && !force && parseObject(r.input_preview) === null) return null
-    const matches = [...this.openTools.entries()]
+    // Without prompt hooks (S07 limited) nothing says its own call was read
+    // (it may never be: a line too long to read), so a cut-short preview,
+    // which may fit an older call only, is tied to none: shown at once from
+    // the preview itself.
+    const untied = !this.promptHooks && parseObject(r.input_preview) === null
+    const matches = untied ? [] : [...this.openTools.entries()]
       .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input))
     // Calls with different inputs that all fit a cut-short preview: which one it is can't be told.
     const one = new Set(matches.map(([, c]) => JSON.stringify(c.input))).size <= 1
     const pick = one ? matches.at(-1) : undefined
     // Its options come with its PermissionRequest hook; wait for that too.
-    if ((!pick || pick[1].options === null) && !force) return null
+    if ((!pick || pick[1].options === null) && !force && !untied) return null
     const out: SessionEvent[] = []
     let permission: Permission
     if (pick) {
