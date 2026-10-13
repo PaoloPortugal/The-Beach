@@ -518,6 +518,10 @@ export class HookTranslator {
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
+    // Without prompt hooks (S07 limited) nothing says its call was read: a
+    // cut-short preview may fit an older call only, so it waits the whole
+    // time, for its own call to be read and the tie rule below to apply.
+    if (!this.promptHooks && !force && parseObject(r.input_preview) === null) return null
     const matches = [...this.openTools.entries()]
       .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input))
     // Calls with different inputs that all fit a cut-short preview: which one it is can't be told.
@@ -885,9 +889,9 @@ function parseObject(s: string): Record<string, unknown> | null {
 }
 
 /**
- * Whether the relay's input preview shows this input. The preview is JSON,
- * spaced differently and possibly cut short, so compare without whitespace
- * (both sides alike) and allow a cut-off end.
+ * Whether the relay's input preview shows this input. A whole preview must
+ * be the same input exactly; one cut short (JSON spaced differently, its
+ * end cut off) must be a prefix of it, compared without whitespace.
  */
 export function previewMatches(preview: string, input: Record<string, unknown>): boolean {
   // A whole preview: the same input exactly (spacing inside strings counts).

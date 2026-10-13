@@ -902,6 +902,36 @@ test('restore, limited: a SessionStart switching conversation is ignored while t
   } finally { await r.close(); await taken.close() }
 })
 
+test('restore, limited, nothing prompted yet: /clear is followed once its transcript is written; a transcript of another project is never taken', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    // Its id in another project's folder (another cwd): not its transcript.
+    fs.mkdirSync(path.join(projects, 'other'))
+    fs.writeFileSync(path.join(projects, 'other', `${f.record.native_id}.jsonl`),
+      jsonl({ type: 'user', uuid: 'x1', cwd: path.join(os.tmpdir(), 'elsewhere'), entrypoint: 'cli', message: { content: 'not this one' } }))
+    // A /clear before the first prompt: no transcript of it yet.
+    const clear = { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(9), transcript_path: path.join(projects, 'proj', `${ID(9)}.jsonl`), cwd: f.record.project.path }
+    assert.equal((await post(port, f.record.hook_token, clear)).status, 200)
+    const quiet = await r.c.quiet(1500)
+    assert.deepEqual(quiet.filter((m) => m.type.startsWith('message.') || m.type === 'session.updated'), [], 'nothing taken yet')
+    // Its first prompt writes it: the switch, and the prompt.
+    transcript(projects, ID(9), f.record.project.path, { type: 'user', uuid: 'u9', message: { content: 'after the clear' } })
+    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
+    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
+    assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close(); await taken.close() }
+})
+
 test('restore, kept port: the transcript only fills the gaps, as for any session', async () => {
   const root = tempSessionsDir()
   const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
