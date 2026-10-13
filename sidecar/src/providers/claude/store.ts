@@ -293,14 +293,6 @@ export function findStored(nativeId: string, dir = projectsDir(), accept?: (info
   return null
 }
 
-/** Whether a conversation's transcript is in any project's folder, whatever is in it. */
-export function transcriptExists(nativeId: string, dir = projectsDir()): boolean {
-  if (!UUID.test(nativeId)) return false
-  let slugs: string[]
-  try { slugs = fs.readdirSync(dir) } catch { return false }
-  return slugs.some((slug) => fs.existsSync(path.join(dir, slug, `${nativeId}.jsonl`)))
-}
-
 /**
  * Whether a transcript holds a reply from Claude (an assistant entry of the
  * main conversation): an earlier conversation, not one /clear just started.

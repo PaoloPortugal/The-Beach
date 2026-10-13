@@ -25,7 +25,7 @@ import { HookServer, type HookLink } from './hook-server.ts'
 import {
   HOLDER_FILE, readHookPort, readRunRecord, RUN_DIR_NAME, writeHolder, writeHookPort, writeRunRecord, type RunRecord,
 } from './run-folder.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, transcriptExists, type StoredInfo, type Titles } from './store.ts'
+import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, type StoredInfo, type Titles } from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
 import type { UsageCounter } from './usage.ts'
@@ -387,7 +387,10 @@ export class ClaudeProvider implements Provider {
       transcript: stored?.file ?? null,
       limited,
       findTranscript: (id) => this.findOwn(id, f.record.project.path)?.file ?? null,
-      transcriptExists: (id) => transcriptExists(id, this.projects()),
+      currentId: async () => {
+        const a = await this.askRunning()
+        return 'none' in a ? null : a.agents?.find((x) => x.pid === f.program)?.sessionId ?? null
+      },
     })
     this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
   }

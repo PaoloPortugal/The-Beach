@@ -163,6 +163,8 @@ export class HookTranslator {
   private readonly openTools = new Map<Id, OpenTool>()
   /** Pending permission prompts by request_id. */
   private readonly permissions = new Map<Id, PendingPermission>()
+  /** Limited: prompts shown untied, until their own call is read (see tieLate). */
+  private readonly untied = new Map<Id, { tool: string; preview: string; before: Set<Id> }>()
   private readonly questions = new Map<Id, PendingQuestion>()
   private readonly plans = new Map<Id, PendingPlan>()
   /** The permission mode, from the orchestrator's hooks (C06); null until one says. */
@@ -478,6 +480,26 @@ export class HookTranslator {
     this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: this.promptHooks ? null : [] })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
+    this.tieLate(id)
+  }
+
+  /**
+   * Limited: a prompt shown untied gets its call once that's read: the
+   * first call of its tool opened after the prompt whose input fits its
+   * preview. Its card stays as shown; the call's end (ran: Yes, or a "No"
+   * in the terminal) resolves it.
+   */
+  private tieLate(id: Id) {
+    const call = this.openTools.get(id)
+    if (!call) return
+    for (const [requestId, u] of this.untied) {
+      const p = this.permissions.get(requestId)
+      if (!p || u.tool !== call.tool || u.before.has(id) || !previewMatches(u.preview, call.input)) continue
+      this.untied.delete(requestId)
+      call.permission = requestId
+      this.permissions.set(requestId, { ...p, toolCall: id })
+      return
+    }
   }
 
   private toolFinished(p: HookPayload, status: 'ok' | 'error', out: SessionEvent[]) {
@@ -549,6 +571,7 @@ export class HookTranslator {
         ...(input && jsonBytes(input) <= INPUT_MAX ? { input } : {}),
       }
       this.permissions.set(r.request_id, { agent: MAIN, toolCall: null })
+      if (untied) this.untied.set(r.request_id, { tool: r.tool_name, preview: r.input_preview, before: new Set(this.openTools.keys()) })
     }
     out.push({ type: 'permission.requested', permission })
     this.setState(permission.agent, 'waiting', 'permission', out)
@@ -608,6 +631,7 @@ export class HookTranslator {
     const p = this.permissions.get(requestId)
     if (!p) return
     this.permissions.delete(requestId)
+    this.untied.delete(requestId)
     const call = p.toolCall ? this.openTools.get(p.toolCall) : undefined
     if (call) call.permission = null
     out.push({ type: 'permission.resolved', permission: requestId, decision, by })

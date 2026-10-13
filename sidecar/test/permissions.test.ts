@@ -74,6 +74,20 @@ test('without prompt hooks (limited), a cut-short preview is tied to no call, sh
   assert.equal((t.permissionRequested(whole)![0] as any).permission.summary, 'Run: npm run build -- --target=native')
 })
 
+test('without prompt hooks (limited), an untied prompt gets its call once read: a Yes in the terminal (the call ran) resolves it, an older call never does', () => {
+  const t = new HookTranslator(CWD)
+  t.withoutPromptHooks()
+  t.translate(bash('toolu_old', 'npm run build -- --target=web'))
+  const cut = { request_id: 'jjjjj', tool_name: 'Bash', description: 'Run the build', input_preview: '{ "command": "npm run build -- --tar…' }
+  assert.ok(t.permissionRequested(cut))
+  // The older call ends: not the prompt's.
+  assert.deepEqual(types(t.translate(hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_old' }))), ['finished toolu_old ok'])
+  // Its own call, read late, then run (Yes in the terminal).
+  t.translate(bash('toolu_new', 'npm run build -- --target=native'))
+  assert.deepEqual(types(t.translate(hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_new' }))),
+    ['resolved jjjjj allow by external', 'finished toolu_new ok'])
+})
+
 test('a prompt is tied to its tool call: agent, summary, input; waiting, then allowed from the world', () => {
   const t = new HookTranslator(CWD)
   asking(t, 'toolu_1', 'echo hi > a.txt')

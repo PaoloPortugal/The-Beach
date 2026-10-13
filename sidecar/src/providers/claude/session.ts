@@ -69,8 +69,9 @@ export const LAUNCHER_CHECK_MS = 1000
 export const TRANSCRIPT_SEARCH_MS = 1000
 export const TRANSCRIPT_SEARCH_SLOW_MS = 10_000
 const TRANSCRIPT_SEARCH_FAST_FOR_MS = 60_000
-/** How many /clear switches a limited session waits on at once (S07). */
-const PENDING_CLEARS_MAX = 8
+/** A limited session's /clear, before its folder is known, is confirmed by asking Claude Code: this often, this far apart (S07). */
+const CLEAR_CONFIRM_TRIES = 3
+const CLEAR_CONFIRM_MS = 2000
 
 /**
  * Until the bridge connects, Claude Code is showing its startup dialogs (the
@@ -178,10 +179,10 @@ export class ClaudeSession implements ProviderSession {
   private transcriptSearch: NodeJS.Timeout | null = null
   /** This project's transcript of a conversation, once written (limited only). */
   private findTranscript: ((nativeId: string) => string | null) | null = null
-  /** Whether a conversation's transcript is in any project's folder (limited only). */
-  private transcriptExists: ((nativeId: string) => boolean) | null = null
-  /** Limited: conversations /clear started, not written yet (newest last). */
-  private pendingClears: string[] = []
+  /** Claude Code's own id for this session now, null if it can't say (limited only). */
+  private currentId: (() => Promise<string | null>) | null = null
+  /** Limited, its folder unknown: the conversation a confirmed /clear started, not written yet. */
+  private pendingClear: string | null = null
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -341,8 +342,8 @@ export class ClaudeSession implements ProviderSession {
     state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean
     /** This project's transcript of a conversation, if written: for a limited session that had none yet. */
     findTranscript?: (nativeId: string) => string | null
-    /** Whether a conversation's transcript is in any project's folder. */
-    transcriptExists?: (nativeId: string) => boolean
+    /** Claude Code's own id for this session now (`claude agents`), null if it can't say. */
+    currentId?: () => Promise<string | null>
   }) {
     this.translator.assume(o.state, o.reason)
     if (o.limited) {
@@ -358,7 +359,7 @@ export class ClaudeSession implements ProviderSession {
       // No prompt before the restart, so no transcript yet, and no hook to
       // name it: looked for until written, then read from its start.
       this.findTranscript = o.findTranscript
-      this.transcriptExists = o.transcriptExists ?? null
+      this.currentId = o.currentId ?? null
       this.searchTranscript(Date.now())
     }
     this.announce(o.startedAt)
@@ -514,7 +515,7 @@ export class ClaudeSession implements ProviderSession {
   private switchTo(id: string, file: string, resumed: Conversation | null) {
     const from = this.nativeId
     this.nativeId = id
-    this.pendingClears = []
+    this.pendingClear = null
     this.transcriptDir ??= path.dirname(file)
     if (resumed) this.usage.load(resumed.usage)
     else this.usage.reset()
@@ -759,30 +760,22 @@ export class ClaudeSession implements ProviderSession {
 
   /**
    * One look (see restored), then the next, slower after a while: for the
-   * transcript of the conversation it follows, until its folder is known,
-   * and for those /clear started since, until one is written.
+   * transcript of the conversation it follows, until its folder is known.
+   * A confirmed /clear waiting meanwhile is then switched to.
    */
   private searchTranscript(since: number) {
     const find = this.findTranscript
     this.transcriptSearch = null
     if (!find || this.disposed) return
-    if (this.transcriptDir === null) {
-      const file = find(this.nativeId)
-      if (file) {
-        this.transcriptDir = path.dirname(file)
-        this.transcript.follow(file, true)
-      }
-    }
-    // A /clear is newer than what's followed: the newest written wins (all of it news).
-    for (const id of [...this.pendingClears].reverse()) {
-      const file = this.transcriptDir === null ? find(id) : path.join(this.transcriptDir, `${id}.jsonl`)
-      if (file === null || !fs.existsSync(file)) continue
-      this.transcriptDir ??= path.dirname(file)
-      this.switchTo(id, file, null)
-      this.transcript.follow(file, true)
-      break
-    }
-    if (this.transcriptDir !== null && this.pendingClears.length === 0) {
+    // The newer conversation first: a /clear's transcript, once written.
+    const cleared = this.pendingClear
+    const file = cleared ? find(cleared) : null
+    if (cleared && file) return this.clearedTo(cleared, path.dirname(file))
+    const own = find(this.nativeId)
+    if (own) {
+      this.transcriptDir = path.dirname(own)
+      this.transcript.follow(own, true)
+      if (cleared) this.clearedTo(cleared, this.transcriptDir)
       this.findTranscript = null
       return
     }
@@ -791,20 +784,28 @@ export class ClaudeSession implements ProviderSession {
     this.transcriptSearch.unref()
   }
 
+  /** Switches to the conversation a confirmed /clear started, its transcript in `dir` (all of it news). */
+  private clearedTo(id: string, dir: string) {
+    this.stopTranscriptSearch()
+    this.findTranscript = null
+    this.transcriptDir ??= dir
+    const file = path.join(this.transcriptDir, `${id}.jsonl`)
+    this.switchTo(id, file, null)
+    this.transcript.follow(file, true)
+  }
+
   /**
    * Limited, its folder unknown (S07): the program on its old port has the
-   * token too, so a switch is followed only to a transcript of this project
-   * that Claude Code wrote. A /resume's is there already (followed from its
-   * end, its past the history); a /clear's can't be yet (one that is, in
-   * any project, wasn't just started), so it's looked for. A few are kept,
-   * so a forged one can't push the real one out at once.
+   * token too, so a switch is followed only when it can't be its doing. A
+   * /resume: only to a transcript of this project Claude Code wrote,
+   * followed from its end, its past the history. A /clear: only once
+   * Claude Code itself (`claude agents`) says the session is now that
+   * conversation; then followed in the project's folder once known.
    */
   private limitedSwitch(id: string, source: 'clear' | 'resume') {
     const find = this.findTranscript
     const file = find && source === 'resume' ? find(id) : null
-    const refused = !find || this.movedTo !== null ||
-      (source === 'resume' ? file === null : this.transcriptExists?.(id) !== false)
-    if (refused) {
+    if (!find || this.movedTo !== null || (source === 'resume' && file === null) || (source === 'clear' && !this.currentId)) {
       this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, its folder unknown)`)
       return
     }
@@ -816,8 +817,25 @@ export class ClaudeSession implements ProviderSession {
       this.transcript.follow(file)
       return
     }
-    this.pendingClears = [...this.pendingClears.filter((x) => x !== id), id].slice(-PENDING_CLEARS_MAX)
-    this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
+    void this.confirmClear(id)
+  }
+
+  /** Asks Claude Code a few times (it may lag) whether the session is now `id`; else the /clear is ignored. */
+  private async confirmClear(id: string) {
+    const ask = this.currentId
+    for (let i = 0; ask && i < CLEAR_CONFIRM_TRIES; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, CLEAR_CONFIRM_MS).unref())
+      if (this.disposed || this.nativeId === id || this.movedTo !== null) return
+      let current: string | null = null
+      try { current = await ask() } catch { current = null }
+      if (current !== id) continue
+      if (this.disposed || this.nativeId === id) return
+      if (this.transcriptDir !== null) return this.clearedTo(id, this.transcriptDir)
+      this.pendingClear = id
+      this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
+      return
+    }
+    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, Claude Code didn't confirm it)`)
   }
 
   private stopTranscriptSearch() {
