@@ -110,6 +110,7 @@ v1 slice.
 | C09 | Debug commands                            | built   | C09           | `world/debug/`, `world/sky/weather.gd`, `world/world.gd` |
 | C10 | Settings menu                             | built (UI placeholder) | C10 | `world/settings/`, `world/world.gd`, `world/player/player.gd` |
 | C11 | Crosshair                                 | built (UI placeholder) | C11 | `world/crosshair.gd`, `world/interactable.gd`, `world/world.gd` |
+| C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -627,7 +628,16 @@ Godot connects to `ws://127.0.0.1:<port>/` with `Authorization: Bearer
 
 **Connecting.** The sidecar sends `hello` (protocol version, providers), one
 `session.snapshot` per live session, then `sync.completed`. Godot refuses a
-protocol version it doesn't know. A snapshot is a session's full state
+protocol version it doesn't know. Each provider in `hello` has
+`provider`, `name` and optional `launch_options`: what a session can be
+started or resumed with, lists `model`, `effort` and `mode` of choices
+`{id, label}` (the provider's id and its words) in the provider's order,
+each list optional; Godot offers "Default" before each and shows only
+the lists given (C12). `session.create` and `session.resume` then take
+an optional `launch` `{model, effort, mode}`: ids from those lists, a
+field left out meaning Default (the provider's own choice); the sidecar
+refuses an id the provider didn't offer (`invalid_message`). Added
+2026-10-13 without a version change (optional and additive). A snapshot is a session's full state
 (agents, states, pending permissions, capabilities); after it, only changes
 follow. This covers Godot restarting in v1 and attaching to outside
 sessions later (open question 5): both are "send a snapshot, then changes".
@@ -686,7 +696,8 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   and its island stay; the world reloads the chat with
   `session.get_history`, which now holds the new conversation's (empty
   after `/clear`). A new `title` relabels it wherever it's listed. `mode`
-  belongs to the `permission_modes` capability (below).
+  belongs to the `permission_modes` capability, `model` and `effort` to
+  `model_info` (below).
 - Messages stream as `started` → `delta`s → `completed`, whose `text` is the
   full Markdown and replaces the deltas. User messages are events too, so
   text typed in the terminal shows up in the world. A message may have a
@@ -781,6 +792,13 @@ Each one is added to the schema and listed here:
   something to count: an API call, a user message (its new turn, at 0)
   or the status line's figures; history user messages may have
   `turn_tokens`.
+- **`model_info`** (C12): the model and effort level the session runs
+  with, each a choice `{id, label}` (the provider's id and its words,
+  e.g. `claude-opus-5-5` "Opus 5.5", `high` "High"; plain text). The
+  session has `model` and `effort` (null until known); changes come as
+  `session.updated` with `model` or `effort` (`effort` may become null
+  for a model without effort levels; the Claude provider never sends
+  that, it keeps the last level it saw).
 
 **Extensions.** A session lists its `extensions` (e.g. `["claude"]`).
 Extension messages are `ext.<provider>.<name>` in either direction, carry
@@ -2431,9 +2449,11 @@ the world the way the terminal offers. Dev log 2026-10-02-c06-c07-spike
 *Decided (user's, 2026-10-02/03):*
 - **The Shift+Tab four only:** Manual (`default`), Accept edits
   (`acceptEdits`), Plan (`plan`), Auto (`auto`). No Bypass, no Don't ask.
-- **No launch picker.** Sessions start in Claude Code's own choice (no
+- **No launch picker** (reversed by C12, user's decision 2026-10-12:
+  the create panel and Resume page now offer a Mode, Default being this
+  behaviour). Sessions start in Claude Code's own choice (no
   `--permission-mode` flag; since 2.1.283 that's auto where available,
-  else Manual). An earlier note said a picker was decided; it never was.
+  else Manual).
 - **The current mode shows in the chat panel's header only**, not in the
   sessions menu or the world.
 - **Switching mirrors the terminal** (principle: behave nigh equal to
@@ -2939,6 +2959,68 @@ target (`_face`) before E. The setting is toggled through the menu in
 can't be judged headless: a screenshot was checked, and the live check
 has the rest.
 
+### C12 Model, effort and mode at launch
+*Built (2026-10-13). Scope: capability* (`launch_options` in `hello`,
+`launch` on create and resume, and the session capability `model_info`;
+other tools have models and modes too, so nothing in the core names
+Claude's). Pick the model, effort level and permission mode a session
+starts or resumes with, and see its model and effort in the chat
+header. Reverses C06's "No launch picker". Dev log
+2026-10-13-c12-launch-pickers.
+
+*Decided (user's, 2026-10-12):*
+- **Three selectors on the create panel and the Resume page**, under
+  Biome: Model ("Default" or Opus, Sonnet, Haiku, Fable: Claude Code's
+  aliases, always the newest of each), Effort ("Default" or Low, Medium,
+  High, Extra high, Max; no ultracode for now), Mode ("Default" or the
+  Shift+Tab four, Manual, Accept edits, Plan, Auto; never Bypass or
+  Don't ask, as C06). Default passes no flag: Claude Code's own choice.
+  The user's reason: the only way to set them from the game until Claude
+  Code offers one.
+- **Each starts at Default every time** the panel opens.
+- **The chat header shows model and effort beside the mode.** Decided
+  with the model followed from the transcript too; built without it (my
+  call, 2026-10-13, from the probe: S02 → Model, effort and mode at
+  launch): a reply's model isn't the session's (plan mode answers a
+  Haiku session with Sonnet).
+
+**How it works.**
+- **Protocol.** `hello`'s providers may carry `launch_options`: lists
+  `model`, `effort`, `mode` of `{id, label}` choices in the provider's
+  order. `session.create` and `session.resume` take an optional `launch`
+  `{model, effort, mode}` of ids from those lists, a field left out
+  meaning Default; the sidecar refuses an id the provider didn't offer
+  (`invalid_message`, before anything starts). A session declaring
+  `model_info` has `model` and `effort` (a choice, null until known),
+  changed by `session.updated`. Details in Protocol.
+- **Sidecar.** The Claude provider's lists and their flags are in
+  `sidecar/src/providers/claude/launch-options.ts`: `--model`,
+  `--effort`, `--permission-mode` after our own flags. Model and effort
+  are followed as S02 → Model, effort and mode at launch says.
+- **Godot.** `sessions_menu.gd` builds the three rows under Biome on
+  both pages and fills them from the first provider's `launch_options`
+  each time the panel opens (Default first, then the provider's labels;
+  a list the provider doesn't offer hides its row). `launch_choice()`
+  gives the ids picked, Default left out; `SessionLauncher.create` and
+  `resume` send them as `launch`, or no `launch` with nothing picked. A
+  stored session of another provider resumes with Default throughout
+  (the lists are the first provider's). The chat header's Model label
+  (`chat_panel.gd`, `model_words()`) says "Opus 5.5 · High effort",
+  either part alone when only one is known, nothing without
+  `model_info` or with neither known; labels are plain text.
+  `SessionStore` reports `model` and `effort` changes like `mode`'s,
+  including after a resync.
+
+Tested in `sidecar/test/launch-options.test.ts` (the lists, never Bypass,
+Don't ask or ultracode; the flags, none for Default, on create and
+resume; refusals of ids not offered, a full model id, a provider with no
+lists; following the model from SessionStart, PostModelSwitch and the
+status line, and the effort from the orchestrator's hooks only; the
+registry dropping `model`/`effort` without `model_info`; the schema) and
+the world test (the selectors on both pages and their reset, the
+`launch` sent or left out, the header's words, and the fake provider's
+"Opus 5.5 · High effort" live). Real Claude: the user's live check.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -3019,12 +3101,12 @@ next to the game come with the first export.
 
 ### S02 Claude provider
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
-`interrupt`, `permission_modes`, `plans` and `usage` capabilities, no
-extension yet). Code:
+`interrupt`, `permission_modes`, `plans`, `usage` and `model_info`
+capabilities, no extension yet). Code:
 `sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
 `prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`,
-`usage.ts` and `statusline.ts` for C08)
+`usage.ts` and `statusline.ts` for C08, `launch-options.ts` for C12)
 and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md` (index). Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
@@ -3054,9 +3136,10 @@ or bundles Claude Code.
 - a **clean environment** (Security rules): inherited session markers make
   `claude` treat itself as nested and stop saving transcripts.
 
-No permission mode is chosen for the user (no `--permission-mode`; no
-launch picker, user's decision for C06): Claude Code starts in its own
-choice, auto where available. Every hook carries `permission_mode`
+Model, effort and permission mode are Claude Code's own choice (auto
+mode where available) unless the user picked one at launch (C12): then
+`--model`, `--effort` and `--permission-mode` follow our flags (Model,
+effort and mode at launch, below). Every hook carries `permission_mode`
 (Permission modes and plans, below). With `auto` Claude Code rarely
 asks for permission at all.
 
@@ -3432,6 +3515,40 @@ capabilities; C06, C07).** From the spike with `claude` 2.1.288 (dev log
   kind `plan` (id `<tool_use_id>:plan`) just before the ExitPlanMode
   call, live and in a transcript's history (`store.ts`), so a resumed
   conversation shows its plans too.
+
+**Model, effort and mode at launch (`launch_options`, `model_info`
+capability; C12).** Code: `launch-options.ts`.
+- **The lists** in `hello`: model `opus`, `sonnet`, `haiku`, `fable`
+  (aliases, so always the newest; a full model id is refused), effort
+  `low`, `medium`, `high`, `xhigh` ("Extra high"), `max` (no ultracode),
+  mode `default` ("Manual"), `acceptEdits`, `plan`, `auto` (never
+  `bypassPermissions` or `dontAsk`, C06). Labels are Claude Code's words
+  where it has them. A choice becomes `--model <alias>`, `--effort
+  <level>`, `--permission-mode <mode>` after our own flags, on a new
+  session and on `--resume`; Default adds nothing.
+- **The model** is followed from three places, as the terminal shows it:
+  `SessionStart`'s `model`, the status line's `model.id` (our relay only,
+  C08) and the `PostModelSwitch` hook (in REPORTED_HOOKS, answered at
+  once with an empty body; fires on `/model`, a fallback and a resume).
+  Ids become the user's words: `claude-opus-5-5` "Opus 5.5",
+  `claude-haiku-4-5-20251001` "Haiku 4.5", `[1m]` "(1M context)";
+  anything else as it is. **Not from the transcript:** a reply's model
+  can differ from the session's.
+- **The effort** comes from `effort.level` on the orchestrator's hooks
+  (a subagent may run at its own) and from the status line.
+- Kept from the start and sent with `session.updated` once the session
+  is up and the value changed; null until known.
+- **Probed** with `claude -p` 2.1.296 (2026-10-13; Fable never probed:
+  no access): `--model` at launch fires no `PostModelSwitch`, and
+  `SessionStart` had no `model` in `-p`; a resume without `--model`
+  fires `PostModelSwitch` with source `resume`, restoring the stored
+  model, and with `--model` none; `effort.level` shows on `Stop`;
+  `--model haiku --permission-mode plan` answers with
+  `claude-sonnet-5-5` (Claude Code's documented plan-mode upgrade) and
+  no `PostModelSwitch`, hence not following the transcript.
+- **Known limit:** with the user's own status line (no relay), a new
+  session's model may stay unknown until it changes, if `SessionStart`
+  doesn't carry it; the header then shows the effort alone.
 
 **Stopping (`interrupt` capability, `immediate: false`).** A stop answers
 the next `PreToolUse` of each agent busy when it was asked with
@@ -4485,20 +4602,17 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next, decided by the user (2026-10-12): (1) model,
-effort and mode pickers at launch: on the create panel and the Resume
-page, Model "Default" (no flag) or Opus, Sonnet, Haiku, Fable
-(aliases; `--model`), Effort "Default" or low to max (`--effort`; no
-ultracode for now), Mode "Default" (Claude Code's choice) or the
-Shift+Tab four (`--permission-mode`; never Bypass or Don't ask): this
-reverses C06's "no launch picker" (user's reason: the only way to set
-them from the game until Claude Code offers one). Each starts at
-Default every time. The chat header shows model and effort beside the
-mode (effort from every hook's `effort.level`; model from the
-transcript and the `PostModelSwitch` hook). Scope: capability. (2) S07;
-before it's built, the user decides on the kept hook port (S07 → To
-settle before building). Subagents stay read-only in the world (Open
-questions → 4).
+**Current focus:** C12, model, effort and mode at launch, is built on
+`launch-pickers` (dev log 2026-10-13-c12-launch-pickers), awaiting the
+user's review and live check with real Claude. Decided by the user
+(2026-10-12): Model, Effort and Mode selectors on the create panel and
+the Resume page, each at Default every time (no flag: Claude Code's
+own choice), reversing C06's "no launch picker", and the model and
+effort beside the mode in the chat header. One departure to confirm:
+the model isn't followed from the transcript (C12 → Decided). Next
+(user's order): S07; before it's built, the user decides on the kept
+hook port (S07 → To settle before building). Subagents stay read-only
+in the world (Open questions → 4).
 **Merged to `main` (2026-10-12), approved by the user: S04's sessions
 running elsewhere** (dev log 2026-10-12-live-sessions): the Resume page
 leaves out sessions still running in a terminal (`claude agents
@@ -5100,7 +5214,15 @@ the user's vision first; others using the MIT code afterwards is fine.
   that port and answer a `PermissionRequest` hook with "allow" (the
   token is sent by Claude Code, not checked by it). Low risk; S07's
   kept port shortens the gap but doesn't close it. Watch for a way for
-  hooks to check the server.
+  hooks to check the server. 2.1.295's hook `onFailure: "block"`
+  doesn't help (it acts when the server can't be reached, not when a
+  stranger answers, and blocking would break the fail-safe): keep the
+  default.
+- **Claude Code changelog reviewed up to 2.1.296** (2026-10-13): no
+  watch item resolved or broken; the next check starts after 2.1.296.
+  2.1.290 fixed the channel relay approving a different prompt on a
+  repeated reply ID; we echo Claude Code's own `request_id`, so this
+  only helps.
 - **`claude agents --json`** (S04, S07). Documented as the supported way
   to read session state from outside; refused when agent view is off.
   Recheck its fields when raising the minimum version.

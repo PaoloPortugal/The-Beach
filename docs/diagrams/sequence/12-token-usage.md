@@ -43,6 +43,7 @@ sequenceDiagram
         end
         Note over Sidecar: only for the followed conversation (session_id):<br/>context_window (% and size), rate_limits (5-hour, weekly)<br/>as limits five_hour (5-hour) and seven_day (Weekly), the last of each kept
         Sidecar->>World: usage.updated (context %, the plan's limits as a list), if they changed
+        Sidecar->>World: session.updated (model, effort: model.id and effort.level, C12), if they changed
     end
     Note over World: the header: context and totals#59; the turn's hint at its end#59;<br/>the plan's limits in the corner (a line per provider, the latest of each id<br/>across its sessions, by its label, in its order)
 ```
@@ -64,3 +65,9 @@ command string holds only our own fixed paths and the mode word, as
 unquoted short paths on Windows (the same in Git Bash and PowerShell)
 and POSIX single quotes elsewhere. It goes as soon as Claude Code can
 run a status line without a shell (NOTES.md → Watch items).
+
+**Model and effort** (C12): the same status line input carries
+`model.id` and `effort.level`; the sidecar sends them as `session.updated`
+for the chat header. Without our status line, the model comes from
+`SessionStart` and `PostModelSwitch`, the effort from the orchestrator's
+hooks (NOTES.md → S02 → Model, effort and mode at launch).

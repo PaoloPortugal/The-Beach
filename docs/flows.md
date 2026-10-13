@@ -54,18 +54,18 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | # | Flow | Features |
 |---|------|----------|
 | 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01 |
-| 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03 |
+| 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03, C12 |
 | 2 | [A chat turn](diagrams/sequence/02-chat-turn.md) | S02, C02 |
 | 3 | [A permission prompt](diagrams/sequence/03-permission-prompt.md) | S02, C05 |
 | 4 | [A clarifying question](diagrams/sequence/04-clarifying-question.md) | S02, C05 |
 | 5 | [A subagent](diagrams/sequence/05-subagent.md) | S02, A02, C04 |
 | 6 | [Stopping](diagrams/sequence/06-stopping.md) | S02 |
 | 7 | [When our side fails](diagrams/sequence/07-our-side-fails.md) | S02 |
-| 8 | [Resuming a stored session](diagrams/sequence/08-resume-stored-session.md) | S04 |
+| 8 | [Resuming a stored session](diagrams/sequence/08-resume-stored-session.md) | S04, C12 |
 | 9 | [/clear or /resume: another conversation in the session](diagrams/sequence/09-clear-or-resume.md) | S02 |
 | 10 | [A plan to approve](diagrams/sequence/10-plan-approval.md) | C07, S02 |
 | 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
-| 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02 |
+| 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02, C12 |
 | 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting

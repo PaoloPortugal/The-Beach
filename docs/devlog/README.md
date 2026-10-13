@@ -96,3 +96,4 @@ reading; look things up by feature ID.
 | 2026-10-12 | [The crosshair](2026-10-12-crosshair.md) | C11, C01, W10, C10 |
 | 2026-10-12 | [A02: the report throw](2026-10-12-report-throw.md) | A02 |
 | 2026-10-12 | [Sessions running elsewhere, and reattaching after a restart](2026-10-12-live-sessions.md) | S04, S05, S07, A02, C06 |
+| 2026-10-13 | [C12: model, effort and mode at launch](2026-10-13-c12-launch-pickers.md) | C12, C06, S02, S03, S04 |
