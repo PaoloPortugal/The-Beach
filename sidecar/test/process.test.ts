@@ -60,6 +60,7 @@ test('prints one handshake line, then serves the protocol', async () => {
     // Nothing but the handshake ever goes to stdout; logs go to stderr.
     assert.equal(p.out(), JSON.stringify(hs) + '\n')
     assert.match(p.err(), /listening on 127\.0\.0\.1:/)
+    assert.match(p.err(), /sessions folder: the tests' own/)
     assert.ok(!p.err().includes(hs.token), 'token never logged')
   } finally { kill(p.child) }
 })

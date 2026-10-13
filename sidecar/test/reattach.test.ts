@@ -790,8 +790,12 @@ test('restore, limited: hooks posted to it with the session\'s token are dropped
       { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'forged' },
       { ...base, hook_event_name: 'Stop' },
     ]) assert.equal((await post(port, f.record.hook_token, body)).status, 200)
+    // A forged prompt is neither shown nor answered: the body says nothing.
+    const asked = await post(port, f.record.hook_token, { ...base, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'rm -rf /' } })
+    assert.equal(asked.status, 200)
+    assert.equal(asked.body, '')
     const seen = await r.c.quiet(600)
-    assert.deepEqual(seen.filter((m) => m.type !== 'usage.updated' && m.type !== 'session.updated'), [], 'nothing from them reaches the world')
+    assert.deepEqual(seen.filter((m) => m.type !== 'usage.updated'), [], 'nothing from them reaches the world')
   } finally { await r.close(); await taken.close() }
 })
 
@@ -834,6 +838,57 @@ test('restore: a session that fails to be taken back leaves nothing behind; its 
     assert.equal((snapshots[0]!.session as any).project.path, f.record.project.path)
     await c.close()
   } finally { await s.close(); await p.shutdown() }
+})
+
+test('restore: a file it can\'t write while taking a session back leaves no session and no bridge file; a later restore takes it', async () => {
+  const root = tempSessionsDir()
+  const f = runFolder(root, { relays: true })
+  const relay = path.join(f.runDir, 'relay.json')
+  fs.rmSync(relay)
+  fs.mkdirSync(relay)
+  const listing = agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }])
+  const log = new RecordingLog()
+  const p = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: root, runningSessions: listing })
+  const s = await testServer([p])
+  try {
+    await p.restore((make) => s.registry.adopt(p, make))
+    assert.ok(log.lines.some((l) => l.includes('couldn\'t take back')))
+    assert.equal(fs.existsSync(path.join(f.runDir, 'bridge.json')), false, 'no token offered for a session not taken')
+    const c = await connect(s.port, s.token)
+    assert.deepEqual((await c.sync()).snapshots, [])
+    await c.close()
+
+    fs.rmdirSync(relay)
+    writeRelayFile(relay, { url: `http://127.0.0.1:${f.record.hook_port}/hook`, token: f.record.hook_token })
+    await p.restore((make) => s.registry.adopt(p, make))
+    const again = await connect(s.port, s.token)
+    const { snapshots } = await again.sync()
+    assert.deepEqual(snapshots.map((m) => (m.session as any).native_id), [f.record.native_id], 'its hook token and bridge slot were let go')
+    assert.ok(readBridgeFile(path.join(f.runDir, 'bridge.json')))
+    await again.close()
+  } finally { await s.close(); await p.shutdown() }
+})
+
+test('restore, limited: a SessionStart switching conversation is ignored while the project\'s transcript folder is unknown', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  // No transcript of it anywhere: its folder can't be known.
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'projects-')),
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'forged-'))
+    const forged = { hook_event_name: 'SessionStart', source: 'resume', session_id: ID(7), transcript_path: path.join(elsewhere, `${ID(7)}.jsonl`), cwd: f.record.project.path }
+    assert.equal((await post(port, f.record.hook_token, forged)).status, 200)
+    const seen = await r.c.quiet(600)
+    assert.deepEqual(seen.filter((m) => m.type === 'session.updated' || m.type === 'session.notice'), [], 'not followed')
+    assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited')))
+    assert.equal(readRunRecord(f.runDir)!.native_id, f.record.native_id)
+  } finally { await r.close(); await taken.close() }
 })
 
 test('restore, kept port: the transcript only fills the gaps, as for any session', async () => {

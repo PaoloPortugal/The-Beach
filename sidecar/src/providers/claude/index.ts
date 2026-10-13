@@ -13,7 +13,7 @@ import { openTerminal, TerminalError } from '../../launch/terminal.ts'
 import { launcherPidFile, processAlive, programPidFile, readPidFile, writeSessionFile } from '../../launch/launcher.ts'
 import { writeRelayFile } from '../../launch/relay.ts'
 import { selfCommand } from '../../launch/self.ts'
-import { sessionsDir } from '../../launch/app-data.ts'
+import { sessionsDir, TEST_SESSIONS_DIR } from '../../launch/app-data.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
@@ -268,6 +268,7 @@ export class ClaudeProvider implements Provider {
   async restore(adopt: Adopt): Promise<void> {
     const hooks = await this.hookServer()
     const root = this.sessionsRoot()
+    if (!this.opts.sessionsDir && root === process.env[TEST_SESSIONS_DIR]) this.log.info(`sessions folder: the tests' own (${TEST_SESSIONS_DIR})`)
     let names: string[]
     try {
       names = fs.readdirSync(root, { withFileTypes: true })
