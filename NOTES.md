@@ -4614,17 +4614,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C12, model, effort and mode at launch, is built on
-`launch-pickers` (dev log 2026-10-13-c12-launch-pickers); live check
-passed with the user (2026-10-13), awaiting the merge. Decided by the user
-(2026-10-12): Model, Effort and Mode selectors on the create panel and
-the Resume page, each at Default every time (no flag: Claude Code's
-own choice), reversing C06's "no launch picker", and the model and
-effort beside the mode in the chat header; the model not followed from
-the transcript (my call, confirmed by the user; C12 → Decided). Next
-(user's order): S07; before it's built, the user decides on the kept
-hook port (S07 → To settle before building). Subagents stay read-only
-in the world (Open questions → 4).
+**Current focus:** next (user's order): S07; before it's built, the
+user decides on the kept hook port (S07 → To settle before building).
+Subagents stay read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-13), approved by the user: C12, model,
+effort and mode at launch** (dev log 2026-10-13-c12-launch-pickers):
+Model, Effort and Mode selectors on the create panel and the Resume
+page, each at Default every time (no flag: Claude Code's own choice),
+reversing C06's "no launch picker"; the chat header shows the model and
+effort beside the mode, the model not followed from the transcript (my
+call, confirmed by the user). Live check passed with the user.
 **Merged to `main` (2026-10-12), approved by the user: S04's sessions
 running elsewhere** (dev log 2026-10-12-live-sessions): the Resume page
 leaves out sessions still running in a terminal (`claude agents
