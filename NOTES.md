@@ -44,8 +44,11 @@ chat, answer prompts and questions, or stop it in either place, and switch
 at any time (S02).
 
 **Downtime.** You spend a lot of time waiting on agents, so the world should
-eventually give you something to do: parkour and minigames. These aren't
-designed yet (see Known issues and next steps → Deferred ideas).
+eventually give you something to do: fishing and bug catching as the main
+ways to pass the time, filling a collection, and parkour courses for
+movement (user's direction, 2026-10-12). Together with a good UI they are
+what the public release waits for. Not designed yet (see Known issues and
+next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -4871,8 +4874,27 @@ exists.
   - *Overflow structure:* a "server rack" building stands for "N more agents
     working" and can be clicked to list them.
 - **Other biomes:** built as W10.
-- **Minigames and parkour** for downtime. Which ones, where they are and how
-  they unlock are all undecided on purpose.
+- **Downtime: fishing, bug catching and parkour** (user's direction,
+  2026-10-12, after looking at similar projects). With a good UI, this is
+  what the public release waits for; Codex and OpenCode can come after
+  the commercial release.
+  - *Fishing and bug catching* are the two main ways to pass the time.
+    What you find could depend on the biome (W10), the weather and the
+    time of day (W09), and fish on the sea and seabed (W02, W08), which
+    gives a reason to visit other islands.
+  - *A collection*: a log of what you've caught, ideally a museum like
+    Animal Crossing's.
+  - *Parkour courses*, two kinds side by side: a course you spawn at the
+    hub (the platform) and swap for another, and short courses between
+    islands as an alternative to bridges (W06). Builds on W11.
+  - *Constraints* (proposed, to confirm when designing): waits run from
+    about 30 s to a few minutes, so each activity must be short, droppable
+    the moment an agent needs you (A05 is the interrupt) without losing
+    progress, never punish you for leaving, and leave the agents in view.
+    A parkour timer must pause or be optional.
+  - *Open:* what catching unlocks, if anything (decorations, island
+    looks); where the museum stands; how between-island courses are laid
+    out next to the bridge tree; whether there's a reward loop at all.
 - **Commands from the world** (probably a capability). Skills and custom
   commands could be sent through as requests, since Claude can run most
   skills itself (not guaranteed; skills marked user-only won't run that
