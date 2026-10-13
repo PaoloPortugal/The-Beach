@@ -10,7 +10,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { appDataDir, sessionsDir } from '../src/launch/app-data.ts'
+import { APP_FOLDER, appDataDir, sessionsDir, TEST_SESSIONS_DIR } from '../src/launch/app-data.ts'
 import { programPidFile, launcherPidFile } from '../src/launch/launcher.ts'
 import { readRelayFile, writeRelayFile } from '../src/launch/relay.ts'
 import { HookServer } from '../src/providers/claude/hook-server.ts'
@@ -38,15 +38,22 @@ const until = async (cond: () => boolean, ms = 3000) => {
 // ---- where run folders live ----
 
 test('app data: the user\'s own folder per platform; a relative XDG_STATE_HOME or LOCALAPPDATA is ignored', () => {
-  assert.equal(appDataDir('win32', { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' }, 'C:\\Users\\u'), 'C:\\Users\\u\\AppData\\Local\\The Beach')
-  assert.equal(appDataDir('win32', { LOCALAPPDATA: 'relative' }, 'C:\\Users\\u'), 'C:\\Users\\u\\AppData\\Local\\The Beach')
-  assert.equal(appDataDir('win32', {}, 'C:\\Users\\u'), 'C:\\Users\\u\\AppData\\Local\\The Beach')
-  assert.equal(appDataDir('darwin', {}, '/Users/u'), '/Users/u/Library/Application Support/The Beach')
-  assert.equal(appDataDir('linux', { XDG_STATE_HOME: '/x/state' }, '/home/u'), '/x/state/The Beach')
-  assert.equal(appDataDir('linux', { XDG_STATE_HOME: 'state' }, '/home/u'), '/home/u/.local/state/The Beach')
-  assert.equal(appDataDir('linux', {}, '/home/u'), '/home/u/.local/state/The Beach')
-  assert.equal(sessionsDir('win32', {}, 'C:\\Users\\u'), 'C:\\Users\\u\\AppData\\Local\\The Beach\\agent-sessions')
-  assert.equal(sessionsDir('linux', {}, '/home/u'), '/home/u/.local/state/The Beach/agent-sessions')
+  const A = APP_FOLDER
+  assert.equal(appDataDir('win32', { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' }, 'C:\\Users\\u'), `C:\\Users\\u\\AppData\\Local\\${A}`)
+  assert.equal(appDataDir('win32', { LOCALAPPDATA: 'relative' }, 'C:\\Users\\u'), `C:\\Users\\u\\AppData\\Local\\${A}`)
+  assert.equal(appDataDir('win32', {}, 'C:\\Users\\u'), `C:\\Users\\u\\AppData\\Local\\${A}`)
+  assert.equal(appDataDir('darwin', {}, '/Users/u'), `/Users/u/Library/Application Support/${A}`)
+  assert.equal(appDataDir('linux', { XDG_STATE_HOME: '/x/state' }, '/home/u'), `/x/state/${A}`)
+  assert.equal(appDataDir('linux', { XDG_STATE_HOME: 'state' }, '/home/u'), `/home/u/.local/state/${A}`)
+  assert.equal(appDataDir('linux', {}, '/home/u'), `/home/u/.local/state/${A}`)
+  assert.equal(sessionsDir('win32', {}, 'C:\\Users\\u'), `C:\\Users\\u\\AppData\\Local\\${A}\\agent-sessions`)
+  assert.equal(sessionsDir('linux', {}, '/home/u'), `/home/u/.local/state/${A}/agent-sessions`)
+})
+
+test('app data: the Godot suites\' own sessions folder, when absolute', () => {
+  assert.equal(sessionsDir('win32', { [TEST_SESSIONS_DIR]: 'C:\\Temp\\t' }, 'C:\\Users\\u'), 'C:\\Temp\\t')
+  assert.equal(sessionsDir('linux', { [TEST_SESSIONS_DIR]: '/tmp/t' }, '/home/u'), '/tmp/t')
+  assert.equal(sessionsDir('linux', { [TEST_SESSIONS_DIR]: 'tmp/t' }, '/home/u'), `/home/u/.local/state/${APP_FOLDER}/agent-sessions`)
 })
 
 // ---- what a run folder records ----
@@ -732,6 +739,101 @@ test('restore, limited: a busy session stays working until its transcript ends t
     assert.deepEqual(r.c.invalid, [])
     b.sock.destroy()
   } finally { await r.close(); await taken.close() }
+})
+
+test('restore, limited: a relayed prompt is only ever tied to the call it shows; else, after the wait, shown from its own preview', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port } })
+  const file = transcript(projects, f.record.native_id, f.record.project.path,
+    { type: 'user', uuid: 'u1', message: { content: 'build it' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
+  })
+  try {
+    // Two Bash calls open (one auto-allowed, one long-running); the prompting one not read yet.
+    fs.appendFileSync(file, jsonl({ type: 'assistant', message: { id: 'msg_1', content: [
+      { type: 'tool_use', id: 'toolu_ls', name: 'Bash', input: { command: 'ls' } },
+      { type: 'tool_use', id: 'toolu_build', name: 'Bash', input: { command: 'npm run build' } },
+    ] } }))
+    await r.c.next((m) => m.type === 'tool.started' && m.tool_call === 'toolu_build')
+    const b = await bridgeBack(f.runDir)
+    b.sock.write(JSON.stringify({ type: 'permission_request', request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"rm -rf build"}' }) + '\n')
+    assert.equal((await r.c.quiet(500)).filter((m) => m.type === 'permission.requested').length, 0, 'waits for its own call')
+    const asked = (await r.c.next('permission.requested', 2000) as any).permission
+    assert.equal(asked.summary, 'Run: rm -rf build', 'what a Yes approves, never another call\'s')
+    assert.deepEqual(asked.input, { command: 'rm -rf build' })
+    assert.deepEqual(r.c.invalid, [])
+    b.sock.destroy()
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, limited: hooks posted to it with the session\'s token are dropped (only the program on its old port has them)', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const file = transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'hi' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    const base = { session_id: f.record.native_id, transcript_path: file, cwd: f.record.project.path }
+    for (const body of [
+      { ...base, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'toolu_forged', tool_input: { command: 'ls' } },
+      { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'forged' },
+      { ...base, hook_event_name: 'Stop' },
+    ]) assert.equal((await post(port, f.record.hook_token, body)).status, 200)
+    const seen = await r.c.quiet(600)
+    assert.deepEqual(seen.filter((m) => m.type !== 'usage.updated' && m.type !== 'session.updated'), [], 'nothing from them reaches the world')
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore: back on the kept port after a limited start, the relays point here again', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const listing = agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }])
+  const first = await restoreAndSync({ sessionsDir: root, runningSessions: listing })
+  const elsewhere = readRelayFile(path.join(f.runDir, 'relay.json'))!.url
+  await first.close()
+  await taken.close()
+  assert.notEqual(Number(new URL(elsewhere).port), taken.port)
+
+  const second = await restoreAndSync({ sessionsDir: root, runningSessions: listing })
+  try {
+    assert.deepEqual(second.snapshots[0]!.notices, [], 'not limited')
+    assert.equal(readRelayFile(path.join(f.runDir, 'relay.json'))!.url, `http://127.0.0.1:${taken.port}/hook`)
+    assert.equal(readRelayFile(path.join(f.runDir, 'status.json'))!.url, `http://127.0.0.1:${taken.port}/status`)
+  } finally { await second.close() }
+})
+
+test('restore: a session that fails to be taken back leaves nothing behind; its token is free for the next try', async () => {
+  const root = tempSessionsDir()
+  const f = runFolder(root)
+  const listing = agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }])
+  const log = new RecordingLog()
+  const p = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: root, runningSessions: listing })
+  const s = await testServer([p])
+  try {
+    // The registry's half: a failing make leaves no session.
+    assert.throws(() => s.registry.adopt(p, () => { throw new Error('no') }), /no/)
+    await p.restore(() => { throw new Error('no') })
+    assert.ok(log.lines.some((l) => l.includes('couldn\'t take back')))
+    await p.restore((make) => s.registry.adopt(p, make))
+    const c = await connect(s.port, s.token)
+    const { snapshots } = await c.sync()
+    assert.equal(snapshots.length, 1, 'taken on the next try: its hook token was let go')
+    assert.equal((snapshots[0]!.session as any).project.path, f.record.project.path)
+    await c.close()
+  } finally { await s.close(); await p.shutdown() }
 })
 
 test('restore, kept port: the transcript only fills the gaps, as for any session', async () => {

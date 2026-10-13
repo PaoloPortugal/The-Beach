@@ -22,9 +22,14 @@ func _run() -> void:
 	var sidecar: SidecarClient = root.get_node("Sidecar")
 	sidecar.event_received.connect(func(m: Dictionary) -> void: _events.append(m))
 	var fake := "--sidecar-dev-fake" in OS.get_cmdline_user_args()
+	# The sidecar isn't started yet (the autoload starts it next frame).
+	var kept_port := OS.get_environment(ErrorWatch.TEST_SESSIONS_ENV).path_join("hook-port.json")
+	DirAccess.remove_absolute(kept_port)
 
 	await _until(func() -> bool: return sidecar.status in [SidecarClient.Status.READY, SidecarClient.Status.FAILED], 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "connected and synced")
+	if not fake:
+		_check(FileAccess.file_exists(kept_port), "S07: the test's sidecar keeps its run folders in the test's own folder, not the user's")
 	var ids := sidecar.providers.map(func(p: Dictionary) -> String: return p["provider"])
 	_check(ids == (["fake"] if fake else ["claude"]), "hello lists the providers")
 

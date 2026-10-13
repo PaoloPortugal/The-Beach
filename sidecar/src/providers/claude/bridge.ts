@@ -117,7 +117,7 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
   let sidecar: net.Socket | null = null
   /** A connection being made (or one up); one at a time. */
   let attempt: net.Socket | null = null
-  /** The last token offered: each admits one connection, so it's never offered again. */
+  /** The last token tried: each admits one connection, so it's never tried again. */
   let spent: string | null = null
   let retry: NodeJS.Timeout | null = null
   let initialized = false
@@ -140,16 +140,20 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
     const where = readBridgeFile(file)
     // No sidecar yet (the game is closed), or only a token already offered.
     if (!where || where.token === spent) return later()
+    // Spent by this one try, whatever comes of it: a sidecar listens before
+    // it writes the file, so a refused try means it's gone, and whatever
+    // takes its port later must never be offered the token (or trusted).
+    spent = where.token
     const sock = (io.connect ?? ((p) => net.connect({ host: '127.0.0.1', port: p })))(where.port)
     attempt = sock
-    let offered = false
     let welcomed = false
     sock.setEncoding('utf8')
     sock.on('connect', () => {
-      offered = true
       sock.write(JSON.stringify({ type: 'hello', token: where.token } satisfies ToSidecar) + '\n')
     })
     readLines(sock, (line) => {
+      // Dropped: the rest of what it sent (the same chunk) is never acted on.
+      if (sock.destroyed) return
       if (welcomed) return onSidecar(line)
       let m: { type?: unknown }
       try { m = JSON.parse(line) as { type?: unknown } } catch { m = {} }
@@ -160,8 +164,6 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
     }, () => { io.log('sidecar line too long'); sock.destroy() })
     sock.on('error', (e) => io.log(`sidecar connection: ${e.message}`))
     sock.on('close', () => {
-      // Offered and then closed: the token is used up (welcomed) or refused.
-      if (offered) spent = where.token
       if (attempt === sock) attempt = null
       if (sidecar === sock) sidecar = null
       later()

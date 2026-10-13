@@ -509,16 +509,17 @@ export class HookTranslator {
   /**
    * A permission prompt, as the channel relays it (it has no tool_use_id
    * or agent). It belongs to an open tool call of the same tool whose
-   * PreToolUse came just before: the one whose input matches the preview,
-   * else the newest without a prompt. Returns null if there's no such call
-   * yet and `force` is false (the caller waits briefly for its PreToolUse);
-   * with `force`, a prompt with no call is the orchestrator's.
+   * PreToolUse came just before and whose input matches the preview: only
+   * that one, so the card always shows what a Yes approves (another call
+   * of the same tool may be open, or its own not read yet). Returns null
+   * if there's no such call yet and `force` is false (the caller waits
+   * briefly for its PreToolUse); with `force`, a prompt with no call is
+   * the orchestrator's, shown from the preview itself.
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
-    const candidates = [...this.openTools.entries()].filter(([, c]) => c.tool === r.tool_name && !c.permission)
-    const exact = candidates.filter(([, c]) => previewMatches(r.input_preview, c.input))
-    const pick = (exact.length > 0 ? exact : candidates).at(-1)
+    const pick = [...this.openTools.entries()]
+      .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input)).at(-1)
     // Its options come with its PermissionRequest hook; wait for that too.
     if ((!pick || pick[1].options === null) && !force) return null
     const out: SessionEvent[] = []
