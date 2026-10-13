@@ -61,6 +61,18 @@ from the orchestrator's hooks' `effort.level` and the status line.
 Known limit: with the user's own status line, a new session's model may
 stay unknown until it changes; the header then shows the effort alone.
 
+## Review fixes
+
+The security review asked for two hardenings, both done: `launchArgs`
+drops ids not in the lists itself (the sidecar's check already refuses
+them), and model ids or effort levels with control or format characters
+are ignored rather than shown. It also found the test posting a startup
+`SessionStart`, which Claude Code never relays to us (our matcher is
+clear and resume): the test now uses a resume, and the known limit says
+plainly that a new session's model stays unknown with the user's own
+status line until a switch. Not checked: whether 2.1.284, our minimum,
+accepts the new hook, `--effort` and `xhigh` (Watch items).
+
 ## Tests
 
 `sidecar/test/launch-options.test.ts`: the lists (no Bypass, Don't ask

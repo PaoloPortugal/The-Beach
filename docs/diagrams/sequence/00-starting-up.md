@@ -21,7 +21,7 @@ sequenceDiagram
         World->>Sidecar: WebSocket connect, Authorization: Bearer token
         Sidecar-->>World: accepted (no Origin, right Host and token)
     end
-    Sidecar->>World: hello (protocol version, providers)
+    Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12)
     loop each live session
         Sidecar->>World: session.snapshot
     end

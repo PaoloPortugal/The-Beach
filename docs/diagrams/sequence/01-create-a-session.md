@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S02; the world's side is S03's create panel, a placeholder, opened from W07's sessions ring). NOTES.md → S02 → Launch and Starting up, S03.
+> **Status:** Built (S02, C12; the world's side is S03's create panel, a placeholder, opened from W07's sessions ring). NOTES.md → S02 → Launch and Starting up, S03.
 
 ```mermaid
 sequenceDiagram

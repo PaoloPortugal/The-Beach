@@ -2995,8 +2995,12 @@ header. Reverses C06's "No launch picker". Dev log
   changed by `session.updated`. Details in Protocol.
 - **Sidecar.** The Claude provider's lists and their flags are in
   `sidecar/src/providers/claude/launch-options.ts`: `--model`,
-  `--effort`, `--permission-mode` after our own flags. Model and effort
-  are followed as S02 → Model, effort and mode at launch says.
+  `--effort`, `--permission-mode` after our own flags; `launchArgs`
+  drops any id not in the lists itself, so no caller can skip the
+  check. Model and effort are followed as S02 → Model, effort and mode
+  at launch says; an id or level with control or format characters
+  (newlines, bidi overrides) is ignored, and Godot shows labels as plain
+  text.
 - **Godot.** `sessions_menu.gd` builds the three rows under Biome on
   both pages and fills them from the first provider's `launch_options`
   each time the panel opens (Default first, then the provider's labels;
@@ -3013,9 +3017,10 @@ header. Reverses C06's "No launch picker". Dev log
 
 Tested in `sidecar/test/launch-options.test.ts` (the lists, never Bypass,
 Don't ask or ultracode; the flags, none for Default, on create and
-resume; refusals of ids not offered, a full model id, a provider with no
+resume, and none for an id not offered; refusals of ids not offered, a full model id, a provider with no
 lists; following the model from SessionStart, PostModelSwitch and the
-status line, and the effort from the orchestrator's hooks only; the
+status line, and the effort from the orchestrator's hooks only;
+ids with control characters ignored; the
 registry dropping `model`/`effort` without `model_info`; the schema) and
 the world test (the selectors on both pages and their reset, the
 `launch` sent or left out, the header's words, and the fake provider's
@@ -3547,8 +3552,14 @@ capability; C12).** Code: `launch-options.ts`.
   `claude-sonnet-5-5` (Claude Code's documented plan-mode upgrade) and
   no `PostModelSwitch`, hence not following the transcript.
 - **Known limit:** with the user's own status line (no relay), a new
-  session's model may stay unknown until it changes, if `SessionStart`
-  doesn't carry it; the header then shows the effort alone.
+  session's model stays unknown until a switch reports it: our
+  `SessionStart` is relayed only for clear and resume, and `--model` at
+  launch fires no `PostModelSwitch`. The header then shows the effort
+  alone. Not checked yet: what the status line's `model.id` says in
+  plan mode's upgrade (the live check).
+- **Minimum version:** probed on 2.1.296 only. Whether 2.1.284 (our
+  minimum) accepts `PostModelSwitch` in `--settings`, `--effort` and
+  `xhigh` is unchecked (Watch items).
 
 **Stopping (`interrupt` capability, `immediate: false`).** A stop answers
 the next `PreToolUse` of each agent busy when it was asked with
@@ -3689,10 +3700,10 @@ ring, `SessionRing`):
   a session asks "new or resumed?"; dev log 2026-10-09-s04-resume-page;
   its first page, Sessions, with the search, "⌂ Platform" and Running,
   went with the ring, 2026-10-12):
-  - *Add a session*: the cluster selector (W05) and the biome selector
-    (W10), then "+ New session…", "▸ Resume a session…" and "✕ Stop
+  - *Add a session*: the cluster selector (W05), the biome selector
+    (W10) and the model, effort and mode selectors (C12), then "+ New session…", "▸ Resume a session…" and "✕ Stop
     waiting for the session starting" while one is starting (below).
-  - *Resume a session*: the same two selectors (their choices kept), a
+  - *Resume a session*: the same selectors (their choices kept), a
     search box and the stored sessions (S04), filtered by title and
     project like Claude Code's own `/resume` list (user's choice). Only
     this page asks the sidecar for them, each time it opens.
@@ -5218,6 +5229,10 @@ the user's vision first; others using the MIT code afterwards is fine.
   doesn't help (it acts when the server can't be reached, not when a
   stranger answers, and blocking would break the fail-safe): keep the
   default.
+- **C12 against the minimum version** (2026-10-13). C12 was probed
+  on 2.1.296 only; whether 2.1.284 accepts a `PostModelSwitch` hook in
+  our `--settings`, `--effort` and the `xhigh` level is unchecked. If
+  not, raise the minimum (S02) rather than detect it.
 - **Claude Code changelog reviewed up to 2.1.296** (2026-10-13): no
   watch item resolved or broken; the next check starts after 2.1.296.
   2.1.290 fixed the channel relay approving a different prompt on a

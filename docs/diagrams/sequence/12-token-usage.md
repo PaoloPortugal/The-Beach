@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (C08, S02). NOTES.md → C08 Token usage.
+> **Status:** Built (C08, S02, C12). NOTES.md → C08 Token usage, S02 → Model, effort and mode at launch.
 
 ```mermaid
 sequenceDiagram
