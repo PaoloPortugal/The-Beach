@@ -29,7 +29,7 @@ sequenceDiagram
         Claude-->>Sidecar: the running sessions: id, process id, busy / waiting / idle
         Note over Sidecar: Ours if its launcher is alive and Claude Code lists its process<br/>(launcher alone when agents can't answer). Not listed: folder deleted.
         Sidecar->>Log: read the conversation so far (chat, tool calls, usage, titles)
-        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now)<br/>and bridge.json (our bridge port, a fresh one-time token)
+        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token)
     end
     Sidecar->>World: stdout ready, then hello
     Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at)
@@ -38,7 +38,7 @@ sequenceDiagram
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok (the conversation so far)
     loop every 2 s while not connected
-        Bridge->>Bridge: read bridge.json (a token not spent yet)
+        Bridge->>Bridge: read bridge.json (a token not tried yet#59; each is tried once)
     end
     Bridge->>Sidecar: connect, hello with the token
     Sidecar-->>Bridge: welcome
@@ -64,6 +64,7 @@ transcript (flow 15).
 
 **When nothing comes back:** a folder whose session ended is deleted,
 one that can't be read is left alone, and a restore that fails or takes
-longer than 8 s never stops the start (the world shows what's there).
+longer than 8 s never stops the start (the world shows what's there; a
+session found later arrives on its own as a `session.snapshot`).
 The cover lifts on the first `sync.completed`, the sidecar failing, or
 after 30 s.

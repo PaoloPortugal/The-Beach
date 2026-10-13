@@ -315,9 +315,13 @@ feature that touches them follows these rules, and each is tested:
   shared with other accounts another user could run commands as this
   one. Malware already running as the user gains nothing new. Neither
   a fresh nor a kept port closes it (a running session keeps its
-  launch-time port either way; S07 → Decided); only ending the
-  sessions does, which is why the quit warning says so (S05, with
-  S07). Closes if Claude Code lets a hook check its server (Watch
+  launch-time port either way; S07 → A program on the kept port); only
+  ending the sessions does, which is why the quit warning says so (S05,
+  with S07). If that program still holds the port when the game starts
+  again, the gap stays open while the game runs: the session comes back
+  in S07's limited mode, and its hooks keep going to that program. The
+  bridge has no such gap: a gone sidecar's token is never offered again
+  (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
   items → The hook port after the game quits); worth reporting to
   Anthropic (user's suggestion, 2026-10-13).
 - **Few, pinned dependencies.** Every sidecar dependency is justified,
@@ -483,8 +487,8 @@ removing a provider means deleting its folders.
 | `src/commands.ts` | Runs commands from Godot. |
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
-| `src/launch/` | Generic: terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
+| `src/launch/` | Generic: the app data folder for run folders (`app-data.ts`, S07), terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04), run folders and limited mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
@@ -657,7 +661,8 @@ field left out meaning Default (the provider's own choice); the sidecar
 refuses an id the provider didn't offer (`invalid_message`). Added
 2026-10-13 without a version change (optional and additive). A snapshot is a session's full state
 (agents, states, pending permissions, capabilities); after it, only changes
-follow. This covers Godot restarting in v1 and attaching to outside
+follow. A snapshot can also come after `sync.completed`, on its own: a
+session taken back after a restart once the start stopped waiting (S07). This covers Godot restarting in v1 and attaching to outside
 sessions later (open question 5): both are "send a snapshot, then changes".
 Chat history isn't in the snapshot; Godot asks for it with
 `session.get_history` (its result: `messages` and `tools`, each oldest
@@ -2176,7 +2181,8 @@ all of it, so markup in a message shows as written (tested with an injected
   project's name, the permission mode when known (C06), the token usage
   (C08), and "Esc to close"), the session's notices (Godot's own
   text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`,
-  `conversation_resumed` and `conversation_moved`; of the two switch
+  `conversation_resumed`, `conversation_moved` and `reattached_limited`
+  (S07); of the two switch
   notices, only the latest shows), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
   three quarters of the width, a plan across the full width (C07), text
@@ -3269,7 +3275,8 @@ for `MessageDisplay`, 24 h for the question hook. Translation (Claude Code
   don't run it.
 - Not registered: `SessionEnd` (it also fires for `/clear` while `claude`
   keeps running). A session ends when its bridge's connection closes
-  (Claude Code exited).
+  (Claude Code exited); one taken back after a restart (S07), when its
+  launcher exits, until its bridge is back.
 
 **Filling the gaps: the transcript.** Esc and a "No" in the terminal fire
 no hook, but Claude Code writes them to the transcript within the second.
@@ -3391,13 +3398,16 @@ the Resume list matched Claude Code's own `/resume` list.
 
 **Permissions** (C05's sidecar side). The relayed prompt names no tool
 call or agent, so the sidecar ties it to the open call of that tool whose
-input the relay's preview shows (else the newest without a prompt). It
+input the relay's preview shows, and only to that one: never another
+call of the same tool, so the card always shows what a Yes approves
+(security review, 2026-10-13; before, it fell back to the newest call
+without a prompt). It
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
 whichever order they come in, and is shown as soon as both came. After
 1 s it's shown with what's known: without options, or without a call,
-as the orchestrator's. (It was 300 ms for `PreToolUse` alone; 1 s since
+as the orchestrator's, from the relay's own preview. (It was 300 ms for `PreToolUse` alone; 1 s since
 C05's options, 2026-10-03: a hook later than that means a prompt shown
 without the options the terminal has, while a hook that never comes,
 e.g. blocked by `allowedHttpHookUrls`, only delays the card by this
@@ -3934,7 +3944,8 @@ make the player close the terminal, and nothing that injects keystrokes.
 Kept as a watch item (Watch items → Ending a session from the game).
 
 **The quit warning.** Quitting doesn't end sessions either: they keep
-running in their terminals, out of the world's reach. So `QuitGuard`
+running in their terminals, out of the world's reach until the game
+starts again (S07). So `QuitGuard`
 (`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
 window is closed (its close button, Alt+F4, Cmd+Q) while sessions run, asks
 first: "N sessions are still running:", each as "title · project · what
@@ -4122,14 +4133,20 @@ with 2 s limits on some hooks.
 **The bridge reconnects.** It reads where to connect (port and a
 one-time token) from `bridge.json` in its run folder, named by
 `BRIDGE_FILE` in its environment, and while not connected tries again
-every 2 s; a token it has spent is never offered again (Security rules:
-a token admits one connection). Each sidecar writes a fresh one when it
-takes a session back, and the bridge's `hello` is answered `welcome`.
+every 2 s. A token is spent by its one try, connected or refused, and
+never offered again (Security rules: a token admits one connection): a
+sidecar listens before it writes the file, so a refused try means it's
+gone, and a program that takes its port later is never offered the
+token or trusted. Nothing a sidecar sends before its `welcome` is acted
+on, nor anything after a line that made the bridge drop it (security
+review, 2026-10-13). Each sidecar writes a fresh token when it takes a
+session back, and the bridge's `hello` is answered `welcome`.
 
 **Taking sessions back** (`ClaudeProvider.restore`, `Registry.adopt`,
 `serve.ts`'s `restoreSessions`). Before the sidecar listens for the
 game (at most 8 s; a restore that fails or runs long never stops the
-start), it lists `agent-sessions/` and for each run folder:
+start, and a session found after that arrives on its own as a
+`session.snapshot`, Protocol → Connecting), it lists `agent-sessions/` and for each run folder:
 - **Held by another game:** `holder.pid` names the sidecar holding the
   session now. A folder whose holder is alive (a second game, or a
   test's sidecar) is left alone, so a held session is never taken
@@ -4148,8 +4165,10 @@ start), it lists `agent-sessions/` and for each run folder:
 - **Taken back:** the session's id is Claude Code's own when `agents`
   answered (so `/clear` or `/resume` while the game was closed is
   followed, and `session.json` rewritten). Its old hook token is
-  accepted, `holder.pid` becomes this sidecar's, `bridge.json` gets a
-  fresh token, and it is adopted into the registry: a
+  accepted, `holder.pid` becomes this sidecar's, its relay files are
+  pointed at this sidecar's hook port with the old token (every time,
+  so none is left on a port an earlier, limited sidecar had),
+  `bridge.json` gets a fresh token, and it is adopted into the registry: a
   `session.snapshot` with its `started_at`, the chat so far from its
   transcript (as for a resume, S04), and its state from `agents`
   (`busy` working, `waiting` waiting for input, `idle`) until its next
@@ -4168,9 +4187,8 @@ islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads.
 
 **If the old port is taken** (another program got it while the game was
-closed): the session still comes back, with less, until it ends; its
-relay files are rewritten to the sidecar's new port with the session's
-old token, and the world shows the notice `reattached_limited`: "This
+closed): the session still comes back, with less, until it ends, and
+the world shows the notice `reattached_limited`: "This
 session started before the game restarted, so some features may not
 work fully." (user's wording, 2026-10-13: deliberately general, so it
 never goes out of date; what works is kept here and in the guide).
@@ -4190,7 +4208,9 @@ never goes out of date; what works is kept here and in the guide).
   entry, 2.1.296; an API error ends it as an error), Esc and a terminal
   "No". A session busy at the restart stays working until its
   transcript shows the turn's end. A relayed prompt is matched to its
-  call as soon as the call is in the transcript, without options.
+  call as soon as the call is in the transcript, without options (only
+  to the call whose input its preview shows, as always: S02 →
+  Permissions).
 - **Lost, left to the terminal:** streaming, prompt options ("Yes, and
   don't ask again …", C05), questions (C05), plans (C07), the current
   mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
@@ -4200,6 +4220,12 @@ never goes out of date; what works is kept here and in the guide).
   With transcripts off, only what still works above is left. Resuming
   the session later from the world (after `/exit`) gives it everything
   again.
+- **What it means:** another program holds the session's hook port, so
+  it gets the session's hooks, token and tool input included, and could
+  answer them (Security rules → Known gap). Hooks posted to our new port
+  with the session's token can only come from it, so they're dropped;
+  only the `SessionStart` relay is taken there (security review,
+  2026-10-13).
 
 **While the game is closed** everything happens in the terminal, as
 before (hooks fail, and Claude Code falls back to its own prompts:
@@ -4242,13 +4268,20 @@ nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
   whose chat can't reach anything.
 - After a crash, if the old sidecar's process id is reused, its run
   folders are left alone until that process exits.
-- The world test that starts the real sidecar uses the real app data
-  folder: it may write the kept port, and while no game runs it may
-  briefly take back real sessions (they come back to the next game).
 
 **Not covered:** sessions started outside the game (Deferred ideas →
 Read-only islands for sessions started outside the game), and sessions
 launched before S07.
+
+*Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
+checks, kept port, restore and its cleanup, holder, `/clear` followed,
+bridge reconnect, limited mode from the transcript, its prompt matching
+and dropped hooks, relays pointed back), `bridge.test.ts` (reconnect,
+spent tokens, nothing acted on before `welcome`),
+`tests/world/world_test.gd` (the cover, the quit text),
+`tests/core/session_store_test.gd` (adopted snapshots, in the sync or
+after it), `tests/core/sidecar_client_test.gd` (the suites' own
+sessions folder: Running it).
 
 ## Conventions
 
@@ -4289,7 +4322,8 @@ launched before S07.
 - `docs/devlog/`: past entries (historical; leave them)
 - the sidecar's app data folder, `The Beach/agent-sessions/` (S07;
   user's choice, 2026-10-12: a recognizable folder name; one
-  constant in the sidecar)
+  constant in the sidecar, `APP_FOLDER`), named in `NOTES.md` (S07)
+  and `docs/GUIDE.md` (The sidecar, the privacy list)
 
 It must not appear in code identifiers, class names, the protocol or package
 names. Add to this list if it ever has to appear anywhere new.
@@ -4415,6 +4449,16 @@ client test's reconnect warning is expected. It works the same locally
 and on CI; the workflow doesn't read the output. A new suite does the
 same (the file's header shows how). No suite causes an error on purpose;
 one that needs to would first have to teach the watch to expect it.
+
+**The suites' own sessions folder** (S07, security review 2026-10-13).
+Every suite starts the real sidecar through the `Sidecar` autoload
+(unless `--sidecar-dev-fake`), and a sidecar takes back the sessions in
+its run folders at start. So the error watch, which every suite
+installs, also sets `SIDECAR_TEST_SESSIONS_DIR` to a folder in the temp
+folder (`sidecar-test-sessions`) before the autoload starts it; the
+sidecar uses that folder when it's absolute (`launch/app-data.ts`). A
+test never touches the user's own sessions folder (checked by the
+sidecar client test).
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
