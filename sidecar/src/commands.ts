@@ -6,9 +6,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   COMMAND_CAPABILITY, EXTENSION_TYPE,
-  type Command, type ErrorCode, type ExtensionCommand, type Project,
+  type Command, type ErrorCode, type ExtensionCommand, type Launch, type Project,
 } from './protocol.ts'
-import { CommandError, type ProviderSession } from './provider.ts'
+import { CommandError, type Provider, type ProviderSession } from './provider.ts'
 import { fitInputs } from './history.ts'
 import type { Entry, Registry } from './registry.ts'
 import type { Log } from './log.ts'
@@ -54,12 +54,15 @@ async function execute(
     case 'session.create': {
       const provider = findProvider(registry, c.provider)
       const project = checkProject(c.project)
-      return startSession(registry, provider.id, afters, (host) =>
-        provider.create(host, { project, ...(c.prompt !== undefined ? { prompt: c.prompt } : {}) }))
+      const launch = checkLaunch(provider, c.launch)
+      return startSession(registry, provider.id, afters, (host) => provider.create(host, {
+        project, ...(c.prompt !== undefined ? { prompt: c.prompt } : {}), ...(launch ? { launch } : {}),
+      }))
     }
     case 'session.resume': {
       const provider = findProvider(registry, c.provider)
-      return startSession(registry, provider.id, afters, (host) => provider.resume(host, c.native_id))
+      const launch = checkLaunch(provider, c.launch)
+      return startSession(registry, provider.id, afters, (host) => provider.resume(host, c.native_id, launch))
     }
     case 'session.list_stored': {
       const provider = findProvider(registry, c.provider)
@@ -181,6 +184,18 @@ function findSession(registry: Registry, id: string, mustBeUp = true, capability
 
 function findControl(registry: Registry, id: string): ProviderSession {
   return findSession(registry, id).control!
+}
+
+/** Launch choices must each be one the provider announced (hello's launch_options). */
+function checkLaunch(provider: Provider, launch: Launch | undefined): Launch | undefined {
+  if (!launch) return undefined
+  for (const key of ['model', 'effort', 'mode'] as const) {
+    const id = launch[key]
+    if (id !== undefined && !provider.launchOptions?.[key]?.some((c) => c.id === id)) {
+      throw new CommandError('invalid_message', `${key} "${id}" isn't one ${provider.name} offers`)
+    }
+  }
+  return Object.keys(launch).length > 0 ? launch : undefined
 }
 
 /** The project folder must be an absolute path to an existing folder. */

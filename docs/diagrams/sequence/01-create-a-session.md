@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S02; the world's side is S03's create panel, a placeholder, opened from W07's sessions ring). NOTES.md → S02 → Launch and Starting up, S03.
+> **Status:** Built (S02, C12; the world's side is S03's create panel, a placeholder, opened from W07's sessions ring). NOTES.md → S02 → Launch and Starting up, S03.
 
 ```mermaid
 sequenceDiagram
@@ -20,11 +20,11 @@ sequenceDiagram
     end
 
     User->>World: create a session for a project
-    World->>Sidecar: session.create
+    World->>Sidecar: session.create (launch: model, effort, mode picked)
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/index.ts (launch)<br/>launch/terminal.ts and launcher.ts (argument list only)
+        Note over Sidecar,Claude: providers/claude/index.ts (launch), launch-options.ts (C12 flags)<br/>launch/terminal.ts and launcher.ts (argument list only)
         Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
-        Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment)
+        Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment,<br/>--model / --effort / --permission-mode if picked)
         Sidecar-->>World: ok { session }
     end
     Claude->>User: folder trust (first time in a folder) and<br/>development channel confirmation (every launch)
@@ -50,7 +50,12 @@ move the conversation into a background session the world can't reach
 Which terminal opens depends on the OS and the user's setting; the
 terminal is only given our launcher and a session file, and the launcher
 starts `claude` with an argument list (NOTES.md → Architecture →
-Platforms). Before any of this, Godot has started the sidecar ([flow 0](00-starting-up.md)).
+Platforms). Model, effort and mode picked in the create panel (C12) come
+as `session.create`'s `launch`; the sidecar refuses an id the provider
+didn't offer in `hello`'s `launch_options` before anything starts, and
+otherwise adds `--model`, `--effort` and `--permission-mode` after our
+own flags; Default adds none (NOTES.md → S02 → Model, effort and mode
+at launch). Before any of this, Godot has started the sidecar ([flow 0](00-starting-up.md)).
 `ok { session }` always comes before `session.created`; until the session
 is up, commands for it get `session_starting`.
 

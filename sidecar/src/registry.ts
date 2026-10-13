@@ -5,7 +5,7 @@
 import crypto from 'node:crypto'
 import {
   checkMessage, EVENT_CAPABILITY, EXTENSION_TYPE,
-  type EndReason, type Id, type Session, type SessionEvent,
+  type Choice, type EndReason, type Id, type Session, type SessionEvent,
 } from './protocol.ts'
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from './provider.ts'
 import type { Log } from './log.ts'
@@ -135,6 +135,7 @@ export class Registry {
       permissions: [],
       ...('questions' in intro.capabilities ? { questions: [] } : {}),
       ...('permission_modes' in intro.capabilities ? { mode: intro.mode ?? null } : {}),
+      ...('model_info' in intro.capabilities ? { model: intro.model ?? null, effort: intro.effort ?? null } : {}),
       ...('plans' in intro.capabilities ? { plans: [] } : {}),
       ...('usage' in intro.capabilities ? { usage: null } : {}),
       notices: [],
@@ -162,11 +163,13 @@ export class Registry {
     const ext = EXTENSION_TYPE.exec(event.type)
     if (ext && !s.extensions.includes(ext[1]!)) return refuse(`extension ${ext[1]} not declared`)
 
-    // A mode change is the permission_modes capability's; native_id and
-    // title in the same event still go out.
-    if (event.type === 'session.updated' && event.mode !== undefined && !('permission_modes' in s.capabilities)) {
-      const { mode: _, ...rest } = event
-      if (Object.keys(rest).length === 1) return refuse('capability permission_modes not declared')
+    // A mode change is the permission_modes capability's, a model or effort
+    // change model_info's; the other fields in the same event still go out.
+    if (event.type === 'session.updated') {
+      const rest: typeof event = { ...event }
+      if (!('permission_modes' in s.capabilities)) delete rest.mode
+      if (!('model_info' in s.capabilities)) { delete rest.model; delete rest.effort }
+      if (Object.keys(rest).length === 1) return refuse('capability permission_modes or model_info not declared')
       event = rest
     }
     if (event.type === 'message.started' && event.kind === 'plan' && !('plans' in s.capabilities)) {
@@ -216,6 +219,9 @@ function stamp(e: SessionEvent): SessionEvent {
  * the state (and changes nothing), or null. Keeps snapshots and events in
  * agreement, and keeps provider bugs from reaching Godot as nonsense.
  */
+const sameChoice = (a: Choice | null, b: Choice | null | undefined): boolean =>
+  a === null || b == null ? a === (b ?? null) : a.id === b.id && a.label === b.label
+
 function applyEvent(s: Session, e: SessionEvent): string | null {
   const agent = (id: Id) => s.agents.find((a) => a.agent === id)
   switch (e.type) {
@@ -273,11 +279,15 @@ function applyEvent(s: Session, e: SessionEvent): string | null {
       // Only what changed goes out; nothing changed, nothing goes out.
       const changed = (e.native_id !== undefined && e.native_id !== s.native_id) ||
         (e.title !== undefined && e.title !== s.title) ||
-        (e.mode !== undefined && e.mode !== s.mode)
+        (e.mode !== undefined && e.mode !== s.mode) ||
+        (e.model !== undefined && !sameChoice(e.model, s.model)) ||
+        (e.effort !== undefined && !sameChoice(e.effort, s.effort))
       if (!changed) return 'nothing changed'
       if (e.native_id !== undefined) s.native_id = e.native_id
       if (e.title !== undefined) s.title = e.title
       if (e.mode !== undefined) s.mode = e.mode
+      if (e.model !== undefined) s.model = structuredClone(e.model)
+      if (e.effort !== undefined) s.effort = structuredClone(e.effort)
       return null
     }
     case 'plan.asked': {

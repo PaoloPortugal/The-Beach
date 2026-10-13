@@ -70,20 +70,30 @@ func stop_waiting() -> void:
 
 ## Asks for a new session in the folder [param path], to join
 ## [param cluster] (a [SessionClusters] choice), on an island of
-## [param biome] (a [enum Biome.Kind] or [constant Biome.RANDOM]).
-func create(path: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM) -> void:
+## [param biome] (a [enum Biome.Kind] or [constant Biome.RANDOM]), started
+## with [param launch]: the model, effort and mode picked (C12), ids from
+## the provider's [code]launch_options[/code]; one left out is Default.
+func create(path: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM, launch := {}) -> void:
 	if sidecar.providers.is_empty():
 		_say("Not connected to the sidecar yet.")
 		return
 	# Only one provider exists for now; choosing one is for S03 proper.
 	var provider: String = sidecar.providers[0]["provider"]
-	_start("session.create", {"provider": provider, "project": {"path": path}}, "Couldn't start a session: %s", cluster, biome)
+	_start("session.create", _with_launch({"provider": provider, "project": {"path": path}}, launch), "Couldn't start a session: %s", cluster, biome)
 
 
 ## Asks to resume the stored session [param native_id] of [param provider],
-## to join [param cluster], on an island of [param biome].
-func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM) -> void:
-	_start("session.resume", {"provider": provider, "native_id": native_id}, "Couldn't resume the session: %s", cluster, biome)
+## to join [param cluster], on an island of [param biome], with
+## [param launch] as for [method create].
+func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM, launch := {}) -> void:
+	_start("session.resume", _with_launch({"provider": provider, "native_id": native_id}, launch), "Couldn't resume the session: %s", cluster, biome)
+
+
+# Adds the launch choices, if any were made: none is Default throughout.
+static func _with_launch(fields: Dictionary, launch: Dictionary) -> Dictionary:
+	if not launch.is_empty():
+		fields["launch"] = launch
+	return fields
 
 
 func _start(command: String, fields: Dictionary, refused: String, cluster: String, biome: int) -> void:

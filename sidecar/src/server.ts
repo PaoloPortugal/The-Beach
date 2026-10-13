@@ -87,7 +87,9 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     send(ws, {
       type: 'hello',
       protocol: PROTOCOL_VERSION,
-      providers: [...registry.providers.values()].map((p) => ({ provider: p.id, name: p.name })),
+      providers: [...registry.providers.values()].map((p) => ({
+        provider: p.id, name: p.name, ...(p.launchOptions ? { launch_options: structuredClone(p.launchOptions) } : {}),
+      })),
     })
     for (const s of registry.snapshots()) send(ws, { type: 'session.snapshot', session: s })
     send(ws, { type: 'sync.completed' })

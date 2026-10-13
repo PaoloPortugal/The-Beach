@@ -5,8 +5,10 @@ extends CanvasLayer
 ## 2026-10-12): releasing Tab on a session takes you to its island, on
 ## "⌂ Platform" to the spawn platform (W08), anywhere else just closes it;
 ## Esc closes it too. A click on the ➕ in its middle opens the create
-## panel: the cluster selector (by its repository unless changed) and the
-## biome selector (W10, Random unless changed), then "New session…" picks
+## panel: the cluster selector (by its repository unless changed), the
+## biome selector (W10, Random unless changed) and the model, effort and
+## mode selectors (C12, Default unless changed: no flag, Claude Code's own
+## choice; only the lists the provider offers), then "New session…" picks
 ## a project folder and "Resume a session…" lists the stored ones, newest
 ## first, with a search box. Only that page asks the sidecar for them
 ## (user's, 2026-10-09): listing reads the transcripts. "✕ Stop waiting"
@@ -32,6 +34,11 @@ signal go_to_platform
 signal native_picker_shown(directory: String)
 
 const HEADING_COLOUR := Color(1, 1, 1, 0.55)
+
+## The launch selectors (C12), in order: the [code]launch_options[/code] key
+## and the row's label.
+const LAUNCH_KEYS := ["model", "effort", "mode"]
+const LAUNCH_LABELS := {"model": "Model:", "effort": "Effort:", "mode": "Mode:"}
 
 ## The create panel's pages: adding a session, the stored ones.
 enum Page { ADD, RESUME }
@@ -90,6 +97,12 @@ var _last_dir := ""
 @onready var _biome_row := HBoxContainer.new()
 @onready var _biome := OptionButton.new()
 @onready var _scroll: Control = $Panel/Layout/Scroll
+## The launch selectors' rows and their buttons, by key (C12).
+var _launch_rows := {}
+var _launch := {}
+## The provider whose lists the launch selectors show; a stored session of
+## another starts with Default throughout.
+var _launch_provider := ""
 
 
 func _ready() -> void:
@@ -122,13 +135,32 @@ func _ready() -> void:
 	_biome_row.add_child(_biome)
 	$Panel/Layout.add_child(_biome_row)
 	$Panel/Layout.move_child(_biome_row, _cluster_row.get_index() + 1)
+	# The model, effort and mode selectors (C12), under the biome's; filled
+	# from the provider's lists each time the panel opens.
+	var after: Control = _biome_row
+	for key: String in LAUNCH_KEYS:
+		var row := HBoxContainer.new()
+		var row_label := Label.new()
+		row_label.text = LAUNCH_LABELS[key]
+		row.add_child(row_label)
+		var option := OptionButton.new()
+		option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		option.focus_mode = Control.FOCUS_NONE
+		row.add_child(option)
+		row.visible = false
+		$Panel/Layout.add_child(row)
+		$Panel/Layout.move_child(row, after.get_index() + 1)
+		_launch_rows[key] = row
+		_launch[key] = option
+		after = row
 	_search.text_changed.connect(func(_t: String) -> void: _fill())
 	# Cancel, Esc and the close button all end in canceled.
 	_dialog.dir_selected.connect(func(path: String) -> void:
 		var cluster := cluster_choice()
 		var biome := biome_choice()
+		var launch := launch_choice()
 		close()
-		launcher.create(path, cluster, biome))
+		launcher.create(path, cluster, biome, launch))
 	_dialog.canceled.connect(func() -> void:
 		_panel.visible = true)
 	# Start in the user's home folder; afterwards it remembers the last one.
@@ -201,6 +233,7 @@ func open_create() -> void:
 	_fill_clusters()
 	_cluster.select(0) # back to automatic each time
 	_biome.select(0) # and to Random
+	_fill_launch() # and to Default throughout
 	_show(Page.ADD)
 	_refresh_hint()
 
@@ -236,6 +269,41 @@ func page() -> Page:
 ## Whether the cluster and biome selectors show (adding a session).
 func pickers_visible() -> bool:
 	return _cluster_row.visible and _biome_row.visible
+
+
+## Whether the [param key] launch selector shows (C12): only when the
+## provider offers that list.
+func launch_visible(key: String) -> bool:
+	return _launch_rows[key].visible
+
+
+## The [param key] launch selector's choices as shown, top to bottom.
+func launch_choices(key: String) -> Array[String]:
+	var out: Array[String] = []
+	var option: OptionButton = _launch[key]
+	for i in option.item_count:
+		out.append(option.get_item_text(i))
+	return out
+
+
+## Picks the [param key] launch selector's choice shown as [param text].
+func choose_launch(key: String, text: String) -> void:
+	var option: OptionButton = _launch[key]
+	for i in option.item_count:
+		if option.get_item_text(i) == text:
+			option.select(i)
+
+
+## What the launch selectors say (C12): the provider's id for each choice
+## made; Default is left out.
+func launch_choice() -> Dictionary:
+	var out := {}
+	for key: String in LAUNCH_KEYS:
+		var option: OptionButton = _launch[key]
+		var id := str(option.get_item_metadata(option.selected)) if option.selected >= 0 else ""
+		if _launch_rows[key].visible and not id.is_empty():
+			out[key] = id
+	return out
 
 
 ## Back a page, as Esc does: from the stored sessions to adding one, and
@@ -465,8 +533,9 @@ func _fill_stored() -> void:
 		_add_button(label, func() -> void:
 			var cluster := cluster_choice()
 			var biome := biome_choice()
+			var launch := launch_choice() if st["provider"] == _launch_provider else {}
 			close()
-			launcher.resume(st["provider"], st["native_id"], cluster, biome))
+			launcher.resume(st["provider"], st["native_id"], cluster, biome, launch))
 	if shown == 0:
 		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
 
@@ -501,8 +570,9 @@ func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
 	_last_dir = paths[0]
 	var cluster := cluster_choice()
 	var biome := biome_choice()
+	var launch := launch_choice()
 	close()
-	launcher.create(paths[0], cluster, biome)
+	launcher.create(paths[0], cluster, biome, launch)
 
 
 func _stop_waiting() -> void:
@@ -518,9 +588,34 @@ func _set_waiting(on: bool) -> void:
 	_search.visible = not on and _page == Page.RESUME
 	_cluster_row.visible = not on
 	_biome_row.visible = not on
+	for key: String in LAUNCH_KEYS:
+		_launch_rows[key].visible = not on and _launch[key].item_count > 0
 	_scroll.visible = not on
 	if _search.visible:
 		_search.grab_focus()
+
+
+## The launch selectors (C12): Default, then the provider's list in its
+## order and words; a list it doesn't offer is left empty and hidden. New
+## sessions use the first provider, as [method SessionLauncher.create] does.
+func _fill_launch() -> void:
+	var offered: Dictionary = {}
+	_launch_provider = ""
+	if sidecar != null and not sidecar.providers.is_empty():
+		_launch_provider = sidecar.providers[0]["provider"]
+		offered = sidecar.providers[0].get("launch_options", {})
+	for key: String in LAUNCH_KEYS:
+		var option: OptionButton = _launch[key]
+		option.clear()
+		var list: Array = offered.get(key, [])
+		if not list.is_empty():
+			option.add_item("Default")
+			option.set_item_metadata(0, "")
+			for c: Dictionary in list:
+				option.add_item(c["label"])
+				option.set_item_metadata(option.item_count - 1, c["id"])
+			option.select(0)
+		_launch_rows[key].visible = not list.is_empty()
 
 
 ## The cluster selector: automatic, each running cluster, a new one. Keeps

@@ -2,7 +2,7 @@
 // protocol's generic vocabulary (NOTES.md -> Multi-provider rules). The core
 // never names a specific tool; providers never touch the WebSocket.
 import type {
-  Agent, EndReason, ErrorCode, ExtensionCommand, History, Id, Notice, Project,
+  Agent, Choice, EndReason, ErrorCode, ExtensionCommand, History, Id, Launch, LaunchOptions, Notice, Project,
   SessionEvent, StoredSession,
 } from './protocol.ts'
 
@@ -24,6 +24,9 @@ export interface SessionIntro {
   extensions: string[]
   /** permission_modes: the current mode, if already known. */
   mode?: string | null
+  /** model_info: the model and effort level, if already known. */
+  model?: Choice | null
+  effort?: Choice | null
   /** Orchestrator first. */
   agents: Agent[]
 }
@@ -69,9 +72,14 @@ export interface Provider {
   readonly id: string
   /** Display name. */
   readonly name: string
-  /** Start a new session. Resolves once it's launched, not once it's up (announce). */
-  create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession>
-  resume(host: SessionHost, nativeId: string): Promise<ProviderSession>
+  /** What sessions can be started or resumed with (hello's launch_options); none: nothing to pick. */
+  readonly launchOptions?: LaunchOptions
+  /**
+   * Start a new session. Resolves once it's launched, not once it's up
+   * (announce). `launch`: ids from launchOptions, already checked.
+   */
+  create(host: SessionHost, options: { project: Project; prompt?: string; launch?: Launch }): Promise<ProviderSession>
+  resume(host: SessionHost, nativeId: string, launch?: Launch): Promise<ProviderSession>
   listStored(project?: string): Promise<StoredSession[]>
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>

@@ -5,7 +5,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { History, Project, SessionEvent } from '../../protocol.ts'
+import type { Choice, History, Project, SessionEvent } from '../../protocol.ts'
+import { effortChoice, modelChoice } from './launch-options.ts'
 import { HistoryLog } from '../../history.ts'
 import type { Log } from '../../log.ts'
 import type { BridgeLink } from './bridge-server.ts'
@@ -201,6 +202,15 @@ export class ClaudeSession implements ProviderSession {
   private prompt: string | null
   /** Token usage of the conversation the world follows (C08). */
   private readonly usage = new UsageCounter()
+  /**
+   * The session's model and effort level (C12), null until known; sent once
+   * up, then on change. The model from SessionStart, the status line and
+   * PostModelSwitch, as the terminal shows it, not from the transcript: a
+   * reply's model can differ
+   * (plan mode upgrades Haiku to Sonnet for its turns, checked on 2.1.296).
+   */
+  private model: Choice | null = null
+  private effort: Choice | null = null
   /** The usage last sent, so only changes go out. */
   private usageSent = 'null'
 
@@ -256,8 +266,12 @@ export class ClaudeSession implements ProviderSession {
       project: this.project,
       title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
-      capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} },
+      capabilities: {
+        questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {},
+      },
       extensions: [],
+      model: this.model,
+      effort: this.effort,
       agents: [{ agent: MAIN, role: 'orchestrator', parent: null, name: 'Claude', state: 'idle', reason: null }],
     })
     // A resumed conversation's usage so far.
@@ -279,6 +293,9 @@ export class ClaudeSession implements ProviderSession {
     // Comes through the relay (a command hook), not as one of the HTTP
     // hooks the checks below are about.
     if (p.hook_event_name === 'SessionStart') return this.sessionStarted(p)
+    // Can come at startup (a resume restoring the model), before the
+    // session is up: it says nothing about that.
+    if (p.hook_event_name === 'PostModelSwitch') return this.noteModel(modelChoice(p.to_model))
     this.hooksSeen = true
     // Hooks only fire once Claude Code is past its startup dialogs, so a
     // hook arriving before the bridge's ready also means the session is up.
@@ -287,6 +304,8 @@ export class ClaudeSession implements ProviderSession {
     this.transcript.follow(p.transcript_path)
     if (p.hook_event_name === 'Stop' && !this.transcriptChecked) this.checkTranscript(p.transcript_path)
     this.emitAll(this.translator.noteMode(p))
+    // The orchestrator's effort level (a subagent may run at its own).
+    if (p.agent_id === undefined) this.noteEffort(effortChoice((p.effort as { level?: unknown } | undefined)?.level))
     if (p.hook_event_name === 'PermissionRequest') {
       if (p.tool_name === QUESTION_TOOL) return this.holdQuestion(p, gone)
       if (p.tool_name === PLAN_TOOL) return this.holdPlan(p, gone)
@@ -322,6 +341,9 @@ export class ClaudeSession implements ProviderSession {
    * nothing; the settings only ask for clear and resume anyway.
    */
   private sessionStarted(p: HookPayload): void {
+    // The model (C12), when Claude Code includes it: the process's, whichever
+    // conversation started. A launch's --model fires no PostModelSwitch.
+    this.noteModel(modelChoice(p.model))
     const source = p.source
     if (source !== 'clear' && source !== 'resume') return
     // Not up yet: nothing to switch (the fallback below still would).
@@ -528,6 +550,21 @@ export class ClaudeSession implements ProviderSession {
     const figures = statusFiguresIn(p)
     if (figures.sessionId !== this.nativeId) return
     if (this.usage.status(figures)) this.sendUsage()
+    this.noteModel(modelChoice((p.model as { id?: unknown } | undefined)?.id))
+    this.noteEffort(effortChoice((p.effort as { level?: unknown } | undefined)?.level))
+  }
+
+  /** A model from any source (C12): kept, and sent if the session is up and it changed. */
+  private noteModel(model: Choice | null): void {
+    if (this.disposed || this.host.ended || !model || model.id === this.model?.id) return
+    this.model = model
+    if (!this.startupTimer) this.host.emit({ type: 'session.updated', model })
+  }
+
+  private noteEffort(effort: Choice | null): void {
+    if (this.disposed || this.host.ended || !effort || effort.id === this.effort?.id) return
+    this.effort = effort
+    if (!this.startupTimer) this.host.emit({ type: 'session.updated', effort })
   }
 
   /** Sends the usage figures if they changed since last sent. */

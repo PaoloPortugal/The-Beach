@@ -66,6 +66,8 @@ const AUTO_SWITCH_FROM: readonly string[] = ['default', 'acceptEdits']
 export const REPORTED_HOOKS = [
   'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
   'SubagentStart', 'SubagentStop', 'Notification', 'Stop', 'StopFailure',
+  // C12: the model, changed by /model, a fallback or a resume.
+  'PostModelSwitch',
 ] as const
 
 /**
