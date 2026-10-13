@@ -464,7 +464,9 @@ and gives it back.
 
 At the top right, next to "Esc to close", the chat shows the session's
 permission mode, such as **Mode: Auto** (see Permission modes and plans
-below), and how many tokens it uses (see Token usage below).
+below), the model and effort it runs with, such as **Opus 5.5 · High
+effort** (see Model, effort and mode at launch below), and how many
+tokens it uses (see Token usage below).
 
 Above the box, a line says what the orchestrator is doing: working, or
 waiting for you. If a reply stopped for a reason Claude Code reports (a
@@ -631,17 +633,16 @@ Each goes back to **Default** every time the panel opens, so a choice
 only counts for the session you start with it. They work the same on
 the Resume page. Picking one is the same as starting `claude` with it
 yourself; the terminal shows the result, and the game never changes your
-Claude Code settings. Bypass permissions isn't offered.
+Claude Code settings. Bypass permissions and Don't ask aren't offered.
 
 **In the chat**, beside the mode at the top right, you see the
 session's model and effort, for example **Opus 5.5 · High effort**.
-They appear once Claude Code tells the game, usually by the end of
-Claude's first reply, and follow any change you make in the terminal
-(for example with `/model`). In Plan mode Claude Code may answer with a
-stronger model than the one you picked (it does this on purpose for
-planning); the chat shows the model you picked, as the terminal does.
-If you use your own status line in Claude Code, the model of a new
-session may only show after it changes.
+They appear once Claude Code tells the game, and follow any change you
+make in the terminal (for example with `/model`). In Plan mode Claude
+Code may answer with a stronger model than the one you picked (it does
+this on purpose for planning). If you use your own status line in
+Claude Code, a new session's model may only show once you switch
+models.
 
 ## Token usage (C08)
 
@@ -649,7 +650,7 @@ The world shows how much a session is using, so you don't have to look
 in the terminal. These are the orchestrator's own tokens: subagents'
 aren't counted yet. There's no cost in dollars.
 
-**In the chat's header**, next to the mode, for example
+**In the chat's header**, next to the model and the mode, for example
 **Context 34% · ↑ 2.1M in · ↓ 48k out**:
 - **Context:** how full the conversation's context window is after
   Claude's latest step. When the world can't get the percentage (see
