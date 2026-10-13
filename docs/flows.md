@@ -67,6 +67,8 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
 | 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02, C12 |
 | 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02 |
+| 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01 |
+| 15 | [A session back with its hook port taken (limited)](diagrams/sequence/15-limited-mode.md) | S07 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the

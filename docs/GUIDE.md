@@ -8,6 +8,7 @@ here; each section is labelled with its feature ID.
 - [Running it](#running-it)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
+- [Sessions coming back after a restart (S07)](#sessions-coming-back-after-a-restart-s07)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Kinds of island (W10)](#kinds-of-island-w10)
 - [Clusters (W05)](#clusters-w05)
@@ -166,18 +167,49 @@ ring, but you aren't taken there.
 ## Quitting the game (S05)
 
 Sessions don't end when you quit: they keep running in their terminal
-windows, but the game can no longer see or reach them. So if you close
-the game while sessions are running, it asks first. It lists them with
-what each is doing (scroll the list if there are many), and reminds you
-that to end a session you type `/exit` in its terminal. **Quit** closes
-the game anyway; **Back to the game** (or Esc) returns you to where you
-were. With no session running,
-the game just closes.
+windows, and come back to the world when you start the game again
+(S07, below). So if you close the game while sessions are running, it
+asks first. It lists them with what each is doing (scroll the list if
+there are many), and reminds you that to end a session you type `/exit`
+in its terminal. **Quit** closes the game anyway; **Back to the game**
+(or Esc) returns you to where you were. With no session running, the
+game just closes.
+
+On a computer shared with other accounts, the dialog also suggests
+ending sessions with `/exit` before quitting: while the game is
+closed, another account could reach them (a running session keeps
+sending what it does to the game's port, and whatever listens there
+could answer it).
 
 The game can't end sessions for you: Claude Code has no clean way to do
-that from outside. When you start the game again, sessions still running
-in their terminals don't come back to the world, and aren't listed
-under Resume until you `/exit` them.
+that from outside.
+
+## Sessions coming back after a restart (S07)
+
+Sessions the game started come back when you start it again, as long
+as they're still running in their terminals: their islands are already
+standing when the world appears (the game shows "Loading…" for a moment
+while it looks for them), their chat holds the conversation so far, and
+chatting, answering prompts and questions work from the world again.
+Whatever happened while the game was closed (a reply, `/clear`,
+`/resume`) is there too. A prompt or question that was open when you
+quit stays in the terminal: answer it there.
+
+Sessions you started yourself in a terminal, and sessions started by a
+version of the game from before this feature, don't come back; they
+aren't listed under Resume either while they run.
+
+**"This session started before the game restarted, so some features may
+not work fully."** This notice means another program took the game's
+connection point while it was closed, so the session can't report
+everything any more. It still comes back, and you can still chat, answer
+Yes or No to its prompts, and see its token usage. Its replies, tool
+calls and subagents show up a moment late and whole (not word by word),
+and the island goes back to idle when the reply ends. Left to the
+terminal: the prompts' other options, Claude's questions, plans, the
+permission mode, stopping it, and sign-in messages. Subagents already
+running when the game restarted don't show. To get everything back,
+end the session with `/exit` and resume it from the world.
 
 ## The islands and the ocean (W01, W02, W04)
 

@@ -117,7 +117,7 @@ v1 slice.
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `sidecar/src/providers/claude/running.ts`, `world/sessions_menu/` |
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
-| S07 | Reattach to running sessions              | planned | —             | — |
+| S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` |
 
 ## When a feature lands
 
@@ -3939,8 +3939,13 @@ running in their terminals, out of the world's reach. So `QuitGuard`
 window is closed (its close button, Alt+F4, Cmd+Q) while sessions run, asks
 first: "N sessions are still running:", each as "title · project · what
 it's doing" (kept up to date while the dialog is open), then "Quitting
-won't end them: they keep running in their terminals, and the game can't
-reach them any more. To end one, type /exit in its terminal." Buttons:
+won't end them: they keep running in their terminals, and come back when
+you start the game again. To end one, type /exit in its terminal." and,
+after a blank line, "On a computer shared with other accounts, end them
+with /exit before quitting: while the game is closed, another account
+could reach them." (both the user's wording, 2026-10-13, with S07: the
+second says how to close Security rules → Known gap: hooks that outlive
+the sidecar). Buttons:
 Quit, and Back to the game (or Esc), which gives the mouse and controls
 back as they were. With no session running it quits at once. The list
 scrolls once it's taller than the window leaves room for (the header and
@@ -3968,8 +3973,8 @@ conversation while the old `claude` still runs. *To fix with attaching
 to running sessions* (user's decision; Open questions → 5): a session
 still running should be attached to, not resumed. *Partly fixed
 (2026-10-12):* such a session is no longer listed under Resume or
-resumed (S04 → Sessions running elsewhere). Getting its island and chat
-back is S07 (designed, to build).
+resumed (S04 → Sessions running elsewhere). *Fixed (2026-10-13):* S07
+takes it back at the next start, island and chat included.
 
 ### S06 Sign-in needed
 *Built (2026-10-08). Scope: core* (the `sign_in_needed` notice, the
@@ -4058,18 +4063,18 @@ rules), so the world only points there.
   A login expiring on its own).
 
 ### S07 Reattach to running sessions
-*Planned (designed with the user, 2026-10-12; not built). Scope: core*
-(a session the game started before a restart comes back as an ordinary
-session; Protocol → Connecting already covers joining partway: a
-snapshot, then changes). Dev log 2026-10-12-live-sessions (the
-research and probes).
+*Built (2026-10-13; designed with the user 2026-10-12, open points
+settled 2026-10-13; live check pending). Scope: core* (a session the
+game started before a restart comes back as an ordinary session;
+Protocol → Connecting already covers joining partway: a snapshot, then
+changes). Flows 14 and 15. Dev logs 2026-10-12-live-sessions (the
+research and probes) and 2026-10-13-s07-reattach (the build).
 
 **What it's for.** After the game restarts, the sessions it started are
-still running in their terminals but out of its reach (S05). With S07
-their islands are standing when the world loads (no rise, W04), their
-chat holds the conversation so far, and chat, prompts and questions
-work from the world again. Only sessions launched by a version with S07
-can come back.
+still running in their terminals. With S07 their islands are standing
+when the world loads (no rise, W04), their chat holds the conversation
+so far, and chat, prompts and questions work from the world again. Only
+sessions launched by a version with S07 can come back.
 
 **What a running session holds on to** (checked 2026-10-12, 2.1.296):
 - Its `--settings`: the HTTP hooks' URL (our port) and token are fixed
@@ -4079,79 +4084,129 @@ can come back.
   managed settings). Header values can only take environment variables,
   fixed at launch too. So the hooks go to the old port with the old
   token until `claude` exits.
-- Its bridge: started with the port and a one-time token in its
-  environment; today it connects once and never retries.
+- Its bridge: started with the path of its bridge file in its
+  environment (below).
 - The `SessionStart` relay and the status line relay read their relay
   files (`relay.json`, `status.json`) on every run: they follow
   whatever those files say.
 
-**The design (user's decisions, 2026-10-12):**
-- **Run folders stay while their session runs.** Today the provider
-  makes a private folder per session in the system's temp folder
-  (`prepare()`) and deletes it when the session ends or when the sidecar
-  shuts down (the game quits or crashes), so sessions still running lose
-  their relays after a restart. With S07 they live in the user's app
-  data folder (`%LOCALAPPDATA%` on Windows, `~/Library/Application
-  Support` on macOS, `$XDG_STATE_HOME` on Linux) under
-  `The Beach/agent-sessions/`, one folder per session, readable only by
-  the user (the folder name is the user's choice, recognizable, the
-  working name: Conventions → Renaming the project), each with a
-  `session.json` (Claude's session id, project, launcher process id,
-  hook port and token). Deleted when the session ends, by whichever
-  sidecar holds it, or by the next sidecar at start when it finds the
-  session gone (which also cleans up after a crash). Temp rejected:
-  Windows Storage Sense and Linux tmp cleaners can delete a long-running
-  session's files.
+**Run folders** (`launch/app-data.ts`, `providers/claude/run-folder.ts`).
+Each session's private folder lives in the user's app data folder
+(`%LOCALAPPDATA%` on Windows, `~/Library/Application Support` on macOS,
+`$XDG_STATE_HOME` or `~/.local/state` on Linux; a relative
+`LOCALAPPDATA` or `XDG_STATE_HOME` is ignored) under
+`The Beach/agent-sessions/` (the folder name is the user's choice, the
+working name: Conventions → Renaming the project), named `session-`
+and six random characters. It holds, besides the relay files:
+`session.json` (Claude's session id, the project, the hook port and
+token it was launched with, its start time; rewritten when `/clear` or
+`/resume` switches the id), the launcher's and `claude`'s process ids
+(written by the launcher), `bridge.json` and `holder.pid` (below). The
+folders outlive the sidecar: one is deleted when its session ends, by
+whichever sidecar holds it, or by the next sidecar at start when it
+finds the session gone (which also cleans up after a crash). Temp
+rejected: Windows Storage Sense and Linux tmp cleaners can delete a
+long-running session's files.
+
+**The hook port is kept** (option A, the user's choice). The first
+sidecar to listen writes its hook server's port to
+`agent-sessions/hook-port.json`; every start asks for that port again,
+first thing, before anything else listens, and accepts the old
+sessions' hook tokens (from their `session.json`). If it's taken, the
+sidecar listens on a random port and never overwrites the kept one, so
+the next start tries it again. Rejected: every hook through our relay
+program (which reads the address from a file): our executable takes
+0.4-0.6 s to start (2.3 s cold, measured), dozens of times per reply,
+with 2 s limits on some hooks.
+
+**The bridge reconnects.** It reads where to connect (port and a
+one-time token) from `bridge.json` in its run folder, named by
+`BRIDGE_FILE` in its environment, and while not connected tries again
+every 2 s; a token it has spent is never offered again (Security rules:
+a token admits one connection). Each sidecar writes a fresh one when it
+takes a session back, and the bridge's `hello` is answered `welcome`.
+
+**Taking sessions back** (`ClaudeProvider.restore`, `Registry.adopt`,
+`serve.ts`'s `restoreSessions`). Before the sidecar listens for the
+game (at most 8 s; a restore that fails or runs long never stops the
+start), it lists `agent-sessions/` and for each run folder:
+- **Held by another game:** `holder.pid` names the sidecar holding the
+  session now. A folder whose holder is alive (a second game, or a
+  test's sidecar) is left alone, so a held session is never taken
+  over. Added while building (my call): without it a second sidecar
+  took sessions from the first.
 - **Still running** = its launcher's process is alive and, where
   `claude agents --json` answers (S04 → Sessions running elsewhere),
-  Claude Code lists that session id, so a reused process id alone
-  doesn't count.
-- **The bridge reconnects:** while not connected it retries, reading
-  where to connect from a file in its run folder; each sidecar writes a
-  fresh one-time token there (Security rules: a token admits one
-  connection).
-- **The hook port is kept** (option A, the user's choice): the sidecar
-  remembers its hook server's port and asks for the same one at every
-  start, and accepts the old sessions' hook tokens (from their
-  `session.json`). Rejected: every hook through our relay program
-  (which reads the address from a file): our executable takes 0.4-0.6 s
-  to start (2.3 s cold, measured), dozens of times per reply, with 2 s
-  limits on some hooks.
-- **Taking over:** the chat so far from the transcript, as for a resume
-  (S04); states from `claude agents --json` (`busy`, `waiting` and on
-  what, `idle`) until the next hook. A prompt or question open at the
+  Claude Code lists `claude`'s process id, so a reused process id
+  alone doesn't count (probed 2026-10-13 on Windows, native `claude.exe`
+  2.1.296: `agents` reports the pid the launcher spawned; macOS and
+  Linux unchecked, Watch items). Where `agents` can't answer, a live
+  launcher is trusted. A folder whose session is gone is deleted; one
+  with no launcher yet is left while its terminal may still be opening
+  (the startup timeout); one with no usable record, or no `claude`
+  process id, is left alone.
+- **Taken back:** the session's id is Claude Code's own when `agents`
+  answered (so `/clear` or `/resume` while the game was closed is
+  followed, and `session.json` rewritten). Its old hook token is
+  accepted, `holder.pid` becomes this sidecar's, `bridge.json` gets a
+  fresh token, and it is adopted into the registry: a
+  `session.snapshot` with its `started_at`, the chat so far from its
+  transcript (as for a resume, S04), and its state from `agents`
+  (`busy` working, `waiting` waiting for input, `idle`) until its next
+  hook. Until its bridge is back, its launcher exiting ends it; from
+  then on the bridge closing does. It isn't listed under Resume, and
+  can't be resumed while it runs. A prompt or question open at the
   restart stays in the terminal (its held hook died with the old
   sidecar, and Claude Code fell back to its own dialog).
-- **If the old port is taken** (another program got it while the game
-  was closed), the session still reattaches, with less, until it ends;
-  the sidecar uses a random port for itself. Still working (bridge,
-  relays): chat from the world, Yes and No on permission prompts (the
-  channel relay), `/clear` and `/resume` followed, token usage. From the
-  transcript, a moment late: replies (whole, not streamed), tool calls
-  and subagents, Esc and a terminal "No". Lost, left to the terminal:
-  streaming, prompt options ("Yes, and don't ask again …", C05),
-  questions (C05), plans (C07), the current mode (C06; it only comes
-  with hooks), the stop (S02 → Stopping), sign-in notices (S06) and the
-  `hooks_unavailable` check. The world says so with a general notice
-  (below). Resuming the session later from the world (after `/exit`)
-  gives it everything again.
-- **While the game is closed** everything happens in the terminal, as
-  today (hooks fail, and Claude Code falls back to its own prompts:
-  Security rules → Fail safe).
 
-**Decided before building (user's, 2026-10-13):**
-- **The game waits for them.** Finding running sessions takes about a
-  second (`claude agents --json`); the game holds its start until the
-  sidecar has looked (its first `sync.completed`), so reattached islands
-  are standing from the first frame. Rejected: islands appearing a
-  moment after the world loads.
-- **One general notice for the reduced mode** (old port taken): "This
-  session started before the game restarted, so some features may not
-  work fully." Deliberately not a list, so it never goes out of date;
-  what works and what doesn't is kept here and in the guide only.
-- **The quit-warning line** (S05): "On a computer shared with other
-  accounts, end them with /exit before quitting: while the game is
-  closed, another account could reach them."
+**The game waits for them** (user's decision, 2026-10-13).
+`LoadingCover` (`world/loading_cover.gd`, a placeholder: "Loading…" on
+a dark background, above everything) covers the world and holds the
+player's controls and input until the sidecar's first `sync.completed`,
+its failure, or 30 s (the handshake timeout plus 10 s), so reattached
+islands are standing from the first frame. Rejected: islands appearing
+a moment after the world loads.
+
+**If the old port is taken** (another program got it while the game was
+closed): the session still comes back, with less, until it ends; its
+relay files are rewritten to the sidecar's new port with the session's
+old token, and the world shows the notice `reattached_limited`: "This
+session started before the game restarted, so some features may not
+work fully." (user's wording, 2026-10-13: deliberately general, so it
+never goes out of date; what works is kept here and in the guide).
+- **Still working:** chat from the world, Yes and No on permission
+  prompts (the channel relay), `/clear` and `/resume` followed (the
+  `SessionStart` relay), token usage and the model (the status line
+  relay).
+- **From the transcript, a moment late** (flow 15;
+  `TranscriptFollower.followAll`, `transcript-hooks.ts`): each entry is
+  read as the hook it stands for and goes through the same translator:
+  what the user said (typed, or sent from the world), replies (whole,
+  not streamed), tool calls and their results, subagents (each from its
+  own file under `<session>/subagents/`, announced once its
+  `.meta.json` names its type and the Agent call that started it; a
+  foreground one is done when that call returns, a background one at
+  its task notification), the turn's end (Claude Code's `turn_duration`
+  entry, 2.1.296; an API error ends it as an error), Esc and a terminal
+  "No". A session busy at the restart stays working until its
+  transcript shows the turn's end. A relayed prompt is matched to its
+  call as soon as the call is in the transcript, without options.
+- **Lost, left to the terminal:** streaming, prompt options ("Yes, and
+  don't ask again …", C05), questions (C05), plans (C07), the current
+  mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
+  `not_supported`), sign-in notices (S06) and the `hooks_unavailable`
+  check. The snapshot declares only the `usage` and `model_info`
+  capabilities. Subagents already running at the restart aren't shown.
+  With transcripts off, only what still works above is left. Resuming
+  the session later from the world (after `/exit`) gives it everything
+  again.
+
+**While the game is closed** everything happens in the terminal, as
+before (hooks fail, and Claude Code falls back to its own prompts:
+Security rules → Fail safe).
+
+**The quit warning** (S05) now says sessions come back, and how to
+close the gap below on a shared computer.
 
 **A program on the kept port** (security review, 2026-10-12; *decided
 by the user, 2026-10-13: the port stays*). Running sessions send their
@@ -4163,26 +4218,33 @@ ports are visible to every local account while the game runs. The kept
 port only makes it a little easier to aim at in advance, and if it's
 taken the sidecar falls back to a random one, so new sessions aren't
 exposed. A fresh port would put every reattached session in the
-degraded mode above. Rejected for that reason. With it, the user's
-three additions:
-- **The sidecar takes the port again first thing at start**, before
-  anything else listens.
-- **The quit warning says how to close the gap** (S05): with sessions
-  running, a line that on a computer shared with other accounts, typing
-  `/exit` in each one before quitting keeps others from reaching them.
-  No block, no setting. Built with S07 (or earlier on its own: the gap
-  exists today).
-- **The risk is written down:** Security rules → Known gap, and Watch
-  items → The hook port after the game quits.
+limited mode above. Rejected for that reason. With it, the user's three
+additions, all built: the sidecar takes the port again first thing at
+start; the quit warning says how to close the gap (S05: on a computer
+shared with other accounts, `/exit` in each session before quitting);
+and the risk is written down (Security rules → Known gap, Watch items →
+The hook port after the game quits).
 
-**To settle before building** (security review, 2026-10-12):
-- **Run folders are untrusted input.** The next sidecar checks every
-  field of `session.json` (session id a UUID, process id an integer,
-  port in range), deletes only folders it found by listing
-  `agent-sessions/`, never a path read from a file, and only ever checks
-  whether a process id is alive. "Readable only by the user" is mode
-  0700 on macOS and Linux; on Windows `chmod` does nothing and the
-  folder relies on `%LOCALAPPDATA%`'s per-user permissions.
+**Run folders are untrusted input** (security review, 2026-10-12;
+built). The next sidecar checks every field of `session.json` (session
+id a UUID, the token 64 hex characters, port in range, an absolute
+project path, a valid start time) and the process id files (integers),
+deletes only folders it found by listing `agent-sessions/` whose names
+fit `session-XXXXXX`, never a path read from a file, and only ever
+checks whether a process id is alive. Files are written owner-only
+(mode 0600, folders 0700) on macOS and Linux; on Windows `chmod` does
+nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
+
+**Open points** (not fixed; low likelihood):
+- With `agents` unable to answer (agent view off) and the launcher's
+  process id reused by another process, a dead session could be taken
+  back; it ends at once when that process exits, or stays as an island
+  whose chat can't reach anything.
+- After a crash, if the old sidecar's process id is reused, its run
+  folders are left alone until that process exits.
+- The world test that starts the real sidecar uses the real app data
+  folder: it may write the kept port, and while no game runs it may
+  briefly take back real sessions (they come back to the next game).
 
 **Not covered:** sessions started outside the game (Deferred ideas →
 Read-only islands for sessions started outside the game), and sessions
@@ -4225,8 +4287,8 @@ launched before S07.
 - `docs/GUIDE.md`: title
 - `README.md`: the clone URL (the GitHub repository's name)
 - `docs/devlog/`: past entries (historical; leave them)
-- the sidecar's app data folder, `The Beach/agent-sessions/` (S07,
-  planned; user's choice, 2026-10-12: a recognizable folder name; one
+- the sidecar's app data folder, `The Beach/agent-sessions/` (S07;
+  user's choice, 2026-10-12: a recognizable folder name; one
   constant in the sidecar)
 
 It must not appear in code identifiers, class names, the protocol or package
@@ -4611,7 +4673,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    *Decided (user's, 2026-10-12; dev log 2026-10-12-live-sessions):*
    (a) running sessions are left out of Resume (built, S04 → Sessions
    running elsewhere); (b) sessions the game started are reattached
-   after a restart (S07, designed: run folders kept, the bridge
+   after a restart (S07, built: run folders kept, the bridge
    reconnects, the hook port kept, already standing); (c) sessions
    started outside the game are not attached for now: they have none of
    our hooks or channel, which only launch flags give (Deferred ideas,
@@ -4660,10 +4722,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S07 is being built on `s07-reattach` (its open
-questions settled 2026-10-13: the hook port is kept, the game waits for
-reattached sessions, one general reduced-mode notice; S07 → Decided
-before building). After it (user's order, 2026-10-13): read-only
+**Current focus:** S07, reattaching to running sessions, is built on
+`s07-reattach` and waits for the user's live check and review (dev log
+2026-10-13-s07-reattach): sessions the game started come back after a
+restart, islands standing and chat back; with their hook port taken,
+in a limited mode seen from the transcript. After it (user's order, 2026-10-13): read-only
 islands for sessions started outside the world (Deferred ideas →
 Read-only islands for sessions started outside the game). Subagents
 stay read-only in the world (Open questions → 4).
@@ -5305,6 +5368,24 @@ the user's vision first; others using the MIT code afterwards is fine.
 - **`claude agents --json`** (S04, S07). Documented as the supported way
   to read session state from outside; refused when agent view is off.
   Recheck its fields when raising the minimum version.
+- **`agents`' process ids on macOS and Linux** (S07, 2026-10-13). A
+  session is taken back only if `claude agents --json` lists the
+  process id our launcher spawned. Probed on Windows only (native
+  `claude.exe`, 2.1.296: the same pid). If on macOS or Linux it reports
+  another process (a wrapper, a shell), no session would ever come back
+  there (each folder would be deleted as gone): check on the first run
+  there.
+- **The transcript in S07's limited mode** (2026-10-13). A session back
+  with its hook port taken is seen from its transcript alone, which isn't
+  a documented interface: the turn's end is Claude Code's
+  `turn_duration` system entry, subagents' files are
+  `<session>/subagents/agent-<id>.jsonl` beside a `.meta.json`
+  (`agentType`, `toolUseId`, `requestShape`), and a hand-back is
+  written as "Another Claude session sent a message:" before the
+  `<agent-message>` (all seen on 2.1.296). An API error's entry
+  (`isApiErrorMessage`, its `error` field) was never seen live. If one
+  changes, a limited session stays working until the next prompt;
+  recheck when the changelog mentions the transcript.
 - **Ending a session from the game** (S05). Not built: Claude Code has
   no clean way to end an interactive session from outside (S05 has what
   was checked and probed). Build it if Claude Code ever offers one (a
