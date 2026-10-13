@@ -320,8 +320,9 @@ feature that touches them follows these rules, and each is tested:
   with S07). If that program still holds the port when the game starts
   again, the gap stays open while the game runs: the session comes back
   in S07's limited mode, and its hooks keep going to that program. The
-  bridge has no such gap: a gone sidecar's token is never offered again
-  (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
+  bridge has no such gap: a gone sidecar's token is never offered again,
+  and the bridge trusts only a sidecar whose `welcome` carries the
+  proof from its own bridge file (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
   items → The hook port after the game quits); worth reporting to
   Anthropic (user's suggestion, 2026-10-13).
 - **Few, pinned dependencies.** Every sidecar dependency is justified,
@@ -3401,7 +3402,11 @@ call or agent, so the sidecar ties it to the open call of that tool whose
 input the relay's preview shows, and only to that one: never another
 call of the same tool, so the card always shows what a Yes approves
 (security review, 2026-10-13; before, it fell back to the newest call
-without a prompt). It
+without a prompt). A whole preview must equal the call's input exactly
+(spacing inside strings counts); one cut short must be a prefix of it
+(compared without whitespace), and if it fits open calls with different
+inputs it's tied to none of them (security review, second round,
+2026-10-13). It
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -4130,8 +4135,9 @@ program (which reads the address from a file): our executable takes
 0.4-0.6 s to start (2.3 s cold, measured), dozens of times per reply,
 with 2 s limits on some hooks.
 
-**The bridge reconnects.** It reads where to connect (port and a
-one-time token) from `bridge.json` in its run folder, named by
+**The bridge reconnects.** It reads where to connect (port, a
+one-time token and a proof) from `bridge.json` (version 2, owner-only)
+in its run folder, named by
 `BRIDGE_FILE` in its environment, and while not connected tries again
 every 2 s. A token is spent by its one try, connected or refused, and
 never offered again (a bridge token admits one connection: S02 →
@@ -4140,8 +4146,12 @@ sidecar listens before it writes the file, so a refused try means it's
 gone, and a program that takes its port later is never offered the
 token or trusted. Nothing a sidecar sends before its `welcome` is acted
 on, nor anything after a line that made the bridge drop it (security
-review, 2026-10-13). Each sidecar writes a fresh token when it takes a
-session back, and the bridge's `hello` is answered `welcome`.
+review, 2026-10-13). Each sidecar writes a fresh token and proof when
+it takes a session back, and answers the bridge's `hello` with a
+`welcome` carrying that proof; the bridge compares it in constant time
+and drops a sidecar without it, so even a program already on the port
+at the bridge's first try is never trusted (security review, second
+round, 2026-10-13).
 
 **Taking sessions back** (`ClaudeProvider.restore`, `Registry.adopt`,
 `serve.ts`'s `restoreSessions`). Before the sidecar listens for the
@@ -4169,7 +4179,9 @@ start, and a session found after that arrives on its own as a
   accepted, `holder.pid` becomes this sidecar's, its relay files are
   pointed at this sidecar's hook port with the old token (every time,
   so none is left on a port an earlier, limited sidecar had),
-  `bridge.json` gets a fresh token, and it is adopted into the registry: a
+  `bridge.json` gets a fresh token, and only then (so a file it can't
+  write leaves nothing half taken, and a later start tries again) it
+  is adopted into the registry: a
   `session.snapshot` with its `started_at`, the chat so far from its
   transcript (as for a resume, S04), and its state from `agents`
   (`busy` working, `waiting` waiting for input, `idle`) until its next
@@ -4195,8 +4207,10 @@ work fully." (user's wording, 2026-10-13: deliberately general, so it
 never goes out of date; what works is kept here and in the guide).
 - **Still working:** chat from the world, Yes and No on permission
   prompts (the channel relay), `/clear` and `/resume` followed (the
-  `SessionStart` relay), token usage and the model (the status line
-  relay).
+  `SessionStart` relay; only once the project's transcript folder is
+  known, from its transcript, since the program on its old port has the
+  token too and could post a switch to another folder; so not with
+  transcripts off), token usage and the model (the status line relay).
 - **From the transcript, a moment late** (flow 15;
   `TranscriptFollower.followAll`, `transcript-hooks.ts`): each entry is
   read as the hook it stands for and goes through the same translator:
@@ -4208,7 +4222,11 @@ never goes out of date; what works is kept here and in the guide).
   its task notification), the turn's end (Claude Code's `turn_duration`
   entry, 2.1.296; an API error ends it as an error), Esc and a terminal
   "No". A session busy at the restart stays working until its
-  transcript shows the turn's end. A relayed prompt is matched to its
+  transcript shows the turn's end. One with no transcript yet (nothing
+  prompted before the restart) has no hook to name it: it's looked for
+  every second (`findStored`) until Claude Code writes it, then read
+  from its start (found while fixing the second security review,
+  2026-10-13). A relayed prompt is matched to its
   call as soon as the call is in the transcript, without options (only
   to the call whose input its preview shows, as always: S02 →
   Permissions).
@@ -4224,9 +4242,10 @@ never goes out of date; what works is kept here and in the guide).
 - **What it means:** another program holds the session's hook port, so
   it gets the session's hooks, token and tool input included, and could
   answer them (Security rules → Known gap). Hooks posted to our new port
-  with the session's token can only come from it, so they're dropped;
-  only the `SessionStart` relay is taken there (security review,
-  2026-10-13).
+  with the session's token can only come from it, so they're dropped
+  (a forged prompt gets an empty answer: neither shown nor allowed);
+  only what the two relays post is taken there, `SessionStart` (`/hook`)
+  and the status line (`/status`) (security review, 2026-10-13).
 
 **While the game is closed** everything happens in the terminal, as
 before (hooks fail, and Claude Code falls back to its own prompts:
@@ -4276,9 +4295,11 @@ launched before S07.
 
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
-bridge reconnect, limited mode from the transcript, its prompt matching
-and dropped hooks, relays pointed back), `bridge.test.ts` (reconnect,
-spent tokens, nothing acted on before `welcome`),
+bridge reconnect, limited mode from the transcript, its prompt matching,
+dropped hooks and a forged switch ignored, relays pointed back, a
+takeover that fails to write a file), `bridge.test.ts` (reconnect,
+spent tokens, nothing acted on before `welcome`, the welcome's proof),
+`permissions.test.ts` (whole and cut-short previews),
 `tests/world/world_test.gd` (the cover, the quit text),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
 after it), `tests/core/sidecar_client_test.gd` (the suites' own

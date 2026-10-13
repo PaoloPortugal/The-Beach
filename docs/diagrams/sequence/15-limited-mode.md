@@ -31,6 +31,12 @@ sequenceDiagram
     Bridge->>Claude: the message (channel)
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)
+        opt no transcript yet (nothing prompted before the restart)
+            loop every second until written
+                Sidecar->>Log: look for it (findStored)
+            end
+            Note over Sidecar: found: read from its start
+        end
         loop every 250 ms
             Sidecar->>Log: read new entries (and new subagents' files)
         end
@@ -56,7 +62,7 @@ sequenceDiagram
     opt /clear or /resume
         Claude->>Relay: SessionStart
         Relay->>Sidecar: POST /hook (relay.json: the new port)
-        Note over Sidecar: followed as usual (flow 9)
+        Note over Sidecar: followed as usual (flow 9), once its transcript folder is known<br/>(the program on the old port has the token too)
     end
 ```
 
@@ -67,7 +73,9 @@ moment late:** the user's messages, replies (whole, not streamed), tool
 calls and subagents (each from its own file under
 `<session>/subagents/`, tied to its Agent call by its `.meta.json`), the
 turn's end (Claude Code's `turn_duration` entry), Esc and a terminal
-"No". A session busy at the restart stays working until then.
+"No". A session busy at the restart stays working until then. One with
+no transcript yet at the restart has it looked for every second until
+Claude Code writes it, and read from its start.
 
 **Left to the terminal:** prompt options, questions, plans, the current
 mode, the stop (`interrupt.request` gets `not_supported`), sign-in
@@ -78,5 +86,9 @@ it from the world gives it everything again.
 **The program on the old port** gets the session's hooks, token and tool
 input included, and could answer them (NOTES.md → Security rules → Known
 gap). Hooks posted to our new port with the session's token can only
-come from it, so they're dropped; only the `SessionStart` relay is taken
-there.
+come from it, so they're dropped (a forged prompt gets an empty answer:
+neither shown nor allowed); only what the two relays post is taken
+there, `SessionStart` (`/hook`) and the status line (`/status`). A
+`/clear` or `/resume` is followed only once the project's transcript
+folder is known, so that program can't switch the world to another
+folder's conversation.

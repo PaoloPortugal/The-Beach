@@ -29,7 +29,7 @@ sequenceDiagram
         Claude-->>Sidecar: the running sessions: id, process id, busy / waiting / idle
         Note over Sidecar: Ours if its launcher is alive and Claude Code lists its process<br/>(launcher alone when agents can't answer). Not listed: folder deleted.
         Sidecar->>Log: read the conversation so far (chat, tool calls, usage, titles)
-        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token)
+        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token and proof)<br/>all before it's adopted: a file it can't write leaves nothing half taken
     end
     Sidecar->>World: stdout ready, then hello
     Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at)
@@ -41,7 +41,8 @@ sequenceDiagram
         Bridge->>Bridge: read bridge.json (a token not tried yet#59; each is tried once)
     end
     Bridge->>Sidecar: connect, hello with the token
-    Sidecar-->>Bridge: welcome
+    Sidecar-->>Bridge: welcome with the proof
+    Note over Bridge: The proof must match its bridge.json's (constant time):<br/>any other program on the port is dropped.
     Note over Sidecar: From now on the bridge closing says Claude Code exited<br/>(until then, its launcher exiting does).
     Claude->>Sidecar: hooks as before, to the kept port with the old token
     Note over World,Claude: Chat, prompts and questions work from the world again (flows 2 to 13).

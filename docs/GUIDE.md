@@ -205,7 +205,8 @@ not work fully."** This notice means another program took the game's
 connection point while it was closed, so the session can't report
 everything any more. It still comes back, and you can still chat, answer
 Yes or No to its prompts, and see its token usage and model; `/clear`
-and `/resume` in its terminal are followed as usual. Your messages, its
+and `/resume` in its terminal are followed as usual (unless Claude
+Code's transcripts are turned off). Your messages, its
 replies, tool calls and subagents show up a moment late, replies whole
 (not word by word), and the island goes back to idle when the reply
 ends. Left to the
