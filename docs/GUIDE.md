@@ -196,20 +196,26 @@ Whatever happened while the game was closed (a reply, `/clear`,
 quit stays in the terminal: answer it there.
 
 Sessions you started yourself in a terminal, and sessions started by a
-version of the game from before this feature, don't come back; they
-aren't listed under Resume either while they run.
+version of the game from before this feature, don't come back; while
+they run they aren't listed under Resume either (with Claude Code's
+agent view on, as above).
 
 **"This session started before the game restarted, so some features may
 not work fully."** This notice means another program took the game's
 connection point while it was closed, so the session can't report
 everything any more. It still comes back, and you can still chat, answer
-Yes or No to its prompts, and see its token usage. Its replies, tool
-calls and subagents show up a moment late and whole (not word by word),
-and the island goes back to idle when the reply ends. Left to the
+Yes or No to its prompts, and see its token usage and model; `/clear`
+and `/resume` in its terminal are followed as usual. Your messages, its
+replies, tool calls and subagents show up a moment late, replies whole
+(not word by word), and the island goes back to idle when the reply
+ends. Left to the
 terminal: the prompts' other options, Claude's questions, plans, the
 permission mode, stopping it, and sign-in messages. Subagents already
 running when the game restarted don't show. To get everything back,
-end the session with `/exit` and resume it from the world.
+end the session with `/exit` and resume it from the world. The program
+that took the connection point gets what the session reports (your
+prompts, its tool calls) and could answer its permission prompts, so on
+a computer shared with other accounts, end the session with `/exit`.
 
 ## The islands and the ocean (W01, W02, W04)
 
@@ -886,7 +892,10 @@ It keeps things private and safe:
   secret that changes every time it starts. Other programs and web pages
   can't connect to it.
 - It sends nothing over the internet and keeps no copy of your
-  conversations.
+  conversations. For each session it starts it keeps a small folder in
+  your app data folder (`The Beach/agent-sessions/`: where the session
+  runs and how to reach it, never what's said), so the session can come
+  back after a restart; the folder goes when the session ends.
 
 If the sidecar can't start or stops unexpectedly, the game notices; for
 now that only shows in the game's log, and a message on screen comes with

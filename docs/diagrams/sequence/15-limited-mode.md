@@ -22,8 +22,8 @@ sequenceDiagram
     end
 
     Note over Sidecar: Taken back (flow 14), but another program has its hook port:<br/>relay.json and status.json now name our new port, with its old token.
-    Sidecar->>World: session.snapshot (capabilities: usage and model_info only)<br/>session.notice (reattached_limited)
-    Claude-xSidecar: HTTP hooks: to the old port, never reach us
+    Sidecar->>World: session.snapshot (capabilities: usage and model_info only;<br/>notices: reattached_limited)
+    Claude-xSidecar: HTTP hooks: to the program on the old port, never us<br/>(any posted to us with its token are that program's: dropped)
     User->>World: a message
     World->>Sidecar: message.send
     Sidecar->>Bridge: chat
@@ -43,6 +43,7 @@ sequenceDiagram
     end
     Claude->>Bridge: a permission prompt (relay)
     Bridge->>Sidecar: permission_request
+    Note over Sidecar: tied only to the call whose input its preview shows;<br/>none after 1 s: shown from the preview
     Sidecar->>World: permission.requested (no options), agent.state_changed waiting
     User->>World: Yes or No
     World->>Sidecar: permission.respond
@@ -73,3 +74,9 @@ mode, the stop (`interrupt.request` gets `not_supported`), sign-in
 notices and the `hooks_unavailable` check. Subagents already running at
 the restart aren't shown. Ending the session with `/exit` and resuming
 it from the world gives it everything again.
+
+**The program on the old port** gets the session's hooks, token and tool
+input included, and could answer them (NOTES.md → Security rules → Known
+gap). Hooks posted to our new port with the session's token can only
+come from it, so they're dropped; only the `SessionStart` relay is taken
+there.
