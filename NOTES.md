@@ -4134,7 +4134,8 @@ with 2 s limits on some hooks.
 one-time token) from `bridge.json` in its run folder, named by
 `BRIDGE_FILE` in its environment, and while not connected tries again
 every 2 s. A token is spent by its one try, connected or refused, and
-never offered again (Security rules: a token admits one connection): a
+never offered again (a bridge token admits one connection: S02 →
+Sender gating): a
 sidecar listens before it writes the file, so a refused try means it's
 gone, and a program that takes its port later is never offered the
 token or trusted. Nothing a sidecar sends before its `welcome` is acted
@@ -4148,8 +4149,8 @@ game (at most 8 s; a restore that fails or runs long never stops the
 start, and a session found after that arrives on its own as a
 `session.snapshot`, Protocol → Connecting), it lists `agent-sessions/` and for each run folder:
 - **Held by another game:** `holder.pid` names the sidecar holding the
-  session now. A folder whose holder is alive (a second game, or a
-  test's sidecar) is left alone, so a held session is never taken
+  session now. A folder whose holder is alive (a second game) is
+  left alone, so a held session is never taken
   over. Added while building (my call): without it a second sidecar
   took sessions from the first.
 - **Still running** = its launcher's process is alive and, where

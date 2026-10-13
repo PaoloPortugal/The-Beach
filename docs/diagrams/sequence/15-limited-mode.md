@@ -22,7 +22,7 @@ sequenceDiagram
     end
 
     Note over Sidecar: Taken back (flow 14), but another program has its hook port:<br/>relay.json and status.json now name our new port, with its old token.
-    Sidecar->>World: session.snapshot (capabilities: usage and model_info only;<br/>notices: reattached_limited)
+    Sidecar->>World: session.snapshot (capabilities: usage and model_info only;<br/>notices: reattached_limited#59; found late: a session.notice right after)
     Claude-xSidecar: HTTP hooks: to the program on the old port, never us<br/>(any posted to us with its token are that program's: dropped)
     User->>World: a message
     World->>Sidecar: message.send
