@@ -7,7 +7,8 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { History, Project, StoredSession } from '../../protocol.ts'
+import type { History, Launch as LaunchChoice, Project, StoredSession } from '../../protocol.ts'
+import { LAUNCH_OPTIONS, launchArgs } from './launch-options.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
 import { writeSessionFile } from '../../launch/launcher.ts'
@@ -76,6 +77,7 @@ export interface ClaudeOptions {
 export class ClaudeProvider implements Provider {
   readonly id = 'claude'
   readonly name = 'Claude Code'
+  readonly launchOptions = LAUNCH_OPTIONS
   private readonly opts: ClaudeOptions
   private readonly log: Log
   private readonly runDirs = new Set<string>()
@@ -99,12 +101,12 @@ export class ClaudeProvider implements Provider {
     prefixes: [...CLAUDE_SESSION_MARKER_PREFIXES],
   }
 
-  async create(host: SessionHost, options: { project: Project; prompt?: string }): Promise<ProviderSession> {
+  async create(host: SessionHost, options: { project: Project; prompt?: string; launch?: LaunchChoice }): Promise<ProviderSession> {
     // Named by Claude Code as it goes (no --name): NOTES.md -> S02 -> Titles.
     const name = options.project.name ?? path.basename(options.project.path)
     return this.start(host, {
       project: options.project, name, titles: NO_TITLES, nativeId: crypto.randomUUID(), resume: false,
-      history: { messages: [], tools: [] }, usage: null,
+      history: { messages: [], tools: [] }, usage: null, launch: options.launch,
       ...(options.prompt ? { prompt: options.prompt } : {}),
     })
   }
@@ -114,7 +116,7 @@ export class ClaudeProvider implements Provider {
    * folder, with our hooks and channel like a new one. Its chat so far comes
    * from the transcript.
    */
-  async resume(host: SessionHost, nativeId: string): Promise<ProviderSession> {
+  async resume(host: SessionHost, nativeId: string, launch?: LaunchChoice): Promise<ProviderSession> {
     if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
     // Running in a terminal the game doesn't follow: resuming it would run the conversation twice.
     if ((await this.running()).has(nativeId.toLowerCase())) {
@@ -129,7 +131,7 @@ export class ClaudeProvider implements Provider {
     const read = readConversation(stored.file)
     return this.start(host, {
       project: stored.project, name: stored.title ?? path.basename(stored.project.path), titles: readTitles(stored.file),
-      nativeId, resume: true, history: read.history, usage: read.usage,
+      nativeId, resume: true, history: read.history, usage: read.usage, launch,
     })
   }
 
@@ -171,6 +173,8 @@ export class ClaudeProvider implements Provider {
     project: Project; name: string; titles: Titles; nativeId: string; resume: boolean; history: History
     /** A resumed conversation's usage so far (C08). */
     usage: UsageCounter | null; prompt?: string
+    /** The user's launch choices (C12). */
+    launch: LaunchChoice | undefined
   }): Promise<ProviderSession> {
     const found = await this.find()
     const bridges = await this.bridgeServer()
@@ -196,6 +200,8 @@ export class ClaudeProvider implements Provider {
       // Custom channels need this while channels are a research preview;
       // Claude Code asks the user to confirm it in the terminal.
       '--dangerously-load-development-channels', `server:${BRIDGE_SERVER_NAME}`,
+      // The model, effort and mode the user picked (C12); none: Claude Code's own.
+      ...launchArgs(o.launch),
     ]
     try {
       await this.launch(launch, found.path, args, o.project.path, o.name)

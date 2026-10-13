@@ -38,9 +38,10 @@
 // comes back with a short chat so far, and isn't listed while it runs.
 import { serve } from '../src/serve.ts'
 import { FakeProvider, FakeSession } from './fake-provider.ts'
-import type { Id, SessionEvent, StoredSession } from '../src/protocol.ts'
+import type { Id, Launch, SessionEvent, StoredSession } from '../src/protocol.ts'
 import { HistoryLog } from '../src/history.ts'
 import { UsageCounter } from '../src/providers/claude/usage.ts'
+import { effortChoice, LAUNCH_OPTIONS, modelChoice } from '../src/providers/claude/launch-options.ts'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -432,13 +433,13 @@ class ScriptedProvider extends FakeProvider {
     return this.all.filter((s) => !running.has(s.native_id) && (!project || s.project.path === project))
   }
 
-  override async resume(host: Parameters<FakeProvider['resume']>[0], nativeId: string) {
+  override async resume(host: Parameters<FakeProvider['resume']>[0], nativeId: string, launch?: Launch) {
     const stored = this.all.find((s) => s.native_id === nativeId)
     if (!stored) throw new Error(`No stored session ${nativeId}`)
     const s = new ScriptedSession(this, host, stored.project)
     s.nativeId = nativeId
     s.title = stored.title
-    s.mode = 'auto'
+    launched(s, launch)
     s.chat.replace({
       messages: [
         { message: 'r1', agent: 'main', role: 'user', text: 'Where were we?', at: stored.updated_at, turn_tokens: 1840 },
@@ -458,7 +459,7 @@ class ScriptedProvider extends FakeProvider {
   override async create(host: Parameters<FakeProvider['create']>[0], options: Parameters<FakeProvider['create']>[1]) {
     const s = new ScriptedSession(this, host, options.project)
     s.title = null
-    s.mode = 'auto'
+    launched(s, options.launch)
     this.sessions.push(s)
     // Come up a moment later, like a real session starting in a terminal.
     setTimeout(() => s.announce(), 500)
@@ -466,6 +467,15 @@ class ScriptedProvider extends FakeProvider {
   }
 }
 
+/** The model, effort and mode a session comes up with (C12): what was picked, else a default like Claude Code's. */
+function launched(s: ScriptedSession, launch: Launch | undefined) {
+  const family = LAUNCH_OPTIONS.model!.find((c) => c.id === launch?.model) ?? LAUNCH_OPTIONS.model![0]!
+  s.model = modelChoice(`claude-${family.id}-5-5`)
+  s.effort = effortChoice(launch?.effort ?? 'high')
+  s.mode = launch?.mode ?? 'auto'
+}
+
 await serve([new ScriptedProvider({
-  capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} },
+  capabilities: { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {} },
+  launchOptions: LAUNCH_OPTIONS,
 })])

@@ -30,7 +30,7 @@ test('dev:fake: echo, permission, question, agents, tools, modes, plans, notice,
     const r = await c.command({ type: 'session.create', provider: 'fake', project: { path: os.tmpdir() } })
     const session = (r.result as { session: string }).session
     const created = await c.next('session.created', 3000)
-    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {} })
+    assert.deepEqual((created.session as any).capabilities, { questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {} })
     assert.equal((created.session as any).usage, null)
     const idle = (m: Msg) => m.type === 'agent.state_changed' && m.agent === 'main' && m.state === 'idle'
     const say = (text: string) => c.command({ type: 'message.send', session, text })

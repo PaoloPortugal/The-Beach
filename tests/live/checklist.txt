@@ -1,0 +1,47 @@
+LIVE CHECK: C12 launch pickers
+  godot --path . -- --checklist
+Page Down / wheel scrolls this.
+Real Claude. Never pick Fable
+(no access).
+
+1. Tab, +: under Biome, Model,
+   Effort and Mode rows, each
+   at Default? Lists: Opus,
+   Sonnet, Haiku, Fable / Low
+   to Max / Manual, Accept
+   edits, Plan, Auto?
+2. Pick Haiku, Low, Plan, then
+   New session…: in the
+   terminal, Claude Code's
+   header shows Haiku, and
+   Shift+Tab row says plan
+   mode? (Task Manager or ps:
+   --model haiku --effort low
+   --permission-mode plan.)
+3. Send a message from the
+   world. Chat header: "Mode:
+   Plan" and beside it the
+   model and "Low effort"?
+   Which model does it show:
+   Haiku, or the plan-mode
+   Sonnet? (Tell Claude.)
+4. /model in the terminal,
+   pick Sonnet: the header
+   follows?
+5. Tab, + again: all three
+   back to Default? Start one
+   with nothing picked: no
+   flags, Claude Code's own
+   model and mode, header
+   shows them once known?
+6. /exit one, then Resume
+   page: pick Opus + Auto,
+   resume it: the flags in
+   the terminal, the header?
+   Resume another with all
+   Default: it keeps its own
+   stored model?
+7. If you use your own status
+   line: a new session's model
+   shows only after /model
+   (known limit)?
