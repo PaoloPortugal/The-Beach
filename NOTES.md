@@ -5155,6 +5155,15 @@ the user's vision first; others using the MIT code afterwards is fine.
 
 ### Watch items
 
+- **A turn stopped by the model's safeguards** (user's, 2026-10-13;
+  not yet seen in a game session). The Claude desktop app pauses a
+  flagged chat ("Session paused", with retry or switch model); how
+  Claude Code in a terminal reports it is unknown, and it can't be
+  triggered on purpose. Today the world would likely show the
+  orchestrator as `error` (`unknown`) or nothing. When first seen,
+  record what Claude Code sends (hook, error type, transcript), then
+  give it its own notice like S06's: rephrase, or switch model with
+  `/model` in the terminal.
 - **A resumed chat showing a reply before its message** (S02 → History,
   S04; seen live by the user, 2026-10-12, to fix later). A session
   started in a plain terminal ("this is a test", one reply, `/exit`),
