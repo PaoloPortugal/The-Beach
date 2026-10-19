@@ -29,7 +29,7 @@ sequenceDiagram
         Claude-->>Sidecar: the running sessions: id, process id, busy / waiting / idle
         Note over Sidecar: Ours if its launcher is alive and Claude Code lists its process<br/>(launcher alone when agents can't answer). Not listed: folder deleted.
         Sidecar->>Log: read the conversation so far (chat, tool calls, usage, titles)
-        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token and proof)<br/>all before it's adopted: a file it can't write leaves nothing half taken
+        Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token and proof)<br/>all before it's adopted: a file it can't write leaves nothing half taken<br/>(its hooks on another port than ours: only holder.pid, read-only, flow 15)
     end
     Sidecar->>World: stdout ready, then hello
     Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at)
@@ -60,8 +60,9 @@ folder's record is rewritten with it.
 
 **The kept port taken** (another program got it while the game was
 closed): the sidecar listens on another port, the session comes back
-anyway with the `reattached_limited` notice, and is seen from its
-transcript (flow 15).
+anyway, read-only, with the `reattached_read_only` notice: none of
+its hooks, relays or bridge is taken, and it's seen from its transcript
+and `claude agents` (flow 15).
 
 **When nothing comes back:** a folder whose session ended is deleted,
 one that can't be read is left alone, and a restore that fails or takes

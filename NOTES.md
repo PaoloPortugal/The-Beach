@@ -319,7 +319,7 @@ feature that touches them follows these rules, and each is tested:
   ending the sessions does, which is why the quit warning says so (S05,
   with S07). If that program still holds the port when the game starts
   again, the gap stays open while the game runs: the session comes back
-  in S07's limited mode, and its hooks keep going to that program. The
+  read-only (S07), and its hooks keep going to that program. The
   bridge has no such gap: a gone sidecar's token is never offered again,
   and the bridge trusts only a sidecar whose `welcome` carries the
   proof from its own bridge file (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
@@ -489,7 +489,7 @@ removing a provider means deleting its folders.
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
 | `src/launch/` | Generic: the app data folder for run folders (`app-data.ts`, S07), terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04), run folders and limited mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04), run folders and the read-only mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
@@ -678,6 +678,14 @@ has for that session (e.g. from a snapshot) is stale and ignored.
 `app` (started here) or `external` (attached; not in v1). Agents are keyed by
 `agent` within their session.
 
+**Read-only.** A session the world can only watch has `read_only: true`
+(absent otherwise; core, set once in its snapshot): `message.send` and
+`interrupt.request` get `not_supported`, and Godot shows no message box
+for it. Claude: a session back after a restart whose hook port was taken
+(S07). Meant for the read-only islands of sessions started outside the
+game too (Deferred ideas). Added 2026-10-19 (user's decision) without a
+version change (optional and additive).
+
 **Project.** A session's `project` has `path` (absolute) and `name` (the
 folder's name unless given). On sessions the sidecar adds `repo`: the git
 repository's main folder, the same for all its worktrees, absent outside
@@ -763,9 +771,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   can't reach; continue it in the provider's own window),
   `sign_in_needed` (the provider can't use the user's account; sort it
   out in its own window; Godot shows the provider's `message` as is,
-  S06), `reattached_limited` (a session taken over after a restart
-  whose hooks can't reach the game; some features may not work fully
-  until it ends; S07, code name the user's, 2026-10-13). *(Shape accepted by the user, 2026-09-29, to be revisited if the
+  S06), `reattached_read_only` (a session taken over after a restart
+  whose hooks can't reach the game: the world only watches it until it
+  ends; S07, 2026-10-19; it was `reattached_limited`). *(Shape accepted by the user, 2026-09-29, to be revisited if the
   world needs more.)*
 - `session.notice_cleared` (`code`): that notice no longer applies (e.g.
   `sign_in_needed` once the user signed in again); it leaves the
@@ -2182,7 +2190,7 @@ all of it, so markup in a message shows as written (tested with an injected
   project's name, the permission mode when known (C06), the token usage
   (C08), and "Esc to close"), the session's notices (Godot's own
   text for `transcripts_off`, `hooks_unavailable`, `conversation_cleared`,
-  `conversation_resumed`, `conversation_moved` and `reattached_limited`
+  `conversation_resumed`, `conversation_moved` and `reattached_read_only`
   (S07); of the two switch
   notices, only the latest shows), the chat as bubbles
   (yours on the right in blue, the agent's on the left in grey, each
@@ -2207,7 +2215,9 @@ all of it, so markup in a message shows as written (tested with an injected
   the Send button too. The box clears at once; your message appears when
   the session reports it (`message.started`, role `user`). A refused send
   says "Couldn't send: …" and puts the text back if the box is still
-  empty.
+  empty. A read-only session (Protocol → Read-only; S07) has no message
+  box: a dim "Read-only: use its terminal." in its place (user's choice,
+  2026-10-19).
 - **One message box** for every session's chat: its text is kept when
   the chat closes and reopens on the same session, and emptied when
   another session's chat opens (user's decision, 2026-10-08, S06
@@ -3416,14 +3426,7 @@ as the orchestrator's, from the relay's own preview. (It was 300 ms for `PreTool
 C05's options, 2026-10-03: a hook later than that means a prompt shown
 without the options the terminal has, while a hook that never comes,
 e.g. blocked by `allowedHttpHookUrls`, only delays the card by this
-much.) A stop asked meanwhile shows and declines it with the rest.
-Without prompt hooks (S07's limited mode) a cut-short preview is
-tied to no call and shown at once from itself: its own call is read
-late from the transcript, or never (a line too long to read), and only
-an older call might fit (third and fourth rounds). Once read, the first
-call of its tool read after the prompt that fits the preview takes it,
-so that call's end (a Yes, or a "No" in the terminal) resolves the
-card; the card stays as shown (fifth check). The
+much.) A stop asked meanwhile shows and declines it with the rest. The
 world gets `permission.requested` (id = `request_id`) with the right
 agent, summary, input and options, and the agent is `waiting` (reason
 `permission`). `permission.respond` sends the verdict
@@ -4184,8 +4187,7 @@ start, and a session found after that arrives on its own as a
   answered (so `/clear` or `/resume` while the game was closed is
   followed, and `session.json` rewritten). Its old hook token is
   accepted, `holder.pid` becomes this sidecar's, its relay files are
-  pointed at this sidecar's hook port with the old token (every time,
-  so none is left on a port an earlier, limited sidecar had),
+  pointed at this sidecar's hook port with the old token,
   `bridge.json` gets a fresh token and proof, and only then it is
   adopted (so a file it can't write leaves no session and no bridge
   token, and a later start tries again; `holder.pid` may stay this
@@ -4210,73 +4212,70 @@ islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads.
 
 **If the old port is taken** (another program got it while the game was
-closed): the session still comes back, with less, until it ends, and
-the world shows the notice `reattached_limited`: "This
-session started before the game restarted, so some features may not
-work fully." (user's wording, 2026-10-13: deliberately general, so it
-never goes out of date; what works is kept here and in the guide; no
-`/exit` hint in it either, the guide gives that: user's decision,
-2026-10-13).
-- **Still working:** chat from the world, Yes and No on permission
-  prompts (the channel relay), `/clear` and `/resume` followed (the
-  `SessionStart` relay; the program on its old port has the token too,
-  so a switch is followed only into the project's own transcript folder
-  once that's known; before that, a `/resume` only to a transcript
-  Claude Code wrote with this project's working folder, at once, from
-  its end, its past the history; a `/clear` is only a cue to ask
-  `claude agents --json` which conversation the session (by `claude`'s
-  process id) is in now, one check at a time, up to 3 tries 2 s apart
-  (once more if another `/clear` came meanwhile; an answer from before a
-  switch is asked again), and a new id it reports is switched to when
-  its transcript is written, or as soon as the old one turns up; the
-  hook's own id is never used (fifth check and its re-check,
-  2026-10-13); so not with transcripts off, nor such a `/clear` with
-  agent view off). That program can still point the world at any conversation of
-  this project (a real `/resume` looks the same); messages from the
-  world still go to the terminal's own. Token usage and the model (the
-  status line relay).
-- **From the transcript, a moment late** (flow 15;
+closed): the session still comes back, **read-only**, until it ends
+(user's decision, 2026-10-19: the full experience or read-only, nothing
+in between; it replaced a limited mode, dev log 2026-10-13-s07-reattach).
+The world shows the notice `reattached_read_only`: "This session
+started before the game restarted, so it's read-only here. Use its
+terminal, or /exit it and resume it from the world for full control."
+(user's wording, 2026-10-19), and the chat panel shows "Read-only: use
+its terminal." in place of the message box.
+- **Nothing of the other program's is taken** (`ClaudeProvider.takeOver`):
+  the session's hook token isn't accepted, no bridge slot or
+  `bridge.json` is made, and its relay files are left as they are, so
+  anything posted with its token gets 401 and its bridge has no way
+  back. `holder.pid` is still written.
+- **Shown, from the transcript, a moment late** (flow 15;
   `TranscriptFollower.followAll`, `transcript-hooks.ts`): each entry is
   read as the hook it stands for and goes through the same translator:
-  what the user said (typed, or sent from the world), replies (whole,
-  not streamed), tool calls and their results, subagents (each from its
-  own file under `<session>/subagents/`, announced once its
-  `.meta.json` names its type and the Agent call that started it; a
-  foreground one is done when that call returns, a background one at
-  its task notification), the turn's end (Claude Code's `turn_duration`
-  entry, 2.1.296; an API error ends it as an error), Esc and a terminal
-  "No". A session busy at the restart stays working until its
-  transcript shows the turn's end. One with no transcript yet (nothing
-  prompted before the restart) has no hook to name it: it's looked for
-  (`findStored`, only a file whose working folder is this project's,
-  compared as written or with links resolved; the same check picks the
-  transcript at a limited restore)
-  every second for a minute, then every 10 s, until Claude Code writes
-  it, then read from its start (found while fixing the second security
-  review, 2026-10-13). A transcript `findStored` can't describe yet (no
-  title: only slash commands so far) is found once it has one. A relayed
-  prompt is matched to its call as soon as the call is in the
-  transcript, without options (only to the call whose input its preview
-  shows, as always: S02 → Permissions); a cut-short preview is shown at
-  once from itself, tied to no call until the first call of its tool
-  read after it fits the preview, whose end (Yes, or a "No" in the
-  terminal) then resolves it (security review, third to fifth rounds).
-- **Lost, left to the terminal:** streaming, prompt options ("Yes, and
-  don't ask again …", C05), questions (C05), plans (C07), the current
-  mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
-  `not_supported`), sign-in notices (S06) and the `hooks_unavailable`
-  check. The snapshot declares only the `usage` and `model_info`
-  capabilities. Subagents already running at the restart aren't shown.
-  With transcripts off, only what still works above is left. Resuming
-  the session later from the world (after `/exit`) gives it everything
-  again.
+  what the user said (typed in the terminal), replies (whole, not
+  streamed), tool calls and their results, subagents (each from its own
+  file under `<session>/subagents/`, announced once its `.meta.json`
+  names its type and the Agent call that started it; a foreground one is
+  done when that call returns, a background one at its task
+  notification), the turn's end (Claude Code's `turn_duration` entry,
+  2.1.296; an API error ends it as an error), Esc and a terminal "No";
+  the permission mode (its `permission-mode` entries, written around
+  each turn, and each prompt's `permissionMode`: a Shift+Tab shows at
+  the next turn), the model (each reply's; plan mode may upgrade a
+  turn's, C12), and token usage and context (each call's usage; the
+  context's percent and the account's limits need the status line, so
+  they don't show). A session busy at the restart stays working until
+  its transcript shows the turn's end. One with no transcript yet
+  (nothing prompted before the restart) has it looked for (`findStored`,
+  only a file whose working folder is this project's, compared as
+  written or with links resolved; the same check picks the transcript
+  at the restore) every second for a minute, then every 10 s, until
+  Claude Code writes it, then read from its start.
+- **Shown, from `claude agents --json`** (asked every 5 s while any
+  read-only session runs, one at a time for all of them; about 0.8 s of
+  a `claude` process each time; `ClaudeSession.onAgent`): waiting on the
+  user in the terminal (a prompt, a question: `waiting`, reason `input`,
+  back to working or idle when it says so; no card), and `/clear` and
+  `/resume`: when it names another conversation for the session (by
+  `claude`'s process id), the world switches to it once this project's
+  transcript of it is there, all of it news if it was new when first
+  seen (`/clear`), else from its end, its past the history (`/resume`).
+  Another project's conversation is never found, so never followed.
+  With agent view off, neither shows.
+- **Not from the world:** chat (`message.send` gets `not_supported`),
+  answers to prompts, questions and plans, and the stop
+  (`interrupt.request` gets `not_supported`). The snapshot has
+  `read_only: true` and declares only `permission_modes`, `usage` and
+  `model_info`. Subagents already running at the restart aren't shown.
+  With transcripts off, only the waiting state and the switches are
+  left. Resuming the session later from the world (after `/exit`) gives
+  it everything again.
+- **Slow in the terminal too:** the session keeps sending its hooks to
+  the program on its old port and waits on each until it answers or
+  times out (5 s for most, 24 h for a prompt's), and writes its
+  transcript only after. Seen in the live check (2026-10-19) with a
+  listener that never answers: every message and reply 5 s late. Only
+  `/exit` and resuming fixes that, as the notice says.
 - **What it means:** another program holds the session's hook port, so
   it gets the session's hooks, token and tool input included, and could
-  answer them (Security rules → Known gap). Hooks posted to our new port
-  with the session's token can only come from it, so they're dropped
-  (a forged prompt gets an empty answer: neither shown nor allowed);
-  only what the two relays post is taken there, `SessionStart` (`/hook`)
-  and the status line (`/status`) (security review, 2026-10-13).
+  answer them (Security rules → Known gap). The world acts on nothing it
+  could send.
 
 **While the game is closed** everything happens in the terminal, as
 before (hooks fail, and Claude Code falls back to its own prompts:
@@ -4294,8 +4293,8 @@ close that: a running session never learns a new port, and listening
 ports are visible to every local account while the game runs. The kept
 port only makes it a little easier to aim at in advance, and if it's
 taken the sidecar falls back to a random one, so new sessions aren't
-exposed. A fresh port would put every reattached session in the
-limited mode above. Rejected for that reason. With it, the user's three
+exposed. A fresh port would make every reattached session read-only
+(above). Rejected for that reason. With it, the user's three
 additions, all built: the sidecar takes the port again first thing at
 start; the quit warning says how to close the gap (S05: on a computer
 shared with other accounts, `/exit` in each session before quitting);
@@ -4319,19 +4318,10 @@ nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
   whose chat can't reach anything.
 - After a crash, if the old sidecar's process id is reused, its run
   folders are left alone until that process exits.
-- Limited, a prompt shown from a cut-short preview takes the first call
-  of its tool read after it that fits. If two such calls are read
-  together (one already allowed by a rule) it may take the wrong one:
-  its card closes as allowed while the terminal still asks; and a
-  prompt whose own call was read before it may take a later retry.
-  Shown wrong only, never answered wrong: Yes and No go by the
-  prompt's own id (security review, fifth check).
-- Limited, the folder unknown: if a `/clear` check is running when the
-  user does `/resume` in the terminal and that relay is late, the check
-  may take the resumed conversation for a new one (an empty chat, then
-  its whole transcript as news; or, for another project's
-  conversation, a chat that stays empty). Shown wrong only; the id is
-  always the one Claude Code reports (security review, fifth check).
+- Read-only, a `/clear` or `/resume` shows up to 5 s late (the poll).
+  A `/resume` to an earlier conversation with no reply yet is taken for
+  a new one: its messages show as news, not as history. Shown wrong
+  only.
 
 **Not covered:** sessions started outside the game (Deferred ideas →
 Read-only islands for sessions started outside the game), and sessions
@@ -4339,20 +4329,18 @@ launched before S07.
 
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
-bridge reconnect, limited mode from the transcript (found later, `/clear`
-before the first prompt or just after it, `/resume` from its end, never
-another project's, a `/clear` only to the id `agents` reports, one
-check at a time, never on an answer from before a `/resume`, nothing
-switched when `agents` can't answer, nothing asked once it ends,
-forged switches refused), its prompt matching,
-dropped hooks and a forged switch ignored, relays pointed back, a
-takeover that fails to write a file), `bridge.test.ts` (reconnect,
-spent tokens, nothing acted on before `welcome`, the welcome's proof),
-`permissions.test.ts` (whole and cut-short previews, a cut-short one
-tied to none without prompt hooks until its call is read, then resolved
-by a Yes or "No" in the terminal), `process.test.ts` (the tests' own
-sessions folder),
-`tests/world/world_test.gd` (the cover, the quit text),
+bridge reconnect, read-only: nothing of the other program's taken (401
+for its token, relays and bridge file left alone, no chat or stop),
+seen from the transcript (entries as hooks, the mode, the model, found
+later and read from its start), waiting from `agents`, `/clear` and
+`/resume` through `agents` (never another project's), one `agents` at a
+time for all and none once they end; relays pointed back on the kept
+port, a takeover that fails to write a file), `bridge.test.ts`
+(reconnect, spent tokens, nothing acted on before `welcome`, the
+welcome's proof), `permissions.test.ts` (whole and cut-short previews),
+`process.test.ts` (the tests' own sessions folder),
+`tests/world/world_test.gd` (the cover, the quit text, the read-only
+notice and chat panel),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
 after it), `tests/core/sidecar_client_test.gd` (the suites' own
 sessions folder: Running it).
@@ -4848,7 +4836,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 `s07-reattach` and waits for the user's live check and review (dev log
 2026-10-13-s07-reattach): sessions the game started come back after a
 restart, islands standing and chat back; with their hook port taken,
-in a limited mode seen from the transcript. After it (user's order, 2026-10-13): read-only
+read-only (user's decision, 2026-10-19). After it (user's order, 2026-10-13): read-only
 islands for sessions started outside the world (Deferred ideas →
 Read-only islands for sessions started outside the game). Subagents
 stay read-only in the world (Open questions → 4).
@@ -5454,11 +5442,16 @@ the user's vision first; others using the MIT code afterwards is fine.
   without proof it's available. Reported to Anthropic by the user with
   `/bug` (2026-10-03); recheck after Claude Code updates.
 
-- **Attaching to sessions started outside the game** (user's,
-  2026-10-12). If Claude Code ever offers a documented way to attach to
-  a running session with full control (hooks, chat, answers), revisit
-  attaching them (Deferred ideas → Read-only islands for sessions
-  started outside the game). Today only launch flags give a session our
+- **Attaching to sessions started outside the game, and retaking our
+  own** (user's, 2026-10-12; retaking added 2026-10-19). If Claude Code
+  ever offers a documented way to attach to a running session with full
+  control (hooks, chat, answers), revisit attaching them (Deferred
+  ideas → Read-only islands for sessions started outside the game). The
+  same way would retake our own sessions cleanly: today one whose old
+  hook port was taken while the game was closed only comes back
+  read-only (S07 → If the old port is taken), and its hooks, fixed at
+  launch, keep going to that port; with such a way it would come back
+  in full, and the kept port and the read-only fallback could go. Today only launch flags give a session our
   hooks and channel, `--settings` isn't read again (S07), and we never
   edit the user's settings. (Remote Control and the Agent SDK's
   `set_model` / `apply_flag_settings` go through Anthropic or need the
@@ -5497,13 +5490,14 @@ the user's vision first; others using the MIT code afterwards is fine.
   another process (a wrapper, a shell), no session would ever come back
   there (each folder would be deleted as gone): check on the first run
   there.
-- **`agents` after a `/clear`** (S07, 2026-10-13). In limited mode a
-  `/clear` while its transcript folder isn't known yet (nothing
-  prompted before the restart) is followed only to the new id
-  `claude agents --json` then reports for the session, asked up to 3
-  times 2 s apart. Unverified that it reports the new id that soon:
-  if not, such a `/clear` is never followed (live checklist, S07).
-- **The transcript in S07's limited mode** (2026-10-13). A session back
+- **`agents` for read-only sessions** (S07, 2026-10-19). A read-only
+  session's waiting state and its `/clear` and `/resume` come from
+  `claude agents --json` (its `status` and `sessionId` for `claude`'s
+  process id), asked every 5 s. Unverified live: that the id changes
+  right after `/clear` and `/resume`, and that a prompt shows as
+  `waiting` (live checklist, S07). Its cost (about 0.8 s of a `claude`
+  process each time) is only paid while a read-only session runs.
+- **The transcript in S07's read-only mode** (2026-10-13). A session back
   with its hook port taken is seen from its transcript alone, which isn't
   a documented interface: the turn's end is Claude Code's
   `turn_duration` system entry, subagents' files are
@@ -5512,7 +5506,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   written as "Another Claude session sent a message:" before the
   `<agent-message>` (all seen on 2.1.296). An API error's entry
   (`isApiErrorMessage`, its `error` field) was never seen live. If one
-  changes, a limited session stays working until the next prompt;
+  changes, a read-only session stays working until the next prompt;
   recheck when the changelog mentions the transcript.
 - **Ending a session from the game** (S05). Not built: Claude Code has
   no clean way to end an interactive session from outside (S05 has what

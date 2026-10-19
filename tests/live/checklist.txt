@@ -27,37 +27,36 @@ A. Coming back
 5. /exit in the terminal: the
    island sinks?
 
-B. Port taken (limited)
+B. Port taken (read-only)
 6. Start two sessions (type
    nothing in the second),
    quit the game. Occupy the
    kept port (Claude gives
    the command).
-7. Start the game: the island
-   is back, with the notice
-   "This session started
-   before the game restarted,
-   so some features may not
-   work fully."?
-8. Chat from the world: the
-   reply shows whole, a moment
-   late? Tool calls show?
-   A prompt: Yes/No card with
-   the right command (no other
-   options); answer it?
-9. When the reply ends the
-   island goes idle? /clear in
-   the terminal is followed?
-10. Ask for a long command
-   that prompts (a few lines
-   of text); answer Yes in
-   the terminal: its card
-   goes away?
-11. Second session: /clear in
-   its terminal, then a
-   message there. Its chat
-   shows that message (a few
-   s late)?
+7. Start the game: both
+   islands back, notice "...so
+   it's read-only here..."?
+   Chat shows "Read-only: use
+   its terminal.", no box?
+8. First session: type in
+   its terminal. Your message
+   and the reply show (late),
+   tool calls too? Mode and
+   model in the header?
+9. Ask it for a command that
+   prompts: the island shows
+   waiting (within ~5 s), no
+   card? Answer in the
+   terminal: working again,
+   then idle at the end?
+10. /clear in its terminal,
+   then a message: the chat
+   starts over and shows it?
+   /resume back: old chat as
+   history?
+11. Second session: type in
+   its terminal: its chat
+   shows it?
 12. /exit both: they end.
    Free the port (close that
    window).
