@@ -200,25 +200,25 @@ version of the game from before this feature, don't come back; while
 they run they aren't listed under Resume either (with Claude Code's
 agent view on, as above).
 
-**"This session started before the game restarted, so some features may
-not work fully."** This notice means another program took the game's
-connection point while it was closed, so the session can't report
-everything any more. It still comes back, and you can still chat, answer
-Yes or No to its prompts, and see its token usage and model; `/clear`
-and `/resume` in its terminal are followed as usual (unless Claude
-Code's transcripts are turned off; a `/clear` before you've typed
-anything in it also needs Claude Code's agent view on). Your messages, its
-replies, tool calls and subagents show up a moment late, replies whole
-(not word by word), and the island goes back to idle when the reply
-ends. Left to the
-terminal: the prompts' other options, Claude's questions, plans, the
-permission mode, stopping it, and sign-in messages. Subagents already
-running when the game restarted don't show, and with Claude Code's
-transcripts turned off, nothing shows a moment late. To get everything back,
-end the session with `/exit` and resume it from the world. The program
-that took the connection point gets what the session reports (your
-prompts, its tool calls) and could answer its permission prompts, so on
-a computer shared with other accounts, end the session with `/exit`.
+**"This session started before the game restarted, so it's read-only
+here."** This notice means another program took the game's connection
+point while it was closed, so the world can't drive the session any
+more, only watch it. Its island still comes back, and its chat shows
+"Read-only: use its terminal." where you'd type. You see what happens
+in the terminal a moment late: your messages, its replies (whole, not
+word by word), tool calls and subagents, its permission mode, model and
+token usage, and the island waiting while it asks you something there.
+`/clear` and `/resume` in its terminal are followed within a few
+seconds (with Claude Code's agent view on). Everything else, chatting,
+answering prompts and questions, and stopping it, happens in the
+terminal. Subagents already running when the game restarted don't show,
+and with Claude Code's transcripts turned off, only the waiting and the
+switches show. The session may also feel slow in its terminal, waiting
+on that program at each step. To get everything back, end it with
+`/exit` and resume it from the world. The program that took the
+connection point gets what the session reports (your prompts, its tool
+calls) and could answer its permission prompts, so on a computer shared
+with other accounts, end the session with `/exit`.
 
 ## The islands and the ocean (W01, W02, W04)
 
