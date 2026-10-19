@@ -196,6 +196,8 @@ export class ClaudeSession implements ProviderSession {
    * from its transcript alone, read as the hooks it stands for.
    */
   private readOnly: TranscriptHooks | null = null
+  /** When it was launched, as its run folder keeps it: announced as its start, so the same after a restart (W12). */
+  startedAt: string | undefined
   /** Whether any hook has arrived yet. */
   private hooksSeen = false
   /** Checking that hooks arrive (once, after the first world message sent while idle). */
@@ -307,7 +309,7 @@ export class ClaudeSession implements ProviderSession {
     this.flushPrompt()
   }
 
-  private announce(startedAt?: string) {
+  private announce(startedAt = this.startedAt) {
     const { state, reason } = this.translator.mainState()
     this.host.announce({
       native_id: this.nativeId,

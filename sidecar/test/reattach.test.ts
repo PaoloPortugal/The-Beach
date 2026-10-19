@@ -174,6 +174,7 @@ test('a launched session: its run folder in the sessions folder holds session.js
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'proj-'))
   let launch: { args: string[] } = { args: [] }
   let runDir = ''
+  let bridge: Awaited<ReturnType<typeof bridgeBack>> | null = null
   const p = new ClaudeProvider({
     sessionsDir: root, log: new RecordingLog(), findClaude: FOUND, selfCommand: self,
     openTerminal: async (req) => { runDir = req.runDir; launch = JSON.parse(fs.readFileSync(req.argv[2]!, 'utf8')); return 'fake' },
@@ -204,9 +205,13 @@ test('a launched session: its run folder in the sessions folder holds session.js
     assert.equal(readHookPort(root), record.hook_port)
     // This sidecar holds it: another game running meanwhile leaves it alone.
     assert.equal(fs.readFileSync(path.join(runDir, HOLDER_FILE), 'utf8'), String(process.pid))
+    // Its start is the one its folder keeps, so the same after a restart (W12).
+    bridge = await bridgeBack(runDir)
+    assert.equal(((await c.next('session.created')).session as { started_at: string }).started_at, record.started_at)
   } finally { await c.close(); await s.close(); await p.shutdown() }
   // The game quit: the session runs on, and its folder stays for the next start.
   assert.ok(fs.existsSync(path.join(runDir, RUN_RECORD_FILE)))
+  bridge?.sock.destroy()
 })
 
 test('the kept port: a fallback never replaces it', async () => {

@@ -45,8 +45,11 @@ const FAR_SPACING := 1200.0
 var _clusters := {}
 ## Session id or hold → cluster id.
 var _of := {}
-## Session id → the choice made when it was started, until it comes up.
+## Session id → the choice made when it was started, until it comes up:
+## a String, or a saved entry for one taken back (W12, [method restore]).
 var _choices := {}
+## A saved cluster's id (W12) → the cluster it came back as, this run.
+var _restored := {}
 ## Holds: island spots of ended sessions, see [method hold].
 var _holds := {}
 var _next_id := 1
@@ -59,16 +62,28 @@ func choose(session_id: String, choice: String) -> void:
 	_choices[session_id] = choice
 
 
+## Puts a session taken back after a restart in the cluster it was in
+## (W12): [param saved] is its [IslandMemory] entry. Call before it comes
+## up, in the saved order, so slots and indexes close up.
+func restore(session_id: String, saved: Dictionary) -> void:
+	_choices[session_id] = saved
+
+
 ## Puts a session that came up in its cluster; returns the cluster id.
 ## [param session] is the protocol's session object.
 func add(session_id: String, session: Dictionary) -> String:
 	if _of.has(session_id):
 		return _of[session_id]
 	var project: Dictionary = session.get("project", {})
-	var choice: String = _choices.get(session_id, AUTOMATIC)
+	var choice: Variant = _choices.get(session_id, AUTOMATIC)
 	_choices.erase(session_id)
 	var id := ""
-	if choice == NEW:
+	if choice is Dictionary:
+		id = _restored.get(choice["cluster"], "")
+		if not _clusters.has(id):
+			id = _new_cluster(choice["name"], choice["repo_key"])
+			_restored[choice["cluster"]] = id
+	elif choice == NEW:
 		id = _new_cluster(SessionsMenu.project_name(project), "")
 	elif _clusters.has(choice):
 		id = choice
@@ -149,6 +164,23 @@ func sessions(cluster_id: String) -> Array[String]:
 	out.assign(members.keys().filter(func(k: String) -> bool: return not _holds.has(k)))
 	out.sort_custom(func(a: String, b: String) -> bool: return members[a] < members[b])
 	return out
+
+
+## The repository (or folder outside git) a cluster was made for
+## automatically, "" for one made by hand.
+func cluster_key(cluster_id: String) -> String:
+	return _clusters.get(cluster_id, {}).get("key", "")
+
+
+## A cluster's spot: in [method spot]'s terms.
+func slot_of(cluster_id: String) -> int:
+	return _clusters.get(cluster_id, {}).get("slot", -1)
+
+
+## A session's island's index in its cluster, or -1.
+func index_of(session_id: String) -> int:
+	var id: String = _of.get(session_id, "")
+	return _clusters[id]["sessions"].get(session_id, -1) if _clusters.has(id) else -1
 
 
 ## Where a session's (or a hold's) island goes.
