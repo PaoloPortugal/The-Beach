@@ -63,11 +63,11 @@ sequenceDiagram
         Claude->>Relay: SessionStart
         Relay->>Sidecar: POST /hook (relay.json: the new port)
         Note over Sidecar: followed as usual (flow 9) once its transcript folder is known<br/>(the program on the old port has the token too)#59; before that:<br/>/resume only to this project's transcript, at once
-        opt /clear, its folder not known yet
-            loop up to 3 times, 2 s apart
+        opt /clear, its folder not known yet (only a cue: its id isn't used)
+            loop one check at a time: up to 3 tries, 2 s apart
                 Sidecar->>Claude: claude agents --json (its process id: which session id now?)
             end
-            Note over Sidecar: the new id: switched to once its transcript is written<br/>(or the old one turns up)#59; not confirmed: ignored
+            Note over Sidecar: a new id: switched to once its transcript is written<br/>(or the old one turns up)#59; an answer from before a switch: asked again#59;<br/>none new: ignored
         end
     end
 ```
@@ -79,8 +79,8 @@ moment late:** the user's messages, replies (whole, not streamed), tool
 calls and subagents (each from its own file under
 `<session>/subagents/`, tied to its Agent call by its `.meta.json`), the
 turn's end (Claude Code's `turn_duration` entry), Esc and a terminal
-"No" (which also resolve a prompt shown from a cut-short preview, once
-its call is read). A session busy at the restart stays working until then. One with
+"No". A prompt shown from a cut-short preview is resolved, once its
+call is read, by that call's end: a Yes or a "No" in the terminal. A session busy at the restart stays working until then. One with
 no transcript yet at the restart has it looked for (every second for a
 minute, then every 10 s; only a file with this project's working
 folder) until Claude Code writes it, and read from its start.
@@ -99,8 +99,9 @@ neither shown nor allowed); only what the two relays post is taken
 there, `SessionStart` (`/hook`) and the status line (`/status`). A
 `/clear` or `/resume` is followed only into the project's transcript
 folder once that's known, and before that only to a transcript of this
-project that Claude Code wrote (a `/resume`), or once `claude agents
---json` says the session is now that conversation (a `/clear`; with
-agent view off, not followed), so that program can't switch the
+project that Claude Code wrote (a `/resume`), or to the new
+conversation `claude agents --json` says the session is in (a
+`/clear`, only a cue to ask, one check at a time; with agent view off,
+not followed), so that program can't switch the
 world to another project's conversation. It can still point it at
 another conversation of this project, as a real `/resume` would.
