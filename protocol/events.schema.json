@@ -299,7 +299,7 @@
         "title": { "type": ["string", "null"] },
         "started_at": { "$ref": "#/$defs/timestamp" },
         "read_only": {
-          "description": "The world only watches this session: no chat, answers or stop from the world (message.send gets not_supported). Absent otherwise. Claude: a session taken back after a restart whose hook port was taken (S07).",
+          "description": "The world only watches this session: no chat, answers or stop from the world (message.send and interrupt.request get not_supported). Absent otherwise. Claude: a session taken back after a restart whose hook port was taken (S07).",
           "const": true
         },
         "capabilities": {
@@ -475,7 +475,7 @@
         "type": { "const": "error" },
         "id": { "$ref": "#/$defs/id" },
         "code": {
-          "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared), invalid_project (path not absolute or not a folder), provider_error (the provider failed; details stay in the sidecar's log).",
+          "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared, or the session doesn't allow it, e.g. read_only), invalid_project (path not absolute or not a folder), provider_error (the provider failed; details stay in the sidecar's log).",
           "type": "string"
         },
         "message": { "description": "Human-readable.", "type": "string" }
