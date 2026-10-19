@@ -485,7 +485,7 @@ export class HookTranslator {
 
   /**
    * Limited: a prompt shown untied gets its call once that's read: the
-   * first call of its tool opened after the prompt whose input fits its
+   * first call of its tool read after the prompt whose input fits its
    * preview. Its card stays as shown; the call's end (ran: Yes, or a "No"
    * in the terminal) resolves it.
    */

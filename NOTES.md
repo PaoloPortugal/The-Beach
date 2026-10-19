@@ -4326,6 +4326,12 @@ nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
   prompt whose own call was read before it may take a later retry.
   Shown wrong only, never answered wrong: Yes and No go by the
   prompt's own id (security review, fifth check).
+- Limited, the folder unknown: if a `/clear` check is running when the
+  user does `/resume` in the terminal and that relay is late, the check
+  may take the resumed conversation for a new one (an empty chat, then
+  its whole transcript as news; or, for another project's
+  conversation, a chat that stays empty). Shown wrong only; the id is
+  always the one Claude Code reports (security review, fifth check).
 
 **Not covered:** sessions started outside the game (Deferred ideas →
 Read-only islands for sessions started outside the game), and sessions
@@ -4337,7 +4343,8 @@ bridge reconnect, limited mode from the transcript (found later, `/clear`
 before the first prompt or just after it, `/resume` from its end, never
 another project's, a `/clear` only to the id `agents` reports, one
 check at a time, never on an answer from before a `/resume`, nothing
-asked once it ends, forged switches refused), its prompt matching,
+switched when `agents` can't answer, nothing asked once it ends,
+forged switches refused), its prompt matching,
 dropped hooks and a forged switch ignored, relays pointed back, a
 takeover that fails to write a file), `bridge.test.ts` (reconnect,
 spent tokens, nothing acted on before `welcome`, the welcome's proof),

@@ -922,25 +922,48 @@ test('restore, limited, nothing prompted yet: a /clear Claude Code confirms is f
       jsonl({ type: 'user', uuid: 'x1', cwd: path.join(os.tmpdir(), 'elsewhere'), entrypoint: 'cli', message: { content: 'not this one' } }))
     const start = (source: string, id: string) =>
       post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: path.join(projects, 'proj', `${id}.jsonl`), cwd: f.record.project.path })
-    // Forged: a /resume to another project's conversation; a /clear Claude Code doesn't confirm.
+    // Forged: a /resume to another project's conversation.
     transcript(projects, ID(5), path.join(os.tmpdir(), 'elsewhere'), { type: 'user', uuid: 'x5', message: { content: 'theirs' } })
     assert.equal((await start('resume', ID(5))).status, 200)
-    assert.equal((await start('clear', ID(6))).status, 200)
-    // The real /clear: Claude Code lists the session under its new id.
+    // The real /clear: Claude Code lists the session under its new id; a /clear hook naming another id
+    // (forged, or late) is only a cue, so Claude Code's id is the one kept, waiting while the folder is unknown.
     current = ID(9)
-    assert.equal((await start('clear', ID(9))).status, 200)
-    await sleep(300)
+    assert.equal((await start('clear', ID(6))).status, 200)
+    await until(() => r.log.lines.some((l) => l.includes('followed once it\'s written')), 3000)
     // The old conversation's transcript turns up first (a prompt before the /clear): the /clear isn't lost.
     transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'before the clear' } })
     await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
     fs.appendFileSync(path.join(projects, 'proj', `${ID(9)}.jsonl`), jsonl({ type: 'user', uuid: 'u9', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'after the clear' } }))
     assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
     assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
-    // Only Claude Code's id was followed; nothing switched to the forged ones or to another project's.
-    await until(() => r.log.lines.some((l) => l.includes('Claude Code reports no new conversation')), 8000)
+    // Only Claude Code's id was followed; nothing switched to the hook's own id or to another project's.
     assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited, its folder unknown)')), 'the /resume')
     assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && (m.native_id === ID(5) || m.native_id === ID(6))))
     assert.ok(!r.c.received.some((m) => m.type === 'message.completed' && (m.text === 'theirs' || m.text === 'not this one')))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, limited, nothing prompted yet: a /clear Claude Code confirms is followed once its own transcript is written, the old one never', { timeout: 15_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  let current = f.record.native_id
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: async () => ({ ids: new Set([current]), agents: [{ sessionId: current, pid: f.program, status: 'idle' }] }),
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    current = ID(9)
+    assert.equal((await post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(9), transcript_path: path.join(projects, 'proj', `${ID(9)}.jsonl`), cwd: f.record.project.path })).status, 200)
+    await until(() => r.log.lines.some((l) => l.includes('followed once it\'s written')), 3000)
+    transcript(projects, ID(9), f.record.project.path, { type: 'user', uuid: 'u9', message: { content: 'after the clear' } })
+    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
+    assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
+    assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })
@@ -958,13 +981,15 @@ test('restore, limited, nothing prompted yet: /clears ask Claude Code one at a t
     { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
   // What `claude agents` answers, how long it takes, and how many run at once.
   let answer: Running = { ids: new Set([f.record.native_id]), agents: [{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }] }
-  let delay = 0, calls = 0, running = 0, most = 0
+  let calls = 0, running = 0, most = 0
+  // While set, an answer is held until released: so it comes back after the /resume below.
+  let gate: Promise<void> | null = null
   const r = await restoreAndSync({
     sessionsDir: root, projectsDir: projects,
     runningSessions: async () => {
       calls++; running++; most = Math.max(most, running)
       const now = answer
-      await sleep(delay)
+      await gate
       running--
       return now
     },
@@ -973,19 +998,23 @@ test('restore, limited, nothing prompted yet: /clears ask Claude Code one at a t
     const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
     const start = (source: string, id: string, file = path.join(projects, 'proj', `${id}.jsonl`)) =>
       post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: file, cwd: f.record.project.path })
-    const ignored = () => r.log.lines.filter((l) => l.includes('Claude Code reports no new conversation')).length
+    const ignored = () => r.log.lines.filter((l) => l.includes('no newer conversation reported')).length
     // Claude Code can't answer (agent view off): a /clear switches nothing.
     answer = { none: 'agent view is off' }
     assert.equal((await start('clear', ID(30))).status, 200)
     await until(() => ignored() === 1, 8000)
     // Claude Code says ID(9) while a flood of /clears comes in; then a real /resume to ID(4) before that answer is back.
     const asked = calls
-    delay = 300
+    let release = () => {}
+    gate = new Promise((r) => { release = r })
     answer = { ids: new Set([ID(9)]), agents: [{ sessionId: ID(9), pid: f.program, status: 'idle' }] }
     await Promise.all(Array.from({ length: 10 }, (_, i) => start('clear', ID(10 + i))))
+    await until(() => running === 1)
     assert.equal((await start('resume', ID(4), earlier)).status, 200)
     answer = { ids: new Set([ID(4)]), agents: [{ sessionId: ID(4), pid: f.program, status: 'idle' }] }
     await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(4), 3000)
+    gate = null
+    release()
     await until(() => ignored() === 2, 8000)
     assert.equal(most, 1, 'one `claude agents` at a time')
     assert.ok(calls - asked <= 4, `asked ${calls - asked} times`)
