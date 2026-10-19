@@ -28,9 +28,11 @@ A. Coming back
    island sinks?
 
 B. Port taken (limited)
-6. Start a session, quit the
-   game. Occupy the kept port
-   (Claude gives the command).
+6. Start two sessions (type
+   nothing in the second),
+   quit the game. Occupy the
+   kept port (Claude gives
+   the command).
 7. Start the game: the island
    is back, with the notice
    "This session started
@@ -46,5 +48,16 @@ B. Port taken (limited)
 9. When the reply ends the
    island goes idle? /clear in
    the terminal is followed?
-10. /exit: it ends. Free the
-   port (close that window).
+10. Ask for a long command
+   that prompts (a few lines
+   of text); answer Yes in
+   the terminal: its card
+   goes away?
+11. Second session: /clear in
+   its terminal, then a
+   message there. Its chat
+   shows that message (a few
+   s late)?
+12. /exit both: they end.
+   Free the port (close that
+   window).

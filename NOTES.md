@@ -3409,7 +3409,10 @@ inputs it's tied to none of them (security review, second round,
 2026-10-13). Without prompt hooks (S07's limited mode) a cut-short
 preview is tied to no call and shown at once from itself: its own call
 is read late from the transcript, or never (a line too long to read),
-and only an older call might fit (third and fourth rounds). It
+and only an older call might fit (third and fourth rounds). Once read,
+the first call of its tool opened after the prompt that fits the
+preview takes it, so that call's end (a Yes, or a "No" in the
+terminal) resolves the card; the card stays as shown (fifth check). It
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -4217,12 +4220,14 @@ never goes out of date; what works is kept here and in the guide; no
   prompts (the channel relay), `/clear` and `/resume` followed (the
   `SessionStart` relay; the program on its old port has the token too,
   so a switch is followed only into the project's own transcript folder
-  once that's known; before that, only to a transcript Claude Code wrote
-  with this project's working folder: a `/resume`'s at once, from its
-  end, its past the history; a `/clear`'s, refused if a transcript of
-  that id is already in any project's folder, once its first prompt
-  writes it (the newest of up to 8 waiting); so not with transcripts
-  off). That program can still point the world at any conversation of
+  once that's known; before that, a `/resume` only to a transcript
+  Claude Code wrote with this project's working folder, at once, from
+  its end, its past the history; a `/clear` only once `claude agents
+  --json` lists the session (by `claude`'s process id) under the new id,
+  asked 3 times 2 s apart, else ignored, and then switched to when its
+  transcript is written, or as soon as the old one turns up (fifth
+  check, 2026-10-13); so not with transcripts off, nor such a `/clear`
+  with agent view off). That program can still point the world at any conversation of
   this project (a real `/resume` looks the same); messages from the
   world still go to the terminal's own. Token usage and the model (the
   status line relay).
@@ -4248,9 +4253,10 @@ never goes out of date; what works is kept here and in the guide; no
   title: only slash commands so far) is found once it has one. A relayed
   prompt is matched to its call as soon as the call is in the
   transcript, without options (only to the call whose input its preview
-  shows, as always: S02 → Permissions); a cut-short preview is tied to
-  none and shown from itself (security review, third and fourth
-  rounds).
+  shows, as always: S02 → Permissions); a cut-short preview is shown at
+  once from itself, tied to no call until the first call of its tool
+  read after it fits the preview, whose end (Yes, or a "No" in the
+  terminal) then resolves it (security review, third to fifth rounds).
 - **Lost, left to the terminal:** streaming, prompt options ("Yes, and
   don't ask again …", C05), questions (C05), plans (C07), the current
   mode (C06), the stop (S02 → Stopping; `interrupt.request` gets
@@ -4318,12 +4324,13 @@ launched before S07.
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
 bridge reconnect, limited mode from the transcript (found later, `/clear`
 before the first prompt or just after it, `/resume` from its end, never
-another project's, forged switches refused), its prompt matching,
+another project's, a `/clear` only once `agents` confirms it, forged
+switches refused), its prompt matching,
 dropped hooks and a forged switch ignored, relays pointed back, a
 takeover that fails to write a file), `bridge.test.ts` (reconnect,
 spent tokens, nothing acted on before `welcome`, the welcome's proof),
 `permissions.test.ts` (whole and cut-short previews, a cut-short one
-tied to none without prompt hooks), `process.test.ts` (the tests' own
+tied to none without prompt hooks until its call is read), `process.test.ts` (the tests' own
 sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
@@ -5470,6 +5477,12 @@ the user's vision first; others using the MIT code afterwards is fine.
   another process (a wrapper, a shell), no session would ever come back
   there (each folder would be deleted as gone): check on the first run
   there.
+- **`agents` after a `/clear`** (S07, 2026-10-13). In limited mode a
+  `/clear` while its transcript folder isn't known yet (nothing
+  prompted before the restart) is followed only once
+  `claude agents --json` lists the session under the new id, asked 3
+  times 2 s apart. Unverified that it reports the new id that soon:
+  if not, such a `/clear` is never followed (live checklist, S07).
 - **The transcript in S07's limited mode** (2026-10-13). A session back
   with its hook port taken is seen from its transcript alone, which isn't
   a documented interface: the turn's end is Claude Code's
