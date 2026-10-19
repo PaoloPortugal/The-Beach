@@ -20,11 +20,11 @@ import {
 } from '../src/providers/claude/run-folder.ts'
 import type { AgentEntry, Running } from '../src/providers/claude/running.ts'
 import { ClaudeProvider, type ClaudeOptions } from '../src/providers/claude/index.ts'
-import { REATTACHED_READ_ONLY } from '../src/providers/claude/session.ts'
+import { type ClaudeSession, READ_ONLY_ERROR, REATTACHED_READ_ONLY } from '../src/providers/claude/session.ts'
 import { TranscriptHooks, type Fed } from '../src/providers/claude/transcript-hooks.ts'
 import { TranscriptFollower, type TranscriptSignal } from '../src/providers/claude/transcript.ts'
 import { RESTORE_WAIT_MS, restoreSessions } from '../src/serve.ts'
-import type { Provider } from '../src/provider.ts'
+import type { CommandError, Provider } from '../src/provider.ts'
 import { bridgeOf, connect, RecordingLog, tempSessionsDir, testServer, type Msg } from './helpers.ts'
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -473,7 +473,18 @@ test('restore, read-only: its hook port was taken: read_only, the transcript\'s 
     assert.deepEqual([sent.type, sent.code], ['error', 'not_supported'])
     const stop = await r.c.command({ type: 'interrupt.request', session: s.session })
     assert.deepEqual([stop.type, stop.code], ['error', 'not_supported'])
-    assert.deepEqual((await r.c.quiet(300)).filter((m) => m.type === 'session.updated'), [])
+    // Nor answer for it: prompts, questions and plans are its terminal's. Only
+    // its hooks raise them, so none is pending; the session refuses anyway.
+    const session = (r.p as any).watched.get(f.program) as ClaudeSession
+    for (const [name, answer] of [
+      ['permission', () => session.respondPermission('p1', 'allow')],
+      ['permission option', () => session.respondPermission('p1', 'allow', undefined, 'auto')],
+      ['question', () => session.answerQuestion('q1', { response: 'yes' })],
+      ['plan', () => session.answerPlan('pl1', { approve: true, mode: 'default' })],
+    ] as const) {
+      await assert.rejects(answer, (e: CommandError) => e.code === 'not_supported' && e.message === READ_ONLY_ERROR, name)
+    }
+    assert.deepEqual((await r.c.quiet(300)).filter((m) => m.type === 'session.updated' || m.type.endsWith('.resolved')), [], 'nothing resolved')
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })
@@ -926,6 +937,23 @@ test('restore, read-only: claude agents is asked once at a time for every read-o
     const ended = calls
     await sleep(800)
     assert.equal(calls, ended, 'none once they ended')
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, read-only: the provider\'s shutdown stops the claude agents poll', async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const f = runFolder(root, { record: { hook_port: taken.port } })
+  let calls = 0
+  const listing = agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }])!
+  const r = await restoreAndSync({ sessionsDir: root, agentsPollMs: 50, runningSessions: async (...a) => { calls++; return listing(...a) } })
+  try {
+    await until(() => calls >= 3)
+    await r.p.shutdown()
+    const stopped = calls
+    await sleep(400)
+    assert.equal(calls, stopped, 'not asked after the shutdown')
   } finally { await r.close(); await taken.close() }
 })
 

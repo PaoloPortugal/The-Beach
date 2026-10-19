@@ -432,7 +432,12 @@ export class ClaudeProvider implements Provider {
     try {
       const answer = await this.askRunning()
       const agents = 'none' in answer ? null : answer.agents ?? null
-      for (const [program, session] of [...this.watched]) session.onAgent(agents?.find((a) => a.pid === program) ?? null)
+      for (const [program, session] of [...this.watched]) {
+        // One session's failure mustn't stop the poll for the others, or the sidecar.
+        try { session.onAgent(agents?.find((a) => a.pid === program) ?? null) } catch (e) {
+          this.log.warn(`session ${session.host.id}: claude agents' answer not taken: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
     } finally {
       this.asking = false
     }

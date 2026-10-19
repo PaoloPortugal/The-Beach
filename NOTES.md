@@ -4330,11 +4330,12 @@ launched before S07.
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
 bridge reconnect, read-only: nothing of the other program's taken (401
-for its token, relays and bridge file left alone, no chat or stop),
+for its token, relays and bridge file left alone, no chat, stop or
+answers),
 seen from the transcript (entries as hooks, the mode, the model, found
 later and read from its start), waiting from `agents`, `/clear` and
 `/resume` through `agents` (never another project's), one `agents` at a
-time for all and none once they end; relays pointed back on the kept
+time for all and none once they end or the provider shuts down; relays pointed back on the kept
 port, a takeover that fails to write a file), `bridge.test.ts`
 (reconnect, spent tokens, nothing acted on before `welcome`, the
 welcome's proof), `permissions.test.ts` (whole and cut-short previews),
