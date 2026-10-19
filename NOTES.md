@@ -4834,7 +4834,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** S07, reattaching to running sessions, is built on
-`s07-reattach` and waits for the user's live check and review (dev log
+`s07-reattach`, passed the user's live check (2026-10-19) and waits for
+their review (dev log
 2026-10-13-s07-reattach): sessions the game started come back after a
 restart, islands standing and chat back; with their hook port taken,
 read-only (user's decision, 2026-10-19). After it (user's order, 2026-10-13): read-only
@@ -5507,9 +5508,10 @@ Ideas weighed and turned down. Each says what would reopen it.
 - **`agents` for read-only sessions** (S07, 2026-10-19). A read-only
   session's waiting state and its `/clear` and `/resume` come from
   `claude agents --json` (its `status` and `sessionId` for `claude`'s
-  process id), asked every 5 s. Unverified live: that the id changes
-  right after `/clear` and `/resume`, and that a prompt shows as
-  `waiting` (live checklist, S07). Its cost (about 0.8 s of a `claude`
+  process id), asked every 5 s. Seen working live (2026-10-19, live
+  checklist S07): the id changes after `/clear` and `/resume`, and a
+  prompt shows as `waiting`. Kept as a watch item: `agents` is new and
+  its fields may change. Its cost (about 0.8 s of a `claude`
   process each time) is only paid while a read-only session runs.
 - **The transcript in S07's read-only mode** (2026-10-13). A session back
   with its hook port taken is seen from its transcript (and `claude agents`), which isn't
