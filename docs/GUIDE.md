@@ -206,7 +206,8 @@ connection point while it was closed, so the session can't report
 everything any more. It still comes back, and you can still chat, answer
 Yes or No to its prompts, and see its token usage and model; `/clear`
 and `/resume` in its terminal are followed as usual (unless Claude
-Code's transcripts are turned off). Your messages, its
+Code's transcripts are turned off; a `/clear` before you've typed
+anything in it also needs Claude Code's agent view on). Your messages, its
 replies, tool calls and subagents show up a moment late, replies whole
 (not word by word), and the island goes back to idle when the reply
 ends. Left to the
