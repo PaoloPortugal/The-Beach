@@ -4833,15 +4833,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S07, reattaching to running sessions, is built on
-`s07-reattach`, passed the user's live check (2026-10-19) and waits for
-their review (dev log
-2026-10-13-s07-reattach): sessions the game started come back after a
-restart, islands standing and chat back; with their hook port taken,
-read-only (user's decision, 2026-10-19). After it (user's order, 2026-10-13): read-only
-islands for sessions started outside the world (Deferred ideas →
-Read-only islands for sessions started outside the game). Subagents
-stay read-only in the world (Open questions → 4).
+**Current focus:** next (user's order, 2026-10-13): read-only islands
+for sessions started outside the world (Deferred ideas → Read-only
+islands for sessions started outside the game). Subagents stay
+read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-19), approved by the user: S07, reattaching
+to running sessions** (dev log 2026-10-13-s07-reattach): sessions the
+game started come back after a restart, islands standing and chat back;
+with their hook port taken, read-only (user's decision, 2026-10-19).
+Live check passed with the user.
 **Merged to `main` (2026-10-13), approved by the user: C12, model,
 effort and mode at launch** (dev log 2026-10-13-c12-launch-pickers):
 Model, Effort and Mode selectors on the create panel and the Resume
