@@ -2,7 +2,8 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S07). NOTES.md → S07 Reattach to running sessions.
+> **Status:** Built (S07, W12). NOTES.md → S07 Reattach to running
+> sessions, W12 Islands kept across restarts.
 
 ```mermaid
 sequenceDiagram
@@ -32,8 +33,16 @@ sequenceDiagram
         Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token and proof)<br/>all before it's adopted: a file it can't write leaves nothing half taken<br/>(its hooks on another port than ours: only holder.pid, read-only, flow 15)
     end
     Sidecar->>World: stdout ready, then hello
-    Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at)
+    Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at = its launch time)
+    Note over World: Its island waits (W12): the sync's snapshots aren't all in.
     Sidecar->>World: sync.completed
+    rect rgba(255,193,7,0.18)
+        Note over World: world/session_islands.gd (_on_synced), island_memory.gd, session_clusters.gd (restore)
+        World->>World: look each up in user://islands.json, read at start<br/>(keyed by provider, started_at, project path)
+        World->>World: place the waiting islands: saved ones by slot, then index,<br/>each with its biome, seed and cluster (gaps closed)#59; then any with nothing saved
+        World->>World: bridge each to its nearest (W06), in that order
+        World->>World: rewrite islands.json: entries of sessions that didn't come back dropped
+    end
     Note over World: The cover lifts: its island is standing (no rise).
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok (the conversation so far)
@@ -63,6 +72,13 @@ closed): the sidecar listens on another port, the session comes back
 anyway, read-only, with the `reattached_read_only` notice: none of
 its hooks, relays or bridge is taken, and it's seen from its transcript
 and `claude agents` (flow 15).
+
+**Its island (W12):** the game keeps each island's biome, seed, cluster
+and spot in `user://islands.json`, written as islands are placed and
+sessions end. A missing or damaged file, or a session with no entry,
+gives a new island as before. A session found after the restore wait
+arrives after `sync.completed`, when its entry was already dropped:
+it comes back as a new island (NOTES.md → W12, Open points).
 
 **When nothing comes back:** a folder whose session ended is deleted,
 one that can't be read is left alone, and a restore that fails or takes

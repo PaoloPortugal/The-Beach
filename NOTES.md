@@ -94,7 +94,7 @@ v1 slice.
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
-| W12 | Islands kept across restarts              | in progress | W12       | `world/island_memory.gd`, `world/session_islands.gd`, `world/session_clusters.gd` |
+| W12 | Islands kept across restarts              | built   | W12           | `world/island_memory.gd`, `world/session_islands.gd`, `world/session_clusters.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd`, `agents/orchestrator/orchestrator.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -1931,7 +1931,7 @@ uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 *Live check passed (2026-10-10)* with the user, my picks included.
 
 ### W12 Islands kept across restarts
-*In progress (2026-10-19). Scope: core* (world only, plus S07's start
+*Built (2026-10-19). Scope: core* (world only, plus S07's start
 time kept). A session taken back after a restart (S07) gets its island
 back as it was: the same biome and seed (so the same shape and props),
 in the same cluster, in the same order. Before W12 each came back with
@@ -1971,7 +1971,35 @@ a random biome and seed, in whatever order the snapshots arrived.
   entry are placed, cluster by cluster in saved slot order, each
   cluster's islands in saved index order, slots and indexes closed up;
   then any without one, as before. Entries of sessions that didn't come
-  back are dropped.
+  back are dropped. Every sync does this (a sidecar reconnect too), but
+  only snapshots of sessions not yet known wait.
+- *The cluster:* a saved cluster is made again with its name and, if it
+  was made for a repository, that repository, so a new session of that
+  repository joins it (W05). One made by hand stays one made by hand.
+  Several sessions of one saved cluster share the cluster made for the
+  first (`SessionClusters.restore`).
+- *A session taken back with nothing saved* (a missing file, or
+  launched before W12) gets a random biome and seed, and joins its
+  repository's cluster after the saved ones, or a new one after them.
+- *The seed:* an island keeps the seed it rolled in `island_seed`, which
+  is what's saved.
+
+**Open points** (not fixed; low likelihood):
+- A session taken back after the sidecar's restore wait (S07: found
+  later, its snapshot arriving after `sync.completed`) comes back as a
+  new island: by then the sync had dropped its entry, as one that
+  didn't come back.
+
+*Tests:* `tests/world/clusters_test.gd` (`_w12_clusters`: saved
+clusters made again in order with their names and repositories, slots
+and indexes closed up, the repository's next session joining;
+`_w12_memory`: the key, the file read back, ordering, entries dropped,
+a damaged entry or file ignored; `_w12_islands`: islands waiting for the
+sync, then placed with their biome, seed, cluster and order, one with
+nothing saved after them, the file rewritten, entries of sessions that
+didn't come back or that end dropped), `sidecar/test/reattach.test.ts`
+(a launched session's `started_at` the same after a restart). The
+suites use their own file (`tests/error_watch.gd`).
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -4877,8 +4905,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W12, islands kept across restarts, in progress on
-`w12-islands-kept` (user's request, 2026-10-19). Then (user's order, 2026-10-13): read-only islands
+**Current focus:** W12, islands kept across restarts, built on
+`w12-islands-kept` (user's request, 2026-10-19), waiting for the live
+check and the user's review. Then (user's order, 2026-10-13): read-only islands
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
