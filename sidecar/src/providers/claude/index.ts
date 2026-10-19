@@ -43,6 +43,13 @@ export {
 export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
 
 /**
+ * How often `claude agents --json` is asked about read-only sessions (S07):
+ * which conversation each is in, and whether it waits on the user. Each
+ * time costs about 0.8 s of a `claude` process, so only while there are any.
+ */
+export const AGENTS_POLL_MS = 5000
+
+/**
  * The terminal window's title. The name can come from a stored session's
  * transcript (anything the user once typed), and Windows Terminal parses its
  * own command line, so only plain printable text goes in, short.
@@ -80,6 +87,8 @@ export interface ClaudeOptions {
    * TEST_SESSIONS_DIR (launch/app-data.ts), so none touches the real folder.
    */
   sessionsDir?: string
+  /** For tests: how often read-only sessions are asked about (AGENTS_POLL_MS). */
+  agentsPollMs?: number
 }
 
 /** A run folder's files (S07). The bridge file holds where the bridge connects. */
@@ -104,6 +113,10 @@ export class ClaudeProvider implements Provider {
   private foundPath: string | undefined
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
+  /** Read-only sessions (S07) by their `claude`'s process id, asked about together. */
+  private readonly watched = new Map<number, ClaudeSession>()
+  private watchTimer: NodeJS.Timeout | null = null
+  private asking = false
 
   constructor(opts: ClaudeOptions = {}) {
     this.opts = opts
@@ -249,6 +262,8 @@ export class ClaudeProvider implements Provider {
    * takes those back (S07). Each is deleted once its session has ended.
    */
   async shutdown(): Promise<void> {
+    if (this.watchTimer) clearInterval(this.watchTimer)
+    this.watchTimer = null
     await this.bridges?.close()
     this.bridges = null
     await this.hooks?.close()
@@ -331,45 +346,49 @@ export class ClaudeProvider implements Provider {
     // Claude Code's own id when it answered: /clear or /resume while the game was closed is followed.
     const nativeId = entry?.sessionId ?? f.record.native_id
     if (this.live.has(nativeId)) return
-    // The hooks go to the port it was launched with: ours only if we got it back.
-    const limited = f.record.hook_port !== hooks.port
-    // Limited, its folder is taken from this transcript: only this project's.
-    const stored = limited ? this.findOwn(nativeId, f.record.project.path) : findStored(nativeId, this.projects())
+    // The hooks go to the port it was launched with: ours only if we got it
+    // back. Else read-only: another program has its port, and its token.
+    const readOnly = f.record.hook_port !== hooks.port
+    // Read-only, its folder is taken from this transcript: only this project's.
+    const stored = readOnly ? this.findOwn(nativeId, f.record.project.path) : findStored(nativeId, this.projects())
     const read = stored ? readConversation(stored.file) : null
     const launch: Launch = { runDir: f.runDir, nativeId }
     let session: ClaudeSession | null = null
-    const hookLink: HookLink | null = hooks.adopt(f.record.hook_token, {
+    // Read-only: neither its hook token nor a bridge slot is taken, and its
+    // relay files are left alone, so nothing posted with its token is
+    // acted on and its bridge isn't offered a way back.
+    const hookLink: HookLink | null = readOnly ? null : hooks.adopt(f.record.hook_token, {
       onHook: (p, gone) => session?.onHook(p, gone), onStatus: (p) => session?.onStatus(p),
     })
-    if (!hookLink) throw new Error('its hook token is in use already')
+    if (!readOnly && !hookLink) throw new Error('its hook token is in use already')
     // The bridge's slot, before the session: every file is written before
     // it's adopted, so a failure leaves nothing half taken.
-    const link = bridges.register({
+    const link = readOnly ? null : bridges.register({
       onReady: () => session?.bridgeHandlers().onReady(),
       onPermissionRequest: (p) => session?.bridgeHandlers().onPermissionRequest(p),
       onClose: () => session?.bridgeHandlers().onClose(),
     })
     try {
       writeHolder(f.runDir)
-      // The relays read their files on every run: they follow us, with the
-      // old token. Always, so none is left on the port an earlier limited
-      // sidecar had (where any program could pick up what they post).
-      for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
-        const at = path.join(f.runDir, file)
-        if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
+      if (link) {
+        // The relays read their files on every run: they follow us, with the old token.
+        for (const [file, url] of [[RELAY_FILE, hooks.url], [STATUS_FILE, hooks.statusUrl]] as const) {
+          const at = path.join(f.runDir, file)
+          if (fs.existsSync(at)) writeRelayFile(at, { url, token: f.record.hook_token })
+        }
+        // A fresh one-time token: the bridge, retrying, reads it and connects.
+        writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, link)
       }
-      // A fresh one-time token: the bridge, retrying, reads it and connects.
-      writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, link)
       adopt((host) => {
         session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
-          () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId) },
+          () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId); this.unwatch(f.program) },
           this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
           read?.usage)
         return session
       })
     } catch (e) {
-      hookLink.unregister()
-      link.unregister()
+      hookLink?.unregister()
+      link?.unregister()
       throw e
     }
     const s = session as unknown as ClaudeSession
@@ -385,14 +404,38 @@ export class ClaudeProvider implements Provider {
       reason: status === 'waiting' ? 'input' : null,
       startedAt: f.record.started_at,
       transcript: stored?.file ?? null,
-      limited,
+      readOnly,
       findTranscript: (id) => this.findOwn(id, f.record.project.path)?.file ?? null,
-      currentId: async () => {
-        const a = await this.askRunning()
-        return 'none' in a ? null : a.agents?.find((x) => x.pid === f.program)?.sessionId ?? null
-      },
     })
-    this.log.info(`took back session ${s.host.id}${limited ? ' (its hook port was taken: limited)' : ''}`)
+    if (readOnly) this.watch(f.program, s)
+    this.log.info(`took back session ${s.host.id}${readOnly ? ' (its hook port was taken: read-only)' : ''}`)
+  }
+
+  /** Asks `claude agents` about a read-only session from now on, with the others (see AGENTS_POLL_MS). */
+  private watch(program: number, session: ClaudeSession) {
+    this.watched.set(program, session)
+    if (this.watchTimer) return
+    this.watchTimer = setInterval(() => void this.askWatched(), this.opts.agentsPollMs ?? AGENTS_POLL_MS)
+    this.watchTimer.unref()
+  }
+
+  private unwatch(program: number) {
+    if (!this.watched.delete(program) || this.watched.size > 0 || !this.watchTimer) return
+    clearInterval(this.watchTimer)
+    this.watchTimer = null
+  }
+
+  /** One `claude agents` at a time; each read-only session gets its own entry, or null. */
+  private async askWatched() {
+    if (this.asking) return
+    this.asking = true
+    try {
+      const answer = await this.askRunning()
+      const agents = 'none' in answer ? null : answer.agents ?? null
+      for (const [program, session] of [...this.watched]) session.onAgent(agents?.find((a) => a.pid === program) ?? null)
+    } finally {
+      this.asking = false
+    }
   }
 
   /**

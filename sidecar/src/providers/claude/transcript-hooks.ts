@@ -1,7 +1,8 @@
-// A session whose hooks can't reach the game (S07's limited mode: taken
+// A session whose hooks can't reach the game (S07's read-only mode: taken
 // back after a restart, its hook port taken while the game was closed),
 // seen from its transcript alone: each entry read as the hooks it stands
-// for, so the HookTranslator turns it into the usual events, a moment late.
+// for, so the HookTranslator turns it into the usual events, a moment late;
+// the permission mode and the model as their own signals.
 // Replies come whole (no streaming); a user's message, tool calls and
 // subagents as they're written; the turn's end from Claude Code's
 // `turn_duration` entry (2.1.296). Esc and a terminal "No" are the
@@ -11,8 +12,11 @@ import type { HookPayload } from './hook-server.ts'
 import { parseHandback, parseTaskNotification, unwrapChannel } from './hooks.ts'
 import { LOCAL_COMMAND } from './store.ts'
 
-/** A hook to translate, or a call refused before it ran (closed as denied). */
-export type Fed = { hook: HookPayload } | { denied: string }
+/**
+ * A hook to translate, a call refused before it ran (closed as denied), the
+ * orchestrator's permission mode, or the model a reply came from.
+ */
+export type Fed = { hook: HookPayload } | { denied: string } | { mode: string } | { model: string }
 
 /**
  * How Claude Code 2.1.296 writes a subagent's hand-back to the orchestrator
@@ -35,6 +39,8 @@ export class TranscriptHooks {
   entry(e: Record<string, unknown>, agent?: string): Fed[] {
     const out: Fed[] = []
     const of = agent ? { agent_id: agent } : {}
+    // Claude Code notes the mode now and then (2.1.303: around each turn), and on each prompt.
+    if (!agent && e.type === 'permission-mode' && typeof e.permissionMode === 'string') return [{ mode: e.permissionMode }]
     if (e.type === 'system' && !agent) {
       if (e.subtype === 'turn_duration') {
         if (!this.failed) out.push({ hook: { hook_event_name: 'Stop' } })
@@ -54,6 +60,9 @@ export class TranscriptHooks {
         return out
       }
       const id = str((e.message as { id?: unknown } | undefined)?.id)
+      // Claude Code's own entries say "<synthetic>".
+      const model = str((e.message as { model?: unknown } | undefined)?.model)
+      if (!agent && model && !model.startsWith('<')) out.push({ model })
       if (!Array.isArray(content)) return out
       for (const c of content) {
         if (!isObject(c)) continue
@@ -71,6 +80,7 @@ export class TranscriptHooks {
     const results = Array.isArray(content) ? content.filter((c) => isObject(c) && c.type === 'tool_result') as Record<string, unknown>[] : []
     if (results.length === 0) {
       const prompt = agent ? null : promptIn(e, content)
+      if (prompt !== null && typeof e.permissionMode === 'string') out.push({ mode: e.permissionMode })
       if (prompt !== null) out.push({ hook: { hook_event_name: 'UserPromptSubmit', prompt, ...(typeof e.uuid === 'string' ? { prompt_id: e.uuid } : {}) } })
       return out
     }

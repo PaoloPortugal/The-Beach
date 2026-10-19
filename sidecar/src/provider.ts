@@ -22,6 +22,8 @@ export interface SessionIntro {
   title: string | null
   capabilities: Record<string, Record<string, unknown>>
   extensions: string[]
+  /** The world only watches it (S07). */
+  read_only?: true
   /** permission_modes: the current mode, if already known. */
   mode?: string | null
   /** model_info: the model and effort level, if already known. */

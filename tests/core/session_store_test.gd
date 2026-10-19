@@ -207,13 +207,13 @@ func _by_hand() -> void:
 	client.sync_started.emit()
 	var back := _snapshot("r1")
 	back["agents"][0]["state"] = "working"
-	back["notices"] = [{"code": "reattached_limited", "message": "x"}]
+	back["notices"] = [{"code": "reattached_read_only", "message": "x"}]
 	store.apply({"type": "session.snapshot", "session": _snapshot("a", 22)})
 	store.apply({"type": "session.snapshot", "session": back})
 	client.synced.emit([])
 	store.apply({"type": "session.snapshot", "session": _snapshot("r2")})
 	_check(log == ["added r1 false", "added r2 false"] and store.sessions.has("r1") and store.sessions.has("r2"), "S07: a reattached session is placed, in the sync or after it, and kept")
-	_check(store.orchestrator("r1")["state"] == "working" and store.session("r1")["notices"][0]["code"] == "reattached_limited", "S07: in its state, with its notice")
+	_check(store.orchestrator("r1")["state"] == "working" and store.session("r1")["notices"][0]["code"] == "reattached_read_only", "S07: in its state, with its notice")
 	store.apply({"type": "session.ended", "session": "r1", "seq": 2, "reason": "exited"})
 	store.apply({"type": "session.ended", "session": "r2", "seq": 2, "reason": "exited"})
 	client.free()

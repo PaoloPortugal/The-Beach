@@ -92,6 +92,8 @@ export interface Session {
   project: Project
   title: string | null
   started_at: string
+  /** The world only watches it: no chat, answers or stop from the world (S07). Absent otherwise. */
+  read_only?: true
   capabilities: Record<string, Record<string, unknown>>
   extensions: string[]
   agents: Agent[]
