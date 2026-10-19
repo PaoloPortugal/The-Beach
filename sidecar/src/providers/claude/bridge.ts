@@ -9,9 +9,21 @@
 // server doesn't answer the newer revision's server/discover probe.
 //
 // stdout belongs to MCP: nothing else may be written there. Logs go to stderr.
+//
+// Where to connect comes from the bridge file in the session's run folder
+// (BRIDGE_FILE in its environment), which each sidecar rewrites with its
+// port and a fresh one-time token. While not connected the bridge retries,
+// reading the file again, so after the game restarts the new sidecar gets
+// the session back (NOTES.md -> S07).
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import net from 'node:net'
+import path from 'node:path'
 
 export const BRIDGE_SERVER_NAME = 'world-bridge'
+export const BRIDGE_FILE_VERSION = 2
+/** How often a bridge that isn't connected tries again. */
+export const BRIDGE_RETRY_MS = 2000
 /** MCP revisions we can answer initialize in; newest first. */
 export const MCP_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
 /** Longest line accepted from Claude Code or the sidecar. */
@@ -28,14 +40,46 @@ export const REQUEST_ID = /^[a-km-z]{5}$/
 
 type Json = Record<string, unknown>
 
-/** Messages between the bridge and the sidecar, one JSON object per line. */
+/**
+ * Messages between the bridge and the sidecar, one JSON object per line.
+ * The bridge sends hello first; the sidecar answers welcome once the token
+ * is accepted (a token admits one connection, so the bridge never offers it
+ * again), with the proof from the same bridge file: only the sidecar that
+ * wrote it knows that, so a program on its port is never trusted. The
+ * bridge then says ready.
+ */
 export type ToSidecar =
   | { type: 'hello'; token: string }
   | { type: 'ready' }
   | { type: 'permission_request'; request_id: string; tool_name: string; description: string; input_preview: string }
 export type FromSidecar =
+  | { type: 'welcome'; proof: string }
   | { type: 'chat'; text: string }
   | { type: 'verdict'; request_id: string; behavior: 'allow' | 'deny' }
+
+/**
+ * Where the bridge connects: the sidecar's bridge port, a one-time token the
+ * bridge offers, and the proof the sidecar answers with.
+ */
+export interface BridgeFile { version: typeof BRIDGE_FILE_VERSION; port: number; token: string; proof: string }
+export interface BridgeWhere { port: number; token: string; proof: string }
+
+/** Writes the bridge file, readable only by this user. */
+export function writeBridgeFile(file: string, port: number, link: { token: string; proof: string }): void {
+  const body: BridgeFile = { version: BRIDGE_FILE_VERSION, port, token: link.token, proof: link.proof }
+  fs.writeFileSync(file, JSON.stringify(body), { mode: 0o600 })
+}
+
+/** The bridge file's port, token and proof; null when it's missing, damaged or wrong. */
+export function readBridgeFile(file: string): BridgeWhere | null {
+  let b: Partial<BridgeFile>
+  try { b = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<BridgeFile> } catch { return null }
+  if (typeof b !== 'object' || b === null || b.version !== BRIDGE_FILE_VERSION) return null
+  if (typeof b.port !== 'number' || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535) return null
+  if (typeof b.token !== 'string' || !/^[0-9a-f]{64}$/.test(b.token)) return null
+  if (typeof b.proof !== 'string' || !/^[0-9a-f]{64}$/.test(b.proof)) return null
+  return { port: b.port, token: b.token, proof: b.proof }
+}
 
 export interface BridgeIO {
   /** Lines from Claude Code (our stdin). */
@@ -45,6 +89,8 @@ export interface BridgeIO {
   log: (msg: string) => void
   /** Connects to the sidecar; defaults to loopback TCP. */
   connect?: (port: number) => net.Socket
+  /** For tests: how often to try again (BRIDGE_RETRY_MS). */
+  retryMs?: number
 }
 
 /** Answers one MCP message from Claude Code. Returns the reply, or null. Exported for tests. */
@@ -72,33 +118,68 @@ export function answerMcp(msg: Json): Json | null {
 
 /** Runs the bridge. Resolves when Claude Code closes our stdin. */
 export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
-  const port = Number(env.BRIDGE_PORT)
-  const token = env.BRIDGE_TOKEN ?? ''
+  const file = env.BRIDGE_FILE ?? ''
+  const retryMs = io.retryMs ?? BRIDGE_RETRY_MS
   const send = (m: Json) => io.output.write(JSON.stringify(m) + '\n')
+  /** Connected and welcomed: messages may go to the sidecar. */
   let sidecar: net.Socket | null = null
+  /** A connection being made (or one up); one at a time. */
+  let attempt: net.Socket | null = null
+  /** The last token tried: each admits one connection, so it's never tried again. */
+  let spent: string | null = null
+  let retry: NodeJS.Timeout | null = null
   let initialized = false
+  let stopped = false
 
   const toSidecar = (m: ToSidecar) => {
     if (sidecar && !sidecar.destroyed) sidecar.write(JSON.stringify(m) + '\n')
   }
 
+  const later = () => {
+    if (stopped || retry) return
+    retry = setTimeout(() => { retry = null; connectSidecar() }, retryMs)
+  }
+
   // Connect once Claude Code has finished the MCP handshake, which comes
-  // after its startup dialogs: that's when the session is up.
+  // after its startup dialogs: that's when the session is up. Then keep
+  // trying whenever not connected.
   const connectSidecar = () => {
-    if (!Number.isInteger(port) || port <= 0 || port > 65535 || !/^[0-9a-f]{64}$/.test(token)) {
-      io.log('no sidecar to connect to; running without the world')
-      return
-    }
-    const sock = (io.connect ?? ((p) => net.connect({ host: '127.0.0.1', port: p })))(port)
-    sidecar = sock
+    if (stopped || attempt || !path.isAbsolute(file)) return
+    const where = readBridgeFile(file)
+    // No sidecar yet (the game is closed), or only a token already offered.
+    if (!where || where.token === spent) return later()
+    // Spent by this one try, whatever comes of it: a sidecar listens before
+    // it writes the file, so a refused try means it's gone, and whatever
+    // takes its port later must never be offered the token (or trusted).
+    spent = where.token
+    const sock = (io.connect ?? ((p) => net.connect({ host: '127.0.0.1', port: p })))(where.port)
+    attempt = sock
+    let welcomed = false
     sock.setEncoding('utf8')
     sock.on('connect', () => {
-      toSidecar({ type: 'hello', token })
-      toSidecar({ type: 'ready' })
+      sock.write(JSON.stringify({ type: 'hello', token: where.token } satisfies ToSidecar) + '\n')
     })
-    readLines(sock, (line) => onSidecar(line), () => { io.log('sidecar line too long'); sock.destroy() })
+    readLines(sock, (line) => {
+      // Dropped: the rest of what it sent (the same chunk) is never acted on.
+      if (sock.destroyed) return
+      if (welcomed) return onSidecar(line)
+      let m: { type?: unknown; proof?: unknown }
+      try { m = JSON.parse(line) as { type?: unknown; proof?: unknown } } catch { m = {} }
+      if (m.type !== 'welcome' || !sameSecret(m.proof, where.proof)) {
+        io.log('no welcome with a valid proof: not our sidecar; dropped it')
+        sock.destroy()
+        return
+      }
+      welcomed = true
+      sidecar = sock
+      toSidecar({ type: 'ready' })
+    }, () => { io.log('sidecar line too long'); sock.destroy() })
     sock.on('error', (e) => io.log(`sidecar connection: ${e.message}`))
-    sock.on('close', () => { if (sidecar === sock) sidecar = null })
+    sock.on('close', () => {
+      if (attempt === sock) attempt = null
+      if (sidecar === sock) sidecar = null
+      later()
+    })
   }
 
   const onSidecar = (line: string) => {
@@ -133,11 +214,28 @@ export function runBridge(env: NodeJS.ProcessEnv, io: BridgeIO): Promise<void> {
     }
   }
 
+  const stop = () => {
+    stopped = true
+    if (retry) clearTimeout(retry)
+    retry = null
+    attempt?.destroy()
+  }
+
+  if (!path.isAbsolute(file)) io.log('no bridge file; running without the world')
+
   return new Promise((resolve) => {
     readLines(io.input, onClaude, () => io.log('MCP line too long; ignored'))
-    io.input.on('end', () => { sidecar?.destroy(); resolve() })
-    io.input.on('close', () => { sidecar?.destroy(); resolve() })
+    io.input.on('end', () => { stop(); resolve() })
+    io.input.on('close', () => { stop(); resolve() })
   })
+}
+
+/** Whether `given` is `expected`, compared in constant time. */
+function sameSecret(given: unknown, expected: string): boolean {
+  if (typeof given !== 'string') return false
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
 /** Calls `onLine` per newline-terminated line; lines over MAX_LINE are dropped. */

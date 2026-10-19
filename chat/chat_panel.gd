@@ -22,6 +22,8 @@ const USER_COLOUR := Color(0.16, 0.33, 0.5)
 const AGENT_COLOUR := Color(0.15, 0.17, 0.22)
 const PLAN_BORDER := Color(0.45, 0.55, 0.7)
 const DIM := Color(0.6, 0.64, 0.7)
+## What a read-only session shows instead of the message box (S07; the user's choice, 2026-10-19).
+const READ_ONLY_TEXT := "Read-only: use its terminal."
 const FONT_SIZE := 18
 ## Time spent building older messages per frame when a chat is laid out.
 ## Rendering Markdown costs tens of milliseconds per message (C03), so the
@@ -35,6 +37,8 @@ const NOTICE_TEXT := {
 	"conversation_cleared": "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.",
 	"conversation_resumed": "This session switched to an earlier conversation (/resume). The chat now shows that conversation.",
 	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
+	# S07: deliberately general (user's wording), so it never goes out of date.
+	"reattached_read_only": "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control.",
 }
 
 ## Notices about the session switching conversations.
@@ -98,10 +102,18 @@ var _box_session := ""
 @onready var _pending: PendingCard = $Layout/Pending
 @onready var _status: Label = $Layout/Status
 @onready var _input: TextEdit = $Layout/Compose/Input
+@onready var _compose: HBoxContainer = $Layout/Compose
+## Instead of the message box for a read-only session (S07).
+var _read_only_hint: Label
 
 
 func _ready() -> void:
 	$Layout/Compose/Send.pressed.connect(send)
+	_read_only_hint = Label.new()
+	_read_only_hint.text = READ_ONLY_TEXT
+	_read_only_hint.add_theme_color_override("font_color", DIM)
+	_read_only_hint.visible = false
+	$Layout.add_child(_read_only_hint)
 	_input.gui_input.connect(_on_input_key)
 	# Links in messages are untrusted: never open one without the user
 	# seeing the full address and confirming.
@@ -165,7 +177,8 @@ func open(p_session_id: String) -> void:
 	_rebuild()
 	_pending.show_session(session_id)
 	_refresh_status()
-	_input.grab_focus()
+	if not _read_only():
+		_input.grab_focus()
 
 
 func close() -> void:
@@ -264,7 +277,7 @@ func turn_hints() -> Array:
 ## Sends the message box's text to the session.
 func send() -> void:
 	var text := _input.text.strip_edges()
-	if text.is_empty() or session_id.is_empty():
+	if text.is_empty() or session_id.is_empty() or _read_only():
 		return
 	var sent_to := session_id
 	var id := sidecar.send_command("message.send", {"session": session_id, "text": text}, func(reply: Dictionary) -> void:
@@ -621,7 +634,14 @@ func _refresh_header() -> void:
 	_mode.text = "Mode: %s" % PermissionModes.name_of(mode) if _mode.visible else ""
 	_model.text = model_words(s.get("model"), s.get("effort")) if s.get("capabilities", {}).has("model_info") else ""
 	_model.visible = not _model.text.is_empty()
+	_compose.visible = not _read_only()
+	_read_only_hint.visible = _read_only()
 	_refresh_usage()
+
+
+# A session the world only watches (S07): no message box.
+func _read_only() -> bool:
+	return store.session(session_id).get("read_only", false) == true
 
 
 # Context and totals, when the session declares usage and has counted.

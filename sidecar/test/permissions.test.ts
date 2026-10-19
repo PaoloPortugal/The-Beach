@@ -13,7 +13,7 @@ import path from 'node:path'
 import { HookTranslator, MAIN, previewMatches } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider, PERMISSION_MATCH_MS } from '../src/providers/claude/index.ts'
 import type { SessionEvent } from '../src/protocol.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 const hook = (name: string, fields: Record<string, unknown> = {}) =>
@@ -45,6 +45,18 @@ test('the input preview matches despite spacing and cut-offs, and only the same 
   assert.ok(previewMatches('{ "command": "echo spike-test-2 > perm2.txt", "descri…', input))
   assert.ok(!previewMatches('{ "command": "echo other", "description": "Write spike-test-2 to perm2.txt" }', input))
   assert.ok(!previewMatches('{', input), 'too short to tell')
+  assert.ok(!previewMatches('{ "command": "rm -r a b" }', { command: 'rm -r ab' }), 'a whole preview: spacing inside strings counts')
+})
+
+test('a cut-short preview that fits two calls with different inputs is tied to neither', () => {
+  const t = new HookTranslator(CWD)
+  asking(t, 'toolu_a', 'npm run build -- --target=web')
+  asking(t, 'toolu_b', 'npm run build -- --target=native')
+  const cut = { request_id: 'fffff', tool_name: 'Bash', description: 'Run the build', input_preview: '{ "command": "npm run build -- --tar…' }
+  assert.equal(t.permissionRequested(cut), null, 'waits')
+  const ev = t.permissionRequested(cut, true)!
+  assert.deepEqual((ev[0] as any).permission, { permission: 'fffff', agent: MAIN, tool: 'Bash', summary: 'Run the build' })
+  assert.ok(!types(t.permissionAnswered('fffff', 'deny')).some((x) => x.startsWith('finished')), 'neither call is closed by it')
 })
 
 test('a prompt is tied to its tool call: agent, summary, input; waiting, then allowed from the world', () => {
@@ -114,9 +126,14 @@ test('parallel calls of one tool: the prompt goes to the call whose input it sho
   t.permissionRequested(relayed('aaaaa', 'npm run build'))
   const ev = t.permissionAnswered('aaaaa', 'deny')
   assert.ok(types(ev).includes('finished toolu_long denied'), JSON.stringify(types(ev)))
-  // With no preview match, the newest open call of that tool without a prompt.
-  t.permissionRequested({ request_id: 'bbbbb', tool_name: 'Bash', description: 'x', input_preview: 'unreadable' })
-  assert.ok(types(t.permissionAnswered('bbbbb', 'deny')).includes('finished toolu_other denied'))
+  // With no preview match it waits (its own call may not be known yet), and is
+  // never tied to another call of that tool: forced, it is shown from the
+  // preview, so the card shows what a Yes approves.
+  const odd = { request_id: 'bbbbb', tool_name: 'Bash', description: 'x', input_preview: '{"command": "rm -rf build"}' }
+  assert.equal(t.permissionRequested(odd), null)
+  const ev2 = t.permissionRequested(odd, true)!
+  assert.deepEqual((ev2[0] as any).permission, { permission: 'bbbbb', agent: MAIN, tool: 'Bash', summary: 'Run: rm -rf build', input: { command: 'rm -rf build' } })
+  assert.ok(!types(t.permissionAnswered('bbbbb', 'deny')).some((x) => x.startsWith('finished')), 'no open call is closed by it')
 })
 
 test('a prompt with no tool call yet waits; forced, it is shown for the orchestrator from the preview', () => {
@@ -181,7 +198,7 @@ function post(port: number, auth: string, body: object) {
 
 async function liveSession() {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -196,12 +213,12 @@ async function liveSession() {
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0]
   const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
   // Play the bridge.
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
   const fromSidecar: any[] = []
-  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l))))
+  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l)).filter((m) => m.type !== 'welcome')))
   const toSidecar = (m: object) => sock.write(JSON.stringify(m) + '\n')
-  toSidecar({ type: 'hello', token: env.BRIDGE_TOKEN })
+  toSidecar({ type: 'hello', token: bridgeOf(env).token })
   toSidecar({ type: 'ready' })
   await c.next('session.created')
   const hookPort = Number(new URL(h.url).port)

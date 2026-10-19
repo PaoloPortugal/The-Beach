@@ -37,7 +37,7 @@ const HISTORY_MAX_BYTES = 64 * 1024 * 1024
  * isMeta; 2.1.285): `<command-name>/clear</command-name>`, then a system
  * local_command entry, after an isMeta `<local-command-caveat>`. Not chat.
  */
-const LOCAL_COMMAND = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/
+export const LOCAL_COMMAND = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -235,7 +235,7 @@ function describeRead(file: string, st: fs.Stats, { head, tail }: { head: string
   }
 }
 
-function samePath(a: string, b: string): boolean {
+export function samePath(a: string, b: string): boolean {
   const norm = (p: string) => path.resolve(p).replace(/[\\/]+$/, '')
   return process.platform === 'win32' ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b)
 }
@@ -278,13 +278,17 @@ export async function listStored(opts: { dir?: string; project?: string; exclude
 }
 
 /** Finds one stored session by id, wherever its project is. */
-export function findStored(nativeId: string, dir = projectsDir()): StoredInfo | null {
+export function findStored(nativeId: string, dir = projectsDir(), accept?: (info: StoredInfo) => boolean): StoredInfo | null {
   if (!UUID.test(nativeId)) return null
   let slugs: string[]
   try { slugs = fs.readdirSync(dir) } catch { return null }
   for (const slug of slugs) {
     const file = path.join(dir, slug, `${nativeId}.jsonl`)
-    if (fs.existsSync(file)) return describe(file)
+    if (!fs.existsSync(file)) continue
+    // With `accept`, one it refuses doesn't hide another further on.
+    const info = describe(file)
+    if (!accept) return info
+    if (info && accept(info)) return info
   }
   return null
 }

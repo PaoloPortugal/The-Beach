@@ -10,7 +10,7 @@ import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from '../src/p
 import { cleanEnv } from '../src/launch/env.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
 import { CommandError } from '../src/provider.ts'
-import { connect, testServer } from './helpers.ts'
+import { connect, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 test('version parsing and comparison', () => {
   assert.equal(parseVersion('2.1.284 (Claude Code)\n'), '2.1.284')
@@ -70,7 +70,7 @@ test('session markers go, user settings stay', () => {
 
 function provider(over: Partial<ConstructorParameters<typeof ClaudeProvider>[0]> = {}) {
   const opened: { argv: string[]; title: string }[] = []
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: { info() {}, warn() {}, error() {} },
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -119,14 +119,17 @@ test('create writes a launch file and opens a terminal with only our launcher', 
     // status line relay (C08); no other setting is changed for the user.
     assert.deepEqual(Object.keys(settings).filter((k) => k !== 'statusLine'), ['hooks', 'disableAgentView'])
     assert.equal(settings.disableAgentView, true)
-    // The bridge's config: this executable in bridge mode, the link's port
-    // and token in the bridge's own environment only.
+    // The bridge's config: this executable in bridge mode, and only the path
+    // of its bridge file (in the run folder, beside the launch file) in the
+    // bridge's own environment; the file holds the port and a token (S07).
     const mcp = JSON.parse(fs.readFileSync(launch.args[5]!, 'utf8'))
     const bridge = mcp.mcpServers['world-bridge']
     assert.equal(bridge.command, '/sidecar')
     assert.deepEqual(bridge.args, ['bridge', 'claude'])
-    assert.match(bridge.env.BRIDGE_TOKEN, /^[0-9a-f]{64}$/)
-    assert.match(bridge.env.BRIDGE_PORT, /^\d+$/)
+    assert.deepEqual(Object.keys(bridge.env), ['BRIDGE_FILE'])
+    assert.equal(path.dirname(bridge.env.BRIDGE_FILE), path.dirname(file!))
+    assert.match(bridgeOf(bridge.env).token, /^[0-9a-f]{64}$/)
+    assert.ok(bridgeOf(bridge.env).port > 0)
     assert.deepEqual(launch.unsetEnv, ClaudeProvider.UNSET_ENV)
     // No permission mode is chosen for the user.
     assert.ok(!launch.args.some((a) => a.startsWith('--permission-mode') || a.includes('dangerously-skip')))

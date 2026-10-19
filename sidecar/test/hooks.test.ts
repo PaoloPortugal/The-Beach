@@ -14,7 +14,7 @@ import {
 } from '../src/providers/claude/hooks.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import type { SessionEvent } from '../src/protocol.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 
@@ -294,7 +294,7 @@ test('parallel spawns pair by agent type; a start with no call belongs to the or
 test('an Agent call denied before its subagent started doesn\'t claim a later one', () => {
   const t = new HookTranslator(CWD)
   t.translate(hook('PreToolUse', { tool_name: 'Agent', tool_use_id: 'c1', tool_input: { description: 'denied one', subagent_type: 'Explore' } }))
-  t.permissionRequested({ request_id: 'abcde', tool_name: 'Agent', description: '', input_preview: '' }, true)
+  t.permissionRequested({ request_id: 'abcde', tool_name: 'Agent', description: '', input_preview: '{"description": "denied one", "subagent_type": "Explore"}' }, true)
   t.permissionAnswered('abcde', 'deny')
   t.translate(hook('PreToolUse', { tool_name: 'Agent', tool_use_id: 'c2', tool_input: { description: 'real one', subagent_type: 'Explore' } }))
   const ev = run(t, hook('SubagentStart', { agent_id: 'e', agent_type: 'Explore' }))
@@ -462,7 +462,7 @@ test('hooks from a launched session reach Godot as valid events', async () => {
   let settingsFile = ''
   let mcpConfig = ''
   let nativeId = ''
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -513,9 +513,9 @@ test('hooks from a launched session reach Godot as valid events', async () => {
     // Once the session is gone, its token is refused.
     const env = JSON.parse(fs.readFileSync(mcpConfig, 'utf8')).mcpServers['world-bridge'].env
     const net = await import('node:net')
-    const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+    const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
     await new Promise((r) => sock.once('connect', r))
-    sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n')
+    sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n')
     await new Promise((r) => setTimeout(r, 50))
     sock.destroy()
     await c.next('session.ended')

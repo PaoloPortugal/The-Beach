@@ -15,7 +15,7 @@ import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { CONVERSATION_CLEARED, CONVERSATION_MOVED, CONVERSATION_RESUMED, MOVED_ERROR, UNREACHABLE_ERROR } from '../src/providers/claude/session.ts'
 import { POLL_MS } from '../src/providers/claude/transcript.ts'
 import { checkMessage, type Usage } from '../src/protocol.ts'
-import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
+import { connect, RecordingLog, testServer, type Msg, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 function post(port: number, auth: string, body: object) {
   return new Promise<{ status: number; body: string }>((resolve, reject) => {
@@ -38,7 +38,7 @@ function post(port: number, auth: string, body: object) {
 async function liveSession(o: { bridge?: boolean; up?: boolean } = {}) {
   let launch: { args: string[] } = { args: [] }
   const log = new RecordingLog()
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log,
     findClaude: async () => ({ path: process.execPath, version: '2.1.285' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -61,10 +61,10 @@ async function liveSession(o: { bridge?: boolean; up?: boolean } = {}) {
   const fromSidecar: any[] = []
   let sock: net.Socket | null = null
   if (o.bridge !== false) {
-    sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+    sock = net.connect(bridgeOf(env).port, '127.0.0.1')
     await new Promise((res) => sock!.once('connect', res))
     sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l))))
-    sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n')
+    sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n')
     sock.write(JSON.stringify({ type: 'ready' }) + '\n')
   }
   /** One hook from conversation `sid` (default: the launched one), as Claude Code sends it. */

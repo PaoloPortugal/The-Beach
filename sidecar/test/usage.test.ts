@@ -20,7 +20,7 @@ import { HookServer, STATUS_PATH } from '../src/providers/claude/hook-server.ts'
 import { writeRelayFile } from '../src/launch/relay.ts'
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import { checkMessage, type Usage, type UsageLimit } from '../src/protocol.ts'
-import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
+import { connect, RecordingLog, testServer, type Msg, tempSessionsDir, bridgeOf } from './helpers.ts'
 import { FakeProvider } from './fake-provider.ts'
 
 const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'main.ts')
@@ -558,7 +558,7 @@ test('statusline mode, as the shell runs it: posts its input to the status endpo
 async function usageSession(o: { config?: string } = {}) {
   let launch: { args: string[] } = { args: [] }
   const config = o.config ?? tmp('config-')
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.294' }),
     selfCommand: (mode, ...args) => [process.platform === 'win32' ? 'C:\\sidecar\\sidecar.exe' : '/sidecar/sidecar', mode, ...args],
@@ -580,9 +580,9 @@ async function usageSession(o: { config?: string } = {}) {
   const transcripts = tmp('transcripts-')
   const transcript = (sid: string) => path.join(transcripts, `${sid}.jsonl`)
   fs.writeFileSync(transcript(nativeId), '')
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
-  sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n')
+  sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n')
   sock.write(JSON.stringify({ type: 'ready' }) + '\n')
   const auth = h.headers.Authorization as string
   const send = (name: string, fields: Record<string, unknown> = {}, sid = nativeId) =>

@@ -1,47 +1,62 @@
-LIVE CHECK: C12 launch pickers
+LIVE CHECK: S07 sessions back
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-1. Tab, +: under Biome, Model,
-   Effort and Mode rows, each
-   at Default? Lists: Opus,
-   Sonnet, Haiku, Fable / Low
-   to Max / Manual, Accept
-   edits, Plan, Auto?
-2. Pick Haiku, Low, Plan, then
-   New session…: in the
-   terminal, Claude Code's
-   header shows Haiku, and
-   Shift+Tab row says plan
-   mode? (Task Manager or ps:
-   --model haiku --effort low
-   --permission-mode plan.)
-3. Send a message from the
-   world. Chat header: "Mode:
-   Plan" and beside it the
-   model and "Low effort"?
-   Which model does it show:
-   Haiku, or the plan-mode
-   Sonnet? (Tell Claude.)
-4. /model in the terminal,
-   pick Sonnet: the header
-   follows?
-5. Tab, + again: all three
-   back to Default? Start one
-   with nothing picked: no
-   flags, Claude Code's own
-   model and mode, header
-   shows them once known?
-6. /exit one, then Resume
-   page: pick Opus + Auto,
-   resume it: the flags in
-   the terminal, the header?
-   Resume another with all
-   Default: it keeps its own
-   stored model?
-7. If you use your own status
-   line: a new session's model
-   shows only after /model
-   (known limit)?
+A. Coming back
+1. Start a session from the
+   world, chat a turn. Quit
+   the game: the dialog says
+   they come back, and how to
+   close the gap (/exit)?
+2. While closed, type a
+   message in its terminal and
+   let it reply.
+3. Start the game: "Loading…"
+   for a moment, then its
+   island already standing (no
+   rise)? Chat holds both
+   turns, the one from (2)
+   too?
+4. Chat from the world: the
+   reply streams? Ask for a
+   command that prompts: the
+   card, with its options;
+   answer Yes in the world?
+5. /exit in the terminal: the
+   island sinks?
+
+B. Port taken (read-only)
+6. Start two sessions (type
+   nothing in the second),
+   quit the game. Occupy the
+   kept port (Claude gives
+   the command).
+7. Start the game: both
+   islands back, notice "...so
+   it's read-only here..."?
+   Chat shows "Read-only: use
+   its terminal.", no box?
+8. First session: type in
+   its terminal. Your message
+   and the reply show (late),
+   tool calls too? Mode and
+   model in the header?
+9. Ask it for a command that
+   prompts: the island shows
+   waiting (within ~5 s), no
+   card? Answer in the
+   terminal: working again,
+   then idle at the end?
+10. /clear in its terminal,
+   then a message: the chat
+   starts over and shows it?
+   /resume back: old chat as
+   history?
+11. Second session: type in
+   its terminal: its chat
+   shows it?
+12. /exit both: they end.
+   Free the port (close that
+   window).
