@@ -856,7 +856,7 @@ export class ClaudeSession implements ProviderSession {
       this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
       return
     }
-    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a /clear (limited, Claude Code reports no new conversation)`)
+    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a /clear (limited, no newer conversation reported)`)
   }
 
   private stopTranscriptSearch() {
