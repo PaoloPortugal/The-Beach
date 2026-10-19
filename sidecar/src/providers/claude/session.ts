@@ -183,6 +183,10 @@ export class ClaudeSession implements ProviderSession {
   private currentId: (() => Promise<string | null>) | null = null
   /** Limited, its folder unknown: the conversation a confirmed /clear started, not written yet. */
   private pendingClear: string | null = null
+  /** Limited: whether Claude Code is being asked about a /clear, and whether to ask again after. */
+  private clearCheck: 'none' | 'running' | 'again' = 'none'
+  /** Counts switches of conversation, so an answer from before one is not acted on. */
+  private switches = 0
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -516,6 +520,7 @@ export class ClaudeSession implements ProviderSession {
     const from = this.nativeId
     this.nativeId = id
     this.pendingClear = null
+    this.switches++
     this.transcriptDir ??= path.dirname(file)
     if (resumed) this.usage.load(resumed.usage)
     else this.usage.reset()
@@ -798,9 +803,10 @@ export class ClaudeSession implements ProviderSession {
    * Limited, its folder unknown (S07): the program on its old port has the
    * token too, so a switch is followed only when it can't be its doing. A
    * /resume: only to a transcript of this project Claude Code wrote,
-   * followed from its end, its past the history. A /clear: only once
-   * Claude Code itself (`claude agents`) says the session is now that
-   * conversation; then followed in the project's folder once known.
+   * followed from its end, its past the history. A /clear: only to the
+   * new conversation Claude Code itself (`claude agents`) says the
+   * session is now in, whatever the hook named; then followed in the
+   * project's folder once known.
    */
   private limitedSwitch(id: string, source: 'clear' | 'resume') {
     const find = this.findTranscript
@@ -817,25 +823,40 @@ export class ClaudeSession implements ProviderSession {
       this.transcript.follow(file)
       return
     }
-    void this.confirmClear(id)
+    // Only a trigger: the id is Claude Code's, one check at a time (a forged
+    // hook costs at most one `claude agents` running).
+    if (this.clearCheck !== 'none') this.clearCheck = 'again'
+    else void this.confirmClear()
   }
 
-  /** Asks Claude Code a few times (it may lag) whether the session is now `id`; else the /clear is ignored. */
-  private async confirmClear(id: string) {
+  /** Asks Claude Code (again while asked to) for the session's id now; a new one is the conversation /clear started. */
+  private async confirmClear() {
+    try {
+      do {
+        this.clearCheck = 'running'
+        await this.askCleared()
+        // Set meanwhile by limitedSwitch (TypeScript can't see that across the await).
+      } while ((this.clearCheck as string) === 'again' && !this.disposed)
+    } finally { this.clearCheck = 'none' }
+  }
+
+  /** A few tries (it may lag); an answer from before a switch here is asked again. */
+  private async askCleared() {
     const ask = this.currentId
     for (let i = 0; ask && i < CLEAR_CONFIRM_TRIES; i++) {
       if (i > 0) await new Promise((r) => setTimeout(r, CLEAR_CONFIRM_MS).unref())
-      if (this.disposed || this.nativeId === id || this.movedTo !== null) return
-      let current: string | null = null
-      try { current = await ask() } catch { current = null }
-      if (current !== id) continue
-      if (this.disposed || this.nativeId === id) return
+      if (this.disposed || this.movedTo !== null) return
+      const switches = this.switches
+      let id: string | null = null
+      try { id = await ask() } catch { id = null }
+      if (this.disposed || this.movedTo !== null) return
+      if (switches !== this.switches || id === null || !SESSION_ID.test(id) || id === (this.pendingClear ?? this.nativeId)) continue
       if (this.transcriptDir !== null) return this.clearedTo(id, this.transcriptDir)
       this.pendingClear = id
       this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
       return
     }
-    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, Claude Code didn't confirm it)`)
+    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a /clear (limited, Claude Code reports no new conversation)`)
   }
 
   private stopTranscriptSearch() {

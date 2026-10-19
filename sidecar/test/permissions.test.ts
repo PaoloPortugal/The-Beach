@@ -88,6 +88,18 @@ test('without prompt hooks (limited), an untied prompt gets its call once read: 
     ['resolved jjjjj allow by external', 'finished toolu_new ok'])
 })
 
+test('without prompt hooks (limited), an untied prompt: a later call that doesn\'t fit isn\'t tied; its own, a "No" in the terminal, denies it', () => {
+  const t = new HookTranslator(CWD)
+  t.withoutPromptHooks()
+  const cut = { request_id: 'kkkkk', tool_name: 'Bash', description: 'Run the build', input_preview: '{ "command": "npm run build -- --tar…' }
+  assert.ok(t.permissionRequested(cut))
+  t.translate(bash('toolu_other', 'npm test'))
+  assert.deepEqual(types(t.rejectedInTerminal('toolu_other')), ['finished toolu_other denied'], 'not its call')
+  t.translate(bash('toolu_own', 'npm run build -- --target=native'))
+  assert.deepEqual(types(t.rejectedInTerminal('toolu_own')).filter((x) => !x.includes(':')),
+    ['resolved kkkkk deny by external', 'finished toolu_own denied'])
+})
+
 test('a prompt is tied to its tool call: agent, summary, input; waiting, then allowed from the world', () => {
   const t = new HookTranslator(CWD)
   asking(t, 'toolu_1', 'echo hi > a.txt')
