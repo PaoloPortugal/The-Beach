@@ -936,12 +936,67 @@ test('restore, limited, nothing prompted yet: a /clear Claude Code confirms is f
     fs.appendFileSync(path.join(projects, 'proj', `${ID(9)}.jsonl`), jsonl({ type: 'user', uuid: 'u9', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'after the clear' } }))
     assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
     assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
-    // The forged /clear was asked about and refused; nothing switched to it or to another project's.
-    await until(() => r.log.lines.some((l) => l.includes('Claude Code didn\'t confirm it')), 6000)
+    // Only Claude Code's id was followed; nothing switched to the forged ones or to another project's.
+    await until(() => r.log.lines.some((l) => l.includes('Claude Code reports no new conversation')), 8000)
     assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited, its folder unknown)')), 'the /resume')
     assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && (m.native_id === ID(5) || m.native_id === ID(6))))
     assert.ok(!r.c.received.some((m) => m.type === 'message.completed' && (m.text === 'theirs' || m.text === 'not this one')))
     assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close(); await taken.close() }
+})
+
+test('restore, limited, nothing prompted yet: /clears ask Claude Code one at a time; an answer from before a /resume, or none, switches nothing; nothing is asked once it ends', { timeout: 30_000 }, async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const launcher = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+  children.push(launcher)
+  const f = runFolder(root, { launcher: launcher.pid!, record: { hook_port: taken.port }, relays: true })
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const earlier = transcript(projects, ID(4), f.record.project.path,
+    { type: 'user', uuid: 'e1', message: { content: 'an earlier talk' } },
+    { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
+  // What `claude agents` answers, how long it takes, and how many run at once.
+  let answer: Running = { ids: new Set([f.record.native_id]), agents: [{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }] }
+  let delay = 0, calls = 0, running = 0, most = 0
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: async () => {
+      calls++; running++; most = Math.max(most, running)
+      const now = answer
+      await sleep(delay)
+      running--
+      return now
+    },
+  })
+  try {
+    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    const start = (source: string, id: string, file = path.join(projects, 'proj', `${id}.jsonl`)) =>
+      post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: file, cwd: f.record.project.path })
+    const ignored = () => r.log.lines.filter((l) => l.includes('Claude Code reports no new conversation')).length
+    // Claude Code can't answer (agent view off): a /clear switches nothing.
+    answer = { none: 'agent view is off' }
+    assert.equal((await start('clear', ID(30))).status, 200)
+    await until(() => ignored() === 1, 8000)
+    // Claude Code says ID(9) while a flood of /clears comes in; then a real /resume to ID(4) before that answer is back.
+    const asked = calls
+    delay = 300
+    answer = { ids: new Set([ID(9)]), agents: [{ sessionId: ID(9), pid: f.program, status: 'idle' }] }
+    await Promise.all(Array.from({ length: 10 }, (_, i) => start('clear', ID(10 + i))))
+    assert.equal((await start('resume', ID(4), earlier)).status, 200)
+    answer = { ids: new Set([ID(4)]), agents: [{ sessionId: ID(4), pid: f.program, status: 'idle' }] }
+    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(4), 3000)
+    await until(() => ignored() === 2, 8000)
+    assert.equal(most, 1, 'one `claude agents` at a time')
+    assert.ok(calls - asked <= 4, `asked ${calls - asked} times`)
+    assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && m.native_id !== ID(4)), 'neither the answer from before the /resume nor a hook\'s id is acted on')
+    assert.deepEqual(r.c.invalid, [])
+    // The flood asks once more after; the session ends meanwhile (its launcher exits): nothing more is asked.
+    launcher.kill()
+    await r.c.next('session.ended', 5000)
+    const ended = calls
+    await sleep(4500)
+    assert.equal(calls, ended, 'nothing asked once it ended')
   } finally { await r.close(); await taken.close() }
 })
 
