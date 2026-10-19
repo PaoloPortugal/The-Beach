@@ -379,6 +379,7 @@ func _scene() -> void:
 	var player: Player = world.get_node("Player")
 	var spawn := player.spawn_point
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
+	await _loading_cover(world, player)
 
 	await _frames(30)
 	_check(player.is_on_floor() and absf(player.global_position.y - 1.0) < 0.2, "lands on the platform")
@@ -1325,6 +1326,46 @@ func _biome_island(world: Node3D, player: Player) -> void:
 	_check(not is_instance_id_valid(gone), "W10: and sinks when its session ends")
 
 
+# S07: the world is covered, keys and controls waiting, until the sidecar
+# has looked for sessions from before a restart (its first sync), then
+# shows. A sidecar already up, failed or stopped never covers it.
+func _loading_cover(world: Node3D, player: Player) -> void:
+	var cover: LoadingCover = world.loading_cover
+	var sidecar: SidecarClient = root.get_node("Sidecar")
+	# The suite's earlier parts give the sidecar time to sync first; the
+	# stand-in below covers the wait.
+	if sidecar.status != SidecarClient.Status.READY:
+		_check(cover.is_covering() and cover.visible and not player.controls_enabled, "S07: the world is covered while the sidecar starts")
+	await _until(func() -> bool: return not cover.is_covering(), LoadingCover.TIMEOUT_S + 1.0)
+	_check(not cover.is_covering() and not cover.visible and player.controls_enabled, "S07: it lifts at the sidecar's first sync, the controls given back")
+	_check(sidecar.status == SidecarClient.Status.READY, "S07: lifted by the sync, not the timeout")
+	cover.lift()
+	_check(player.controls_enabled, "S07: lifting twice changes nothing")
+	for status in [SidecarClient.Status.READY, SidecarClient.Status.FAILED, SidecarClient.Status.STOPPED]:
+		var other := LoadingCover.new()
+		var stand_in := SidecarClient.new()
+		stand_in.status = status
+		root.add_child(other)
+		other.setup(stand_in, player)
+		_check(not other.is_covering() and not other.visible and player.controls_enabled, "S07: no cover when the sidecar is %s" % SidecarClient.Status.keys()[status])
+		other.free()
+		stand_in.free()
+	# One still starting: the failure lifts it too.
+	var starting := SidecarClient.new()
+	starting.status = SidecarClient.Status.CONNECTING
+	var waits := LoadingCover.new()
+	root.add_child(waits)
+	waits.setup(starting, player)
+	_check(waits.is_covering() and waits.visible and not player.controls_enabled, "S07: covered while it connects")
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open(), "S07: keys wait under it")
+	starting.failed.emit("test")
+	_check(not waits.is_covering() and player.controls_enabled, "S07: a failed sidecar lifts it")
+	waits.free()
+	starting.free()
+
+
 func _snapshot(id: String) -> Dictionary:
 	return {
 		"session": id, "seq": 1, "provider": "fake", "native_id": null, "origin": "app",
@@ -1696,6 +1737,28 @@ func _sign_in(world: Node3D, panel: ChatPanel) -> void:
 	_check(panel.status_text() == "" and not marker.beacon_on() and attention.waiting_sessions() == others, "sign-in: no wait, no cue")
 	store.apply({"type": "session.notice_cleared", "session": "h1", "seq": 45, "code": "sign_in_needed"})
 	_check(notices.call().contains("(/clear)"), "sign-in: clearing a notice that isn't there changes nothing")
+	# S07: a session taken back whose hooks can't reach the game says so in
+	# our words, whatever the provider's message.
+	store.apply({"type": "session.notice", "session": "h1", "seq": 45, "notice": {"code": "reattached_read_only", "message": "provider text"}})
+	await _frames(1)
+	_check(notices.call().contains("This session started before the game restarted, so it's read-only here.") and not notices.call().contains("provider text"), "S07: the read-only notice, in our words")
+	store.apply({"type": "session.notice_cleared", "session": "h1", "seq": 46, "code": "reattached_read_only"})
+	# S07: a read-only session's chat has no message box, a line instead; others keep theirs.
+	_check(panel._compose.visible and not panel._read_only_hint.visible, "S07: a session the world drives has its message box")
+	var watched := _snapshot("h9")
+	watched["read_only"] = true
+	store.apply({"type": "session.snapshot", "session": watched})
+	panel.open("h9")
+	await _frames(1)
+	_check(not panel._compose.visible and panel._read_only_hint.visible and panel._read_only_hint.text == "Read-only: use its terminal.", "S07: a read-only session's chat: no message box, the hint instead")
+	panel.set_draft("hi")
+	panel.send()
+	_check(panel.draft() == "hi" and not panel._watching.has("h9"), "S07: nothing is sent to a read-only session")
+	panel.set_draft("")
+	panel.open("h1")
+	await _frames(1)
+	_check(panel._compose.visible and not panel._read_only_hint.visible, "S07: back on a session the world drives, its box is back")
+	store.apply({"type": "session.ended", "session": "h9", "seq": 2, "reason": "exited"})
 	state.call(46, "error", "rate_limit")
 	_check(panel.status_text().begins_with("Stopped: a usage or rate limit"), "a failed turn says what stopped it")
 	state.call(47, "error", "overloaded")
@@ -1854,6 +1917,7 @@ func _quit(world: Node3D, player: Player) -> void:
 	var text := guard.shown_text()
 	_check(guard.is_asking() and quits[0] == 0, "quit: with sessions running, it asks first")
 	_check(text.begins_with("2 sessions are still running") and text.count("demo") == 2 and text.contains("/exit"), "quit: listing them, and how to end them")
+	_check(text.contains("come back when you start the game again") and text.ends_with("On a computer shared with other accounts, end them with /exit before quitting: while the game is closed, another account could reach them."), "quit (S07): they come back, and the line for a shared computer")
 	_check(not player.controls_enabled and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "quit: the mouse is free to answer")
 	world.store.apply({"type": "agent.state_changed", "session": "h1", "seq": 50, "agent": "main", "state": "working", "reason": null})
 	_check(guard.shown_text().contains("working"), "quit: the list follows what they're doing")

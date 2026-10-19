@@ -32,7 +32,7 @@ sequenceDiagram
         and
             Claude->>Sidecar: PermissionRequest (permission_suggestions)
         end
-        Note over Sidecar: Tied to the open tool call whose input the preview shows<br/>(its agent, summary, input)#59; waits for that call's PreToolUse<br/>and PermissionRequest, in either order, up to 1 s.
+        Note over Sidecar: Tied only to the open tool call whose input the preview shows<br/>(whole: exactly#59; cut short: a prefix, and none if calls with<br/>different inputs fit) (its agent, summary, input)#59; waits for that call's PreToolUse<br/>and PermissionRequest, in either order, up to 1 s#59; no such call by then:<br/>shown as the orchestrator's, from the preview.
         opt the prompt has no options (flow 11)
             Sidecar-->>Claude: reply to PermissionRequest: no decision (the terminal asks as usual)
         end

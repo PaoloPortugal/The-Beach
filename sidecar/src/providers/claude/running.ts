@@ -20,19 +20,38 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * documented shape gives nothing. Exported for tests.
  */
 export function parseRunning(out: string): Set<string> {
-  const ids = new Set<string>()
-  let list: unknown
-  try { list = JSON.parse(out) } catch { return ids }
-  if (!Array.isArray(list)) return ids
-  for (const e of list) {
-    if (typeof e !== 'object' || e === null) continue
-    const { pid, sessionId } = e as { pid?: unknown; sessionId?: unknown }
-    if (typeof pid === 'number' && typeof sessionId === 'string' && UUID.test(sessionId)) ids.add(sessionId.toLowerCase())
-  }
-  return ids
+  return new Set(parseAgents(out).map((a) => a.sessionId))
 }
 
-export type Running = { ids: Set<string> } | { none: string }
+/** One live session from `claude agents --json`: its id (lowercase), process and state. */
+export interface AgentEntry {
+  sessionId: string
+  pid: number
+  /** `busy`, `waiting` or `idle`; anything else (a newer value) is kept as is. */
+  status: string
+}
+
+/**
+ * The entries of `claude agents --json` whose process is alive (a numeric
+ * `pid`) with a UUID `sessionId`. Exported for tests.
+ */
+export function parseAgents(out: string): AgentEntry[] {
+  let list: unknown
+  try { list = JSON.parse(out) } catch { return [] }
+  if (!Array.isArray(list)) return []
+  const entries: AgentEntry[] = []
+  for (const e of list) {
+    if (typeof e !== 'object' || e === null) continue
+    const { pid, sessionId, status } = e as { pid?: unknown; sessionId?: unknown; status?: unknown }
+    if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) continue
+    if (typeof sessionId !== 'string' || !UUID.test(sessionId)) continue
+    entries.push({ sessionId: sessionId.toLowerCase(), pid, status: typeof status === 'string' ? status : '' })
+  }
+  return entries
+}
+
+/** `agents`: the entries themselves (S07 matches them by process id); absent when a test gives ids only. */
+export type Running = { ids: Set<string>; agents?: AgentEntry[] } | { none: string }
 
 /**
  * Asks Claude Code which sessions are running: an argument array, no shell,
@@ -59,7 +78,8 @@ export function runningSessions(
           resolve({ none: 'claude agents --json printed no list' })
           return
         }
-        resolve({ ids: parseRunning(trimmed) })
+        const agents = parseAgents(trimmed)
+        resolve({ ids: new Set(agents.map((a) => a.sessionId)), agents })
       })
     } catch (e) {
       // Thrown at once rather than reported (e.g. EINVAL for a .cmd on Windows).

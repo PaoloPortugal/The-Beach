@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
-import { parseRunning, runningSessions } from '../src/providers/claude/running.ts'
+import { parseAgents, parseRunning, runningSessions } from '../src/providers/claude/running.ts'
 
 const A = '941123d6-76b6-49dd-a535-ead2d397f818'
 const B = '7f5fa86f-d520-41df-a38c-dc9c01d7a087'
@@ -26,6 +26,26 @@ test('parse: sessions whose process is alive, by their full id', () => {
     null, 'x', 7,
   ])
   assert.deepEqual([...parseRunning(out)], [A, C])
+})
+
+test('parse agents (S07): each live entry with its process and state, ids lowercased', () => {
+  const out = JSON.stringify([
+    { pid: 20048, cwd: 'C:\\p', kind: 'interactive', sessionId: A, status: 'idle' },
+    { cwd: '/p', kind: 'background', sessionId: B, state: 'blocked' },
+    { pid: 3, sessionId: C.toUpperCase(), status: 'waiting' },
+    // A state we don't know yet is kept as is; none at all is empty.
+    { pid: 8, sessionId: B, status: 'thinking' },
+    { pid: 9, sessionId: A },
+    // Not a usable process id.
+    { pid: 0, sessionId: A }, { pid: -1, sessionId: A }, { pid: 1.5, sessionId: A }, { pid: '6', sessionId: A },
+  ])
+  assert.deepEqual(parseAgents(out), [
+    { sessionId: A, pid: 20048, status: 'idle' },
+    { sessionId: C, pid: 3, status: 'waiting' },
+    { sessionId: B, pid: 8, status: 'thinking' },
+    { sessionId: A, pid: 9, status: '' },
+  ])
+  for (const bad of ['', 'not json', '{"pid":1}', 'null']) assert.deepEqual(parseAgents(bad), [], bad)
 })
 
 test('parse: anything but the documented array gives nothing', () => {
@@ -72,9 +92,10 @@ test('asking fails soft: an answer that is no list gives a reason, a list gives 
   const none = await withAgents("console.log('No agents.')",
     () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }))
   assert.deepEqual(none, { none: 'claude agents --json printed no list' })
-  const some = await withAgents(`console.log(JSON.stringify([{ pid: 1, sessionId: '${A}' }]))`,
-    () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' })) as { ids: Set<string> }
+  const some = await withAgents(`console.log(JSON.stringify([{ pid: 1, sessionId: '${A}', status: 'busy' }]))`,
+    () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' })) as { ids: Set<string>; agents: unknown }
   assert.deepEqual([...some.ids], [A])
+  assert.deepEqual(some.agents, [{ sessionId: A, pid: 1, status: 'busy' }], 'with the entries, for S07')
 })
 
 test('asking fails soft: a claude that can\'t be started at all gives a reason', async () => {

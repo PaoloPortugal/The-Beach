@@ -33,21 +33,48 @@ export function launcherPidFile(dir: string): string {
 }
 
 /**
+ * Where the launcher records the process id of the program it started
+ * (Claude Code's own process), so a sidecar started later can match it
+ * against the running sessions (NOTES.md -> S07).
+ */
+export function programPidFile(dir: string): string {
+  return path.join(dir, 'program.pid')
+}
+
+/**
+ * A process id from a pid file: digits only, nothing else. Null when the
+ * file is missing or holds anything else (run folders are untrusted input).
+ */
+export function readPidFile(file: string): number | null {
+  let text: string
+  try { text = fs.readFileSync(file, 'utf8').trim() } catch { return null }
+  if (!/^[1-9]\d{0,9}$/.test(text)) return null
+  const pid = Number(text)
+  return pid <= 0xffffffff ? pid : null
+}
+
+/**
+ * Whether a process with this id exists. Only ever asks (signal 0); never
+ * signals anything.
+ */
+export function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    // EPERM: it exists but isn't ours to signal.
+    return (e as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
+}
+
+/**
  * Whether the launcher that recorded its id in `dir` has exited. False while
  * it runs or before it has recorded anything (the startup timeout covers a
  * terminal that never ran it).
  */
 export function launcherGone(dir: string): boolean {
-  let pid: number
-  try { pid = Number.parseInt(fs.readFileSync(launcherPidFile(dir), 'utf8'), 10) } catch { return false }
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try {
-    process.kill(pid, 0)
-    return false
-  } catch (e) {
-    // EPERM: it exists but isn't ours to signal.
-    return (e as NodeJS.ErrnoException).code === 'ESRCH'
-  }
+  const pid = readPidFile(launcherPidFile(dir))
+  return pid !== null && !processAlive(pid)
 }
 
 /** Writes a session file readable only by this user. */
@@ -109,6 +136,11 @@ export async function runLauncher(args: string[]): Promise<number> {
       shell: false,
       windowsHide: false,
     })
+    if (child.pid !== undefined) {
+      try {
+        fs.writeFileSync(programPidFile(path.dirname(path.resolve(args[0]!))), String(child.pid), { mode: 0o600 })
+      } catch { /* the folder is gone: the session was given up already */ }
+    }
     child.once('error', (e) => { void fail(`Couldn't start ${s.command}: ${e.message}`).then(resolve) })
     child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)))
   })

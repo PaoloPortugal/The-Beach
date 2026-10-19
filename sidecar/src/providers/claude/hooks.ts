@@ -188,6 +188,35 @@ export class HookTranslator {
   }
 
   /**
+   * The orchestrator's state when the world takes over a session already
+   * running (S07), known from outside the hooks; no events (the session is
+   * announced in it).
+   */
+  assume(state: State, reason: string | null): void {
+    this.states.set(MAIN, state)
+    this.reasons.set(MAIN, reason)
+  }
+
+  /**
+   * Read-only (S07): Claude Code's own status for the orchestrator (`claude
+   * agents`), for what its transcript can't show: that it waits on the user
+   * in the terminal (a prompt, a question), and that it stopped waiting.
+   */
+  outsideStatus(status: string): SessionEvent[] {
+    const out: SessionEvent[] = []
+    const { state, reason } = this.mainState()
+    if (status === 'waiting' && state === 'working') this.setState(MAIN, 'waiting', 'input', out)
+    else if (state === 'waiting' && reason === 'input' && status === 'busy') this.setState(MAIN, 'working', null, out)
+    else if (state === 'waiting' && reason === 'input' && status === 'idle') this.setState(MAIN, 'idle', null, out)
+    return out
+  }
+
+  /** The orchestrator's state and reason now. */
+  mainState(): { state: State; reason: string | null } {
+    return { state: this.states.get(MAIN) ?? 'idle', reason: this.reasons.get(MAIN) ?? null }
+  }
+
+  /**
    * The mode an orchestrator hook reports (every hook but MessageDisplay
    * and Notification carries it; a Shift+Tab shows with the next one).
    * A subagent's hooks are left out: the session's mode is the
@@ -482,16 +511,20 @@ export class HookTranslator {
   /**
    * A permission prompt, as the channel relays it (it has no tool_use_id
    * or agent). It belongs to an open tool call of the same tool whose
-   * PreToolUse came just before: the one whose input matches the preview,
-   * else the newest without a prompt. Returns null if there's no such call
-   * yet and `force` is false (the caller waits briefly for its PreToolUse);
-   * with `force`, a prompt with no call is the orchestrator's.
+   * PreToolUse came just before and whose input matches the preview: only
+   * that one, so the card always shows what a Yes approves (another call
+   * of the same tool may be open, or its own not read yet). Returns null
+   * if there's no such call yet and `force` is false (the caller waits
+   * briefly for its PreToolUse); with `force`, a prompt with no call is
+   * the orchestrator's, shown from the preview itself.
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
-    const candidates = [...this.openTools.entries()].filter(([, c]) => c.tool === r.tool_name && !c.permission)
-    const exact = candidates.filter(([, c]) => previewMatches(r.input_preview, c.input))
-    const pick = (exact.length > 0 ? exact : candidates).at(-1)
+    const matches = [...this.openTools.entries()]
+      .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input))
+    // Calls with different inputs that all fit a cut-short preview: which one it is can't be told.
+    const one = new Set(matches.map(([, c]) => JSON.stringify(c.input))).size <= 1
+    const pick = one ? matches.at(-1) : undefined
     // Its options come with its PermissionRequest hook; wait for that too.
     if ((!pick || pick[1].options === null) && !force) return null
     const out: SessionEvent[] = []
@@ -738,7 +771,10 @@ export class HookTranslator {
     // SubagentStart doesn't name the parent: take the oldest Agent call for
     // this agent type (or the oldest at all). Exact one at a time; with
     // parallel spawns of one type the tasks may pair up in the wrong order.
-    let i = this.spawning.findIndex((s) => s.type === type)
+    // Read from the transcript (S07's read-only mode), the call is known.
+    const by = str(p.spawned_by)
+    let i = by ? this.spawning.findIndex((s) => s.call === by) : -1
+    if (i < 0) i = this.spawning.findIndex((s) => s.type === type)
     if (i < 0) i = this.spawning.length > 0 ? 0 : -1
     const call = i >= 0 ? this.spawning.splice(i, 1)[0]! : null
     const parent = call && this.states.has(call.caller) ? call.caller : MAIN
@@ -851,17 +887,18 @@ function parseObject(s: string): Record<string, unknown> | null {
 }
 
 /**
- * Whether the relay's input preview shows this input. The preview is JSON,
- * spaced differently and possibly cut short, so compare without whitespace
- * (both sides alike) and allow a cut-off end.
+ * Whether the relay's input preview shows this input. A whole preview must
+ * be the same input exactly; one cut short (JSON spaced differently, its
+ * end cut off) must be a prefix of it, compared without whitespace.
  */
 export function previewMatches(preview: string, input: Record<string, unknown>): boolean {
-  const squash = (s: string) => s.replace(/\s+/g, '')
-  const full = squash(JSON.stringify(input))
+  // A whole preview: the same input exactly (spacing inside strings counts).
   const parsed = parseObject(preview)
-  if (parsed) return squash(JSON.stringify(parsed)) === full
+  if (parsed) return JSON.stringify(parsed) === JSON.stringify(input)
+  // Cut short: a prefix, compared without whitespace (its spacing differs).
+  const squash = (s: string) => s.replace(/\s+/g, '')
   const p = squash(preview).replace(/(\.\.\.|…)$/, '')
-  return p.length >= 8 && full.startsWith(p)
+  return p.length >= 8 && squash(JSON.stringify(input)).startsWith(p)
 }
 
 /** A message from the world arrives wrapped in our channel's tag; show only the text. */

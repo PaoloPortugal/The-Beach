@@ -11,7 +11,7 @@ import { describe, describeAsync, hasReply, listStored, readHistory, findStored,
 import { ClaudeProvider } from '../src/providers/claude/index.ts'
 import type { Running } from '../src/providers/claude/running.ts'
 import { takeSessionFile } from '../src/launch/launcher.ts'
-import { connect, RecordingLog, testServer } from './helpers.ts'
+import { connect, RecordingLog, testServer, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 /** Claude Code can't tell which sessions run (agent view off): nothing is left out. */
@@ -140,7 +140,7 @@ test('listing doesn\'t block: other work runs while the files are read', async (
 
 test('the provider keeps its listing between calls, and shows what changed', async () => {
   const s = store()
-  const provider = new ClaudeProvider({ projectsDir: s.dir, findClaude: FOUND, runningSessions: NOT_KNOWN })
+  const provider = new ClaudeProvider({ sessionsDir: tempSessionsDir(), projectsDir: s.dir, findClaude: FOUND, runningSessions: NOT_KNOWN })
   const first = await provider.listStored()
   fs.appendFileSync(path.join(s.dir, 'a', `${ID(1)}.jsonl`), jsonl({ type: 'custom-title', customTitle: 'renamed' }))
   const second = await provider.listStored()
@@ -325,7 +325,7 @@ test('hasReply: only a transcript with a reply from Claude (not just /clear\'s e
 
 function provider(projectsDir: string, runningSessions: (claude: string, env: Record<string, string>) => Promise<Running> = NOT_KNOWN) {
   const opened: string[] = []
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     runningSessions,
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
@@ -362,9 +362,9 @@ test('through a session: list, resume with --resume in the project folder, its c
 
     // It comes up like a new one, with its earlier chat as history.
     const env = JSON.parse(fs.readFileSync(launch.args[launch.args.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['world-bridge'].env
-    sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+    sock = net.connect(bridgeOf(env).port, '127.0.0.1')
     await new Promise((res) => sock!.once('connect', res))
-    sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+    sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
     const created = await c.next('session.created')
     assert.equal((created.session as any).native_id, ID(1))
     assert.equal((created.session as any).title, 'cp1-project')
@@ -398,11 +398,11 @@ test('a first prompt given at create is sent as world chat once the session is u
     await c.command({ type: 'session.create', provider: 'claude', project: { path: os.tmpdir() }, prompt: 'start with the tests' })
     const launch = takeSessionFile(opened[0]!)
     const env = JSON.parse(fs.readFileSync(launch.args[launch.args.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['world-bridge'].env
-    sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+    sock = net.connect(bridgeOf(env).port, '127.0.0.1')
     await new Promise((res) => sock!.once('connect', res))
     const got: any[] = []
-    sock.setEncoding('utf8').on('data', (d: string) => got.push(...d.trim().split('\n').map((l) => JSON.parse(l))))
-    sock.write(JSON.stringify({ type: 'hello', token: env.BRIDGE_TOKEN }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
+    sock.setEncoding('utf8').on('data', (d: string) => got.push(...d.trim().split('\n').map((l) => JSON.parse(l)).filter((m) => m.type !== 'welcome')))
+    sock.write(JSON.stringify({ type: 'hello', token: bridgeOf(env).token }) + '\n' + JSON.stringify({ type: 'ready' }) + '\n')
     await c.next('session.created')
     for (let i = 0; i < 100 && got.length === 0; i++) await new Promise((res) => setTimeout(res, 10))
     assert.deepEqual(got, [{ type: 'chat', text: 'start with the tests' }])
@@ -435,7 +435,7 @@ test("running in a terminal the game doesn't follow: not listed, and not resumed
 test("when Claude Code can't say what runs, everything is listed and the reason is logged", async () => {
   const s = store()
   const log = new RecordingLog()
-  const p = new ClaudeProvider({ log, projectsDir: s.dir, findClaude: FOUND, runningSessions: async () => ({ none: 'disabled by the disableAgentView setting' }) })
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(), log, projectsDir: s.dir, findClaude: FOUND, runningSessions: async () => ({ none: 'disabled by the disableAgentView setting' }) })
   assert.deepEqual((await p.listStored()).map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
   assert.ok(log.lines.some((l) => l.includes('disableAgentView')))
 })
@@ -448,7 +448,7 @@ test('asking which sessions run: the claude found, in the clean environment laun
   try {
     let finds = 0
     const asked: Array<{ claude: string; env: Record<string, string> }> = []
-    const p = new ClaudeProvider({
+    const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
       projectsDir: s.dir,
       findClaude: async () => { finds++; return FOUND() },
       runningSessions: async (claude, env) => { asked.push({ claude, env }); return { ids: new Set() } },
@@ -468,7 +468,7 @@ test('asking which sessions run: the claude found, in the clean environment laun
 test("when claude isn't found, everything is listed and the reason is logged", async () => {
   const s = store()
   const log = new RecordingLog()
-  const p = new ClaudeProvider({ log, projectsDir: s.dir, findClaude: async () => { throw new Error('no claude here') } })
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(), log, projectsDir: s.dir, findClaude: async () => { throw new Error('no claude here') } })
   assert.deepEqual((await p.listStored()).map((x) => x.native_id), [ID(1), ID(6), ID(2), ID(8)])
   assert.ok(log.lines.some((l) => l.includes('no claude here')))
 })

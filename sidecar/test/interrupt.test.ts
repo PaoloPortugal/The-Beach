@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ClaudeProvider, STOP_REASON } from '../src/providers/claude/index.ts'
 import { HookTranslator, MAIN } from '../src/providers/claude/hooks.ts'
-import { connect, RecordingLog, testServer, type Msg } from './helpers.ts'
+import { connect, RecordingLog, testServer, type Msg, tempSessionsDir, bridgeOf } from './helpers.ts'
 
 const CWD = path.resolve(os.tmpdir(), 'proj')
 const hook = (name: string, fields: Record<string, unknown> = {}) =>
@@ -53,7 +53,7 @@ function post(port: number, auth: string, body: object) {
 
 async function liveSession() {
   let launch: { args: string[] } = { args: [] }
-  const p = new ClaudeProvider({
+  const p = new ClaudeProvider({ sessionsDir: tempSessionsDir(),
     log: new RecordingLog(),
     findClaude: async () => ({ path: process.execPath, version: '2.1.284' }),
     selfCommand: (mode, ...args) => ['/sidecar', mode, ...args],
@@ -67,12 +67,12 @@ async function liveSession() {
   const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0]
   const env = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8')).mcpServers['world-bridge'].env
-  const sock = net.connect(Number(env.BRIDGE_PORT), '127.0.0.1')
+  const sock = net.connect(bridgeOf(env).port, '127.0.0.1')
   await new Promise((res) => sock.once('connect', res))
   const fromSidecar: any[] = []
-  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l))))
+  sock.setEncoding('utf8').on('data', (d: string) => fromSidecar.push(...d.trim().split('\n').map((l) => JSON.parse(l)).filter((m) => m.type !== 'welcome')))
   const toSidecar = (m: object) => sock.write(JSON.stringify(m) + '\n')
-  toSidecar({ type: 'hello', token: env.BRIDGE_TOKEN })
+  toSidecar({ type: 'hello', token: bridgeOf(env).token })
   toSidecar({ type: 'ready' })
   const created = await c.next('session.created')
   const port = Number(new URL(h.url).port)

@@ -4,16 +4,21 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
-import { connect } from './helpers.ts'
+import { connect, tempSessionsDir } from './helpers.ts'
+import { TEST_SESSIONS_DIR } from '../src/launch/app-data.ts'
 
 const here = import.meta.dirname
 const command: string[] = process.env.SIDECAR_CMD
   ? JSON.parse(process.env.SIDECAR_CMD)
   : [process.execPath, path.join(here, '..', 'src', 'main.ts')]
 
-function start(args: string[] = [], stdin: 'pipe' | 'ignore' = 'pipe') {
-  const child = spawn(command[0]!, [...command.slice(1), ...args], { stdio: [stdin, 'pipe', 'pipe'] })
+/** Each sidecar gets its own sessions folder: none touches the user's (NOTES.md -> S07). */
+function start(args: string[] = [], stdin: 'pipe' | 'ignore' = 'pipe', sessions = tempSessionsDir()) {
+  const child = spawn(command[0]!, [...command.slice(1), ...args], {
+    stdio: [stdin, 'pipe', 'pipe'], env: { ...process.env, [TEST_SESSIONS_DIR]: sessions },
+  })
   let stdout = ''
   let stderr = ''
   child.stdout!.setEncoding('utf8').on('data', (d: string) => { stdout += d })
@@ -40,9 +45,11 @@ function kill(child: ChildProcess) {
 }
 
 test('prints one handshake line, then serves the protocol', async () => {
-  const p = start()
+  const sessions = tempSessionsDir()
+  const p = start([], 'pipe', sessions)
   try {
     const hs = await within(p.handshake, 10000, 'handshake')
+    assert.ok(fs.existsSync(path.join(sessions, 'hook-port.json')), 'its run folders in the test\'s own folder')
     assert.equal(hs.type, 'ready')
     assert.equal(hs.protocol, 1)
     assert.match(hs.token, /^[0-9a-f]{64}$/)
@@ -53,6 +60,7 @@ test('prints one handshake line, then serves the protocol', async () => {
     // Nothing but the handshake ever goes to stdout; logs go to stderr.
     assert.equal(p.out(), JSON.stringify(hs) + '\n')
     assert.match(p.err(), /listening on 127\.0\.0\.1:/)
+    assert.match(p.err(), /sessions folder: the tests' own/)
     assert.ok(!p.err().includes(hs.token), 'token never logged')
   } finally { kill(p.child) }
 })

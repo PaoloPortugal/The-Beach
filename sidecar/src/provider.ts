@@ -22,6 +22,8 @@ export interface SessionIntro {
   title: string | null
   capabilities: Record<string, Record<string, unknown>>
   extensions: string[]
+  /** The world only watches it (S07). */
+  read_only?: true
   /** permission_modes: the current mode, if already known. */
   mode?: string | null
   /** model_info: the model and effort level, if already known. */
@@ -29,7 +31,16 @@ export interface SessionIntro {
   effort?: Choice | null
   /** Orchestrator first. */
   agents: Agent[]
+  /** When it started, for a session that started before this sidecar did (restore); now otherwise. */
+  started_at?: string
 }
+
+/**
+ * Takes over one running session found by a provider's restore: makes its
+ * host, whose announce sends session.snapshot (it's no new session), and
+ * keeps the control `make` returns for the world's commands.
+ */
+export type Adopt = (make: (host: SessionHost) => ProviderSession) => void
 
 /** The registry's side of one session, handed to the provider that runs it. */
 export interface SessionHost {
@@ -81,6 +92,13 @@ export interface Provider {
   create(host: SessionHost, options: { project: Project; prompt?: string; launch?: Launch }): Promise<ProviderSession>
   resume(host: SessionHost, nativeId: string, launch?: Launch): Promise<ProviderSession>
   listStored(project?: string): Promise<StoredSession[]>
+  /**
+   * At start, before anything else: the sessions this provider launched
+   * before the sidecar last stopped and still running, each handed to
+   * `adopt` (NOTES.md -> S07). Resolves once it has looked. Optional: a
+   * provider without it has nothing to take back.
+   */
+  restore?(adopt: Adopt): Promise<void>
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
 }
