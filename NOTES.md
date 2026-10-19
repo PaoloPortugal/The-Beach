@@ -3406,13 +3406,7 @@ without a prompt). A whole preview must equal the call's input exactly
 (spacing inside strings counts); one cut short must be a prefix of it
 (compared without whitespace), and if it fits open calls with different
 inputs it's tied to none of them (security review, second round,
-2026-10-13). Without prompt hooks (S07's limited mode) a cut-short
-preview is tied to no call and shown at once from itself: its own call
-is read late from the transcript, or never (a line too long to read),
-and only an older call might fit (third and fourth rounds). Once read,
-the first call of its tool opened after the prompt that fits the
-preview takes it, so that call's end (a Yes, or a "No" in the
-terminal) resolves the card; the card stays as shown (fifth check). It
+2026-10-13). With prompt hooks, a prompt
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -3422,7 +3416,14 @@ as the orchestrator's, from the relay's own preview. (It was 300 ms for `PreTool
 C05's options, 2026-10-03: a hook later than that means a prompt shown
 without the options the terminal has, while a hook that never comes,
 e.g. blocked by `allowedHttpHookUrls`, only delays the card by this
-much.) A stop asked meanwhile shows and declines it with the rest. The
+much.) A stop asked meanwhile shows and declines it with the rest.
+Without prompt hooks (S07's limited mode) a cut-short preview is
+tied to no call and shown at once from itself: its own call is read
+late from the transcript, or never (a line too long to read), and only
+an older call might fit (third and fourth rounds). Once read, the first
+call of its tool read after the prompt that fits the preview takes it,
+so that call's end (a Yes, or a "No" in the terminal) resolves the
+card; the card stays as shown (fifth check). The
 world gets `permission.requested` (id = `request_id`) with the right
 agent, summary, input and options, and the agent is `waiting` (reason
 `permission`). `permission.respond` sends the verdict
@@ -4222,12 +4223,15 @@ never goes out of date; what works is kept here and in the guide; no
   so a switch is followed only into the project's own transcript folder
   once that's known; before that, a `/resume` only to a transcript
   Claude Code wrote with this project's working folder, at once, from
-  its end, its past the history; a `/clear` only once `claude agents
-  --json` lists the session (by `claude`'s process id) under the new id,
-  asked 3 times 2 s apart, else ignored, and then switched to when its
-  transcript is written, or as soon as the old one turns up (fifth
-  check, 2026-10-13); so not with transcripts off, nor such a `/clear`
-  with agent view off). That program can still point the world at any conversation of
+  its end, its past the history; a `/clear` is only a cue to ask
+  `claude agents --json` which conversation the session (by `claude`'s
+  process id) is in now, one check at a time, up to 3 tries 2 s apart
+  (once more if another `/clear` came meanwhile; an answer from before a
+  switch is asked again), and a new id it reports is switched to when
+  its transcript is written, or as soon as the old one turns up; the
+  hook's own id is never used (fifth check and its re-check,
+  2026-10-13); so not with transcripts off, nor such a `/clear` with
+  agent view off). That program can still point the world at any conversation of
   this project (a real `/resume` looks the same); messages from the
   world still go to the terminal's own. Token usage and the model (the
   status line relay).
@@ -4315,6 +4319,13 @@ nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
   whose chat can't reach anything.
 - After a crash, if the old sidecar's process id is reused, its run
   folders are left alone until that process exits.
+- Limited, a prompt shown from a cut-short preview takes the first call
+  of its tool read after it that fits. If two such calls are read
+  together (one already allowed by a rule) it may take the wrong one:
+  its card closes as allowed while the terminal still asks; and a
+  prompt whose own call was read before it may take a later retry.
+  Shown wrong only, never answered wrong: Yes and No go by the
+  prompt's own id (security review, fifth check).
 
 **Not covered:** sessions started outside the game (Deferred ideas →
 Read-only islands for sessions started outside the game), and sessions
@@ -4324,13 +4335,15 @@ launched before S07.
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
 bridge reconnect, limited mode from the transcript (found later, `/clear`
 before the first prompt or just after it, `/resume` from its end, never
-another project's, a `/clear` only once `agents` confirms it, forged
-switches refused), its prompt matching,
+another project's, a `/clear` only to the id `agents` reports, one
+check at a time, never on an answer from before a `/resume`, nothing
+asked once it ends, forged switches refused), its prompt matching,
 dropped hooks and a forged switch ignored, relays pointed back, a
 takeover that fails to write a file), `bridge.test.ts` (reconnect,
 spent tokens, nothing acted on before `welcome`, the welcome's proof),
 `permissions.test.ts` (whole and cut-short previews, a cut-short one
-tied to none without prompt hooks until its call is read), `process.test.ts` (the tests' own
+tied to none without prompt hooks until its call is read, then resolved
+by a Yes or "No" in the terminal), `process.test.ts` (the tests' own
 sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
@@ -5479,8 +5492,8 @@ the user's vision first; others using the MIT code afterwards is fine.
   there.
 - **`agents` after a `/clear`** (S07, 2026-10-13). In limited mode a
   `/clear` while its transcript folder isn't known yet (nothing
-  prompted before the restart) is followed only once
-  `claude agents --json` lists the session under the new id, asked 3
+  prompted before the restart) is followed only to the new id
+  `claude agents --json` then reports for the session, asked up to 3
   times 2 s apart. Unverified that it reports the new id that soon:
   if not, such a `/clear` is never followed (live checklist, S07).
 - **The transcript in S07's limited mode** (2026-10-13). A session back
