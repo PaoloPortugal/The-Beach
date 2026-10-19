@@ -9,6 +9,7 @@ here; each section is labelled with its feature ID.
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [Sessions coming back after a restart (S07)](#sessions-coming-back-after-a-restart-s07)
+- [Islands kept across restarts (W12)](#islands-kept-across-restarts-w12)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Kinds of island (W10)](#kinds-of-island-w10)
 - [Clusters (W05)](#clusters-w05)
@@ -220,6 +221,27 @@ connection point gets what the session reports (your prompts, its tool
 calls) and could answer its permission prompts, so on a computer shared
 with other accounts, end the session with `/exit`.
 
+## Islands kept across restarts (W12)
+
+A session that comes back after a restart gets its own island back: the
+same kind of island with the same shape and props, in the same cluster,
+under the same name, in the same order as before. Bridges are built
+again between them, usually as they were.
+
+If some sessions ended while the game was closed, nothing is left
+empty: the islands that come back close up towards the platform, in
+their order, and whole clusters close up their slices of sea the same
+way. A cluster you made by hand comes back as one made by hand; one made
+for a repository still takes that repository's new sessions.
+
+The game keeps this in a small file of its own, `islands.json`, in
+Godot's user data folder for the game; it lists each running session's
+island and its project folder. If the file is missing or damaged, the
+islands come back as new ones (a kind picked at random), each joining
+its repository's cluster after those that were kept. A session that
+was slow to come back, arriving after the world had already appeared,
+also comes back as a new island.
+
 ## The islands and the ocean (W01, W02, W04)
 
 Each session has its own small low-poly island: a flat spot in the
@@ -312,7 +334,9 @@ folder).
 
 Clusters last only while they have sessions: when a cluster's last
 session ends, it's gone from the ring at once, and its place around the
-platform is free again once its last island has sunk. The game doesn't remember them after it closes.
+platform is free again once its last island has sunk. Sessions that
+come back after a restart keep their cluster (W12); otherwise the game
+doesn't remember clusters after it closes.
 
 A cluster shows in the sessions ring, as its own stretch of the ring
 with its name, and on the maps (W06); nothing on the islands says which cluster
