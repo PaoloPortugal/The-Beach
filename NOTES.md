@@ -5347,6 +5347,19 @@ the user's vision first; others using the MIT code afterwards is fine.
   panel, or something on the island), and whether it's per session or
   per prompt.
 
+### Rejected ideas
+
+Ideas weighed and turned down. Each says what would reopen it.
+
+- **A session's task list in the world** (user's idea and decision,
+  2026-10-19, seen in the Claude desktop app's checklist under a
+  message: steps done, in progress, pending). Rejected for now as too
+  much work for what it adds. Claude Code keeps its list only in tool
+  calls (`TodoWrite`, `TaskCreate`/`TaskUpdate`), whose inputs we'd
+  have to follow and rebuild per provider. Reopen if Claude Code gives a
+  proper way to read a session's task list (a hook field, a status-line
+  field or an `agents` entry).
+
 ### Watch items
 
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
