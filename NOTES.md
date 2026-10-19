@@ -680,8 +680,8 @@ has for that session (e.g. from a snapshot) is stale and ignored.
 
 **Read-only.** A session the world can only watch has `read_only: true`
 (absent otherwise; core, set once in its snapshot): `message.send` and
-`interrupt.request` get `not_supported`, and Godot shows no message box
-for it. Claude: a session back after a restart whose hook port was taken
+`interrupt.request` get `not_supported` (answers get `invalid_message`:
+nothing of it is ever pending), and Godot shows no message box for it. Claude: a session back after a restart whose hook port was taken
 (S07). Meant for the read-only islands of sessions started outside the
 game too (Deferred ideas). Added 2026-10-19 (user's decision) without a
 version change (optional and additive).
@@ -4331,12 +4331,12 @@ launched before S07.
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
 bridge reconnect, read-only: nothing of the other program's taken (401
 for its token, relays and bridge file left alone, no chat, stop or
-answers),
-seen from the transcript (entries as hooks, the mode, the model, found
-later and read from its start), waiting from `agents`, `/clear` and
-`/resume` through `agents` (never another project's), one `agents` at a
-time for all and none once they end or the provider shuts down; relays pointed back on the kept
-port, a takeover that fails to write a file), `bridge.test.ts`
+answers), seen from the transcript (entries as hooks, the mode, the
+model, found later and read from its start), waiting from `agents`,
+`/clear` and `/resume` through `agents` (never another project's), one
+`agents` at a time for all, one session failing on its answer logged
+and skipped, none once they end or the provider shuts down; relays
+pointed back on the kept port, a takeover that fails to write a file), `bridge.test.ts`
 (reconnect, spent tokens, nothing acted on before `welcome`, the
 welcome's proof), `permissions.test.ts` (whole and cut-short previews),
 `process.test.ts` (the tests' own sessions folder),

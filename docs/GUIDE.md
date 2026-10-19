@@ -210,8 +210,8 @@ word by word), tool calls and subagents, its permission mode, model and
 token usage, and the island waiting while it asks you something there.
 `/clear` and `/resume` in its terminal are followed within a few
 seconds (with Claude Code's agent view on). Everything else, chatting,
-answering prompts and questions, and stopping it, happens in the
-terminal. Subagents already running when the game restarted don't show,
+answering prompts, questions and plans, and stopping it, happens in
+the terminal. Subagents already running when the game restarted don't show,
 and with Claude Code's transcripts turned off, only the waiting and the
 switches show. The session may also feel slow in its terminal, waiting
 on that program at each step. To get everything back, end it with
