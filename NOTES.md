@@ -3416,7 +3416,7 @@ without a prompt). A whole preview must equal the call's input exactly
 (spacing inside strings counts); one cut short must be a prefix of it
 (compared without whitespace), and if it fits open calls with different
 inputs it's tied to none of them (security review, second round,
-2026-10-13). With prompt hooks, a prompt
+2026-10-13). A prompt
 waits for that call's `PreToolUse` (it arrives on another connection
 about 100 ms earlier) and its `PermissionRequest` hook, which brings the
 prompt's options (a few ms after the relay; Prompt options, below),
@@ -4242,8 +4242,8 @@ its terminal." in place of the message box.
   context's percent and the account's limits need the status line, so
   they don't show). A session busy at the restart stays working until
   its transcript shows the turn's end. One with no transcript yet
-  (nothing prompted before the restart) has it looked for (`findStored`,
-  only a file whose working folder is this project's, compared as
+  (nothing prompted before the restart) has it looked for
+  (`ClaudeProvider.findOwn`: `findStored`, only a file whose working folder is this project's, compared as
   written or with links resolved; the same check picks the transcript
   at the restore) every second for a minute, then every 10 s, until
   Claude Code writes it, then read from its start.
@@ -5498,7 +5498,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   `waiting` (live checklist, S07). Its cost (about 0.8 s of a `claude`
   process each time) is only paid while a read-only session runs.
 - **The transcript in S07's read-only mode** (2026-10-13). A session back
-  with its hook port taken is seen from its transcript alone, which isn't
+  with its hook port taken is seen from its transcript (and `claude agents`), which isn't
   a documented interface: the turn's end is Claude Code's
   `turn_duration` system entry, subagents' files are
   `<session>/subagents/agent-<id>.jsonl` beside a `.meta.json`
