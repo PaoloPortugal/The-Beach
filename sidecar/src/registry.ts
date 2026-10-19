@@ -149,6 +149,7 @@ export class Registry {
       project: withRepo(intro.project),
       title: intro.title,
       started_at: intro.started_at ?? new Date().toISOString(),
+      ...(intro.read_only ? { read_only: true as const } : {}),
       capabilities: structuredClone(intro.capabilities),
       extensions: [...intro.extensions],
       agents: structuredClone(intro.agents),

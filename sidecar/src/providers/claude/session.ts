@@ -19,6 +19,7 @@ import {
 import { hasReply, NO_TITLES, pickTitle, readConversation, readTitles, type Conversation, type Titles } from './store.ts'
 import { statusFiguresIn, UsageCounter } from './usage.ts'
 import { launcherGone } from '../../launch/launcher.ts'
+import type { AgentEntry } from './running.ts'
 
 /**
  * How long a relayed permission prompt waits for its tool call's
@@ -65,13 +66,10 @@ export const HOOKS_UNAVAILABLE = {
 
 /** How often a starting session checks that its launcher still runs. */
 export const LAUNCHER_CHECK_MS = 1000
-/** How often a limited session with no transcript yet looks for it (S07): at first, then after a minute. */
+/** How often a read-only session with no transcript yet looks for it (S07): at first, then after a minute. */
 export const TRANSCRIPT_SEARCH_MS = 1000
 export const TRANSCRIPT_SEARCH_SLOW_MS = 10_000
 const TRANSCRIPT_SEARCH_FAST_FOR_MS = 60_000
-/** A limited session's /clear, before its folder is known, is confirmed by asking Claude Code: this often, this far apart (S07). */
-const CLEAR_CONFIRM_TRIES = 3
-const CLEAR_CONFIRM_MS = 2000
 
 /**
  * Until the bridge connects, Claude Code is showing its startup dialogs (the
@@ -104,16 +102,15 @@ export const CONVERSATION_MOVED = {
 /**
  * The notice for a session taken over after a restart whose hooks can't
  * reach the game any more (their port was taken while it was closed;
- * NOTES.md -> S07). The user's wording, 2026-10-13: deliberately general,
- * so it never goes out of date; what works is in NOTES and the guide.
+ * NOTES.md -> S07): it's read-only. The user's wording, 2026-10-19.
  */
-export const REATTACHED_LIMITED = {
-  code: 'reattached_limited',
-  message: 'This session started before the game restarted, so some features may not work fully.',
+export const REATTACHED_READ_ONLY = {
+  code: 'reattached_read_only',
+  message: 'This session started before the game restarted, so it\'s read-only here. Use its terminal, or /exit it and resume it from the world for full control.',
 }
 
-/** Why the world can't stop a session in the limited mode: the stop lands through its hooks. */
-export const LIMITED_STOP_ERROR = 'This session can only be stopped in its terminal (Esc).'
+/** Why the world can't send to or stop a read-only session. */
+export const READ_ONLY_ERROR = 'This session is read-only here; use its terminal.'
 
 /** Why the world can't send to a conversation that moved. */
 export const MOVED_ERROR = 'This conversation moved to another Claude Code session; continue it in the terminal.'
@@ -175,18 +172,16 @@ export class ClaudeSession implements ProviderSession {
   private launchedAt = 0
   private startupTimer: NodeJS.Timeout | null = null
   private launcherCheck: NodeJS.Timeout | null = null
-  /** Limited, with no transcript yet: looking for it until Claude Code writes it. */
+  /** Read-only, with no transcript yet: looking for it until Claude Code writes it. */
   private transcriptSearch: NodeJS.Timeout | null = null
-  /** This project's transcript of a conversation, once written (limited only). */
+  /** This project's transcript of a conversation, once written (read-only only). */
   private findTranscript: ((nativeId: string) => string | null) | null = null
-  /** Claude Code's own id for this session now, null if it can't say (limited only). */
-  private currentId: (() => Promise<string | null>) | null = null
-  /** Limited, its folder unknown: the conversation a confirmed /clear started, not written yet. */
-  private pendingClear: string | null = null
-  /** Limited: whether Claude Code is being asked about a /clear, and whether to ask again after. */
-  private clearCheck: 'none' | 'running' | 'again' = 'none'
-  /** Counts switches of conversation, so an answer from before one is not acted on. */
-  private switches = 0
+  /**
+   * Read-only: the conversation Claude Code says the session is in now, not
+   * written yet, and whether it was new when first seen (/clear) rather
+   * than an earlier one (/resume).
+   */
+  private next: { id: string; isNew: boolean } | null = null
   private disposed = false
   private readonly translator: HookTranslator
   /** Fills in what hooks miss: Esc and a "No" in the terminal. */
@@ -197,10 +192,10 @@ export class ClaudeSession implements ProviderSession {
    */
   private readonly chat: HistoryLog
   /**
-   * Taken back with its hooks out of reach (S07's limited mode): seen from
-   * its transcript alone, read as the hooks it stands for.
+   * Taken back with its hooks out of reach (S07's read-only mode): seen
+   * from its transcript alone, read as the hooks it stands for.
    */
-  private limited: TranscriptHooks | null = null
+  private readOnly: TranscriptHooks | null = null
   /** Whether any hook has arrived yet. */
   private hooksSeen = false
   /** Checking that hooks arrive (once, after the first world message sent while idle). */
@@ -319,10 +314,11 @@ export class ClaudeSession implements ProviderSession {
       project: this.project,
       title: this.shownTitle = pickTitle(this.titles),
       // A stop from the world lands at the next tool call (NOTES.md -> S02).
-      // Without hooks there are no questions, plans, mode or stop (S07).
-      capabilities: this.limited ? { usage: {}, model_info: {} } : {
+      // Read-only (S07): only what its transcript shows.
+      capabilities: this.readOnly ? { permission_modes: {}, usage: {}, model_info: {} } : {
         questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {},
       },
+      ...(this.readOnly ? { read_only: true } : {}),
       extensions: [],
       model: this.model,
       effort: this.effort,
@@ -336,39 +332,37 @@ export class ClaudeSession implements ProviderSession {
    * announced at once in the state Claude Code reports (`claude agents
    * --json`) until the next hook says otherwise, its transcript followed
    * from now on, and its launcher watched until the bridge reconnects (from
-   * then on the bridge closing says Claude Code exited). `limited`: its
+   * then on the bridge closing says Claude Code exited). `readOnly`: its
    * hooks go to a port the game no longer has (taken while it was closed),
-   * so it runs with less, and says so; no hooks check either. It is then
-   * seen from its transcript alone: a busy session stays working until its
-   * transcript shows the turn's end.
+   * so the world only watches it, and says so: no hook token, bridge or
+   * relay is taken for it, so nothing another program posts is acted on.
+   * It's seen from its transcript alone (a busy session stays working
+   * until its transcript shows the turn's end) and from what `claude
+   * agents` says of it (onAgent); its launcher exiting ends it.
    */
   restored(o: {
-    state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; limited: boolean
-    /** This project's transcript of a conversation, if written: for a limited session that had none yet. */
+    state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; readOnly: boolean
+    /** This project's transcript of a conversation, if written: read-only only. */
     findTranscript?: (nativeId: string) => string | null
-    /** Claude Code's own id for this session now (`claude agents`), null if it can't say. */
-    currentId?: () => Promise<string | null>
   }) {
     this.translator.assume(o.state, o.reason)
-    if (o.limited) {
+    if (o.readOnly) {
       this.hooksChecked = true
-      this.limited = new TranscriptHooks()
-      this.translator.withoutPromptHooks()
+      this.readOnly = new TranscriptHooks()
+      this.findTranscript = o.findTranscript ?? null
       this.transcript.followAll()
     }
     if (o.transcript) {
       this.transcriptDir = path.dirname(o.transcript)
       this.transcript.follow(o.transcript)
-    } else if (o.limited && o.findTranscript) {
+    } else if (o.readOnly) {
       // No prompt before the restart, so no transcript yet, and no hook to
       // name it: looked for until written, then read from its start.
-      this.findTranscript = o.findTranscript
-      this.currentId = o.currentId ?? null
       this.searchTranscript(Date.now())
     }
     this.announce(o.startedAt)
     this.sendUsage()
-    if (o.limited) this.host.emit({ type: 'session.notice', notice: REATTACHED_LIMITED })
+    if (o.readOnly) this.host.emit({ type: 'session.notice', notice: REATTACHED_READ_ONLY })
     this.launcherCheck = setInterval(() => {
       if (launcherGone(this.launch.runDir)) this.onGone('its terminal closed')
     }, LAUNCHER_CHECK_MS)
@@ -389,9 +383,6 @@ export class ClaudeSession implements ProviderSession {
     // Comes through the relay (a command hook), not as one of the HTTP
     // hooks the checks below are about.
     if (p.hook_event_name === 'SessionStart') return this.sessionStarted(p)
-    // Limited (S07): its HTTP hooks go to the program on its old port, never
-    // here, so one that comes here with its token is that program's: dropped.
-    if (this.limited) return
     // Can come at startup (a resume restoring the model), before the
     // session is up: it says nothing about that.
     if (p.hook_event_name === 'PostModelSwitch') return this.noteModel(modelChoice(p.to_model))
@@ -447,9 +438,6 @@ export class ClaudeSession implements ProviderSession {
     if (source !== 'clear' && source !== 'resume') return
     // Not up yet: nothing to switch (the fallback below still would).
     if (this.startupTimer || p.session_id === this.nativeId) return
-    if (this.limited && this.transcriptDir === null && typeof p.session_id === 'string' && SESSION_ID.test(p.session_id)) {
-      return this.limitedSwitch(p.session_id, source)
-    }
     if (!this.acceptNew(p)) return
     const file = p.transcript_path as string
     // /resume: the resumed conversation's chat, all of it (no prompt has
@@ -494,12 +482,6 @@ export class ClaudeSession implements ProviderSession {
     // starts; read it now in case the next poll hasn't come yet.
     this.transcript.poll()
     if (this.movedTo !== null || typeof id !== 'string' || !SESSION_ID.test(id)) return false
-    // Limited (S07): the program on its old port has its token too, so a
-    // switch is followed only to the project's own folder, known by then.
-    if (this.limited && this.transcriptDir === null) {
-      this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, its folder unknown)`)
-      return false
-    }
     // A transcript in another folder isn't this project's (never seen).
     if (typeof file !== 'string' || !path.isAbsolute(file) ||
         (this.transcriptDir !== null && path.dirname(file) !== this.transcriptDir)) {
@@ -519,8 +501,7 @@ export class ClaudeSession implements ProviderSession {
   private switchTo(id: string, file: string, resumed: Conversation | null) {
     const from = this.nativeId
     this.nativeId = id
-    this.pendingClear = null
-    this.switches++
+    this.next = null
     this.transcriptDir ??= path.dirname(file)
     if (resumed) this.usage.load(resumed.usage)
     else this.usage.reset()
@@ -622,24 +603,21 @@ export class ClaudeSession implements ProviderSession {
       return
     }
     if (s.kind === 'entry' || s.kind === 'subagent') {
-      if (!this.limited) return
-      const fed = s.kind === 'entry' ? this.limited.entry(s.entry, s.agent) : this.limited.subagent(s.agent, s.type, s.toolUseId, s.background)
+      if (!this.readOnly) return
+      const fed = s.kind === 'entry' ? this.readOnly.entry(s.entry, s.agent) : this.readOnly.subagent(s.agent, s.type, s.toolUseId, s.background)
       return this.feed(fed)
     }
     this.emitAll(s.kind === 'rejected' ? this.translator.rejectedInTerminal(s.toolUseId) : this.translator.interruptedByUser())
   }
 
-  /** The limited mode's hooks, read from the transcript: reports only, nothing to answer or hold. */
+  /** The read-only mode's hooks, read from the transcript: reports only, nothing to answer or hold. */
   private feed(fed: Fed[]) {
     for (const f of fed) {
-      if ('denied' in f) {
-        this.emitAll(this.translator.rejectedInTerminal(f.denied))
-        continue
-      }
-      const p = f.hook
-      this.emitAll(this.translator.translate(p))
-      // A relayed prompt waiting for its call can be shown now.
-      if (p.hook_event_name === 'PreToolUse') this.retryRelays()
+      if ('denied' in f) this.emitAll(this.translator.rejectedInTerminal(f.denied))
+      else if ('mode' in f) this.emitAll(this.translator.noteMode({ hook_event_name: 'PermissionMode', permission_mode: f.mode }))
+      // The model each reply came from (plan mode may upgrade a turn's: C12).
+      else if ('model' in f) this.noteModel(modelChoice(f.model))
+      else this.emitAll(this.translator.translate(f.hook))
     }
   }
 
@@ -766,22 +744,15 @@ export class ClaudeSession implements ProviderSession {
   /**
    * One look (see restored), then the next, slower after a while: for the
    * transcript of the conversation it follows, until its folder is known.
-   * A confirmed /clear waiting meanwhile is then switched to.
    */
   private searchTranscript(since: number) {
     const find = this.findTranscript
     this.transcriptSearch = null
-    if (!find || this.disposed) return
-    // The newer conversation first: a /clear's transcript, once written.
-    const cleared = this.pendingClear
-    const file = cleared ? find(cleared) : null
-    if (cleared && file) return this.clearedTo(cleared, path.dirname(file))
+    if (!find || this.disposed || this.transcriptDir !== null) return
     const own = find(this.nativeId)
     if (own) {
       this.transcriptDir = path.dirname(own)
       this.transcript.follow(own, true)
-      if (cleared) this.clearedTo(cleared, this.transcriptDir)
-      this.findTranscript = null
       return
     }
     const wait = Date.now() - since < TRANSCRIPT_SEARCH_FAST_FOR_MS ? TRANSCRIPT_SEARCH_MS : TRANSCRIPT_SEARCH_SLOW_MS
@@ -789,74 +760,36 @@ export class ClaudeSession implements ProviderSession {
     this.transcriptSearch.unref()
   }
 
-  /** Switches to the conversation a confirmed /clear started, its transcript in `dir` (all of it news). */
-  private clearedTo(id: string, dir: string) {
-    this.stopTranscriptSearch()
-    this.findTranscript = null
-    this.transcriptDir ??= dir
-    const file = path.join(this.transcriptDir, `${id}.jsonl`)
-    this.switchTo(id, file, null)
-    this.transcript.follow(file, true)
-  }
-
   /**
-   * Limited, its folder unknown (S07): the program on its old port has the
-   * token too, so a switch is followed only when it can't be its doing. A
-   * /resume: only to a transcript of this project Claude Code wrote,
-   * followed from its end, its past the history. A /clear: only to the
-   * new conversation Claude Code itself (`claude agents`) says the
-   * session is now in, whatever the hook named; then followed in the
-   * project's folder once known.
+   * Read-only (S07): what `claude agents --json` says of this session now
+   * (null: it can't say, or doesn't list it). Its status shows what the
+   * transcript can't: that it waits on the user in the terminal. Its id
+   * follows /clear and /resume, the hooks' way being out of reach: a new
+   * id is switched to once this project's transcript of it is there, all
+   * of it news if it was new when first seen (/clear), else from its end,
+   * its past the history (/resume). Another project's conversation is
+   * never found, so never followed.
    */
-  private limitedSwitch(id: string, source: 'clear' | 'resume') {
-    const find = this.findTranscript
-    const file = find && source === 'resume' ? find(id) : null
-    if (!find || this.movedTo !== null || (source === 'resume' && file === null) || (source === 'clear' && !this.currentId)) {
-      this.log.warn(`session ${this.host.id}: ignored a switch of conversation (limited, its folder unknown)`)
+  onAgent(entry: AgentEntry | null) {
+    if (!this.readOnly || this.disposed || this.host.ended || !entry) return
+    this.emitAll(this.translator.outsideStatus(entry.status))
+    const id = entry.sessionId
+    if (id === this.nativeId || this.movedTo !== null || !SESSION_ID.test(id)) {
+      this.next = null
       return
     }
-    if (file) {
-      this.stopTranscriptSearch()
-      this.findTranscript = null
-      this.transcriptDir = path.dirname(file)
-      this.switchTo(id, file, readConversation(file))
-      this.transcript.follow(file)
-      return
-    }
-    // Only a trigger: the id is Claude Code's, one check at a time (a forged
-    // hook costs at most one `claude agents` running).
-    if (this.clearCheck !== 'none') this.clearCheck = 'again'
-    else void this.confirmClear()
+    const file = this.transcriptOf(id)
+    if (this.next?.id !== id) this.next = { id, isNew: file === null || !hasReply(file) }
+    if (!file) return
+    const isNew = this.next.isNew
+    this.stopTranscriptSearch()
+    this.switchTo(id, file, isNew ? null : readConversation(file))
+    this.transcript.follow(file, isNew)
   }
 
-  /** Asks Claude Code (again while asked to) for the session's id now; a new one is the conversation /clear started. */
-  private async confirmClear() {
-    try {
-      do {
-        this.clearCheck = 'running'
-        await this.askCleared()
-        // Set meanwhile by limitedSwitch (TypeScript can't see that across the await).
-      } while ((this.clearCheck as string) === 'again' && !this.disposed)
-    } finally { this.clearCheck = 'none' }
-  }
-
-  /** A few tries (it may lag); an answer from before a switch here is asked again. */
-  private async askCleared() {
-    const ask = this.currentId
-    for (let i = 0; ask && i < CLEAR_CONFIRM_TRIES; i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, CLEAR_CONFIRM_MS).unref())
-      if (this.disposed || this.movedTo !== null) return
-      const switches = this.switches
-      let id: string | null = null
-      try { id = await ask() } catch { id = null }
-      if (this.disposed || this.movedTo !== null) return
-      if (switches !== this.switches || id === null || !SESSION_ID.test(id) || id === (this.pendingClear ?? this.nativeId)) continue
-      if (this.transcriptDir !== null) return this.clearedTo(id, this.transcriptDir)
-      this.pendingClear = id
-      this.log.info(`session ${this.host.id}: a new conversation started in it (/clear); followed once it's written`)
-      return
-    }
-    if (!this.disposed) this.log.warn(`session ${this.host.id}: ignored a /clear (limited, no newer conversation reported)`)
+  /** Read-only: this project's transcript of a conversation (its working folder this project's), if written. */
+  private transcriptOf(id: string): string | null {
+    return this.findTranscript?.(id) ?? null
   }
 
   private stopTranscriptSearch() {
@@ -896,6 +829,7 @@ export class ClaudeSession implements ProviderSession {
   }
 
   async sendMessage(text: string): Promise<void> {
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
     if (!this.reachable().send({ type: 'chat', text })) throw new CommandError('provider_error', UNREACHABLE_ERROR)
     if (!this.hooksSeen && !this.hooksChecked && !this.translator.busy()) {
       this.hooksChecked = true
@@ -971,7 +905,7 @@ export class ClaudeSession implements ProviderSession {
   async interrupt(): Promise<void> {
     // The stop lands through this conversation's hooks, which a moved one no longer sends.
     if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
-    if (this.limited) throw new CommandError('not_supported', LIMITED_STOP_ERROR)
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
     // Prompts still waiting for their hooks are shown now, to be declined with the rest.
     for (const [id, { relay, timer }] of [...this.waitingRelays]) {

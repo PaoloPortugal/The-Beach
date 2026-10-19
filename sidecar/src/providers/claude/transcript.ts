@@ -4,7 +4,7 @@
 // second; so is a conversation moving to another session. The line format isn't a documented interface, so this only ever
 // updates status, and everything still works (later) without it: no
 // transcript (saving is off), a missing file, or lines we don't recognise.
-// A session taken back with its hooks out of reach (S07's limited mode) is
+// A session taken back with its hooks out of reach (S07's read-only mode) is
 // seen from here alone: followAll.
 import fs from 'node:fs'
 import path from 'node:path'
@@ -33,7 +33,7 @@ export type TranscriptSignal =
   /** An API call of the main conversation and its tokens (C08); repeated once per entry of the call. */
   | { kind: 'usage'; call: CallUsage }
   /**
-   * Only with followAll (S07's limited mode): every entry, the main
+   * Only with followAll (S07's read-only mode): every entry, the main
    * conversation's, or with `agent` a subagent's from its own file.
    */
   | { kind: 'entry'; entry: Record<string, unknown>; agent?: string }

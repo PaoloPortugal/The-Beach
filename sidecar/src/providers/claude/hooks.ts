@@ -163,8 +163,6 @@ export class HookTranslator {
   private readonly openTools = new Map<Id, OpenTool>()
   /** Pending permission prompts by request_id. */
   private readonly permissions = new Map<Id, PendingPermission>()
-  /** Limited: prompts shown untied, until their own call is read (see tieLate). */
-  private readonly untied = new Map<Id, { tool: string; preview: string; before: Set<Id> }>()
   private readonly questions = new Map<Id, PendingQuestion>()
   private readonly plans = new Map<Id, PendingPlan>()
   /** The permission mode, from the orchestrator's hooks (C06); null until one says. */
@@ -181,9 +179,6 @@ export class HookTranslator {
   private readonly spawning: { call: Id; caller: Id; type: string; task: string }[] = []
   /** Each subagent's Agent call, for its own calls' `within` (C04). */
   private readonly spawnedBy = new Map<Id, Id>()
-
-  /** Whether prompts' PermissionRequest hooks come (see withoutPromptHooks). */
-  private promptHooks = true
 
   /** The sign_in_needed notice's message while it is up (S06). */
   private signInNeeded: string | null = null
@@ -203,12 +198,17 @@ export class HookTranslator {
   }
 
   /**
-   * No PermissionRequest hook will come with a prompt's options (S07's
-   * limited mode: the hooks can't reach us), so a relayed prompt is shown
-   * as soon as its tool call is known, without them.
+   * Read-only (S07): Claude Code's own status for the orchestrator (`claude
+   * agents`), for what its transcript can't show: that it waits on the user
+   * in the terminal (a prompt, a question), and that it stopped waiting.
    */
-  withoutPromptHooks(): void {
-    this.promptHooks = false
+  outsideStatus(status: string): SessionEvent[] {
+    const out: SessionEvent[] = []
+    const { state, reason } = this.mainState()
+    if (status === 'waiting' && state === 'working') this.setState(MAIN, 'waiting', 'input', out)
+    else if (state === 'waiting' && reason === 'input' && status === 'busy') this.setState(MAIN, 'working', null, out)
+    else if (state === 'waiting' && reason === 'input' && status === 'idle') this.setState(MAIN, 'idle', null, out)
+    return out
   }
 
   /** The orchestrator's state and reason now. */
@@ -477,29 +477,9 @@ export class HookTranslator {
     }
     const summary = summarizeTool(tool, input, this.cwd)
     const small = jsonBytes(input) <= INPUT_MAX
-    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: this.promptHooks ? null : [] })
+    this.openTools.set(id, { agent, tool, input, summary, small, permission: null, question: null, plan: null, options: null })
     const within = this.spawnedBy.get(agent)
     out.push({ type: 'tool.started', tool_call: id, agent, tool, summary, ...(small ? { input } : {}), ...(within ? { within } : {}) })
-    this.tieLate(id)
-  }
-
-  /**
-   * Limited: a prompt shown untied gets its call once that's read: the
-   * first call of its tool read after the prompt whose input fits its
-   * preview. Its card stays as shown; the call's end (ran: Yes, or a "No"
-   * in the terminal) resolves it.
-   */
-  private tieLate(id: Id) {
-    const call = this.openTools.get(id)
-    if (!call) return
-    for (const [requestId, u] of this.untied) {
-      const p = this.permissions.get(requestId)
-      if (!p || u.tool !== call.tool || u.before.has(id) || !previewMatches(u.preview, call.input)) continue
-      this.untied.delete(requestId)
-      call.permission = requestId
-      this.permissions.set(requestId, { ...p, toolCall: id })
-      return
-    }
   }
 
   private toolFinished(p: HookPayload, status: 'ok' | 'error', out: SessionEvent[]) {
@@ -540,18 +520,13 @@ export class HookTranslator {
    */
   permissionRequested(r: RelayedPermission, force = false): SessionEvent[] | null {
     if (this.permissions.has(r.request_id)) return []
-    // Without prompt hooks (S07 limited) nothing says its own call was read
-    // (it may never be: a line too long to read), so a cut-short preview,
-    // which may fit an older call only, is tied to none: shown at once from
-    // the preview itself.
-    const untied = !this.promptHooks && parseObject(r.input_preview) === null
-    const matches = untied ? [] : [...this.openTools.entries()]
+    const matches = [...this.openTools.entries()]
       .filter(([, c]) => c.tool === r.tool_name && !c.permission && previewMatches(r.input_preview, c.input))
     // Calls with different inputs that all fit a cut-short preview: which one it is can't be told.
     const one = new Set(matches.map(([, c]) => JSON.stringify(c.input))).size <= 1
     const pick = one ? matches.at(-1) : undefined
     // Its options come with its PermissionRequest hook; wait for that too.
-    if ((!pick || pick[1].options === null) && !force && !untied) return null
+    if ((!pick || pick[1].options === null) && !force) return null
     const out: SessionEvent[] = []
     let permission: Permission
     if (pick) {
@@ -571,7 +546,6 @@ export class HookTranslator {
         ...(input && jsonBytes(input) <= INPUT_MAX ? { input } : {}),
       }
       this.permissions.set(r.request_id, { agent: MAIN, toolCall: null })
-      if (untied) this.untied.set(r.request_id, { tool: r.tool_name, preview: r.input_preview, before: new Set(this.openTools.keys()) })
     }
     out.push({ type: 'permission.requested', permission })
     this.setState(permission.agent, 'waiting', 'permission', out)
@@ -631,7 +605,6 @@ export class HookTranslator {
     const p = this.permissions.get(requestId)
     if (!p) return
     this.permissions.delete(requestId)
-    this.untied.delete(requestId)
     const call = p.toolCall ? this.openTools.get(p.toolCall) : undefined
     if (call) call.permission = null
     out.push({ type: 'permission.resolved', permission: requestId, decision, by })
@@ -798,7 +771,7 @@ export class HookTranslator {
     // SubagentStart doesn't name the parent: take the oldest Agent call for
     // this agent type (or the oldest at all). Exact one at a time; with
     // parallel spawns of one type the tasks may pair up in the wrong order.
-    // Read from the transcript (S07's limited mode), the call is known.
+    // Read from the transcript (S07's read-only mode), the call is known.
     const by = str(p.spawned_by)
     let i = by ? this.spawning.findIndex((s) => s.call === by) : -1
     if (i < 0) i = this.spawning.findIndex((s) => s.type === type)

@@ -20,7 +20,7 @@ import {
 } from '../src/providers/claude/run-folder.ts'
 import type { AgentEntry, Running } from '../src/providers/claude/running.ts'
 import { ClaudeProvider, type ClaudeOptions } from '../src/providers/claude/index.ts'
-import { REATTACHED_LIMITED } from '../src/providers/claude/session.ts'
+import { REATTACHED_READ_ONLY } from '../src/providers/claude/session.ts'
 import { TranscriptHooks, type Fed } from '../src/providers/claude/transcript-hooks.ts'
 import { TranscriptFollower, type TranscriptSignal } from '../src/providers/claude/transcript.ts'
 import { RESTORE_WAIT_MS, restoreSessions } from '../src/serve.ts'
@@ -316,7 +316,7 @@ test('restore: a running session comes back as a snapshot, in Claude Code\'s sta
     assert.equal(s.title, 'the login fix')
     assert.equal(s.started_at, f.record.started_at)
     assert.deepEqual(s.agents.map((a: any) => [a.agent, a.state, a.reason]), [['main', 'working', null]])
-    assert.deepEqual(s.notices, [], 'its hook port was kept: nothing limited')
+    assert.deepEqual(s.notices, [], 'its hook port was kept: not read-only')
     const history = (await r.c.command({ type: 'session.get_history', session: s.session })).result as { messages: any[] }
     assert.deepEqual(history.messages.map((m) => [m.role, m.text]), [['user', 'fix the login'], ['assistant', 'On it.']])
     // Kept port: the relays already point here, and stay untouched.
@@ -438,30 +438,42 @@ test('restore: /clear while the game was closed is followed: Claude Code\'s id, 
   } finally { await r.close() }
 })
 
-test('restore, limited: its hook port was taken: relays point to the new port with the old token, and the notice says so', async () => {
+test('restore, read-only: its hook port was taken: read_only, the transcript\'s capabilities only, the notice; its relays, bridge and token aren\'t taken', async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
   writeHookPort(root, taken.port)
   const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
+  const relayBefore = fs.readFileSync(path.join(f.runDir, 'relay.json'), 'utf8')
+  const statusBefore = fs.readFileSync(path.join(f.runDir, 'status.json'), 'utf8')
   const r = await restoreAndSync({
     sessionsDir: root, runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
   })
   try {
     const s = r.snapshots[0]!
-    assert.deepEqual(s.notices, [REATTACHED_LIMITED])
-    assert.equal(REATTACHED_LIMITED.message, 'This session started before the game restarted, so some features may not work fully.')
-    const relay = readRelayFile(path.join(f.runDir, 'relay.json'))!
-    const status = readRelayFile(path.join(f.runDir, 'status.json'))!
-    const port = Number(new URL(relay.url).port)
-    assert.notEqual(port, taken.port)
-    assert.equal(relay.url, `http://127.0.0.1:${port}/hook`)
-    assert.equal(status.url, `http://127.0.0.1:${port}/status`)
-    assert.equal(relay.token, f.record.hook_token)
-    assert.equal(status.token, f.record.hook_token)
+    assert.equal(s.read_only, true)
+    assert.deepEqual(Object.keys(s.capabilities).sort(), ['model_info', 'permission_modes', 'usage'], 'no questions, plans or stop')
+    assert.deepEqual(s.notices, [REATTACHED_READ_ONLY])
+    assert.equal(REATTACHED_READ_ONLY.message, 'This session started before the game restarted, so it\'s read-only here. Use its terminal, or /exit it and resume it from the world for full control.')
+    assert.equal(fs.readFileSync(path.join(f.runDir, 'relay.json'), 'utf8'), relayBefore, 'its relays still name its old port')
+    assert.equal(fs.readFileSync(path.join(f.runDir, 'status.json'), 'utf8'), statusBefore)
+    assert.equal(fs.existsSync(path.join(f.runDir, 'bridge.json')), false, 'no way back for its bridge')
     assert.equal(readRunRecord(f.runDir)!.hook_port, taken.port, 'the record keeps the port its hooks go to')
     assert.equal(readHookPort(root), taken.port, 'and the kept port stays')
-    // The relays reach it: a status line input arrives with the old token.
-    assert.equal((await post(port, f.record.hook_token, { model: { id: 'claude-x' } }, '/status')).status, 200)
+    // Nothing posted with its token is taken, the relays' paths included.
+    const port = (r.p as any).hooks.port as number
+    assert.notEqual(port, taken.port)
+    const base = { session_id: f.record.native_id, transcript_path: 'x', cwd: f.record.project.path }
+    for (const [body, at] of [
+      [{ ...base, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'rm -rf /' } }, '/hook'],
+      [{ ...base, hook_event_name: 'SessionStart', source: 'resume', session_id: ID(7) }, '/hook'],
+      [{ model: { id: 'claude-x' } }, '/status'],
+    ] as const) assert.equal((await post(port, f.record.hook_token, body, at)).status, 401)
+    // The world can't send to it, nor stop it.
+    const sent = await r.c.command({ type: 'message.send', session: s.session, text: 'hello' })
+    assert.deepEqual([sent.type, sent.code], ['error', 'not_supported'])
+    const stop = await r.c.command({ type: 'interrupt.request', session: s.session })
+    assert.deepEqual([stop.type, stop.code], ['error', 'not_supported'])
+    assert.deepEqual((await r.c.quiet(300)).filter((m) => m.type === 'session.updated'), [])
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })
@@ -483,7 +495,10 @@ test('restore: the bridge reconnects; chat goes down it; from then on its closin
   const root = tempSessionsDir()
   const launcher = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
   children.push(launcher)
-  const f = runFolder(root, { launcher: launcher.pid! })
+  // Its hooks on the kept port: taken back in full (else read-only, with no bridge).
+  const kept = await freePort()
+  writeHookPort(root, kept)
+  const f = runFolder(root, { launcher: launcher.pid!, record: { hook_port: kept } })
   const r = await restoreAndSync({
     sessionsDir: root, runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
   })
@@ -512,7 +527,10 @@ test('restore: until its bridge is back, the launcher exiting ends it', { timeou
   const root = tempSessionsDir()
   const launcher = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
   children.push(launcher)
-  const f = runFolder(root, { launcher: launcher.pid! })
+  // Its hooks on the kept port: taken back in full (else read-only, with no bridge).
+  const kept = await freePort()
+  writeHookPort(root, kept)
+  const f = runFolder(root, { launcher: launcher.pid!, record: { hook_port: kept } })
   const r = await restoreAndSync({
     sessionsDir: root, runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
   })
@@ -541,11 +559,11 @@ test('restore: a session it took back isn\'t taken twice, nor resumed', async ()
   } finally { await r.close() }
 })
 
-// ---- limited mode: seen from the transcript alone ----
+// ---- read-only mode: seen from the transcript alone ----
 
-const hooksOf = (fed: Fed[]) => fed.map((f) => ('denied' in f ? { denied: f.denied } : f.hook))
+const hooksOf = (fed: Fed[]) => fed.map((f) => ('hook' in f ? f.hook : f))
 
-test('limited: transcript entries read as the hooks they stand for (shapes as 2.1.296 writes them)', () => {
+test('read-only: transcript entries read as the hooks they stand for (shapes as 2.1.296 writes them)', () => {
   const t = new TranscriptHooks()
   const user = (content: unknown, more: object = {}) => ({ type: 'user', uuid: 'u1', message: { role: 'user', content }, ...more })
   // What the user said: typed, or from the world (meta, in our channel).
@@ -589,11 +607,16 @@ test('limited: transcript entries read as the hooks they stand for (shapes as 2.
   assert.deepEqual(t.entry({ type: 'system', subtype: 'stop_hook_summary' }), [])
   // The main file's sidechain entries, and anything unknown, are skipped.
   assert.deepEqual(t.entry(reply([{ type: 'text', text: 'x' }], { isSidechain: true })), [])
-  assert.deepEqual(t.entry({ type: 'permission-mode', permissionMode: 'auto' }), [])
   assert.deepEqual(t.entry(user(42)), [])
+  // The mode Claude Code notes, and on each prompt; the model each reply came from (not its own synthetic ones).
+  assert.deepEqual(t.entry({ type: 'permission-mode', permissionMode: 'auto' }), [{ mode: 'auto' }])
+  assert.deepEqual(hooksOf(t.entry(user('go', { permissionMode: 'plan' }))), [{ mode: 'plan' }, { hook_event_name: 'UserPromptSubmit', prompt: 'go', prompt_id: 'u1' }])
+  assert.deepEqual(hooksOf(t.entry({ type: 'assistant', message: { id: 'msg_9', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Hi.' }] } })),
+    [{ model: 'claude-opus-5-5' }, { hook_event_name: 'MessageDisplay', message_id: 'msg_9', message_text: 'Hi.' }])
+  assert.deepEqual(t.entry({ type: 'assistant', message: { id: 'msg_10', model: '<synthetic>', content: [] } }), [])
 })
 
-test('limited: subagents: started from their file, their calls theirs, a foreground one done when its call returns', () => {
+test('read-only: subagents: started from their file, their calls theirs, a foreground one done when its call returns', () => {
   const t = new TranscriptHooks()
   assert.deepEqual(hooksOf(t.subagent('a1', 'Explore', 'toolu_A', false)),
     [{ hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'Explore', spawned_by: 'toolu_A' }])
@@ -611,7 +634,7 @@ test('limited: subagents: started from their file, their calls theirs, a foregro
   assert.deepEqual(hooksOf(t.entry(result('toolu_B'))), [{ hook_event_name: 'PostToolUse', tool_use_id: 'toolu_B' }])
 })
 
-test('limited: the follower hands over every entry, and subagents started from now on, each once its meta is there', async () => {
+test('read-only: the follower hands over every entry, and subagents started from now on, each once its meta is there', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tr-'))
   const file = path.join(dir, `${ID(1)}.jsonl`)
   const subs = path.join(dir, ID(1), 'subagents')
@@ -660,7 +683,7 @@ test('limited: the follower hands over every entry, and subagents started from n
   } finally { g.stop() }
 })
 
-test('restore, limited: a busy session stays working until its transcript ends the turn; replies, calls, prompts and subagents from it', { timeout: 15_000 }, async () => {
+test('restore, read-only: a busy session stays working until its transcript ends the turn; replies, calls, subagents, mode and model from it; waiting from claude agents', { timeout: 15_000 }, async () => {
   const root = tempSessionsDir()
   const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
   const taken = await occupy()
@@ -668,38 +691,37 @@ test('restore, limited: a busy session stays working until its transcript ends t
   const f = runFolder(root, { record: { hook_port: taken.port } })
   const file = transcript(projects, f.record.native_id, f.record.project.path,
     { type: 'user', uuid: 'u1', message: { content: 'fix the login' } })
+  // What `claude agents` says of it, as Claude Code would change it.
+  let status: AgentEntry['status'] = 'busy'
   const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
+    sessionsDir: root, projectsDir: projects, agentsPollMs: 100,
+    runningSessions: async () => ({ ids: new Set([f.record.native_id]), agents: [{ sessionId: f.record.native_id, pid: f.program, status }] }),
   })
   const add = (...entries: object[]) => fs.appendFileSync(file, jsonl(...entries))
   try {
     const s = r.snapshots[0]!
     assert.deepEqual(s.agents.map((a: any) => a.state), ['working'])
-    assert.deepEqual(Object.keys(s.capabilities).sort(), ['model_info', 'usage'], 'no questions, plans, mode or stop without hooks')
     await sleep(600)
     assert.equal(r.c.received.filter((m) => m.type === 'agent.state_changed').length, 0, 'still working: nothing says otherwise')
 
-    // A reply, whole; a tool call.
-    add({ type: 'assistant', message: { id: 'msg_1', content: [{ type: 'text', text: 'Looking.' }] } },
-      { type: 'assistant', message: { id: 'msg_1', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'git push', description: 'd' } }] } })
+    // The mode Claude Code notes; a reply, whole, with its model; a tool call.
+    add({ type: 'permission-mode', permissionMode: 'acceptEdits' })
+    assert.equal((await r.c.next((m) => m.type === 'session.updated' && 'mode' in m)).mode, 'acceptEdits')
+    add({ type: 'assistant', message: { id: 'msg_1', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Looking.' }] } },
+      { type: 'assistant', message: { id: 'msg_1', model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'git push', description: 'd' } }] } })
+    assert.equal(((await r.c.next((m) => m.type === 'session.updated' && 'model' in m)).model as any).id, 'claude-opus-5-5')
     const started = await r.c.next('message.started')
     assert.equal(started.role, 'assistant')
     assert.deepEqual(pick(await r.c.next('message.completed'), 'message', 'text'), { message: 'msg_1', text: 'Looking.' })
     assert.equal(r.c.received.some((m) => m.type === 'message.delta'), false, 'not streamed')
     assert.deepEqual(pick(await r.c.next('tool.started'), 'tool_call', 'tool', 'summary'), { tool_call: 'toolu_1', tool: 'Bash', summary: 'Run: git push' })
 
-    // Its prompt, relayed by the bridge, matched to the call at once (no options to wait for), and answered from the world.
-    const b = await bridgeBack(f.runDir)
-    b.sock.write(JSON.stringify({ type: 'permission_request', request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"git push","description":"d"}' }) + '\n')
-    const asked = await r.c.next('permission.requested', 800) as any
-    assert.equal(asked.permission.agent, 'main')
-    assert.equal(asked.permission.summary, 'Run: git push')
-    assert.equal(asked.permission.options, undefined)
-    assert.equal((await r.c.next('agent.state_changed')).state, 'waiting')
-    assert.equal((await r.c.command({ type: 'permission.respond', session: s.session, permission: 'abcde', decision: 'allow' })).type, 'ok')
-    await until(() => b.lines.some((l) => l.type === 'verdict'))
-    assert.deepEqual(b.lines.find((l) => l.type === 'verdict'), { type: 'verdict', request_id: 'abcde', behavior: 'allow' })
+    // It prompts in the terminal: Claude Code says it waits; answered there, it works on.
+    status = 'waiting'
+    assert.deepEqual(pick(await r.c.next('agent.state_changed', 2000), 'agent', 'state', 'reason'), { agent: 'main', state: 'waiting', reason: 'input' })
+    assert.equal(r.c.received.some((m) => m.type === 'permission.requested'), false, 'no card: answered in the terminal')
+    status = 'busy'
+    assert.deepEqual(pick(await r.c.next('agent.state_changed', 2000), 'agent', 'state'), { agent: 'main', state: 'working' })
     add({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'done' }] } })
     assert.deepEqual(pick(await r.c.next('tool.finished'), 'tool_call', 'status'), { tool_call: 'toolu_1', status: 'ok' })
 
@@ -719,101 +741,42 @@ test('restore, limited: a busy session stays working until its transcript ends t
     assert.deepEqual(pick(await r.c.next('agent.state_changed'), 'agent', 'state'), { agent: 'a1', state: 'done' })
 
     // The turn's end: idle at last.
+    status = 'idle'
     add({ type: 'assistant', message: { id: 'msg_3', content: [{ type: 'text', text: 'Pushed.' }] } }, { type: 'system', subtype: 'turn_duration', durationMs: 1 })
     await r.c.next((m) => m.type === 'message.completed' && m.text === 'Pushed.')
     assert.deepEqual(pick(await r.c.next('agent.state_changed'), 'agent', 'state'), { agent: 'main', state: 'idle' })
 
     // The user types in the terminal: their message, and working again; Esc ends it.
+    status = 'busy'
     add({ type: 'user', uuid: 'u2', message: { content: 'and the tests' } })
     assert.deepEqual(pick(await r.c.next('message.completed'), 'message', 'text'), { message: 'u2', text: 'and the tests' })
     assert.equal((await r.c.next('agent.state_changed')).state, 'working')
     add({ type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
     assert.equal((await r.c.next('agent.state_changed')).state, 'idle')
 
-    // Everything said is in the history; a stop from the world is refused (Esc in the terminal).
     const history = (await r.c.command({ type: 'session.get_history', session: s.session })).result as { messages: any[] }
     assert.deepEqual(history.messages.map((m) => m.text), ['fix the login', 'Looking.', 'Pushed.', 'and the tests'])
-    const stop = await r.c.command({ type: 'interrupt.request', session: s.session })
-    assert.equal(stop.type, 'error')
-    assert.equal(stop.code, 'not_supported')
     assert.deepEqual(r.c.invalid, [])
-    b.sock.destroy()
   } finally { await r.close(); await taken.close() }
 })
 
-test('restore, limited: a relayed prompt is only ever tied to the call it shows; else, after the wait, shown from its own preview', { timeout: 15_000 }, async () => {
-  const root = tempSessionsDir()
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  const taken = await occupy()
-  writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port } })
-  const file = transcript(projects, f.record.native_id, f.record.project.path,
-    { type: 'user', uuid: 'u1', message: { content: 'build it' } })
-  const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
-  })
-  try {
-    // Two Bash calls open (one auto-allowed, one long-running); the prompting one not read yet.
-    fs.appendFileSync(file, jsonl({ type: 'assistant', message: { id: 'msg_1', content: [
-      { type: 'tool_use', id: 'toolu_ls', name: 'Bash', input: { command: 'ls' } },
-      { type: 'tool_use', id: 'toolu_build', name: 'Bash', input: { command: 'npm run build' } },
-    ] } }))
-    await r.c.next((m) => m.type === 'tool.started' && m.tool_call === 'toolu_build')
-    const b = await bridgeBack(f.runDir)
-    b.sock.write(JSON.stringify({ type: 'permission_request', request_id: 'abcde', tool_name: 'Bash', description: 'd', input_preview: '{"command":"rm -rf build"}' }) + '\n')
-    assert.equal((await r.c.quiet(500)).filter((m) => m.type === 'permission.requested').length, 0, 'waits for its own call')
-    const asked = (await r.c.next('permission.requested', 2000) as any).permission
-    assert.equal(asked.summary, 'Run: rm -rf build', 'what a Yes approves, never another call\'s')
-    assert.deepEqual(asked.input, { command: 'rm -rf build' })
-    assert.deepEqual(r.c.invalid, [])
-    b.sock.destroy()
-  } finally { await r.close(); await taken.close() }
-})
-
-test('restore, limited: hooks posted to it with the session\'s token are dropped (only the program on its old port has them)', { timeout: 15_000 }, async () => {
-  const root = tempSessionsDir()
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  const taken = await occupy()
-  writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  const file = transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'hi' } })
-  const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'busy' }]),
-  })
-  try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
-    const base = { session_id: f.record.native_id, transcript_path: file, cwd: f.record.project.path }
-    for (const body of [
-      { ...base, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'toolu_forged', tool_input: { command: 'ls' } },
-      { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'forged' },
-      { ...base, hook_event_name: 'Stop' },
-    ]) assert.equal((await post(port, f.record.hook_token, body)).status, 200)
-    // A forged prompt is neither shown nor answered: the body says nothing.
-    const asked = await post(port, f.record.hook_token, { ...base, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'rm -rf /' } })
-    assert.equal(asked.status, 200)
-    assert.equal(asked.body, '')
-    const seen = await r.c.quiet(600)
-    assert.deepEqual(seen.filter((m) => m.type !== 'usage.updated'), [], 'nothing from them reaches the world')
-  } finally { await r.close(); await taken.close() }
-})
-
-test('restore: back on the kept port after a limited start, the relays point here again', { timeout: 15_000 }, async () => {
+test('restore: a read-only start leaves the relays alone; back on the kept port, they point here', { timeout: 15_000 }, async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
   writeHookPort(root, taken.port)
   const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
   const listing = agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }])
   const first = await restoreAndSync({ sessionsDir: root, runningSessions: listing })
-  const elsewhere = readRelayFile(path.join(f.runDir, 'relay.json'))!.url
+  assert.equal(first.snapshots[0]!.read_only, true)
+  assert.equal(readRelayFile(path.join(f.runDir, 'relay.json'))!.url, `http://127.0.0.1:${taken.port}/hook`, 'left alone')
   await first.close()
   await taken.close()
-  assert.notEqual(Number(new URL(elsewhere).port), taken.port)
+  writeRelayFile(path.join(f.runDir, 'relay.json'), { url: 'http://127.0.0.1:1/hook', token: f.record.hook_token })
 
   const second = await restoreAndSync({ sessionsDir: root, runningSessions: listing })
   try {
-    assert.deepEqual(second.snapshots[0]!.notices, [], 'not limited')
+    assert.deepEqual(second.snapshots[0]!.notices, [], 'not read-only')
+    assert.equal(second.snapshots[0]!.read_only, undefined)
     assert.equal(readRelayFile(path.join(f.runDir, 'relay.json'))!.url, `http://127.0.0.1:${taken.port}/hook`)
     assert.equal(readRelayFile(path.join(f.runDir, 'status.json'))!.url, `http://127.0.0.1:${taken.port}/status`)
   } finally { await second.close() }
@@ -842,7 +805,9 @@ test('restore: a session that fails to be taken back leaves nothing behind; its 
 
 test('restore: a file it can\'t write while taking a session back leaves no session and no bridge file; a later restore takes it', async () => {
   const root = tempSessionsDir()
-  const f = runFolder(root, { relays: true })
+  const kept = await freePort()
+  writeHookPort(root, kept)
+  const f = runFolder(root, { relays: true, record: { hook_port: kept } })
   const relay = path.join(f.runDir, 'relay.json')
   fs.rmSync(relay)
   fs.mkdirSync(relay)
@@ -869,190 +834,98 @@ test('restore: a file it can\'t write while taking a session back leaves no sess
   } finally { await s.close(); await p.shutdown() }
 })
 
-test('restore, limited: a SessionStart switching conversation is ignored while the project\'s transcript folder is unknown', { timeout: 15_000 }, async () => {
+test('restore, read-only, nothing prompted yet: its transcript found once written and read from its start; /clear and /resume followed through claude agents, never to another project\'s', { timeout: 20_000 }, async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
   writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  // No transcript of it yet (no prompt before the restart): its folder can't be known.
+  const f = runFolder(root, { record: { hook_port: taken.port } })
   const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
-  })
-  try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
-    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'forged-'))
-    const forged = { hook_event_name: 'SessionStart', source: 'resume', session_id: ID(7), transcript_path: path.join(elsewhere, `${ID(7)}.jsonl`), cwd: f.record.project.path }
-    assert.equal((await post(port, f.record.hook_token, forged)).status, 200)
-    const seen = await r.c.quiet(600)
-    assert.deepEqual(seen.filter((m) => m.type === 'session.updated' || m.type === 'session.notice'), [], 'not followed')
-    assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited')))
-    assert.equal(readRunRecord(f.runDir)!.native_id, f.record.native_id)
-
-    // Its first prompt writes the transcript: found, and read from its start.
-    const file = transcript(projects, f.record.native_id, f.record.project.path,
-      { type: 'user', uuid: 'u1', message: { content: 'first words' } })
-    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'u1', text: 'first words' })
-    // Its folder known now, a /clear in it is followed.
-    const cleared = { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(8), transcript_path: path.join(path.dirname(file), `${ID(8)}.jsonl`), cwd: f.record.project.path }
-    assert.equal((await post(port, f.record.hook_token, cleared)).status, 200)
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(8))
-    assert.deepEqual(r.c.invalid, [])
-  } finally { await r.close(); await taken.close() }
-})
-
-test('restore, limited, nothing prompted yet: a /clear Claude Code confirms is followed, even once the old transcript turns up first; forged switches are not', { timeout: 20_000 }, async () => {
-  const root = tempSessionsDir()
-  const taken = await occupy()
-  writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  // Its id in another project's folder (another cwd): not its transcript.
+  fs.mkdirSync(path.join(projects, 'other'))
+  fs.writeFileSync(path.join(projects, 'other', `${f.record.native_id}.jsonl`),
+    jsonl({ type: 'user', uuid: 'x1', cwd: path.join(os.tmpdir(), 'elsewhere'), entrypoint: 'cli', message: { content: 'not this one' } }))
+  const earlier = transcript(projects, ID(4), f.record.project.path,
+    { type: 'user', uuid: 'e1', message: { content: 'an earlier talk' } },
+    { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
   // What `claude agents` says this session is, as Claude Code would change it.
   let current = f.record.native_id
   const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
+    sessionsDir: root, projectsDir: projects, agentsPollMs: 100,
     runningSessions: async () => ({ ids: new Set([current]), agents: [{ sessionId: current, pid: f.program, status: 'idle' }] }),
   })
+  const switched = (id: string) => r.c.next((m) => m.type === 'session.updated' && m.native_id === id, 3000)
   try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
-    // Its id in another project's folder (another cwd): not its transcript.
-    fs.mkdirSync(path.join(projects, 'other'))
-    fs.writeFileSync(path.join(projects, 'other', `${f.record.native_id}.jsonl`),
-      jsonl({ type: 'user', uuid: 'x1', cwd: path.join(os.tmpdir(), 'elsewhere'), entrypoint: 'cli', message: { content: 'not this one' } }))
-    const start = (source: string, id: string) =>
-      post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: path.join(projects, 'proj', `${id}.jsonl`), cwd: f.record.project.path })
-    // Forged: a /resume to another project's conversation.
-    transcript(projects, ID(5), path.join(os.tmpdir(), 'elsewhere'), { type: 'user', uuid: 'x5', message: { content: 'theirs' } })
-    assert.equal((await start('resume', ID(5))).status, 200)
-    // The real /clear: Claude Code lists the session under its new id; a /clear hook naming another id
-    // (forged, or late) is only a cue, so Claude Code's id is the one kept, waiting while the folder is unknown.
-    current = ID(9)
-    assert.equal((await start('clear', ID(6))).status, 200)
-    await until(() => r.log.lines.some((l) => l.includes('followed once it\'s written')), 3000)
-    // The old conversation's transcript turns up first (a prompt before the /clear): the /clear isn't lost.
-    transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'before the clear' } })
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
-    fs.appendFileSync(path.join(projects, 'proj', `${ID(9)}.jsonl`), jsonl({ type: 'user', uuid: 'u9', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'after the clear' } }))
-    assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
-    assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
-    // Only Claude Code's id was followed; nothing switched to the hook's own id or to another project's.
-    assert.ok(r.log.lines.some((l) => l.includes('ignored a switch of conversation (limited, its folder unknown)')), 'the /resume')
-    assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && (m.native_id === ID(5) || m.native_id === ID(6))))
-    assert.ok(!r.c.received.some((m) => m.type === 'message.completed' && (m.text === 'theirs' || m.text === 'not this one')))
-    assert.deepEqual(r.c.invalid, [])
-  } finally { await r.close(); await taken.close() }
-})
+    const session = r.snapshots[0]!.session
+    // Its first prompt writes the transcript: found, and read from its start.
+    transcript(projects, f.record.native_id, f.record.project.path, { type: 'user', uuid: 'u1', message: { content: 'first words' } })
+    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'u1', text: 'first words' })
 
-test('restore, limited, nothing prompted yet: a /clear Claude Code confirms is followed once its own transcript is written, the old one never', { timeout: 15_000 }, async () => {
-  const root = tempSessionsDir()
-  const taken = await occupy()
-  writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  let current = f.record.native_id
-  const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: async () => ({ ids: new Set([current]), agents: [{ sessionId: current, pid: f.program, status: 'idle' }] }),
-  })
-  try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
+    // /clear: a new id, not written yet; followed once its first prompt writes it, all of it news.
     current = ID(9)
-    assert.equal((await post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source: 'clear', session_id: ID(9), transcript_path: path.join(projects, 'proj', `${ID(9)}.jsonl`), cwd: f.record.project.path })).status, 200)
-    await until(() => r.log.lines.some((l) => l.includes('followed once it\'s written')), 3000)
+    await sleep(400)
+    assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && m.native_id === ID(9)), 'not before its transcript is there')
     transcript(projects, ID(9), f.record.project.path, { type: 'user', uuid: 'u9', message: { content: 'after the clear' } })
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(9), 3000)
+    await switched(ID(9))
+    assert.equal(((await r.c.next('session.notice')).notice as any).code, 'conversation_cleared')
     assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'u9', 3000), 'message', 'text'), { message: 'u9', text: 'after the clear' })
     assert.equal(readRunRecord(f.runDir)!.native_id, ID(9))
+
+    // /resume to an earlier conversation of this project: from its end, its past the history.
+    current = ID(4)
+    await switched(ID(4))
+    assert.equal(((await r.c.next('session.notice')).notice as any).code, 'conversation_resumed')
+    const seen = await r.c.quiet(400)
+    assert.ok(!seen.some((m) => m.type === 'message.completed' && m.message === 'e1'), 'its past isn\'t replayed as news')
+    const history = (await r.c.command({ type: 'session.get_history', session })).result as { messages: any[] }
+    assert.deepEqual(history.messages.map((m) => m.text), ['an earlier talk', 'earlier reply'])
+    fs.appendFileSync(earlier, jsonl({ type: 'user', uuid: 'e2', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'and now' } }))
+    assert.deepEqual(pick(await r.c.next((m) => m.type === 'message.completed' && m.message === 'e2', 3000), 'message', 'text'), { message: 'e2', text: 'and now' })
+
+    // /resume to another project's conversation: never found here, so never followed.
+    transcript(projects, ID(5), path.join(os.tmpdir(), 'elsewhere'), { type: 'user', uuid: 'x5', message: { content: 'theirs' } },
+      { type: 'assistant', message: { id: 'msg_x', content: [{ type: 'text', text: 'their reply' }] } })
+    current = ID(5)
+    await sleep(500)
+    assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && m.native_id === ID(5)))
+    assert.ok(!r.c.received.some((m) => m.type === 'message.completed' && (m.text === 'theirs' || m.text === 'not this one')))
+    assert.equal(readRunRecord(f.runDir)!.native_id, ID(4))
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close(); await taken.close() }
 })
 
-test('restore, limited, nothing prompted yet: /clears ask Claude Code one at a time; an answer from before a /resume, or none, switches nothing; nothing is asked once it ends', { timeout: 30_000 }, async () => {
+test('restore, read-only: claude agents is asked once at a time for every read-only session, and no more once they end', { timeout: 15_000 }, async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
   writeHookPort(root, taken.port)
-  const launcher = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
-  children.push(launcher)
-  const f = runFolder(root, { launcher: launcher.pid!, record: { hook_port: taken.port }, relays: true })
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  const earlier = transcript(projects, ID(4), f.record.project.path,
-    { type: 'user', uuid: 'e1', message: { content: 'an earlier talk' } },
-    { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
-  // What `claude agents` answers, how long it takes, and how many run at once.
-  let answer: Running = { ids: new Set([f.record.native_id]), agents: [{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }] }
+  const launchers = [0, 1].map(() => {
+    const l = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+    children.push(l)
+    return l
+  })
+  const fs2 = launchers.map((l, i) => runFolder(root, { launcher: l.pid!, record: { hook_port: taken.port, native_id: ID(20 + i) } }))
   let calls = 0, running = 0, most = 0
-  // While set, an answer is held until released: so it comes back after the /resume below.
-  let gate: Promise<void> | null = null
   const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
+    sessionsDir: root, agentsPollMs: 50,
     runningSessions: async () => {
       calls++; running++; most = Math.max(most, running)
-      const now = answer
-      await gate
+      await sleep(200)
       running--
-      return now
+      return { ids: new Set(fs2.map((f) => f.record.native_id)), agents: fs2.map((f) => ({ sessionId: f.record.native_id, pid: f.program, status: 'idle' as const })) }
     },
   })
   try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
-    const start = (source: string, id: string, file = path.join(projects, 'proj', `${id}.jsonl`)) =>
-      post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source, session_id: id, transcript_path: file, cwd: f.record.project.path })
-    const ignored = () => r.log.lines.filter((l) => l.includes('no newer conversation reported')).length
-    // Claude Code can't answer (agent view off): a /clear switches nothing.
-    answer = { none: 'agent view is off' }
-    assert.equal((await start('clear', ID(30))).status, 200)
-    await until(() => ignored() === 1, 8000)
-    // Claude Code says ID(9) while a flood of /clears comes in; then a real /resume to ID(4) before that answer is back.
-    const asked = calls
-    let release = () => {}
-    gate = new Promise((r) => { release = r })
-    answer = { ids: new Set([ID(9)]), agents: [{ sessionId: ID(9), pid: f.program, status: 'idle' }] }
-    await Promise.all(Array.from({ length: 10 }, (_, i) => start('clear', ID(10 + i))))
-    await until(() => running === 1)
-    assert.equal((await start('resume', ID(4), earlier)).status, 200)
-    answer = { ids: new Set([ID(4)]), agents: [{ sessionId: ID(4), pid: f.program, status: 'idle' }] }
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(4), 3000)
-    gate = null
-    release()
-    await until(() => ignored() === 2, 8000)
-    assert.equal(most, 1, 'one `claude agents` at a time')
-    assert.ok(calls - asked <= 4, `asked ${calls - asked} times`)
-    assert.ok(!r.c.received.some((m) => m.type === 'session.updated' && m.native_id !== ID(4)), 'neither the answer from before the /resume nor a hook\'s id is acted on')
-    assert.deepEqual(r.c.invalid, [])
-    // The flood asks once more after; the session ends meanwhile (its launcher exits): nothing more is asked.
-    launcher.kill()
+    assert.equal(r.snapshots.length, 2)
+    const before = calls
+    await sleep(1000)
+    assert.ok(calls - before >= 2 && calls - before <= 6, `asked ${calls - before} times in 1 s`)
+    assert.equal(most, 1, 'one at a time, for both')
+    for (const l of launchers) l.kill()
     await r.c.next('session.ended', 5000)
+    await r.c.next('session.ended', 5000)
+    await sleep(300)
     const ended = calls
-    await sleep(4500)
-    assert.equal(calls, ended, 'nothing asked once it ended')
-  } finally { await r.close(); await taken.close() }
-})
-
-test('restore, limited, nothing prompted yet: a /resume to this project\'s conversation is followed from its end, its past the history', { timeout: 15_000 }, async () => {
-  const root = tempSessionsDir()
-  const taken = await occupy()
-  writeHookPort(root, taken.port)
-  const f = runFolder(root, { record: { hook_port: taken.port }, relays: true })
-  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
-  const earlier = transcript(projects, ID(4), f.record.project.path,
-    { type: 'user', uuid: 'e1', message: { content: 'an earlier talk' } },
-    { type: 'assistant', message: { id: 'msg_e', content: [{ type: 'text', text: 'earlier reply' }] } })
-  const r = await restoreAndSync({
-    sessionsDir: root, projectsDir: projects,
-    runningSessions: agentsListing([{ sessionId: f.record.native_id, pid: f.program, status: 'idle' }]),
-  })
-  try {
-    const port = Number(new URL(readRelayFile(path.join(f.runDir, 'relay.json'))!.url).port)
-    assert.equal((await post(port, f.record.hook_token, { hook_event_name: 'SessionStart', source: 'resume', session_id: ID(4), transcript_path: earlier, cwd: f.record.project.path })).status, 200)
-    await r.c.next((m) => m.type === 'session.updated' && m.native_id === ID(4))
-    const seen = await r.c.quiet(1200)
-    assert.deepEqual(seen.filter((m) => m.type === 'message.completed'), [], 'its past isn\'t replayed as news')
-    const history = (await r.c.command({ type: 'session.get_history', session: r.snapshots[0]!.session })).result as { messages: any[] }
-    assert.deepEqual(history.messages.map((m) => m.text), ['an earlier talk', 'earlier reply'])
-    fs.appendFileSync(earlier, jsonl({ type: 'user', uuid: 'e2', cwd: f.record.project.path, entrypoint: 'cli', message: { content: 'and now' } }))
-    assert.deepEqual(pick(await r.c.next('message.completed', 3000), 'message', 'text'), { message: 'e2', text: 'and now' })
-    assert.deepEqual(r.c.invalid, [])
+    await sleep(800)
+    assert.equal(calls, ended, 'none once they ended')
   } finally { await r.close(); await taken.close() }
 })
 
