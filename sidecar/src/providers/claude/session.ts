@@ -851,6 +851,7 @@ export class ClaudeSession implements ProviderSession {
    * (spike, 2026-10-03).
    */
   async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string, option?: string): Promise<void> {
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
     const link = this.reachable()
     if (option !== undefined) {
       const chosen = this.translator.promptOption(permission, option)
@@ -867,6 +868,7 @@ export class ClaudeSession implements ProviderSession {
   }
   /** The user answered a question in the world: the held hook gets the answer. */
   async answerQuestion(question: string, answer: { answers: string[][] } | { response: string }): Promise<void> {
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
     const input = this.translator.questionInput(question)
     if (!input || !this.held.has(question)) {
       throw new CommandError('provider_error', 'The question is no longer waiting for an answer.')
@@ -886,6 +888,7 @@ export class ClaudeSession implements ProviderSession {
    * back denies the call with the user's note, and Claude plans again.
    */
   async answerPlan(plan: string, answer: { approve: true; mode: string } | { approve: false; note?: string }): Promise<void> {
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
     const input = this.translator.planInput(plan)
     if (!input || !this.heldPlans.has(plan)) {
       throw new CommandError('provider_error', 'The plan is no longer waiting for an answer.')
