@@ -94,6 +94,7 @@ v1 slice.
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
+| W12 | Islands kept across restarts              | in progress | W12       | `world/island_memory.gd`, `world/session_islands.gd`, `world/session_clusters.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd`, `agents/orchestrator/orchestrator.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -1928,6 +1929,49 @@ and a 20° slope high above the world): the heights, crouch speed, staying
 crouched under the bar, the burst and its fade in about 1 s, downhill and
 uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 *Live check passed (2026-10-10)* with the user, my picks included.
+
+### W12 Islands kept across restarts
+*In progress (2026-10-19). Scope: core* (world only, plus S07's start
+time kept). A session taken back after a restart (S07) gets its island
+back as it was: the same biome and seed (so the same shape and props),
+in the same cluster, in the same order. Before W12 each came back with
+a random biome and seed, in whatever order the snapshots arrived.
+
+*Decided (user's, 2026-10-19; my recommendations except the gaps):*
+- **Saved by the game**, in its own file in Godot's user data, not by
+  the sidecar: the sidecar stays game-agnostic and the protocol doesn't
+  change (rejected: an opaque blob in the sidecar's run folder).
+- **Gaps close up.** Sessions deleted while the game was closed leave
+  no hole: in each cluster the islands that come back keep their order
+  and move inward, and clusters keep their order and close up their
+  wedges too (rejected: every island and cluster keeping its exact
+  spot, holes left for new sessions to fill).
+- **Bridges are rebuilt**, not saved: the islands are added in their
+  saved order, each bridged to its nearest (W06), which is usually the
+  same tree (rejected: saving each bridge's ends; a tree patched after
+  a sinking can come back different).
+- Only for sessions that come back (S07). A cluster still isn't
+  remembered once its sessions end, nor for a resumed session
+  (Deliberate limitations → Clusters aren't remembered).
+
+**How it works** (my picks).
+- *The key:* provider, `started_at` and the project's path, which stay
+  the same across a restart and a `/clear` (`native_id` doesn't). For
+  that the sidecar announces a session's start as the launch time its
+  run folder keeps (before, a new session's `started_at` was a little
+  later than the one a restart reported).
+- *The file:* `user://islands.json` (`IslandMemory`,
+  `world/island_memory.gd`): per session its biome, its seed, its
+  cluster (an id, the name, the repository it was made for, or none if
+  made by hand) and its slot and index. Written when an island is placed
+  and when a session ends; a missing or damaged file is ignored (each
+  island comes back as before W12).
+- *Coming back:* islands of sessions taken back wait for the first
+  sync to finish (under the loading cover, S07). Then those with an
+  entry are placed, cluster by cluster in saved slot order, each
+  cluster's islands in saved index order, slots and indexes closed up;
+  then any without one, as before. Entries of sessions that didn't come
+  back are dropped.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -4833,7 +4877,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** next (user's order, 2026-10-13): read-only islands
+**Current focus:** W12, islands kept across restarts, in progress on
+`w12-islands-kept` (user's request, 2026-10-19). Then (user's order, 2026-10-13): read-only islands
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
@@ -5809,8 +5854,9 @@ Ideas weighed and turned down. Each says what would reopen it.
   is fine for this kind of app, or an API-key option is wanted.
 - **Clusters aren't remembered (user's decision, 2026-10-02).** A
   cluster lasts while it has sessions; a manual choice is lost when its
-  sessions end or the game restarts, and resumed sessions go by their
-  repository again unless chosen in the menu (W05).
+  sessions end, and resumed sessions go by their repository again
+  unless chosen in the menu (W05). Sessions that come back after a
+  restart (S07) keep their cluster and island (W12).
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
 - **No WSL in v1 (user's decision).** On Windows, only a native Windows
