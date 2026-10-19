@@ -264,6 +264,8 @@ export class ClaudeProvider implements Provider {
   async shutdown(): Promise<void> {
     if (this.watchTimer) clearInterval(this.watchTimer)
     this.watchTimer = null
+    // An answer still on its way then has no one to go to.
+    this.watched.clear()
     await this.bridges?.close()
     this.bridges = null
     await this.hooks?.close()

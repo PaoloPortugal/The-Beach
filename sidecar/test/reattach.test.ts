@@ -940,6 +940,27 @@ test('restore, read-only: claude agents is asked once at a time for every read-o
   } finally { await r.close(); await taken.close() }
 })
 
+test('restore, read-only: one session failing on claude agents\' answer is logged; the others still get theirs', async () => {
+  const root = tempSessionsDir()
+  const taken = await occupy()
+  writeHookPort(root, taken.port)
+  const fs2 = [0, 1].map((i) => runFolder(root, { record: { hook_port: taken.port, native_id: ID(30 + i) } }))
+  let status: AgentEntry['status'] = 'busy'
+  const r = await restoreAndSync({
+    sessionsDir: root, agentsPollMs: 50,
+    runningSessions: async () => ({ ids: new Set(fs2.map((f) => f.record.native_id)), agents: fs2.map((f) => ({ sessionId: f.record.native_id, pid: f.program, status })) }),
+  })
+  try {
+    const watched = (r.p as any).watched as Map<number, ClaudeSession>
+    watched.get(fs2[0]!.program)!.onAgent = () => { throw new Error('unreadable') }
+    const other = watched.get(fs2[1]!.program)!.host.id
+    status = 'waiting'
+    const changed = await r.c.next((m) => m.type === 'agent.state_changed' && m.session === other)
+    assert.equal(changed.state, 'waiting')
+    await until(() => r.log.lines.some((l) => l.startsWith('warn ') && l.includes('answer not taken: unreadable')))
+  } finally { await r.close(); await taken.close() }
+})
+
 test('restore, read-only: the provider\'s shutdown stops the claude agents poll', async () => {
   const root = tempSessionsDir()
   const taken = await occupy()

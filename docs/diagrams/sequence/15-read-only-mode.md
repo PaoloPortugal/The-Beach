@@ -29,7 +29,7 @@ sequenceDiagram
         Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)<br/>providers/claude/session.ts (searchTranscript, onAgent)<br/>providers/claude/index.ts (askWatched)
         opt no transcript yet (nothing prompted before the restart)
             loop every second for a minute, then every 10 s, until written
-                Sidecar->>Log: look for it (findStored: this project's working folder only)
+                Sidecar->>Log: look for it (findOwn: this project's working folder only)
             end
             Note over Sidecar: found: read from its start
         end
