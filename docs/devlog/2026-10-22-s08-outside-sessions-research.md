@@ -97,5 +97,13 @@ S07's read-only mode).
    gets the same mark, so every island you can't control from the
    world looks the same. The mark follows `read_only`, not where the
    session was started.
+6. **Strictly read-only chat**, as S07's: nothing sent, answered or
+   stopped from the world. `claude stop <id>` was weighed and turned
+   down: it works on background sessions only (a plain `claude` or a
+   desktop or IDE session has no short `id`), and it ends the whole
+   session rather than the turn, unlike the world's Stop.
+7. **Scope: a capability** a provider declares; Claude names only in the
+   Claude provider.
 
-Still open: the chat window's offer and the provider scope (What's left to decide → 5 and 6).
+The design is in NOTES.md → S08 (my picks for how it would work, to
+settle when building).
