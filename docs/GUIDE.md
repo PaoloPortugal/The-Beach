@@ -236,7 +236,8 @@ for a repository still takes that repository's new sessions.
 
 The game keeps this in a small file of its own, `islands.json`, in
 Godot's user data folder for the game; it lists each running session's
-island and its project folder. If the file is missing or damaged, the
+island and its project folder, never what's said. On macOS and Linux
+only you can read it, and a session's entry goes once it's ended. If the file is missing or damaged, the
 islands come back as new ones (a kind picked at random), each joining
 its repository's cluster after those that were kept. A session that
 was slow to come back, arriving after the world had already appeared,
@@ -305,9 +306,10 @@ now, the trees and rocks are simple placeholders.
 
 Which kind you get is up to you, or chance: it means nothing about the
 session, and it isn't remembered, so a resumed session gets the menu's
-choice again (Random unless you pick one), and sessions already
-running when the game starts, or started outside the game, are
-random.
+choice again (Random unless you pick one), and sessions started
+outside the game are random. A session the game started that comes
+back after a restart keeps its kind (see Islands kept across restarts
+above).
 
 ## Clusters (W05)
 

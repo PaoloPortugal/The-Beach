@@ -61,3 +61,25 @@ A session found after the sidecar's restore wait (S07) arrives after
 `sync.completed`, when its entry has already been dropped as one that
 didn't come back: it comes back as a new island. Low likelihood (the
 restore takes at most 8 s); recorded in NOTES.md → W12.
+
+## Review fixes (2026-10-22)
+
+The security review found no blockers; fixed:
+- `islands.json` holds running sessions' project paths, so it's now
+  owner-only off Windows, like the sidecar's run folders: created empty,
+  restricted, then written (Godot can't change a file's mode while it's
+  open on macOS), through `islands.json.tmp` renamed over.
+- Entries are checked strictly: text at most 256 characters, numbers
+  within 32 bits; tests for each kind of damaged entry and another
+  version.
+- Nothing tested that the suites stay off the user's file: removing the
+  line in `tests/error_watch.gd` passed every test, and a sync's
+  `keep_only` would then wipe the user's islands. `clusters_test.gd` now
+  checks the path first.
+- `tests/world/layout_demo.gd` run as the main scene wrote its fake
+  sessions into the real file; it keeps its own now.
+- Two games at once overwrite each other's entries: recorded as an open
+  point (layout only).
+
+Dead end: GDScript has no octal literals (`0o600` is a parse error); the
+test compares against `FileAccess.UNIX_READ_OWNER | UNIX_WRITE_OWNER`.
