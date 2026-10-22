@@ -98,4 +98,4 @@ S07's read-only mode).
    world looks the same. The mark follows `read_only`, not where the
    session was started.
 
-Still open: the chat window's offer and the provider scope (points 5 and 6 above).
+Still open: the chat window's offer and the provider scope (What's left to decide → 5 and 6).
