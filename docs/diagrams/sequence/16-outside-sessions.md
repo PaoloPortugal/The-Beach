@@ -30,7 +30,7 @@ sequenceDiagram
         Sidecar->>Log: its transcript (this cwd's only): entrypoint?
         alt entrypoint sdk-cli (claude -p, an Agent SDK program)
             Note over Sidecar: never shown
-        else no transcript yet, after start
+        else no transcript yet (not at start, nor just after turning it on)
             Note over Sidecar: wait one listing (a claude -p writes it at once)
         else a terminal, the desktop app, an IDE, a background session
             Sidecar->>World: session.snapshot (session.created just after turning it on)<br/>origin external, read_only: true, notices: outside_read_only
@@ -48,15 +48,17 @@ sequenceDiagram
         World->>Sidecar: client.set_outside_sessions false
         Sidecar-->>World: ok
         Sidecar->>World: session.ended user, each (islands sink, W12 forgets them)
-        Note over Sidecar: stops asking, unless S07's read-only sessions need it#59;<br/>at the next start: serve --no-outside-sessions
+        Note over Sidecar: stops asking, unless S07's read-only sessions need it#59;<br/>at the next start: serve --no-outside-sessions, and claude isn't asked<br/>unless a session of the game's own is to be taken back
     end
     opt turned on again
         World->>Sidecar: client.set_outside_sessions true
         Sidecar-->>World: ok
-        Sidecar->>Agents: at once
+        Sidecar->>Agents: which sessions run? (at once)
+        Agents-->>Sidecar: the list
         Sidecar->>World: session.created, each (islands rise)
     end
     opt agent view is off
+        Sidecar->>Agents: which sessions run?
         Agents-->>Sidecar: refused: "… is disabled by …"
         Sidecar->>World: provider.notice outside_sessions_off (once#59; in hello afterwards)
         Note over Sidecar: outside sessions end#59; no more looking this launch

@@ -69,6 +69,29 @@ NOTES.md → S08 has how it works.
   watch writes a settings file of its own with the setting off and
   points `SidecarClient.settings_file` at it.
 
+## The reviews
+
+The security review (2026-10-22) found, all fixed:
+- the sidecar's process tests started real sidecars with outside
+  sessions on, so they read the developer's own running sessions: they
+  now start with `--no-outside-sessions`;
+- with the setting off the sidecar still ran `claude agents` once at
+  start: now it doesn't when it has no session of its own to take
+  back, so no Godot suite runs `claude` either (agent view off is
+  found once the setting is turned on);
+- nothing tested that `serve --no-outside-sessions` turns them off:
+  `serveOptions` and `prepare` came out of `serve.ts` and are tested;
+- the quit warning counted outside sessions and gave them `/exit`
+  advice that doesn't apply: they're left out (S05);
+- U+061C (Arabic letter mark) wasn't stripped from names: it is.
+
+Noted, not changed: outside sessions' paths and start times go into
+`islands.json` like any running session's (written down in S08 and the
+guide); `findTranscript` is synchronous, run per not-yet-shown session
+on each poll (small; revisit if it shows up in profiling). The
+docs-sync check found stale text in S07's watch item, W10, W12 and
+flow 16; fixed.
+
 ## Open points
 
 - An Agent SDK program found before its transcript is written, and still
