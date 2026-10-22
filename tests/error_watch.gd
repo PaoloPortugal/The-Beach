@@ -17,7 +17,9 @@ extends Logger
 ## Sidecar autoload starts one) off the user's own sessions folder: a
 ## test's sidecar must never take the user's running sessions back (S07).
 ## It runs before the autoload starts the sidecar, which inherits this.
-## It also gives the suites their own remembered islands' file (W12).
+## It also gives the suites their own remembered islands' file (W12), and
+## their own settings for the sidecar, with sessions started outside the
+## game off (S08): a suite never shows the user's own running sessions.
 
 ## Read by the sidecar (sidecar/src/launch/app-data.ts).
 const TEST_SESSIONS_ENV := "SIDECAR_TEST_SESSIONS_DIR"
@@ -38,6 +40,10 @@ func _init(tree: SceneTree) -> void:
 	# Nor the user's remembered islands (W12): each suite starts with none.
 	IslandMemory.file = "user://test-islands.json"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+	SidecarClient.settings_file = "user://test-sidecar-settings.cfg"
+	var cfg := ConfigFile.new()
+	cfg.set_value("game", "outside_sessions", false)
+	cfg.save(SidecarClient.settings_file)
 
 
 ## False if an error was logged.

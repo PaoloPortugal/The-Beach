@@ -5,6 +5,10 @@ extends CanvasLayer
 ## again closes it. Tabs for Graphics, Controls, Sound and Game; every
 ## change applies at once and is saved ([Settings]). A PLACEHOLDER, like
 ## all UI for now.
+##
+## Game's "Show sessions started outside the game" (S08) is greyed out and
+## shown off, the saved choice kept, while a provider says it can't list
+## them (its [code]outside_sessions_off[/code] notice, in red beside it).
 
 const TABS := ["Graphics", "Controls", "Sound", "Game"]
 ## What each choice reads as in the menu.
@@ -25,6 +29,15 @@ var shadows_available := true
 ## Screen-space anti-aliasing isn't in the Compatibility renderer either
 ## (Godot's docs), so its setting is greyed out there too.
 var screen_space_aa_available := true
+## For the providers' notices (S08); null in tests that build the menu alone.
+var sidecar: SidecarClient:
+	set(s):
+		if sidecar and sidecar.providers_changed.is_connected(_refresh):
+			sidecar.providers_changed.disconnect(_refresh)
+		sidecar = s
+		if sidecar:
+			sidecar.providers_changed.connect(_refresh)
+		_refresh()
 
 var _open := false
 var _panel := PanelContainer.new()
@@ -32,6 +45,8 @@ var _tabs := TabContainer.new()
 var _controls := {} # setting key → its Control
 var _values := {} # a slider's key → the Label showing its value
 var _sound := CheckButton.new()
+## Why sessions started outside the game can't be shown, when a provider says so (S08).
+var _outside_off := Label.new()
 
 
 func _init() -> void:
@@ -74,6 +89,11 @@ func close() -> void:
 ## The control that sets [param key] (a [Settings] key), for tests.
 func control(key: String) -> Control:
 	return _controls[key]
+
+
+## Why outside sessions can't be shown (S08), for tests: empty while they can.
+func outside_off_text() -> String:
+	return _outside_off.text if _outside_off.visible else ""
 
 
 ## The chime's toggle (A05), for tests.
@@ -158,6 +178,14 @@ func _build() -> void:
 	var game := _tabs.get_child(3)
 	_toggle(game, "Take me to a new session's island", "game/go_to_new_island")
 	_toggle(game, "Crosshair", "game/crosshair")
+	_toggle(game, "Show sessions started outside the game", "game/outside_sessions")
+	_outside_off.name = "OutsideOff"
+	_outside_off.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
+	_outside_off.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_outside_off.custom_minimum_size.x = 300.0
+	_outside_off.visible = false
+	game.add_child(_outside_off)
+	game.add_child(Control.new())
 
 	var bottom := HBoxContainer.new()
 	layout.add_child(bottom)
@@ -250,6 +278,14 @@ func _refresh() -> void:
 	_grey_out("graphics/screen_space_aa", screen_space_aa_available)
 	if attention:
 		_sound.set_pressed_no_signal(attention.sound_on)
+	# A provider that can't list them: off and greyed out, whatever is saved.
+	var off: Dictionary = sidecar.provider_notice("outside_sessions_off") if sidecar else {}
+	var outside: CheckButton = _controls["game/outside_sessions"]
+	outside.disabled = not off.is_empty()
+	if not off.is_empty():
+		outside.set_pressed_no_signal(false)
+	_outside_off.text = off.get("message", "")
+	_outside_off.visible = not off.is_empty()
 
 
 # A setting the Compatibility renderer can't do: greyed out, shown Off.

@@ -45,6 +45,9 @@ var crosshair := Crosshair.new()
 ## Hides the world until the sidecar has taken back the sessions still
 ## running from before a restart (S07).
 var loading_cover := LoadingCover.new()
+## Shows or hides the sessions started outside the game (S08, the
+## setting); tests replace it, so a suite never shows the user's own.
+var set_outside_sessions: Callable = func(on: bool) -> void: Sidecar.set_outside_sessions(on)
 ## Where the debug commands (C09) are typed; null outside debug builds.
 var debug_console: DebugConsole
 
@@ -173,6 +176,7 @@ func _setup_settings() -> void:
 	settings_menu.screen_space_aa_available = not compatibility
 	add_child(settings_menu)
 	settings_menu.setup(settings, _player, attention)
+	settings_menu.sidecar = Sidecar
 	apply_settings()
 
 
@@ -210,6 +214,7 @@ func apply_settings() -> void:
 	_player.mouse_sensitivity = Player.BASE_SENSITIVITY * settings.value("controls/mouse_sensitivity")
 	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")
 	crosshair.ring_on = settings.value("game/crosshair")
+	set_outside_sessions.call(settings.value("game/outside_sessions"))
 
 
 # The debug commands (C09), in debug builds only: T opens their line.

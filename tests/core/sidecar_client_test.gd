@@ -36,6 +36,39 @@ func _run() -> void:
 	var reply := await _command(sidecar, "session.list_stored", {"provider": "nope"})
 	_check(reply.get("type") == "error" and reply.get("code") == "unknown_provider", "command round trip")
 
+	# S08: outside sessions. The suites start the sidecar with them off
+	# (tests/error_watch.gd), so the user's own running sessions never show.
+	_check(not sidecar.outside_sessions and sidecar._serve_args() == ["serve", "--no-outside-sessions"], "S08: started with the setting's outside sessions off")
+	if not fake:
+		_check(sidecar.provider_capable("outside_sessions"), "S08: hello's provider capabilities read")
+	_check(not sidecar.provider_capable("nope"), "S08: and one nobody declares isn't")
+	reply = await _command(sidecar, "client.set_outside_sessions", {"enabled": false})
+	_check(reply.get("type") == "ok", "S08: client.set_outside_sessions answered")
+	reply = await _command(sidecar, "client.set_focus", {"focused": true})
+	_check(reply.get("type") == "ok", "S08: client.set_focus answered")
+	# Focus changes go to the sidecar; one that isn't a change doesn't.
+	var sent_before: int = sidecar._next_id
+	sidecar._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	sidecar._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_check(sidecar._next_id == sent_before + 1 and not sidecar._focused, "S08: focus lost: told once")
+	sidecar._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	_check(sidecar._next_id == sent_before + 2 and sidecar._focused, "S08: focus back: told")
+	sidecar.set_outside_sessions(false)
+	_check(sidecar._next_id == sent_before + 2, "S08: the setting unchanged: nothing sent")
+	# A provider notice: kept with its provider, announced, never passed on as a session event.
+	var changes := [0]
+	var count := func() -> void: changes[0] += 1
+	sidecar.providers_changed.connect(count)
+	var events_before := _events.size()
+	var provider_id: String = sidecar.providers[0]["provider"]
+	var notice := {"code": "outside_sessions_off", "message": "can't list them"}
+	sidecar._handle(JSON.stringify({"type": "provider.notice", "provider": provider_id, "notice": notice}))
+	sidecar._handle(JSON.stringify({"type": "provider.notice", "provider": provider_id, "notice": notice}))
+	_check(changes[0] == 2 and sidecar.provider_notice("outside_sessions_off") == notice, "S08: provider.notice kept and announced")
+	_check(sidecar.providers[0]["notices"].filter(func(n: Dictionary) -> bool: return n["code"] == "outside_sessions_off").size() == 1, "S08: the same code once")
+	_check(_events.size() == events_before and sidecar.provider_notice("nope").is_empty(), "S08: not a session event")
+	sidecar.providers_changed.disconnect(count)
+
 	if fake:
 		var project := OS.get_user_data_dir()
 		reply = await _command(sidecar, "session.create", {"provider": "fake", "project": {"path": project}})
