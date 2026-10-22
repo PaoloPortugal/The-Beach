@@ -129,8 +129,10 @@ export function loginShell(env: Env, account: () => string | null = () => os.use
  * `claude` installed under a Node version manager isn't found otherwise).
  * Interactive and login, as a terminal starts it, since version managers
  * often set PATH only for interactive shells. No input, its own process
- * group (killed whole on timeout), our clean environment, started in the
- * home folder. Any failure gives [].
+ * group, our clean environment, started in the home folder. Once it has
+ * answered, the group is hung up, as closing a terminal does; stuck (the
+ * timeout), flooding, or still running when the sidecar exits, it is
+ * killed. Any failure gives [].
  */
 export function readLoginShellPath(o: {
   shell: string
@@ -142,37 +144,49 @@ export function readLoginShellPath(o: {
     let out = ''
     let done = false
     let child: ReturnType<typeof spawn> | undefined
-    const finish = (dirs: string[]) => {
+    const signalGroup = (signal: NodeJS.Signals) => {
+      try { if (child?.pid) process.kill(-child.pid, signal) } catch { /* already gone */ }
+    }
+    const killOnExit = () => signalGroup('SIGKILL')
+    process.once('exit', killOnExit)
+    const finish = (dirs: string[], signal: NodeJS.Signals) => {
       if (done) return
       done = true
       clearTimeout(timer)
+      process.off('exit', killOnExit)
       // Stop reading: something the profile started may hold the pipe open.
       child?.stdout?.destroy()
+      signalGroup(signal)
       child?.unref()
       resolve(dirs)
     }
-    const timer = setTimeout(() => {
-      // Stuck (a prompt, a hung command): end the shell and anything it started.
-      try { if (child?.pid) process.kill(-child.pid, 'SIGKILL') } catch { /* already gone */ }
-      finish([])
-    }, o.timeoutMs ?? LOGIN_SHELL_TIMEOUT_MS)
+    // Stuck (a hung command, a slow profile): end the shell and anything it started.
+    const timer = setTimeout(() => finish([], 'SIGKILL'), o.timeoutMs ?? LOGIN_SHELL_TIMEOUT_MS)
     try {
       child = spawn(o.shell, ['-i', '-l', '-c', LOGIN_SHELL_SCRIPT], {
         cwd: o.home, env: o.env, stdio: ['ignore', 'pipe', 'ignore'], detached: true, shell: false,
       })
     } catch {
-      finish([])
+      finish([], 'SIGKILL')
       return
     }
-    child.once('error', () => finish([]))
+    child.once('error', () => finish([], 'SIGKILL'))
     child.stdout!.setEncoding('utf8')
     child.stdout!.on('data', (chunk: string) => {
       out += chunk
-      if (out.length > LOGIN_SHELL_MAX_OUTPUT) return finish([])
-      if (out.split(LOGIN_SHELL_MARK).length >= 3) finish(parseLoginShellPath(out))
+      if (out.length > LOGIN_SHELL_MAX_OUTPUT) return finish([], 'SIGKILL')
+      if (out.split(LOGIN_SHELL_MARK).length >= 3) finish(parseLoginShellPath(out), 'SIGHUP')
     })
-    child.once('close', () => finish(parseLoginShellPath(out)))
+    child.once('close', () => finish(parseLoginShellPath(out), 'SIGHUP'))
   })
+}
+
+/** The login shell's answer, asked at most once per run: it runs the user's startup files. */
+let loginShellAnswer: Promise<string[]> | undefined
+
+/** For tests: forget the answer, so the next lookup asks again. */
+export function forgetLoginShellPath(): void {
+  loginShellAnswer = undefined
 }
 
 /**
@@ -206,10 +220,14 @@ export async function findClaude(opts: {
     if (found) return found
   }
   if (!opts.override && platform !== 'win32') {
-    const shell = loginShell(opts.env)
-    const dirs = opts.loginShellPath
-      ? await opts.loginShellPath()
-      : shell ? await readLoginShellPath({ shell, env: opts.cleanEnv, home }) : []
+    // Asked once per run, even when it found nothing: finding claude is
+    // retried (a session list, a poll), the user's startup files are not.
+    if (opts.loginShellPath) loginShellAnswer ??= opts.loginShellPath()
+    else {
+      const shell = loginShell(opts.env)
+      loginShellAnswer ??= shell ? readLoginShellPath({ shell, env: opts.cleanEnv, home }) : Promise.resolve([])
+    }
+    const dirs = await loginShellAnswer
     // The first on that PATH, as the user's terminal would pick.
     const file = findOnPath('claude', { PATH: dirs.join(':') }, platform)
     if (file && !list.includes(file)) {
