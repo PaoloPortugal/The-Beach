@@ -11,7 +11,8 @@ const TORCH_CLEAR := 1.5
 ## Props keep this far from a zipline's cable, across the ground, metres.
 const ZIPLINE_CLEAR := 2.0
 
-## 0 picks a new random island every run; any other value pins one.
+## 0 picks a new random island every run; any other value pins one. Holds
+## the one used once it's in the tree (W12 saves it).
 @export var island_seed := 0
 ## The kind of island ([enum Biome.Kind]); set before it enters the tree.
 @export var biome: int = Biome.Kind.BEACH
@@ -31,9 +32,10 @@ var _landings: Array[Vector3] = []
 
 
 func _ready() -> void:
-	var s := island_seed if island_seed != 0 else randi_range(1, 2147483647)
-	print("Island seed: %d (%s)" % [s, Biome.NAMES[biome]])
-	generator = IslandGenerator.new(s, biome)
+	if island_seed == 0:
+		island_seed = randi_range(1, 2147483647) # kept: W12 saves it
+	print("Island seed: %d (%s)" % [island_seed, Biome.NAMES[biome]])
+	generator = IslandGenerator.new(island_seed, biome)
 	var built := generator.build()
 
 	var material := StandardMaterial3D.new()

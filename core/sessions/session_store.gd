@@ -48,6 +48,9 @@ signal messages_replaced(session: String)
 signal usage_changed(session: String)
 ## A provider extension message ([code]ext.<provider>.<name>[/code]).
 signal extension_event(session: String, msg: Dictionary)
+## A (re)connect's snapshots are all in, and sessions the sidecar no
+## longer has removed.
+signal synced
 
 ## Chat messages kept per session; the oldest go first.
 const MAX_MESSAGES := 2000
@@ -69,6 +72,9 @@ const MAX_TOOLS := 5000
 ## [code]pending_order[/code] ([code][kind, id][/code] per pending permission,
 ## question and plan, oldest first; read it through [method pending]).
 var sessions := {}
+## Between a (re)connect's start and [signal synced]: its snapshots are
+## still coming.
+var syncing := false
 
 var _seen_since_sync := {}
 
@@ -76,7 +82,9 @@ var _seen_since_sync := {}
 ## Follows a [SidecarClient]: every event, and each (re)connect's snapshots.
 func attach(client: SidecarClient) -> void:
 	client.event_received.connect(apply)
-	client.sync_started.connect(func() -> void: _seen_since_sync.clear())
+	client.sync_started.connect(func() -> void:
+		syncing = true
+		_seen_since_sync.clear())
 	client.synced.connect(func(_providers: Array) -> void: _on_synced())
 
 
@@ -519,6 +527,8 @@ func _on_synced() -> void:
 		if not _seen_since_sync.has(id):
 			sessions.erase(id)
 			session_removed.emit(id, "exited")
+	syncing = false
+	synced.emit()
 
 
 # A chat message as the store keeps it, from a history_message.

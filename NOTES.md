@@ -94,6 +94,7 @@ v1 slice.
 | W09 | Day/night cycle and weather               | built   | W09           | `world/sky/`, `world/world.gd`, `world/ocean/`, `world/island/island.gd`, `agents/orchestrator/orchestrator.gd` |
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
+| W12 | Islands kept across restarts              | built   | W12           | `world/island_memory.gd`, `world/session_islands.gd`, `world/session_clusters.gd` |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd`, `agents/orchestrator/orchestrator.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -302,6 +303,9 @@ feature that touches them follows these rules, and each is tested:
   user's settings (per-session `--settings` instead). We never save our
   own copy of a session's conversation to disk, so a user who turned
   Claude Code's transcripts off keeps nothing on disk because of us.
+  The game's `islands.json` (W12) holds running sessions' project paths
+  and start times, never what's said; it's owner-only and loses each
+  session's entry once it's gone.
 - **Known gap: hooks that outlive the sidecar** (documented 2026-10-13
   at the user's request; not ours to close). Claude Code fixes an HTTP
   hook's URL at launch and never checks who answers it. Once the
@@ -471,7 +475,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -882,8 +886,9 @@ The water level is y = 0.
   grid everywhere. The collision uses the same faces; `height_at`
   (placing agents, the orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
-  prints its seed; any other value pins it. Later the seed can come from
-  the session so its island stays the same.
+  prints its seed; any other value pins it. The seed rolled is kept in
+  `island_seed`, which W12 saves so a session taken back after a
+  restart gets the same island.
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1049,7 +1054,8 @@ and sessions in the same repository are grouped automatically.
   picks another running cluster or "New cluster" (rejected: an extra step
   after choosing the folder).
 - Clusters exist **only while they have sessions**, nothing is
-  remembered: when a cluster's last session ends, the cluster and its
+  remembered (W12's exception: sessions taken back after a restart get
+  their cluster back): when a cluster's last session ends, the cluster and its
   spot are freed. (W04: it leaves the menu at once, but its spot is kept
   until its last island has sunk.)
 - **Layout until bridges (W06):** each cluster takes a spot on rings
@@ -1728,7 +1734,8 @@ heights, joined by W06's bridges (user's request, 2026-10-07).
   cluster selector, used by New session and Resume; its default,
   "Random", rolls one for each island, so clusters mix (rejected: one
   biome per cluster; a default from the repository's name or the beach).
-  Nothing is remembered, like clusters (W05).
+  Nothing is remembered, like clusters (W05), except by a session taken
+  back after a restart, which keeps its kind (W12).
 - *Heights:* a bridge meets each island at that island's own edge
   height, so islands of different heights meet across their bridges;
   gentle differences stay ramps, and past the ramp's limit the bridge
@@ -1850,7 +1857,9 @@ from screenshots).
   New session (either picker) and Resume. The launcher passes it to
   `SessionIslands.choose_biome` with the session id when the reply
   comes, like the cluster. Any other session (already running, or
-  started outside the menu) gets `default_biome`: Random.
+  started outside the menu) gets `default_biome`: Random, unless it's
+  taken back after a restart with a saved entry, which keeps its kind
+  (W12).
 - *Subagents* (A04): a slot within 1.8 m of a prop, or whose ground
   differs from its PC's by 0.3 m or more, is skipped like one in the
   sea. On a mountain the first ring (20 slots, 10 m out) is on the
@@ -1928,6 +1937,97 @@ and a 20° slope high above the world): the heights, crouch speed, staying
 crouched under the bar, the burst and its fade in about 1 s, downhill and
 uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 *Live check passed (2026-10-10)* with the user, my picks included.
+
+### W12 Islands kept across restarts
+*Built (2026-10-19), live check passed with the user (2026-10-22). Scope: core* (world only, plus S07's start
+time kept). A session taken back after a restart (S07) gets its island
+back as it was: the same biome and seed (so the same shape and props),
+in the same cluster, in the same order. Before W12 each came back with
+a random biome and seed, in whatever order the snapshots arrived.
+
+*Decided (user's, 2026-10-19; my recommendations except the gaps):*
+- **Saved by the game**, in its own file in Godot's user data, not by
+  the sidecar: the sidecar stays game-agnostic and the protocol doesn't
+  change (rejected: an opaque blob in the sidecar's run folder).
+- **Gaps close up.** Sessions deleted while the game was closed leave
+  no hole: in each cluster the islands that come back keep their order
+  and move inward, and clusters keep their order and close up their
+  wedges too (rejected: every island and cluster keeping its exact
+  spot, holes left for new sessions to fill).
+- **Bridges are rebuilt**, not saved: the islands are added in their
+  saved order, each bridged to its nearest (W06), which is usually the
+  same tree (rejected: saving each bridge's ends; a tree patched after
+  a sinking can come back different).
+- Only for sessions that come back (S07). A cluster still isn't
+  remembered once its sessions end, nor for a resumed session
+  (Deliberate limitations → Clusters aren't remembered).
+
+**How it works** (my picks; the key and where a session with nothing
+saved goes confirmed by the user, 2026-10-22).
+- *The key:* provider, `started_at` and the project's path, which stay
+  the same across a restart and a `/clear` (`native_id` doesn't). For
+  that the sidecar announces a session's start as the launch time its
+  run folder keeps (before, a new session's `started_at` was a little
+  later than the one a restart reported).
+- *The file:* `user://islands.json` (`IslandMemory`,
+  `world/island_memory.gd`): per session its biome, its seed, its
+  cluster (an id, the name, the repository it was made for, or none if
+  made by hand) and its slot and index. Written when an island is placed
+  and when a session ends; a missing or damaged file is ignored (each
+  island comes back as before W12), as is a file of another version;
+  so is a damaged entry (a wrong type, text over 4096 characters, a
+  number past 32 bits, an unknown biome, seed 0).
+- *Private:* it holds running sessions' project paths and start times,
+  so it's owner-only where the system has permissions (macOS, Linux),
+  like the sidecar's run folders (S07): created empty, restricted, then
+  written. It's written to `islands.json.tmp` and renamed over, so a
+  crash never leaves half a file (on Windows, where the rename removes
+  the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
+  back are dropped at the next sync.
+- *Coming back:* islands of sessions taken back wait for the first
+  sync to finish (under the loading cover, S07). Then those with an
+  entry are placed, cluster by cluster in saved slot order, each
+  cluster's islands in saved index order, slots and indexes closed up;
+  then any without one, as before. Entries of sessions that didn't come
+  back are dropped. Every sync does this (a sidecar reconnect too), but
+  only snapshots of sessions not yet known wait.
+- *The cluster:* a saved cluster is made again with its name and, if it
+  was made for a repository, that repository, so a new session of that
+  repository joins it (W05). One made by hand stays one made by hand.
+  Several sessions of one saved cluster share the cluster made for the
+  first (`SessionClusters.restore`).
+- *A session taken back with nothing saved* (a missing file, or
+  launched before W12) gets a random biome and seed, and joins its
+  repository's cluster after the saved ones, or a new one after them.
+- *The seed:* an island keeps the seed it rolled in `island_seed`, which
+  is what's saved.
+
+**Open points** (not fixed; low likelihood):
+- A session taken back after the sidecar's restore wait (S07: found
+  later, its snapshot arriving after `sync.completed`) comes back as a
+  new island: by then the sync had dropped its entry, as one that
+  didn't come back.
+- Two games running at once share the file, and each rewrites it with
+  its own entries, so one's can replace the other's. Only the layout is
+  lost: those islands come back as new ones (security review,
+  2026-10-22).
+
+*Tests:* `tests/world/clusters_test.gd` (`_w12_clusters`: saved
+clusters made again in order with their names and repositories, slots
+and indexes closed up, the repository's next session joining;
+`_w12_memory`: the key, the file read back, ordering, entries dropped,
+no `.tmp` left, owner-only off Windows (unchecked until CI runs on
+macOS or Linux), a damaged entry (each kind above), another version or
+a damaged file ignored; `_w12_islands`: islands waiting for the
+sync, then placed with their biome, seed, cluster and order, one with
+nothing saved after them, the file rewritten, entries of sessions that
+didn't come back or that end dropped), `sidecar/test/reattach.test.ts`
+(a launched session's `started_at` the same after a restart). The
+suites use their own file (`tests/error_watch.gd`; `clusters_test.gd`
+checks it before anything else), and `tests/world/layout_demo.gd` run
+as the main scene uses its own too, as does any run with
+`--sidecar-dev-fake` (`user://dev-fake-islands.json`, so
+`tests/live/ring_demo.gd` too).
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -4526,6 +4626,9 @@ sidecar uses that folder when it's absolute (`launch/app-data.ts`), and
 logs "sessions folder: the tests' own" when it does. A test never
 touches the user's own sessions folder (checked by the sidecar client
 test and `process.test.ts`).
+Likewise the error watch points `IslandMemory.file` (W12) at
+`user://test-islands.json` and deletes it, so the suites never read or
+wipe the user's remembered islands (`clusters_test.gd` checks it).
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
@@ -4837,6 +4940,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-22), approved by the user: W12, islands
+kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
+taken back after a restart gets its island back (biome, seed, cluster,
+order; gaps closed), from the game's owner-only `islands.json`.
+Live check passed with the user.
 **Merged to `main` (2026-10-19), approved by the user: S07, reattaching
 to running sessions** (dev log 2026-10-13-s07-reattach): sessions the
 game started come back after a restart, islands standing and chat back;
@@ -5809,8 +5917,9 @@ Ideas weighed and turned down. Each says what would reopen it.
   is fine for this kind of app, or an API-key option is wanted.
 - **Clusters aren't remembered (user's decision, 2026-10-02).** A
   cluster lasts while it has sessions; a manual choice is lost when its
-  sessions end or the game restarts, and resumed sessions go by their
-  repository again unless chosen in the menu (W05).
+  sessions end, and resumed sessions go by their repository again
+  unless chosen in the menu (W05). Sessions that come back after a
+  restart (S07) keep their cluster and island (W12).
 - **Claude is the only provider.** Near-term effort goes into making Claude
   good; the architecture stays open for more providers.
 - **No WSL in v1 (user's decision).** On Windows, only a native Windows
