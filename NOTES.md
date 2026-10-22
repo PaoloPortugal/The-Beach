@@ -465,7 +465,7 @@ top-level folders sit beside it:
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
-| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. `claude-cli/` (Node, for S02) has a `.gdignore`; `markdown/` (Godot, for C03) is visible to Godot so its demo scene runs. |
+| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. Left: `markdown/` (Godot, for C03), visible to Godot so its demo scene runs (`claude-cli/`, Node, for S02, deleted 2026-10-22). |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 **Godot folders (user's decision: by domain).** Scenes and scripts for a
@@ -5257,7 +5257,8 @@ batches; the partial message is completed), and "No" on a dialog.
   against a real `claude`: launch, hooks, channel chat, permission relay,
   questions in both places, stopping, Esc and "No" via the transcript, and
   fail-safe behaviour. Results in S02 and the dev log
-  (2026-09-29-claude-cli-spike); code in `spikes/claude-cli/`.*
+  (2026-09-29-claude-cli-spike); its code, `spikes/claude-cli/`, deleted
+  2026-10-22 once S02 was built (in git history).*
 - **Markdown → BBCode spike (C03).** *Done 2026-09-29: parser and view in
   GDScript, safe escaping (fuzz-tested), code-block panels, streaming by
   line batches. Results in C03 and the dev log (2026-09-29-markdown-spike);
