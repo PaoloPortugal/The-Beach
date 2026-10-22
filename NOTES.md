@@ -274,7 +274,11 @@ feature that touches them follows these rules, and each is tested:
   the same file; C08 → Short names
   on Windows). Tested with hostile paths. Replaced by exec form as
   soon as Claude Code offers one (Watch items → A status line without a
-  shell).
+  shell). **Not an exception, but a shell we start** (user's decision,
+  2026-10-22): finding `claude` through the user's login shell
+  (Platforms → Finding `claude`) runs `$SHELL` with an argument array
+  and a fixed script, never text built from data, and keeps only
+  absolute PATH folders from its output.
 - **Clean child environments.** Launched processes get the user's normal
   environment minus the variables Claude Code sets inside its own sessions
   (e.g. `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, session IDs and tokens),
@@ -398,10 +402,36 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Finding `claude`.** Apps started from the macOS Dock or a Linux menu
   don't get the user's shell PATH. Look in PATH, then the documented
   install locations (native installer `~/.local/bin`, Homebrew, WinGet,
-  apt/dnf, npm global), with a setting to point at it by hand, and a clear
+  apt/dnf, npm global), with a setting to point at it by hand (not built
+  yet: Known issues and next steps → A path to `claude` set by hand), and a clear
   message when it isn't found. On Windows, start `claude.exe` directly: an
   npm `claude.cmd` wrapper needs a shell, so find the real executable
   behind it instead.
+  **Then the login shell's PATH** (macOS and Linux; user's decision,
+  2026-10-22, idea from Claudian's `loginShellPath.ts`): a `claude`
+  installed with npm under a Node version manager (nvm, fnm, Volta,
+  asdf, mise) sits in a folder only the user's shell profile adds to
+  PATH. Only when none of the above works, and never with a path set by
+  hand, the sidecar starts the user's login shell (`$SHELL`, else the
+  account's; only an absolute path) once, interactive and login as a
+  terminal starts it (`-i -l -c`, since version managers often set PATH
+  only for interactive shells), with a fixed script that prints PATH
+  between two marks. No input, our clean environment, the home folder,
+  its own process group, killed whole after 10 s; output over 64 KB
+  counts for nothing. Of what it prints, only absolute folders between
+  the marks are kept, and they are used only to look up `claude` (the
+  first on that PATH, as the terminal would pick), which is then checked
+  like any candidate (`--version`, the clean environment). The PATH is
+  never passed on to anything we start. On Linux a terminal usually
+  starts a non-login shell, so a `~/.bashrc` that no `~/.bash_profile`
+  or `~/.profile` sources isn't read; most distributions' defaults source
+  it. Code: `findClaude` in `sidecar/src/providers/claude/find.ts`;
+  tested in `sidecar/test/login-shell.test.ts` (fake shells on macOS and
+  Linux: banner output, a stuck profile and its whole group killed, a
+  background job holding the output, a missing or failing shell, a
+  flood; never asked when a candidate works, on Windows or with a path
+  set by hand) and checked by hand against a real bash with an
+  nvm-style `~/.bashrc` (Arch in WSL, 2026-10-22).
 - **Paths.** Build them with the platform's path functions, never by
   joining strings with `/` or `\`. Never decode the transcript folder
   names under `~/.claude/projects` (the encoding loses information, and
@@ -4940,6 +4970,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
+**Ready for review (2026-10-22): S02, finding `claude` through the login
+shell** (branch `s02-login-shell-path`, dev log
+2026-10-22-login-shell-path): on macOS and Linux, a `claude` installed
+under a Node version manager is found even when the game starts from
+the Dock, a menu or Steam. The path set by hand follows after S08
+(Known issues and next steps → A path to `claude` set by hand).
 **Merged to `main` (2026-10-22), approved by the user: W12, islands
 kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
 taken back after a restart gets its island back (biome, seed, cluster,
@@ -5249,6 +5285,18 @@ the app."), Esc before any output and mid-reply (after 23 streamed
 batches; the partial message is completed), and "No" on a dialog.
 
 **Next:** see Current focus.
+
+**A path to `claude` set by hand** (S02, Platforms → Finding `claude`;
+promised there, not built). *Decided (user's, 2026-10-22):* its own
+branch, started from `main` once S08 has merged (both touch
+`main.ts`, `serve.ts`, `sidecar_client.gd` and the settings menu).
+Scope: capability, a generic "program path": `hello` says which
+program each provider found (path and version, or not found); a client
+command sets or clears a path, which the sidecar checks (absolute, a
+file, answers `--version`); a serve flag applies it at start. The
+Settings menu gets one row per provider, by its own name, showing what
+was found, with Browse and Reset. A path set by hand skips every other
+lookup, the login shell included.
 
 ### Milestones
 
@@ -5692,6 +5740,13 @@ Ideas weighed and turned down. Each says what would reopen it.
   "Requires Claude Code" in plain text is fine; the name, capsule art,
   logo and trailer must not use their names or logos. The agents get
   the user's own custom models instead (open question 7, 2026-10-12).
+- **Finding `claude` through the login shell, live** (Platforms →
+  Finding `claude`). Checked on Linux only (Arch in WSL, bash, fake
+  and real profiles). To check before a public release: macOS (zsh,
+  started from the Dock), fish, and a Steam launch on Linux, where the
+  Steam Linux Runtime runs games in a container in which the user's
+  shell may not start; if it doesn't, the lookup finds nothing and the
+  not-found message stands (plus the path set by hand, once built).
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
   sidecar should detect missing hook events and explain this.
