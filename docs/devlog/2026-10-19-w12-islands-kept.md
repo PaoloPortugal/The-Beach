@@ -83,3 +83,10 @@ The security review found no blockers; fixed:
 
 Dead end: GDScript has no octal literals (`0o600` is a parse error); the
 test compares against `FileAccess.UNIX_READ_OWNER | UNIX_WRITE_OWNER`.
+
+Second review pass: `tests/live/ring_demo.gd` (and any run with
+`--sidecar-dev-fake`) still used the real file, and a sync there would
+drop the real sessions' entries; such runs now use
+`user://dev-fake-islands.json`. The text cap went from 256 to 4096 so a
+long project path doesn't lose its island. The owner-only check runs
+only off Windows: unproven until CI runs again.

@@ -237,8 +237,9 @@ for a repository still takes that repository's new sessions.
 The game keeps this in a small file of its own, `islands.json`, in
 Godot's user data folder for the game; it lists each running session's
 island and its project folder, never what's said. On macOS and Linux
-only you can read it, and a session's entry goes once it's ended. If the file is missing or damaged, the
-islands come back as new ones (a kind picked at random), each joining
+only you can read it, and a session's entry goes once it's ended. If
+the file is missing or damaged, the islands come back as new ones (a
+kind picked at random), each joining
 its repository's cluster after those that were kept. A session that
 was slow to come back, arriving after the world had already appeared,
 also comes back as a new island.

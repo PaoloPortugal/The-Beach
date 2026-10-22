@@ -1973,14 +1973,15 @@ a random biome and seed, in whatever order the snapshots arrived.
   cluster (an id, the name, the repository it was made for, or none if
   made by hand) and its slot and index. Written when an island is placed
   and when a session ends; a missing or damaged file is ignored (each
-  island comes back as before W12), and so is a damaged entry (another
-  version, a wrong type, text over 256 characters, a number past 32
-  bits, an unknown biome, seed 0).
+  island comes back as before W12), as is a file of another version;
+  so is a damaged entry (a wrong type, text over 4096 characters, a
+  number past 32 bits, an unknown biome, seed 0).
 - *Private:* it holds running sessions' project paths and start times,
   so it's owner-only where the system has permissions (macOS, Linux),
   like the sidecar's run folders (S07): created empty, restricted, then
   written. It's written to `islands.json.tmp` and renamed over, so a
-  crash never leaves half a file. Entries of sessions that didn't come
+  crash never leaves half a file (on Windows, where the rename removes
+  the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
   back are dropped at the next sync.
 - *Coming back:* islands of sessions taken back wait for the first
   sync to finish (under the loading cover, S07). Then those with an
@@ -2014,15 +2015,18 @@ a random biome and seed, in whatever order the snapshots arrived.
 clusters made again in order with their names and repositories, slots
 and indexes closed up, the repository's next session joining;
 `_w12_memory`: the key, the file read back, ordering, entries dropped,
-no `.tmp` left, owner-only off Windows, a damaged entry (each kind
-above), another version or a damaged file ignored; `_w12_islands`: islands waiting for the
+no `.tmp` left, owner-only off Windows (unchecked until CI runs on
+macOS or Linux), a damaged entry (each kind above), another version or
+a damaged file ignored; `_w12_islands`: islands waiting for the
 sync, then placed with their biome, seed, cluster and order, one with
 nothing saved after them, the file rewritten, entries of sessions that
 didn't come back or that end dropped), `sidecar/test/reattach.test.ts`
 (a launched session's `started_at` the same after a restart). The
 suites use their own file (`tests/error_watch.gd`; `clusters_test.gd`
 checks it before anything else), and `tests/world/layout_demo.gd` run
-as the main scene uses its own too.
+as the main scene uses its own too, as does any run with
+`--sidecar-dev-fake` (`user://dev-fake-islands.json`, so
+`tests/live/ring_demo.gd` too).
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
