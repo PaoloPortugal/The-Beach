@@ -1,17 +1,19 @@
 // Claude provider: finding claude through the login shell's PATH (NOTES.md ->
 // Architecture -> Platforms -> Finding claude). The fake shells are sh
 // scripts, so those tests run on macOS and Linux only.
-import { test } from 'node:test'
+import { beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  findClaude, loginShell, parseLoginShellPath, readLoginShellPath, LOGIN_SHELL_SCRIPT, MIN_VERSION,
+  findClaude, forgetLoginShellPath, loginShell, parseLoginShellPath, readLoginShellPath, LOGIN_SHELL_SCRIPT, MIN_VERSION,
 } from '../src/providers/claude/find.ts'
 
 const posixOnly = { skip: process.platform === 'win32' }
 const MARK = /printf '%s' (\S+);/.exec(LOGIN_SHELL_SCRIPT)![1]!
+
+beforeEach(() => forgetLoginShellPath())
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'login-shell-'))
@@ -78,20 +80,54 @@ test('a stuck profile is cut off: nothing found, its whole process group killed'
   assert.equal(alive(pid), false, 'what the profile started is gone too')
 })
 
-test('a background job holding the output open doesn\'t make it wait', posixOnly, async () => {
+test('a background job holding the output open doesn\'t make it wait, and is hung up like a closed terminal\'s', posixOnly, async () => {
   const dir = tempDir()
-  const shell = fakeShell(dir, 'PATH=/opt/x:/usr/bin:/bin; export PATH\n(sleep 30) &')
+  const pidFile = path.join(dir, 'pid')
+  const shell = fakeShell(dir, `PATH=/opt/x:/usr/bin:/bin; export PATH\nsleep 30 &\necho $! > "${pidFile}"`)
   const started = Date.now()
   assert.deepEqual(await readLoginShellPath({ shell, env: {}, home: dir, timeoutMs: 8000 }), ['/opt/x', '/usr/bin', '/bin'])
   assert.ok(Date.now() - started < 4000)
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'))
+  for (let i = 0; i < 50 && alive(pid); i++) await new Promise((r) => setTimeout(r, 20))
+  assert.equal(alive(pid), false)
 })
 
-test('a missing shell, a failing one or a flood of output finds nothing', posixOnly, async () => {
+test('a missing shell or a failing one finds nothing', posixOnly, async () => {
   const dir = tempDir()
   assert.deepEqual(await readLoginShellPath({ shell: path.join(dir, 'nope'), env: {}, home: dir }), [])
   assert.deepEqual(await readLoginShellPath({ shell: script(dir, 'fail', 'exit 1'), env: {}, home: dir }), [])
-  const flood = script(dir, 'flood', `printf '%s' ${MARK}\nhead -c 200000 /dev/zero | tr '\\0' a\nwait`)
+})
+
+test('a flood of output finds nothing, and the flooder is killed', posixOnly, async () => {
+  const dir = tempDir()
+  const pidFile = path.join(dir, 'pid')
+  // Ignores the hang-up, so only a kill ends it.
+  const flood = script(dir, 'flood', `trap '' HUP\necho $$ > "${pidFile}"\nprintf '%s' ${MARK}\nwhile :; do printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; done`)
   assert.deepEqual(await readLoginShellPath({ shell: flood, env: {}, home: dir, timeoutMs: 5000 }), [])
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'))
+  for (let i = 0; i < 50 && alive(pid); i++) await new Promise((r) => setTimeout(r, 20))
+  assert.equal(alive(pid), false)
+})
+
+test('findClaude gives the login shell the clean environment and the home folder', posixOnly, async () => {
+  const dir = tempDir()
+  const home = tempDir()
+  const seen = path.join(dir, 'seen')
+  const shell = fakeShell(dir, `echo "$CHECK $(pwd)" > "${seen}"`)
+  await assert.rejects(findClaude({
+    env: { PATH: '', SHELL: shell, CHECK: 'unclean' }, cleanEnv: { CHECK: 'clean' }, platform: 'linux', home,
+  }))
+  assert.equal(fs.readFileSync(seen, 'utf8').trim(), `clean ${fs.realpathSync(home)}`)
+})
+
+test('findClaude asks the login shell once per run, even when it found nothing', posixOnly, async () => {
+  const dir = tempDir()
+  const counter = path.join(dir, 'count')
+  const shell = fakeShell(dir, `echo x >> "${counter}"`)
+  const opts = { env: { PATH: '', SHELL: shell }, cleanEnv: {}, platform: 'linux' as const, home: tempDir() }
+  await assert.rejects(findClaude(opts))
+  await assert.rejects(findClaude(opts))
+  assert.equal(fs.readFileSync(counter, 'utf8').trim().split('\n').length, 1)
 })
 
 test('findClaude asks the login shell last, and uses what it finds', posixOnly, async () => {
