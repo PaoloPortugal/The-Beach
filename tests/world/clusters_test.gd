@@ -3,6 +3,8 @@ extends SceneTree
 ## repository and worktree, folders outside git, manual choices, names,
 ## freeing, holding an ended session's island spot (W04), and the layout:
 ## 8 near wedges growing without limit, then far clusters (W06).
+## W12: islands kept across restarts (IslandMemory, and SessionIslands
+## bringing them back after a sync).
 ##
 ##   godot --headless --path . --script res://tests/world/clusters_test.gd
 
@@ -13,6 +15,8 @@ var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
+	# Never the user's remembered islands: keep_only below would wipe them.
+	_check(IslandMemory.file == "user://test-islands.json", "W12: the suites use their own islands file")
 	var c := SessionClusters.new()
 	var a := c.add("a", _s("/r/game", "game", "/r/game"))
 	var b := c.add("b", _s("/r/.claude/worktrees/x", "x", "/r/game"))
@@ -65,6 +69,10 @@ func _initialize() -> void:
 	_check(c.hold("never") == "", "a session never added holds nothing")
 	_layout()
 	_overflow()
+	_w12_clusters()
+	_w12_memory()
+	await process_frame # islands are made in the tree
+	_w12_islands()
 	var passed := not _failed and _errors.ok()
 	if passed:
 		print("PASS clusters_test")
@@ -147,6 +155,124 @@ func _overflow() -> void:
 	for k in 100:
 		spots[SessionClusters.far_spot(k)] = true
 	_check(spots.size() == 100, "far clusters' places don't repeat")
+
+
+# W12: sessions taken back go to the clusters they were in, in their
+# saved order, slots and indexes closed up.
+func _w12_clusters() -> void:
+	var c := SessionClusters.new()
+	var x := {"cluster": "7", "name": "game", "repo_key": "/r/game", "slot": 3, "index": 0}
+	var y := {"cluster": "9", "name": "game 2", "repo_key": "", "slot": 5, "index": 2}
+	c.restore("x1", x)
+	var cx := c.add("x1", _s("/r/game", "game", "/r/game"))
+	c.restore("x2", x.merged({"index": 4}, true))
+	c.add("x2", _s("/r/game", "game", "/r/game"))
+	c.restore("y1", y)
+	var cy := c.add("y1", _s("/r/game", "game", "/r/game"))
+	_check(c.cluster_of("x2") == cx and cy != cx, "W12: each back in its saved cluster")
+	_check(c.cluster_name(cx) == "game" and c.cluster_name(cy) == "game 2" and c.cluster_key(cy) == "", "W12: with its name, a hand-made one still hand-made")
+	_check(c.slot_of(cx) == 0 and c.slot_of(cy) == 1, "W12: clusters close up their wedges, in order")
+	_check(c.index_of("x1") == 0 and c.index_of("x2") == 1 and c.index_of("y1") == 0, "W12: islands close up, in order")
+	_check(c.add("n", _s("/r/game", "game", "/r/game")) == cx, "W12: its repository's next session joins the cluster made for it")
+
+
+# W12: the file: entries kept, read back, ordered and dropped; a damaged
+# file or entry ignored.
+func _w12_memory() -> void:
+	var s := {"provider": "claude", "started_at": "2026-10-19T10:00:00.000Z", "project": {"path": "/r/game"}}
+	var k := IslandMemory.key(s)
+	_check(k != "" and IslandMemory.key({"provider": "claude"}) == "", "W12: a key from provider, start and project; none without them")
+	var m := IslandMemory.new()
+	m.load_file()
+	_check(not m.has(k), "W12: the suites start with no remembered islands")
+	m.put(k, _entry("1", 2, 1))
+	m.put("b", _entry("1", 2, 0))
+	m.put("a", _entry("2", 0, 3))
+	var again := IslandMemory.new()
+	again.load_file()
+	_check(again.entry(k) == m.entry(k) and int(again.entry(k)["seed"]) == 1234, "W12: read back from the file")
+	_check(again.ordered([k, "b", "a", "none"]) == ["a", "b", k], "W12: ordered by slot, then index; unknown keys left out")
+	again.keep_only({k: true, "a": true})
+	m.load_file()
+	_check(m.has(k) and m.has("a") and not m.has("b"), "W12: ones not kept are dropped from the file")
+	_check(not FileAccess.file_exists(IslandMemory.file + ".tmp"), "W12: written through a .tmp renamed over")
+	if OS.get_name() != "Windows":
+		_check((FileAccess.get_unix_permissions(IslandMemory.file) & 0x1FF) == (FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER), "W12: the file is owner-only")
+	var bad := {
+		"a biome": _entry("1", 0, 0, 99), "seed 0": _entry("1", 0, 0, Biome.Kind.BEACH, 0),
+		"not a Dictionary": [1], "a number as text": _entry("1", 0, 0).merged({"slot": "0"}, true),
+		"text as a number": _entry("1", 0, 0).merged({"name": 3}, true),
+		"a number past 32 bits": _entry("1", 0, 0).merged({"index": 4294967296}, true),
+		"text too long": _entry("1", 0, 0).merged({"name": "x".repeat(IslandMemory.MAX_TEXT + 1)}, true),
+	}
+	for what: String in bad:
+		_write('{"version": 1, "islands": {"bad": %s, "ok": %s}}' % [JSON.stringify(bad[what]), JSON.stringify(_entry("1", 0, 0))])
+		m.load_file()
+		_check(m.has("ok") and not m.has("bad"), "W12: an entry with %s is ignored" % what)
+	_write('{"version": 2, "islands": {"ok": %s}}' % JSON.stringify(_entry("1", 0, 0)))
+	m.load_file()
+	_check(not m.has("ok"), "W12: a file of another version is ignored")
+	_write("{not json")
+	m.load_file()
+	_check(not m.has("ok"), "W12: a damaged file is ignored")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+
+
+# W12: islands of sessions taken back wait for the sync, then come back
+# as they were: biome, seed, cluster, order; ones that didn't come back
+# are forgotten, and one that ends is too.
+func _w12_islands() -> void:
+	var m := IslandMemory.new()
+	m.put(IslandMemory.key(_live("k1")), _entry("7", 3, 0, Biome.Kind.SNOWY, 111))
+	m.put(IslandMemory.key(_live("k2")), _entry("7", 3, 4, Biome.Kind.DESERT, 222))
+	m.put(IslandMemory.key(_live("k3")), _entry("9", 5, 0, Biome.Kind.FOREST, 333, "mine"))
+	m.put(IslandMemory.key(_live("gone")), _entry("7", 3, 2))
+	var store := SessionStore.new()
+	var islands := SessionIslands.new()
+	root.add_child(islands)
+	islands.setup(store)
+	store.syncing = true
+	for id in ["n", "k3", "k2", "k1"]:
+		store.apply({"type": "session.snapshot", "session": _live(id)})
+	_check(islands.session_ids().is_empty(), "W12: islands taken back wait for the sync")
+	store._on_synced()
+	var c := islands.clusters
+	_check(islands.session_ids().size() == 4, "W12: then all come")
+	var k1 := islands.island("k1")
+	_check(k1.biome == Biome.Kind.SNOWY and k1.island_seed == 111 and islands.island("k2").island_seed == 222, "W12: each with its biome and seed")
+	_check(c.cluster_of("k2") == c.cluster_of("k1") and c.slot_of(c.cluster_of("k1")) == 0 and c.index_of("k1") == 0 and c.index_of("k2") == 1, "W12: in its cluster, in order, gaps closed")
+	_check(c.cluster_name(c.cluster_of("k3")) == "mine" and c.slot_of(c.cluster_of("k3")) == 1, "W12: the next cluster in the next wedge")
+	_check(c.cluster_of("n") == c.cluster_of("k1") and c.index_of("n") == 2, "W12: one with nothing saved comes after them (here into its repository's cluster)")
+	var saved := IslandMemory.new()
+	saved.load_file()
+	_check(not saved.has(IslandMemory.key(_live("gone"))), "W12: one that didn't come back is forgotten")
+	_check(int(saved.entry(IslandMemory.key(_live("k2")))["index"]) == 1 and saved.has(IslandMemory.key(_live("n"))), "W12: the file now holds where each is")
+	store.apply({"type": "session.ended", "session": "k2", "seq": 2, "reason": "exited"})
+	saved.load_file()
+	_check(not saved.has(IslandMemory.key(_live("k2"))), "W12: one that ends is forgotten")
+	islands.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+
+
+func _write(text: String) -> void:
+	var f := FileAccess.open(IslandMemory.file, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
+
+
+func _entry(cluster: String, slot: int, index: int, biome := Biome.Kind.BEACH, island_seed := 1234, name := "game") -> Dictionary:
+	return {"biome": biome, "seed": island_seed, "cluster": cluster, "name": name, "repo_key": "/r/game" if name == "game" else "", "slot": slot, "index": index}
+
+
+# A session's snapshot, its start told apart by its id.
+func _live(id: String) -> Dictionary:
+	return {
+		"session": id, "seq": 1, "provider": "fake", "native_id": null, "origin": "app",
+		"project": {"path": "/r/game", "name": "game", "repo": "/r/game"}, "title": null,
+		"started_at": "2026-10-19T10:00:00.%s" % id, "capabilities": {}, "extensions": [],
+		"permissions": [], "notices": [],
+		"agents": [{"agent": "main", "role": "orchestrator", "parent": null, "state": "idle", "reason": null}],
+	}
 
 
 func _closest(points: Array[Vector3]) -> float:

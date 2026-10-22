@@ -224,6 +224,7 @@ export class ClaudeProvider implements Provider {
       native_id: o.nativeId, project: o.project, hook_port: hooks.port, hook_token: session.hookLink.token,
       started_at: new Date().toISOString(),
     }
+    session.startedAt = record.started_at
     this.followIds(session, record)
     try {
       writeRunRecord(launch.runDir, record)

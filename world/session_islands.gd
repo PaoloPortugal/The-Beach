@@ -12,6 +12,9 @@ extends Node3D
 ## spawn platform once an island is up, and go when it starts sinking.
 ## Each island is of a [Biome] (W10), chosen in the sessions menu or
 ## rolled at random.
+## A session taken back after a restart (S07) gets its island back as it
+## was (W12, [IslandMemory]): its biome, seed and cluster, placed in the
+## saved order once the sync is done, gaps closed up.
 ## Everything under it, agents and bridges that come later included, is
 ## hidden past [member draw_distance] ([DrawDistance]).
 
@@ -40,6 +43,8 @@ var clusters := SessionClusters.new()
 var bridges := BridgeNetwork.new()
 ## Whoever has to leave an ended session's island before it sinks.
 var player: Node3D
+## Each live session's island, kept for the next start (W12).
+var memory := IslandMemory.new()
 ## The biome of an island nobody chose one for (a session already running,
 ## or one started outside the menu): [constant Biome.RANDOM] or a kind.
 var default_biome := Biome.RANDOM
@@ -64,6 +69,8 @@ var _sinking := {} # Island → true, of those in _left
 var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
 var _biome_choice := {} # session id → the biome chosen for its island
+var _keys := {} # session id → its IslandMemory key
+var _waiting: Array[String] = [] # sessions taken back, placed once synced
 
 
 func _ready() -> void:
@@ -76,8 +83,10 @@ func _ready() -> void:
 ## SessionsMenu.setup).
 func setup(p_store: SessionStore) -> void:
 	store = p_store
+	memory.load_file()
 	store.session_added.connect(_on_added)
 	store.session_removed.connect(_on_removed)
+	store.synced.connect(_on_synced)
 
 
 func island(session_id: String) -> Island:
@@ -211,10 +220,47 @@ func _process(_delta: float) -> void:
 
 
 func _on_added(id: String, created: bool) -> void:
-	clusters.add(id, store.session(id))
+	_keys[id] = IslandMemory.key(store.session(id))
+	# One already running (taken back) waits for the sync's others, to
+	# come back in their order. One outside a sync (taken back late) is
+	# placed at once.
+	if not created and store.syncing:
+		_waiting.append(id)
+		return
+	_place(id, created)
+
+
+# Places those taken back: the remembered ones in their saved order, then
+# the others as they came. Then forgets the islands of sessions that
+# didn't come back.
+func _on_synced() -> void:
+	var by_key := {}
+	for id in _waiting:
+		by_key[_keys[id]] = id
+	var waiting := _waiting.duplicate()
+	_waiting.clear()
+	for k: String in memory.ordered(by_key.keys()):
+		_place(by_key[k], false, memory.entry(k))
+		waiting.erase(by_key[k])
+	for id: String in waiting:
+		_place(id, false)
+	var live := {}
+	for id: String in _keys:
+		live[_keys[id]] = true
+	memory.keep_only(live)
+
+
+func _place(id: String, created: bool, saved := {}) -> void:
 	var i := Island.new()
 	i.name = "Island"
-	i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
+	if saved.is_empty():
+		clusters.add(id, store.session(id))
+		i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
+	else:
+		clusters.restore(id, saved)
+		clusters.add(id, store.session(id))
+		i.biome = int(saved["biome"])
+		i.island_seed = int(saved["seed"])
 	_biome_choice.erase(id)
 	i.position = clusters.island_position(id)
 	i.zipline_waits = true # placed once its bridges land (W10)
@@ -231,7 +277,12 @@ func _on_added(id: String, created: bool) -> void:
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
 	_islands[id] = i
-	_cluster[i] = clusters.cluster_of(id)
+	var cluster := clusters.cluster_of(id)
+	_cluster[i] = cluster
+	memory.put(_keys[id], {
+		"biome": i.biome, "seed": i.island_seed, "cluster": cluster, "name": clusters.cluster_name(cluster),
+		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
+	})
 	island_added.emit(id, i, o)
 	if not created:
 		_bridge(id)
@@ -256,6 +307,9 @@ func _on_added(id: String, created: bool) -> void:
 
 
 func _on_removed(id: String, _reason: String) -> void:
+	_waiting.erase(id)
+	memory.erase(_keys.get(id, ""))
+	_keys.erase(id)
 	var i: Island = _islands.get(id)
 	if i == null:
 		return
