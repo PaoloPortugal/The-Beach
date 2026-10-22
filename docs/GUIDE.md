@@ -986,6 +986,17 @@ terminal for that.
 2.1.284 or newer), signed in with your own account. The game never sees
 your login and never changes Claude Code.
 
+**If Claude Code isn't found.** The game looks where the installers put
+Claude Code. On macOS and Linux, if you installed it with npm under a
+Node version manager (nvm, fnm, Volta, asdf, mise), a game started from
+the Dock or an app menu can't see it at first. The game then asks your
+shell, the way a terminal starts it, which folders it searches, and
+looks there too, once each time the game runs. This takes a moment and
+runs your shell's startup files without showing you a window: nothing
+can answer a question they ask, and if they take more than 10 seconds
+the game gives up and says Claude Code wasn't found. On Windows this
+isn't needed.
+
 **Starting a session.** When you start a session for a project folder, a
 terminal opens with Claude Code in it. On Windows, with Windows Terminal,
 each session is a tab in one window kept for the game's sessions (your

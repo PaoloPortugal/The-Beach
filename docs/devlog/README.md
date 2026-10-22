@@ -99,5 +99,6 @@ reading; look things up by feature ID.
 | 2026-10-13 | [C12: model, effort and mode at launch](2026-10-13-c12-launch-pickers.md) | C12, C06, S02, S03, S04 |
 | 2026-10-13 | [S07: reattaching to running sessions](2026-10-13-s07-reattach.md) | S07, S05, S02, S04 |
 | 2026-10-19 | [W12: islands kept across restarts](2026-10-19-w12-islands-kept.md) | W12, S07, W05, W06, W10 |
+| 2026-10-22 | [S02: finding claude through the login shell](2026-10-22-login-shell-path.md) | S02 |
 | 2026-10-22 | [S08: read-only islands for sessions started outside the game (research)](2026-10-22-s08-outside-sessions-research.md) | S08, S07, S04, W05, W12 |
 | 2026-10-22 | [S08: read-only islands for sessions started outside the game (the build)](2026-10-22-s08-outside-sessions.md) | S08, S07, C10, W12, Protocol |
