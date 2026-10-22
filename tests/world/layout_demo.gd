@@ -43,6 +43,11 @@ func _ready() -> void:
 	# Run as the main scene, not by a test.
 	if "--crowd" in OS.get_cmdline_user_args() and get_tree().current_scene == self:
 		sizes = CROWD
+	if get_tree().current_scene == self:
+		# Run as the main scene: its fake sessions never in the user's
+		# remembered islands (W12; a test already has its own file).
+		IslandMemory.file = "user://layout-demo-islands.json"
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 	world = load("res://world/world.tscn").instantiate()
 	if get_tree().current_scene != self:
 		# Run by a test: the defaults, never the developer's settings file (C10, A05).
