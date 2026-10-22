@@ -4983,8 +4983,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
-**Ready for review (2026-10-22): S02, finding `claude` through the login
-shell** (branch `s02-login-shell-path`, dev log
+**Merged to `main` (2026-10-22), approved by the user: S02, finding
+`claude` through the login shell** (dev log
 2026-10-22-login-shell-path): on macOS and Linux, a `claude` installed
 under a Node version manager is looked for through the user's login
 shell when the game started from the Dock or a menu (checked on Linux
