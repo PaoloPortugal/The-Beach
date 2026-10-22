@@ -909,7 +909,7 @@ test('restore, read-only, nothing prompted yet: its transcript found once writte
   } finally { await r.close(); await taken.close() }
 })
 
-test('restore, read-only: claude agents is asked once at a time for every read-only session, and no more once they end', { timeout: 15_000 }, async () => {
+test('restore, read-only: claude agents is asked once at a time for every read-only session, and they\'re let go once they end', { timeout: 15_000 }, async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
   writeHookPort(root, taken.port)
@@ -938,10 +938,12 @@ test('restore, read-only: claude agents is asked once at a time for every read-o
     for (const l of launchers) l.kill()
     await r.c.next('session.ended', 5000)
     await r.c.next('session.ended', 5000)
-    await sleep(300)
+    assert.equal(((r.p as any).watched as Map<number, unknown>).size, 0, 'no longer asked about')
+    // The poll goes on, for sessions started outside the game (S08), at the same pace.
     const ended = calls
-    await sleep(800)
-    assert.equal(calls, ended, 'none once they ended')
+    await sleep(1000)
+    assert.ok(calls - ended >= 2 && calls - ended <= 6, `asked ${calls - ended} times in 1 s`)
+    assert.equal(most, 1)
   } finally { await r.close(); await taken.close() }
 })
 

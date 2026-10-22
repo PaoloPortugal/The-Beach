@@ -293,6 +293,37 @@ export function findStored(nativeId: string, dir = projectsDir(), accept?: (info
   return null
 }
 
+/** A conversation's transcript, where it ran, and what started it (`entrypoint`: cli, claude-desktop, sdk-cli, ...). */
+export interface TranscriptInfo { file: string; cwd: string; entrypoint: string | null }
+
+/**
+ * Finds one conversation's transcript by id, whatever started it and
+ * whether anything was said yet (unlike findStored, which only finds what
+ * can be listed): for following a running session (S07, S08). `accept`
+ * checks its working folder; one it refuses doesn't hide another further on.
+ */
+export function findTranscript(nativeId: string, dir: string, accept: (cwd: string) => boolean): TranscriptInfo | null {
+  if (!UUID.test(nativeId)) return null
+  let slugs: string[]
+  try { slugs = fs.readdirSync(dir) } catch { return null }
+  for (const slug of slugs) {
+    const file = path.join(dir, slug, `${nativeId}.jsonl`)
+    let st: fs.Stats
+    try { st = fs.statSync(file) } catch { continue }
+    if (!st.isFile() || st.size === 0) continue
+    let head: string
+    try { head = peek(file, st.size).head } catch { continue }
+    let cwd: string | null = null
+    let entrypoint: string | null = null
+    for (const e of lines(head, false)) {
+      if (!cwd && typeof e.cwd === 'string') cwd = e.cwd
+      if (!entrypoint && typeof e.entrypoint === 'string') entrypoint = e.entrypoint
+    }
+    if (cwd && accept(cwd)) return { file, cwd, entrypoint }
+  }
+  return null
+}
+
 /**
  * Whether a transcript holds a reply from Claude (an assistant entry of the
  * main conversation): an earlier conversation, not one /clear just started.
