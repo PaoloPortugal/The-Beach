@@ -24,6 +24,8 @@ export interface SessionIntro {
   extensions: string[]
   /** The world only watches it (S07). */
   read_only?: true
+  /** Started outside the app, watched only (S08); `app` otherwise. */
+  origin?: 'external'
   /** permission_modes: the current mode, if already known. */
   mode?: string | null
   /** model_info: the model and effort level, if already known. */
@@ -86,6 +88,11 @@ export interface Provider {
   /** What sessions can be started or resumed with (hello's launch_options); none: nothing to pick. */
   readonly launchOptions?: LaunchOptions
   /**
+   * Capabilities of the provider itself (hello's capabilities), keyed by
+   * name, each with its config: e.g. outside_sessions (S08).
+   */
+  readonly capabilities?: Record<string, Record<string, unknown>>
+  /**
    * Start a new session. Resolves once it's launched, not once it's up
    * (announce). `launch`: ids from launchOptions, already checked.
    */
@@ -95,10 +102,14 @@ export interface Provider {
   /**
    * At start, before anything else: the sessions this provider launched
    * before the sidecar last stopped and still running, each handed to
-   * `adopt` (NOTES.md -> S07). Resolves once it has looked. Optional: a
-   * provider without it has nothing to take back.
+   * `adopt` (NOTES.md -> S07), and, with outside_sessions, the ones started
+   * outside the app (S08), which it may keep adopting later. `notice` sends
+   * a provider notice (provider.notice; kept for hello). Resolves once it
+   * has looked. Optional: a provider without it has nothing to take back.
    */
-  restore?(adopt: Adopt): Promise<void>
+  restore?(adopt: Adopt, notice?: (notice: Notice) => void): Promise<void>
+  /** Whether the app's window has focus (client.set_focus): it may check on things less often without. */
+  setFocused?(focused: boolean): void
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
 }

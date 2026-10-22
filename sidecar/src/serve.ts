@@ -34,7 +34,7 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
   const all = Promise.all(providers.map(async (p) => {
     if (!p.restore) return
     try {
-      await p.restore((make) => registry.adopt(p, make))
+      await p.restore((make) => registry.adopt(p, make), (notice) => registry.providerNotice(p.id, notice))
     } catch (e) {
       log.error(`${p.id}: couldn't look for running sessions: ${e instanceof Error ? e.message : String(e)}`)
     }

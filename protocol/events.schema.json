@@ -14,6 +14,7 @@
     { "$ref": "#/$defs/session.notice" },
     { "$ref": "#/$defs/session.notice_cleared" },
     { "$ref": "#/$defs/session.updated" },
+    { "$ref": "#/$defs/provider.notice" },
     { "$ref": "#/$defs/agent.spawned" },
     { "$ref": "#/$defs/agent.state_changed" },
     { "$ref": "#/$defs/message.started" },
@@ -39,6 +40,7 @@
     { "$ref": "#/$defs/permission.respond" },
     { "$ref": "#/$defs/question.answer" },
     { "$ref": "#/$defs/plan.answer" },
+    { "$ref": "#/$defs/client.set_focus" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -292,7 +294,7 @@
           "type": ["string", "null"]
         },
         "origin": {
-          "description": "app: started from this app. external: attached to a session running elsewhere (not in v1).",
+          "description": "app: started from this app. external: a session started elsewhere that the world only watches (read_only; the outside_sessions capability).",
           "enum": ["app", "external"]
         },
         "project": { "$ref": "#/$defs/project" },
@@ -363,7 +365,7 @@
       "required": ["code", "message"],
       "properties": {
         "code": {
-          "description": "Machine-readable; Godot shows its own text for codes it knows. confirm_in_terminal: the provider needs the user in its own window to start the session (create/resume replies only). transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works). conversation_cleared: a new conversation started in the session (it remembers nothing of the chat before). conversation_resumed: the session switched to an earlier conversation; its chat (session.get_history) is now that conversation's. conversation_moved: the conversation went on somewhere the world can't reach; continue it in the provider's own window. sign_in_needed: the provider can't use the user's account (signed out, expired, on hold, billing) and the user must sort it out in its own window; the world never handles a login, and shows the provider's message as is. reattached_read_only: a session taken over after the app restarted can only be watched (read_only) until it ends; use its own window, or end it there and resume it. Cleared by session.notice_cleared.",
+          "description": "Machine-readable; Godot shows its own text for codes it knows. confirm_in_terminal: the provider needs the user in its own window to start the session (create/resume replies only). transcripts_off: the provider isn't saving transcripts, so some features may not work as intended. hooks_unavailable: the provider's session isn't reporting its activity (chat still works). conversation_cleared: a new conversation started in the session (it remembers nothing of the chat before). conversation_resumed: the session switched to an earlier conversation; its chat (session.get_history) is now that conversation's. conversation_moved: the conversation went on somewhere the world can't reach; continue it in the provider's own window. sign_in_needed: the provider can't use the user's account (signed out, expired, on hold, billing) and the user must sort it out in its own window; the world never handles a login, and shows the provider's message as is. reattached_read_only: a session taken over after the app restarted can only be watched (read_only) until it ends; use its own window, or end it there and resume it. outside_read_only: a session started outside the app (origin external) can only be watched (read_only). Cleared by session.notice_cleared. As a provider notice (hello's notices, provider.notice): outside_sessions_off: the provider can't list the sessions started outside the app (outside_sessions capability), so none are shown.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
@@ -441,7 +443,17 @@
             "properties": {
               "provider": { "$ref": "#/$defs/provider_id" },
               "name": { "type": "string" },
-              "launch_options": { "$ref": "#/$defs/launch_options" }
+              "launch_options": { "$ref": "#/$defs/launch_options" },
+              "capabilities": {
+                "description": "Capabilities of the provider itself (not of one session), keyed by name, each with its own config object. outside_sessions: sessions started outside the app get islands, as read_only sessions with origin external.",
+                "type": "object",
+                "additionalProperties": { "type": "object" }
+              },
+              "notices": {
+                "description": "The provider's notices so far (provider.notice), one per code.",
+                "type": "array",
+                "items": { "$ref": "#/$defs/notice" }
+              }
             },
             "additionalProperties": false
           }
@@ -527,6 +539,18 @@
         "type": { "const": "session.notice" },
         "session": { "$ref": "#/$defs/id" },
         "seq": { "$ref": "#/$defs/seq" },
+        "notice": { "$ref": "#/$defs/notice" }
+      },
+      "additionalProperties": false
+    },
+
+    "provider.notice": {
+      "description": "Sidecar -> Godot. A notice about a provider rather than one session (e.g. outside_sessions_off); it replaces an earlier one with the same code, and is listed in hello's notices on the next connection.",
+      "type": "object",
+      "required": ["type", "provider", "notice"],
+      "properties": {
+        "type": { "const": "provider.notice" },
+        "provider": { "$ref": "#/$defs/provider_id" },
         "notice": { "$ref": "#/$defs/notice" }
       },
       "additionalProperties": false
@@ -815,6 +839,17 @@
         "type": { "const": "interrupt.request" },
         "id": { "$ref": "#/$defs/id" },
         "session": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "client.set_focus": {
+      "description": "Godot -> sidecar. Whether the app's window has focus, sent after connecting and on every change; until told, the sidecar assumes it has. Providers may check on things less often in the background (e.g. outside_sessions). Replied ok with no result.",
+      "type": "object",
+      "required": ["type", "id", "focused"],
+      "properties": {
+        "type": { "const": "client.set_focus" },
+        "id": { "$ref": "#/$defs/id" },
+        "focused": { "type": "boolean" }
       },
       "additionalProperties": false
     },
