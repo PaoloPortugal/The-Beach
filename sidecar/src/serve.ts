@@ -34,7 +34,7 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
   const all = Promise.all(providers.map(async (p) => {
     if (!p.restore) return
     try {
-      await p.restore((make) => registry.adopt(p, make), (notice) => registry.providerNotice(p.id, notice))
+      await p.restore((make, o) => registry.adopt(p, make, o), (notice) => registry.providerNotice(p.id, notice))
     } catch (e) {
       log.error(`${p.id}: couldn't look for running sessions: ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -45,9 +45,14 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
   clearTimeout(timer)
 }
 
-export async function serve(providers: Provider[], log: Log = stderrLog): Promise<void> {
+/** How Godot started it: `outsideSessions` false is `serve --no-outside-sessions` (the player's setting, S08). */
+export interface ServeOptions { outsideSessions?: boolean }
+
+export async function serve(providers: Provider[], log: Log = stderrLog, o: ServeOptions = {}): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
+  // Before restore, so none is shown at start.
+  if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
   await restoreSessions(registry, providers, log)
   const server = await startServer({ registry, token, log })
 

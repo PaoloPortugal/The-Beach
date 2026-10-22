@@ -14,8 +14,11 @@ import { runRelay } from './launch/relay.ts'
 async function main(argv: string[]) {
   const [mode, ...rest] = argv
   if (mode === undefined || mode === 'serve') {
-    if (rest.length > 0) throw new Error(`unexpected arguments: ${rest.join(' ')}`)
-    await serve(builtInProviders())
+    // --no-outside-sessions: the player turned off sessions started outside the game (S08).
+    const flags = new Set(rest)
+    flags.delete('--no-outside-sessions')
+    if (flags.size > 0) throw new Error(`unexpected arguments: ${[...flags].join(' ')}`)
+    await serve(builtInProviders(), undefined, { outsideSessions: !rest.includes('--no-outside-sessions') })
     return
   }
   if (mode === 'launch') {

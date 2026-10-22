@@ -111,7 +111,7 @@ export const REATTACHED_READ_ONLY = {
 
 /**
  * The notice for a session started outside the game (S08): it's read-only.
- * Placeholder wording, to settle with the user.
+ * The user's wording (2026-10-22).
  */
 export const OUTSIDE_READ_ONLY = {
   code: 'outside_read_only',
@@ -825,17 +825,20 @@ export class ClaudeSession implements ProviderSession {
     this.launcherCheck = null
   }
 
-  /** A session started outside the game is no longer running (S08): it ends. */
-  gone(why: string) {
-    this.onGone(why)
+  /**
+   * A session started outside the game is no longer running, or no longer
+   * shown (`user`: the player turned outside sessions off; S08): it ends.
+   */
+  gone(why: string, reason: 'exited' | 'user' = 'exited') {
+    this.onGone(why, reason)
   }
 
   /** Claude Code exited, or never came up. */
-  private onGone(why: string) {
+  private onGone(why: string, reason: 'exited' | 'user' = 'exited') {
     if (this.disposed) return
     this.log.info(`session ${this.host.id} is gone: ${why}`)
     this.dispose()
-    this.host.end('exited')
+    this.host.end(reason)
   }
 
   dispose() {

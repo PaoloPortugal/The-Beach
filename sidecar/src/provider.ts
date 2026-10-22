@@ -40,9 +40,11 @@ export interface SessionIntro {
 /**
  * Takes over one running session found by a provider's restore: makes its
  * host, whose announce sends session.snapshot (it's no new session), and
- * keeps the control `make` returns for the world's commands.
+ * keeps the control `make` returns for the world's commands. `created`:
+ * announced as session.created instead (its island rises: S08, outside
+ * sessions shown again after being turned off).
  */
-export type Adopt = (make: (host: SessionHost) => ProviderSession) => void
+export type Adopt = (make: (host: SessionHost) => ProviderSession, o?: { created?: boolean }) => void
 
 /** The registry's side of one session, handed to the provider that runs it. */
 export interface SessionHost {
@@ -110,6 +112,13 @@ export interface Provider {
   restore?(adopt: Adopt, notice?: (notice: Notice) => void): Promise<void>
   /** Whether the app's window has focus (client.set_focus): it may check on things less often without. */
   setFocused?(focused: boolean): void
+  /**
+   * Whether sessions started outside the app get islands (outside_sessions;
+   * client.set_outside_sessions, or serve --no-outside-sessions before
+   * restore). Off ends them (reason user) and stops looking; on looks at
+   * once, the ones found announced as session.created.
+   */
+  setOutsideSessions?(on: boolean): void
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
 }

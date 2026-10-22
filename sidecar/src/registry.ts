@@ -99,10 +99,11 @@ export class Registry {
 
   /**
    * A session a provider took over at start (S07): no command is answering
-   * for it, so no hold, and its announce sends session.snapshot.
+   * for it, so no hold, and its announce sends session.snapshot, or
+   * session.created with `created` (S08).
    */
-  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession): void {
-    const entry = this.add(provider, 0, true)
+  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession, o: { created?: boolean } = {}): void {
+    const entry = this.add(provider, 0, o.created !== true)
     try {
       entry.control = make(entry.host)
     } catch (e) {

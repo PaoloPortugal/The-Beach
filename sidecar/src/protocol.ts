@@ -184,6 +184,7 @@ export type Command =
   | { type: 'plan.answer'; id: Id; session: Id; plan: Id; approve: boolean; mode?: string; note?: string }
   | { type: 'question.answer'; id: Id; session: Id; question: Id; answers?: string[][]; response?: string }
   | { type: 'client.set_focus'; id: Id; focused: boolean }
+  | { type: 'client.set_outside_sessions'; id: Id; enabled: boolean }
 
 export type ExtensionCommand = { type: `ext.${string}`; id?: Id; session?: Id; [key: string]: unknown }
 
@@ -192,6 +193,7 @@ export const COMMAND_TYPES: readonly Command['type'][] = [
   'session.create', 'session.list_stored', 'session.resume', 'session.end',
   'interrupt.request', 'session.get_snapshot', 'session.get_history',
   'message.send', 'permission.respond', 'question.answer', 'plan.answer', 'client.set_focus',
+  'client.set_outside_sessions',
 ]
 
 // Commands that belong to a capability: refused for sessions that don't declare it.

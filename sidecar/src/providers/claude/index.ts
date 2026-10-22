@@ -58,7 +58,8 @@ export const AGENTS_POLL_BACKGROUND_MS = 10_000
 /**
  * The provider notice when agent view is off (S08): Claude Code won't list
  * its sessions, so none started outside the game can be shown. Sent once
- * per launch. Placeholder wording, to settle with the user.
+ * per launch. The user's wording (2026-10-22); the game's settings show it
+ * beside the greyed-out toggle.
  */
 export const OUTSIDE_SESSIONS_OFF = {
   code: 'outside_sessions_off',
@@ -148,6 +149,12 @@ export class ClaudeProvider implements Provider {
   private notice: ((notice: Notice) => void) | null = null
   /** False once agent view is found off: no more looking for outside sessions this launch. */
   private outsideOn = true
+  /** The player's setting (setOutsideSessions): false shows none and stops looking. */
+  private outsideWanted = true
+  /** Just turned back on: the next listing shows them at once, rising (session.created). */
+  private turnedOn = false
+  /** Whether outsideFrom has had a listing yet (the one at start). */
+  private polled = false
   /** Listed once with no transcript yet (pid -> session id): adopted at the next listing if still none (a `claude -p` run writes it at once). */
   private readonly sightings = new Map<number, string>()
   /** Listed but given no island (pid -> session id): `claude -p` runs, Agent SDK programs, or one that failed to adopt. */
@@ -392,7 +399,7 @@ export class ClaudeProvider implements Provider {
     if (this.adoptOutside || this.stopped) return
     this.adoptOutside = adopt
     this.notice = notice ?? null
-    this.outsideFrom(answer, true)
+    this.outsideFrom(answer)
     this.schedulePoll()
   }
 
@@ -483,13 +490,41 @@ export class ClaudeProvider implements Provider {
   }
 
   /**
+   * The player turned sessions started outside the game off or on (S08).
+   * Off: each ends (reason user, so its island sinks and W12 forgets it)
+   * and the poll stops unless a read-only session of ours still needs it.
+   * On: asked at once, each found shown at once and rising.
+   */
+  setOutsideSessions(on: boolean): void {
+    if (on === this.outsideWanted) return
+    this.outsideWanted = on
+    this.turnedOn = on
+    if (!on) {
+      for (const s of [...this.outside.values()]) s.gone('sessions started outside the game turned off', 'user')
+      this.sightings.clear()
+      this.passed.clear()
+      if (this.pollTimer && this.watched.size === 0) {
+        clearTimeout(this.pollTimer)
+        this.pollTimer = null
+      }
+      return
+    }
+    if (!this.adoptOutside || !this.outsideOn || this.stopped) return
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = null
+    // A listing already on its way shows them instead (turnedOn).
+    if (!this.asking) void this.poll().finally(() => this.schedulePoll())
+  }
+
+  /**
    * The next `claude agents`, while there's anything to ask about: outside
-   * sessions (once restore ran, until agent view is found off) or
+   * sessions (once restore ran, while the player wants them, until agent
+   * view is found off) or
    * read-only ones. Every AGENTS_POLL_MS with focus, AGENTS_POLL_BACKGROUND_MS without.
    */
   private schedulePoll() {
     if (this.pollTimer || this.stopped) return
-    if (!(this.adoptOutside && this.outsideOn) && this.watched.size === 0) return
+    if (!(this.adoptOutside && this.outsideOn && this.outsideWanted) && this.watched.size === 0) return
     const wait = this.focused
       ? this.opts.agentsPollMs ?? AGENTS_POLL_MS
       : this.opts.agentsPollBackgroundMs ?? this.opts.agentsPollMs ?? AGENTS_POLL_BACKGROUND_MS
@@ -514,7 +549,7 @@ export class ClaudeProvider implements Provider {
           this.log.warn(`session ${session.host.id}: claude agents' answer not taken: ${e instanceof Error ? e.message : String(e)}`)
         }
       }
-      if (this.adoptOutside && this.outsideOn) this.outsideFrom(answer, false)
+      if (this.adoptOutside && this.outsideOn) this.outsideFrom(answer)
     } finally {
       this.asking = false
     }
@@ -527,11 +562,16 @@ export class ClaudeProvider implements Provider {
    * started, or its session id) and `claude -p` runs and Agent SDK
    * programs (their transcript's entrypoint). One with no transcript yet
    * waits for the next listing, in case it's a `claude -p` about to write
-   * one, except at start (`first`), so it's in the first sync (W12). One no
-   * longer listed ends. Agent view off: said once, the outside sessions
-   * end, and no more are looked for this launch.
+   * one, except at start, so it's in the first sync (W12), and just after
+   * the player turned them back on (then announced as session.created, so
+   * they rise). One no longer listed ends. Agent view off: said once, the
+   * outside sessions end, and no more are looked for this launch, even with
+   * the player's setting off (the setting shows why it can't be turned on).
    */
-  private outsideFrom(answer: Running, first: boolean) {
+  private outsideFrom(answer: Running) {
+    const first = !this.polled || this.turnedOn
+    const created = this.turnedOn
+    this.polled = true
     if ('none' in answer) {
       if (answer.disabled) {
         this.outsideOn = false
@@ -545,6 +585,8 @@ export class ClaudeProvider implements Provider {
       return
     }
     this.lastFailure = null
+    if (!this.outsideWanted) return
+    this.turnedOn = false
     const agents = answer.agents ?? []
     const listed = new Map(agents.map((a) => [a.pid, a]))
     for (const [pid, s] of [...this.outside]) if (!listed.has(pid)) s.gone('Claude Code no longer lists it')
@@ -553,7 +595,7 @@ export class ClaudeProvider implements Provider {
     for (const a of agents) {
       if (this.outside.has(a.pid) || ours.has(a.pid) || this.live.has(a.sessionId) || this.passed.has(a.pid) || !a.cwd) continue
       try {
-        this.considerOutside(a, a.cwd, first)
+        this.considerOutside(a, a.cwd, first, created)
       } catch (e) {
         this.passed.set(a.pid, a.sessionId)
         this.log.error(`couldn't show a session started outside the game: ${e instanceof Error ? e.message : String(e)}`)
@@ -571,7 +613,7 @@ export class ClaudeProvider implements Provider {
     return pids
   }
 
-  private considerOutside(a: AgentEntry, cwd: string, first: boolean) {
+  private considerOutside(a: AgentEntry, cwd: string, first: boolean, created: boolean) {
     const t = this.findOwn(a.sessionId, cwd)
     if (t?.entrypoint && NOT_SHOWN_ENTRYPOINTS.has(t.entrypoint)) {
       this.passed.set(a.pid, a.sessionId)
@@ -587,11 +629,11 @@ export class ClaudeProvider implements Provider {
       this.log.info('a session started outside the game runs in a folder that isn\'t there; not shown')
       return
     }
-    this.adoptOutsideSession(a, cwd, t?.file ?? null)
+    this.adoptOutsideSession(a, cwd, t?.file ?? null, created)
   }
 
   /** One outside session's read-only island (see outsideFrom), read from its transcript like S07's read-only ones. */
-  private adoptOutsideSession(a: AgentEntry, cwd: string, file: string | null) {
+  private adoptOutsideSession(a: AgentEntry, cwd: string, file: string | null, created: boolean) {
     const read = file ? readConversation(file) : null
     let titles = file ? readTitles(file) : NO_TITLES
     // Its display name, when the transcript has none yet.
@@ -606,7 +648,7 @@ export class ClaudeProvider implements Provider {
         this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
         read?.usage)
       return session
-    })
+    }, { created })
     const s = session as unknown as ClaudeSession
     this.outside.set(a.pid, s)
     this.watched.set(a.pid, s)
