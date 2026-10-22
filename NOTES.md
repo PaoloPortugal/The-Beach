@@ -112,6 +112,7 @@ v1 slice.
 | C10 | Settings menu                             | built (UI placeholder) | C10 | `world/settings/`, `world/world.gd`, `world/player/player.gd` |
 | C11 | Crosshair                                 | built (UI placeholder) | C11 | `world/crosshair.gd`, `world/interactable.gd`, `world/world.gd` |
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
+| C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -475,7 +476,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -938,7 +939,7 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   AZERTY), Shift to sprint, Space to jump, Ctrl to crouch and slide
   (W11), mouse to look (pitch clamped
   just short of straight up and down). The mouse is captured at start; Esc
-  opens the settings menu, which frees it (C10), and a click captures it
+  opens the pause menu, which frees it (C13), and a click captures it
   again. The input actions are in
   `project.godot`, written by hand: godot-ai can't bind physical keys (dev
   log 2026-09-30-island-ocean-movement).
@@ -2180,7 +2181,7 @@ game isn't in front:
   Kenney Interface Sounds' `question_002`, the user's pick; silent if
   the file is missing). On by default at one quiet volume,
   with "Sound when waiting: on/off", saved between runs: in the sessions
-  menu (Tab) until C10, now in the settings' Sound tab (Esc).
+  menu (Tab) until C10, now in the settings' Sound tab (Esc → Settings, C13).
 
 **How it works.**
 - **Beacon:** `AttentionBeacon` (`agents/attention_beacon.gd`), a child
@@ -2237,7 +2238,7 @@ panel (C02), frees the mouse and turns the player's controls off
 (`Player.controls_enabled`: no walking, jumping, looking, or
 click-to-capture). Esc closes it, captures the mouse and gives the controls
 back; the controller reads Esc in `_input` and marks it handled, so
-Esc doesn't also open the settings menu (C10). An orchestrator that
+Esc doesn't also open the pause menu (C13). An orchestrator that
 leaves the world (its session ended) is forgotten, and its chat closes if
 it was open. Checked headless (looking at it, open, no walking while open,
 close) and in the running game (the mouse; headless Godot has none).
@@ -2931,7 +2932,8 @@ renderer or driver setting.
 
 *Decided (user's, 2026-10-12; my recommendations, all taken but the
 later SMAA default):*
-- **Esc opens it** when nothing else is open (Esc still closes the chat,
+- **Esc opens it** (superseded by C13, 2026-10-22: Esc opens the pause
+  menu, whose Settings opens this) when nothing else is open (Esc still closes the chat,
   the menus and the map first), freeing the mouse as Esc did; Esc again
   closes it and captures the mouse (rejected: a Settings entry in the
   sessions menu, hidden behind sessions; a key of its own, F10 or O,
@@ -2977,11 +2979,12 @@ later SMAA default):*
 - `SettingsMenu` (`world/settings/settings_menu.gd`, a `CanvasLayer`
   made by `world.gd`): a centred panel like the sessions menu's, with
   tabs (`TabContainer`, sized to the tallest tab so it doesn't jump),
-  "Reset to defaults" and "Esc to close". It opens in
+  "Reset to defaults" and "Esc to close" ("Esc to go back" since C13). It opened in
   `_unhandled_input` on Esc while the player has the controls: the chat,
   the sessions menu, the big map and the debug console take their Esc
   in `_input` first and mark it handled, so their Esc only closes them.
-  It closes in `_input`. Open, it frees the mouse and turns the player's
+  It closed in `_input`. Since C13 the pause menu opens it instead
+  (below), and Esc in `_input` goes back to it. Open, it frees the mouse and turns the player's
   controls off, like the other menus. The player no longer frees the
   mouse on Esc; a click still captures it when it's free (e.g. after
   switching windows).
@@ -3018,8 +3021,12 @@ later SMAA default):*
   still sets `Attention.sound_on`, saved where it was.
 - Reset to defaults sets every setting back, the chime on too.
 
-Tested in the world test (`_settings`): Esc opening and closing it, Esc
-in the sessions menu closing only that, the tabs, each setting applied
+Since C13 (2026-10-22) Esc opens the pause menu, and its Settings opens
+this menu; Esc here goes back to the pause menu (`SettingsMenu.back`,
+set by the pause menu; unset, Esc just closes it), and the hint says "Esc
+to go back". The menu no longer opens on Esc itself.
+
+Tested in the world test (`_settings`; Esc in `_pause`, C13): the tabs, each setting applied
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on, the crosshair), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
@@ -3163,6 +3170,58 @@ registry dropping `model`/`effort` without `model_info`; the schema) and
 the world test (the selectors on both pages and their reset, the
 `launch` sent or left out, the header's words, and the fake provider's
 "Opus 5.5 · High effort" live). Real Claude: the user's live check.
+
+### C13 Pause menu
+*Built (2026-10-22). Scope: core* (world only: no provider, protocol or
+sidecar part). Esc opens a pause menu with Resume, Settings and Quit
+game, so the game can be quit without Alt+F4 and the settings sit behind
+it. It takes over C10's "Esc opens the settings".
+
+*Decided (user's, 2026-10-22; my recommendations taken for the ID, the
+pausing and the Esc back; the look is the user's):*
+- **Its own ID, C13** (rejected: part of C10; quitting isn't a setting).
+- **Nothing pauses:** only the player's controls and the mouse are
+  released, as in the settings menu. Sessions, the day, the weather and
+  islands rising carry on (rejected: freezing the world with
+  `get_tree().paused` while sessions still run; the world mirrors live
+  sessions).
+- **Esc in Settings goes back to the pause menu**, Esc again to the game
+  (rejected: Esc in Settings straight back to the game).
+- **The look:** the settings menu's dark rounded panel, centred, titled
+  "Paused", with **Resume**, **Settings** and **Quit game** stacked, "Esc
+  to resume" under them, and the screen dimmed behind it (the user added
+  Resume and the dim to my recommended two-button panel). A
+  **placeholder**, like all UI.
+
+**How it works.**
+- `PauseMenu` (`world/pause_menu.gd`, a `CanvasLayer` on layer 2 made
+  by `world.gd`, added just before the settings menu so on the same
+  layer its dim is drawn under that panel too): a full-screen
+  `ColorRect` at 45 % black and the panel. It opens in
+  `_unhandled_input` on Esc while the player has the controls: the chat,
+  the sessions menu, the big map and the debug console take their Esc in
+  `_input` first and mark it handled, so their Esc only closes them (as
+  C10's did). It closes in `_input` on Esc, or on Resume. Open, it frees
+  the mouse and turns the player's controls off; closed, it captures the
+  mouse and gives them back.
+- *Settings* hides the panel (the dim stays) and opens `SettingsMenu`
+  (C10). The pause menu sets `SettingsMenu.back`, which Esc there calls
+  instead of giving the controls back: the panel shows again. Closing
+  the pause menu closes its settings too. Settings opened some other way
+  (tests) give the controls back on Esc.
+- *Quit game* calls `QuitGuard.request_quit` (S05), the same as closing
+  the window: with no session running the game quits; with sessions
+  running it asks first. "Back to the game" there leaves the pause menu
+  open (the guard gives back the controls as they were: off).
+
+Tested in the world test (`_pause`): Esc opening it (dimmed, the player
+stopped, the three buttons) and closing it, Resume, Esc in the sessions
+ring and the create panel closing only those, Settings opening the
+settings menu in its place and Esc going back, then to the game,
+settings opened on their own closing to the game, and Quit game quitting
+with no session, asking with one, Back to the game leaving it open, and
+Quit quitting. The mouse being captured and the look can't be seen
+headless: the live check's.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -4062,8 +4121,8 @@ Kept as a watch item (Watch items → Ending a session from the game).
 running in their terminals, out of the world's reach until the game
 starts again (S07). So `QuitGuard`
 (`world/quit_guard.gd`) turns off Godot's automatic quit and, when the
-window is closed (its close button, Alt+F4, Cmd+Q) while sessions run, asks
-first: "N sessions are still running:", each as "title · project · what
+window is closed (its close button, Alt+F4, Cmd+Q, or the pause menu's
+Quit game, C13) while sessions run, asks first: "N sessions are still running:", each as "title · project · what
 it's doing" (kept up to date while the dialog is open), then "Quitting
 won't end them: they keep running in their terminals, and come back when
 you start the game again. To end one, type /exit in its terminal." and,
