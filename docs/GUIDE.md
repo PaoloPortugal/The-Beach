@@ -30,6 +30,7 @@ here; each section is labelled with its feature ID.
 - [Subagents (A02, A03, A04)](#subagents-a02-a03-a04)
 - [When something waits for you (A05)](#when-something-waits-for-you-a05)
 - [When you need to sign in again (S06)](#when-you-need-to-sign-in-again-s06)
+- [The pause menu (C13)](#the-pause-menu-c13)
 - [Settings (C10)](#settings-c10)
 - [Debug commands (C09)](#debug-commands-c09)
 - [The sidecar (S01)](#the-sidecar-s01)
@@ -169,8 +170,8 @@ ring, but you aren't taken there.
 
 Sessions don't end when you quit: they keep running in their terminal
 windows, and come back to the world when you start the game again
-(S07, below). So if you close the game while sessions are running, it
-asks first. It lists them with what each is doing (scroll the list if
+(S07, below). So if you close the game (the window, or **Quit game** in the
+pause menu) while sessions are running, it asks first. It lists them with what each is doing (scroll the list if
 there are many), and reminds you that to end a session you type `/exit`
 in its terminal. **Quit** closes the game anyway; **Back to the game**
 (or Esc) returns you to where you were. With no session running, the
@@ -396,7 +397,7 @@ You see the world through your character's eyes.
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
-| Settings (frees the mouse pointer) | Esc (Esc again closes them; click in the game to take the pointer back) |
+| Pause menu: resume, settings, quit (frees the mouse pointer) | Esc (Esc again closes it; click in the game to take the pointer back) |
 | Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
 | Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
@@ -479,7 +480,7 @@ stops when you dive under. The weather is only for the look: it never
 means anything about your sessions.
 
 For now it's all silent; sounds come later. To turn lightning off, open
-the settings (Esc) and untick **Lightning in storms**.
+the settings (Esc, then **Settings**) and untick **Lightning in storms**.
 
 ## The crosshair (C11)
 
@@ -811,8 +812,8 @@ placeholder.
   the game, there's no flash and no chime: the beacon and the count are
   enough.
 
-To turn the chime off, open the settings (Esc), go to **Sound** and
-untick **Sound when waiting**; the game remembers it.
+To turn the chime off, open the settings (Esc, then **Settings**), go
+to **Sound** and untick **Sound when waiting**; the game remembers it.
 
 ## When you need to sign in again (S06)
 
@@ -849,10 +850,26 @@ so copy it first if you still want to send it. (Messages you send while
 Claude is busy wait for its turn to end, so they don't get this
 warning.)
 
+## The pause menu (C13)
+
+Press **Esc** to open the pause menu: the screen dims, the mouse pointer
+is free, and you stop moving. (If the chat, the sessions menu or the
+map is open, Esc closes that first.) It has three buttons:
+
+- **Resume** (or Esc) takes you back to the game.
+- **Settings** opens the settings (below). Esc there takes you back to
+  the pause menu.
+- **Quit game** closes the game. If sessions are still running, it asks
+  first, as closing the window does (see Quitting the game (S05));
+  **Back to the game** there leaves you in the pause menu.
+
+The game doesn't stop while it's open: your sessions keep working, and
+the day and the weather carry on.
+
 ## Settings (C10)
 
-Press **Esc** to open the settings; Esc again closes them. (If the chat,
-the sessions menu or the map is open, Esc closes that first.) Every
+Open the pause menu (**Esc**) and choose **Settings**; Esc goes back to
+the pause menu. Every
 change takes effect at once and is remembered; **Reset to defaults**
 puts everything back.
 
