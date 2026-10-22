@@ -26,6 +26,9 @@ signal synced(providers: Array)
 signal event_received(msg: Dictionary)
 ## The sidecar can't be used. [param reason] is for the player.
 signal failed(reason: String)
+## [member providers] changed: a (re)connect's hello, or a provider notice
+## ([code]provider.notice[/code], e.g. S08's [code]outside_sessions_off[/code]).
+signal providers_changed
 
 enum Status { STOPPED, STARTING, CONNECTING, SYNCING, READY, FAILED }
 
@@ -36,8 +39,19 @@ const HANDSHAKE_TIMEOUT_S := 20.0
 const INBOUND_BUFFER := 32 * 1024 * 1024
 const OUTBOUND_BUFFER := 4 * 1024 * 1024
 
+## Where the player's settings are (C10's file, [Settings]): its
+## [code][game] outside_sessions[/code] is read before the sidecar starts
+## (S08). The suites point it elsewhere ([code]tests/error_watch.gd[/code]).
+static var settings_file := "user://settings.cfg"
+
 var status: Status = Status.STOPPED
+## The providers from hello: [code]{provider, name, launch_options,
+## capabilities, notices}[/code], their notices kept up from
+## [code]provider.notice[/code].
 var providers: Array = []
+## Whether sessions started outside the game get islands (S08; the
+## player's setting, [method set_outside_sessions]).
+var outside_sessions := true
 
 var _pid := -1
 var _stdio: FileAccess
@@ -56,9 +70,13 @@ var _next_id := 0
 var _pending := {} # command id → Callable(reply: Dictionary)
 var _seq := {} # session id → last seq seen
 var _resyncing := {} # session id → true while a get_snapshot is out
+var _focused := true
 
 
 func _ready() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(settings_file) == OK:
+		outside_sessions = cfg.get_value("game", "outside_sessions", true) != false
 	start()
 
 
@@ -73,6 +91,41 @@ func _process(_delta: float) -> void:
 
 func _exit_tree() -> void:
 	stop()
+
+
+# The sidecar may look less often while the game is in the background
+# (S08's poll).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		var focused := what == NOTIFICATION_APPLICATION_FOCUS_IN
+		if focused != _focused:
+			_focused = focused
+			send_command("client.set_focus", {"focused": focused})
+
+
+## Shows or hides the sessions started outside the game (S08): the sidecar
+## ends theirs when off, and brings them up (rising) when on. A sidecar
+## started later starts with it.
+func set_outside_sessions(on: bool) -> void:
+	if on == outside_sessions:
+		return
+	outside_sessions = on
+	send_command("client.set_outside_sessions", {"enabled": on})
+
+
+## A provider notice of that code from any provider (hello's, or a
+## [code]provider.notice[/code] since), or an empty dictionary.
+func provider_notice(code: String) -> Dictionary:
+	for p: Dictionary in providers:
+		for n: Dictionary in p.get("notices", []):
+			if n.get("code") == code:
+				return n
+	return {}
+
+
+## Whether any provider declares that capability of its own (hello).
+func provider_capable(capability: String) -> bool:
+	return providers.any(func(p: Dictionary) -> bool: return p.get("capabilities", {}).has(capability))
 
 
 ## Sends a command. [param fields] are its fields without [code]type[/code]
@@ -162,17 +215,23 @@ func _sidecar_command() -> Array:
 			var given := arg.trim_prefix("--sidecar=")
 			if given.is_relative_path():
 				given = DirAccess.open(".").get_current_dir().path_join(given)
-			return [given.simplify_path()]
+			return [given.simplify_path()] + _serve_args()
 	if OS.has_feature("editor"):
 		var dir := ProjectSettings.globalize_path("res://sidecar")
 		var entry := "test/dev-fake.ts" if "--sidecar-dev-fake" in user_args else "src/main.ts"
-		return ["node", dir.path_join(entry)]
+		return ["node", dir.path_join(entry)] + _serve_args()
 	var exe := "sidecar.exe" if OS.get_name() == "Windows" else "sidecar"
 	var path := OS.get_executable_path().get_base_dir().path_join(exe)
 	if not FileAccess.file_exists(path):
 		_fail("The sidecar is missing from the game folder. Reinstalling the game should fix this.")
 		return []
-	return [path]
+	return [path] + _serve_args()
+
+
+# The server mode's arguments: the player's outside-sessions setting (S08),
+# so none shows at start when it's off.
+func _serve_args() -> Array:
+	return [] if outside_sessions else ["serve", "--no-outside-sessions"]
 
 
 # ---- pipes (threads) ----
@@ -290,10 +349,23 @@ func _handle(text: String) -> void:
 				return
 			providers = msg.get("providers", [])
 			sync_started.emit()
+			providers_changed.emit()
 			return
 		"sync.completed":
 			status = Status.READY
+			# Until told, the sidecar takes the window as focused.
+			if not _focused:
+				send_command("client.set_focus", {"focused": false})
 			synced.emit(providers)
+			return
+		"provider.notice":
+			var notice: Dictionary = msg.get("notice", {})
+			for p: Dictionary in providers:
+				if p.get("provider") == msg.get("provider"):
+					var notices: Array = p.get("notices", []).filter(func(n: Dictionary) -> bool: return n.get("code") != notice.get("code"))
+					notices.append(notice)
+					p["notices"] = notices
+			providers_changed.emit()
 			return
 		"ok", "error":
 			var id = msg.get("id")

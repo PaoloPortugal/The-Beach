@@ -15,6 +15,8 @@ extends Node3D
 ## A session taken back after a restart (S07) gets its island back as it
 ## was (W12, [IslandMemory]): its biome, seed and cluster, placed in the
 ## saved order once the sync is done, gaps closed up.
+## An island whose session the world only watches ([code]read_only[/code]:
+## S07, S08) has the read-only mark, a grey flag ([ReadOnlyFlag]).
 ## Everything under it, agents and bridges that come later included, is
 ## hidden past [member draw_distance] ([DrawDistance]).
 
@@ -86,6 +88,9 @@ func setup(p_store: SessionStore) -> void:
 	memory.load_file()
 	store.session_added.connect(_on_added)
 	store.session_removed.connect(_on_removed)
+	store.session_changed.connect(func(id: String, fields: Array) -> void:
+		if "read_only" in fields and _islands.has(id):
+			(_islands[id] as Island).set_read_only(store.session(id).get("read_only", false) == true))
 	store.synced.connect(_on_synced)
 
 
@@ -276,6 +281,7 @@ func _place(id: String, created: bool, saved := {}) -> void:
 	agents.name = "Agents"
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
+	i.set_read_only(store.session(id).get("read_only", false) == true)
 	_islands[id] = i
 	var cluster := clusters.cluster_of(id)
 	_cluster[i] = cluster
@@ -368,11 +374,9 @@ func _bridge(id: String) -> void:
 
 
 # Tells every island where its bridges land now, after bridges came or
-# went, so its zipline keeps off them (W10).
+# went, so its zipline (W10) and its read-only flag (S08) keep off them.
 func _tell_landings() -> void:
 	for i in all_islands():
-		if not i.generator.profile.get("zipline", false):
-			continue
 		var key := region(i)
 		var landings: Array[Vector3] = []
 		for l in bridges.links():
