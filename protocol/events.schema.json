@@ -844,7 +844,7 @@
       "additionalProperties": false
     },
     "client.set_focus": {
-      "description": "Godot -> sidecar. Whether the app's window has focus, sent after connecting and on every change; until told, the sidecar assumes it has. Providers may check on things less often in the background (e.g. outside_sessions). Replied ok with no result.",
+      "description": "Godot -> sidecar. Whether the app's window has focus, sent on every change, and after sync.completed if it hasn't; until told, the sidecar assumes it has. Providers may check on things less often in the background (e.g. outside_sessions). Replied ok with no result.",
       "type": "object",
       "required": ["type", "id", "focused"],
       "properties": {

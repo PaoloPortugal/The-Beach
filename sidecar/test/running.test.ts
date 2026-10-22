@@ -69,6 +69,7 @@ test('parse agents (S08): the documented fields an outside session is shown with
 test('parse agents (S08): a name is plain text on one line, without control or bidi characters, cut to its limit', () => {
   const name = (n: string) => parseAgents(JSON.stringify([{ pid: 1, sessionId: A, status: 'idle', name: n }]))[0]!.name
   assert.equal(name('fix\nthe\u0000 login‮ reversed⁦'), 'fix the login reversed')
+  assert.equal(name('a؜b‎c⁧d'), 'a b c d', 'every bidi mark and isolate, the Arabic letter mark too')
   assert.equal(name('x'.repeat(AGENT_NAME_MAX + 50))!.length, AGENT_NAME_MAX)
 })
 

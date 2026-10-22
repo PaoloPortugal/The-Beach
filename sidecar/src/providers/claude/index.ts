@@ -375,9 +375,12 @@ export class ClaudeProvider implements Provider {
       found.push({ runDir, record, program })
     }
 
-    const answer = await this.askRunning()
-    const agents = 'none' in answer ? null : answer.agents ?? null
-    if (agents === null && found.length > 0) {
+    // Nothing to take back and outside sessions off: `claude` isn't asked
+    // at all (so a suite's sidecar never runs the developer's). Agent view
+    // off is then found when they're turned on.
+    const answer = found.length > 0 || this.outsideWanted ? await this.askRunning() : null
+    const agents = answer === null || 'none' in answer ? null : answer.agents ?? null
+    if (answer !== null && agents === null && found.length > 0) {
       this.log.info(`can't ask Claude Code which sessions run (${'none' in answer ? answer.none : 'no entries'}); trusting their launchers`)
     }
     if (found.length > 0) {
@@ -399,7 +402,7 @@ export class ClaudeProvider implements Provider {
     if (this.adoptOutside || this.stopped) return
     this.adoptOutside = adopt
     this.notice = notice ?? null
-    this.outsideFrom(answer)
+    if (answer) this.outsideFrom(answer)
     this.schedulePoll()
   }
 
@@ -566,7 +569,8 @@ export class ClaudeProvider implements Provider {
    * the player turned them back on (then announced as session.created, so
    * they rise). One no longer listed ends. Agent view off: said once, the
    * outside sessions end, and no more are looked for this launch, even with
-   * the player's setting off (the setting shows why it can't be turned on).
+   * the setting off when S07's read-only sessions keep the poll going (the
+   * setting shows why it can't be turned on).
    */
   private outsideFrom(answer: Running) {
     const first = !this.polled || this.turnedOn
