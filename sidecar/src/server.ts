@@ -87,9 +87,14 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     send(ws, {
       type: 'hello',
       protocol: PROTOCOL_VERSION,
-      providers: [...registry.providers.values()].map((p) => ({
-        provider: p.id, name: p.name, ...(p.launchOptions ? { launch_options: structuredClone(p.launchOptions) } : {}),
-      })),
+      providers: [...registry.providers.values()].map((p) => {
+        const notices = registry.providerNotices(p.id)
+        return {
+          provider: p.id, name: p.name, ...(p.launchOptions ? { launch_options: structuredClone(p.launchOptions) } : {}),
+          ...(p.capabilities ? { capabilities: structuredClone(p.capabilities) } : {}),
+          ...(notices.length > 0 ? { notices } : {}),
+        }
+      }),
     })
     for (const s of registry.snapshots()) send(ws, { type: 'session.snapshot', session: s })
     send(ws, { type: 'sync.completed' })
