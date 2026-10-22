@@ -1,11 +1,12 @@
 // Finding the user's own `claude` (NOTES.md -> Architecture -> Platforms).
 // Apps started from the macOS Dock or a Linux menu don't get the shell's
-// PATH, so the documented install locations are checked too. On Windows only
+// PATH, so the documented install locations are checked too, then (macOS and
+// Linux) the PATH the user's login shell builds. On Windows only
 // a real claude.exe is used: npm's claude.cmd wrapper needs a shell.
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { findOnPath } from '../../launch/terminal.ts'
 import type { Env } from '../../launch/env.ts'
 
@@ -92,9 +93,93 @@ function readVersion(file: string, env: Record<string, string>): Promise<string 
   })
 }
 
+/** How long the login shell may take to print its PATH. */
+export const LOGIN_SHELL_TIMEOUT_MS = 10000
+/** Most of a PATH we read from the login shell's output. */
+const LOGIN_SHELL_MAX_OUTPUT = 64 * 1024
+const LOGIN_SHELL_MARK = '__login_shell_path_7f3a__'
+/**
+ * What the login shell runs: fixed text, never built from data (Security
+ * rules -> No shell strings). printenv prints the exported PATH joined by
+ * colons in every shell, fish included; the marks fence it off from
+ * anything the user's profile prints.
+ */
+export const LOGIN_SHELL_SCRIPT = `printf '%s' ${LOGIN_SHELL_MARK}; printenv PATH; printf '%s' ${LOGIN_SHELL_MARK}`
+
+/** The PATH folders between the marks: absolute paths only, in order. Exported for tests. */
+export function parseLoginShellPath(out: string): string[] {
+  const parts = out.split(LOGIN_SHELL_MARK)
+  if (parts.length < 3) return []
+  const dirs = parts[1]!.trim().split(':').filter((d) => path.posix.isAbsolute(d) && !/[\0-\x1f\x7f]/.test(d))
+  return [...new Set(dirs)]
+}
+
+/** The user's login shell: SHELL, else the account's; only an absolute path. Exported for tests. */
+export function loginShell(env: Env, account: () => string | null = () => os.userInfo().shell): string | null {
+  let shell: string | null | undefined = env.SHELL
+  if (!shell) {
+    try { shell = account() } catch { return null }
+  }
+  return shell && path.posix.isAbsolute(shell) ? shell : null
+}
+
+/**
+ * Asks the user's login shell for the PATH their terminal gets (macOS and
+ * Linux: apps started from the Dock, a menu or Steam don't get it, so a
+ * `claude` installed under a Node version manager isn't found otherwise).
+ * Interactive and login, as a terminal starts it, since version managers
+ * often set PATH only for interactive shells. No input, its own process
+ * group (killed whole on timeout), our clean environment, started in the
+ * home folder. Any failure gives [].
+ */
+export function readLoginShellPath(o: {
+  shell: string
+  env: Record<string, string>
+  home: string
+  timeoutMs?: number
+}): Promise<string[]> {
+  return new Promise((resolve) => {
+    let out = ''
+    let done = false
+    let child: ReturnType<typeof spawn> | undefined
+    const finish = (dirs: string[]) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      // Stop reading: something the profile started may hold the pipe open.
+      child?.stdout?.destroy()
+      child?.unref()
+      resolve(dirs)
+    }
+    const timer = setTimeout(() => {
+      // Stuck (a prompt, a hung command): end the shell and anything it started.
+      try { if (child?.pid) process.kill(-child.pid, 'SIGKILL') } catch { /* already gone */ }
+      finish([])
+    }, o.timeoutMs ?? LOGIN_SHELL_TIMEOUT_MS)
+    try {
+      child = spawn(o.shell, ['-i', '-l', '-c', LOGIN_SHELL_SCRIPT], {
+        cwd: o.home, env: o.env, stdio: ['ignore', 'pipe', 'ignore'], detached: true, shell: false,
+      })
+    } catch {
+      finish([])
+      return
+    }
+    child.once('error', () => finish([]))
+    child.stdout!.setEncoding('utf8')
+    child.stdout!.on('data', (chunk: string) => {
+      out += chunk
+      if (out.length > LOGIN_SHELL_MAX_OUTPUT) return finish([])
+      if (out.split(LOGIN_SHELL_MARK).length >= 3) finish(parseLoginShellPath(out))
+    })
+    child.once('close', () => finish(parseLoginShellPath(out)))
+  })
+}
+
 /**
  * Finds a working claude of at least MIN_VERSION. `override` is a path the
- * user set by hand. Throws ClaudeNotFound with a message for the player.
+ * user set by hand. If none of the candidates works on macOS or Linux, asks
+ * the login shell for its PATH, last (NOTES.md -> Architecture -> Platforms).
+ * Throws ClaudeNotFound with a message for the player.
  */
 export async function findClaude(opts: {
   env: Env
@@ -102,16 +187,35 @@ export async function findClaude(opts: {
   override?: string
   platform?: NodeJS.Platform
   home?: string
+  /** For tests: the login shell's PATH folders. */
+  loginShellPath?: () => Promise<string[]>
 }): Promise<FoundClaude> {
   const platform = opts.platform ?? process.platform
-  const list = opts.override ? [opts.override] : candidates(platform, opts.env, opts.home ?? os.homedir())
+  const home = opts.home ?? os.homedir()
+  const list = opts.override ? [opts.override] : candidates(platform, opts.env, home)
   let tooOld: string | null = null
-  for (const file of list) {
-    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) continue
+  const check = async (file: string): Promise<FoundClaude | null> => {
+    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return null
     const version = await readVersion(file, opts.cleanEnv)
-    if (!version) continue
-    if (!versionAtLeast(version, MIN_VERSION)) { tooOld = version; continue }
+    if (!version) return null
+    if (!versionAtLeast(version, MIN_VERSION)) { tooOld = version; return null }
     return { path: file, version }
+  }
+  for (const file of list) {
+    const found = await check(file)
+    if (found) return found
+  }
+  if (!opts.override && platform !== 'win32') {
+    const shell = loginShell(opts.env)
+    const dirs = opts.loginShellPath
+      ? await opts.loginShellPath()
+      : shell ? await readLoginShellPath({ shell, env: opts.cleanEnv, home }) : []
+    // The first on that PATH, as the user's terminal would pick.
+    const file = findOnPath('claude', { PATH: dirs.join(':') }, platform)
+    if (file && !list.includes(file)) {
+      const found = await check(file)
+      if (found) return found
+    }
   }
   if (tooOld) {
     throw new ClaudeNotFound(`Claude Code ${tooOld} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`)
