@@ -3,8 +3,9 @@
 // session state from outside Claude Code. Stored sessions that are still
 // running in some terminal (one the game started before a restart, or one
 // the user started) aren't offered for resuming, or the conversation would
-// run twice.
+// run twice. S07 and S08 follow the sessions it lists.
 import { execFile } from 'node:child_process'
+import path from 'node:path'
 
 /** How long `claude agents --json` may take (about 0.8 s measured). */
 export const RUNNING_TIMEOUT_MS = 5000
@@ -23,12 +24,52 @@ export function parseRunning(out: string): Set<string> {
   return new Set(parseAgents(out).map((a) => a.sessionId))
 }
 
-/** One live session from `claude agents --json`: its id (lowercase), process and state. */
+/** The longest `name` kept (a display name); longer ones are cut. */
+export const AGENT_NAME_MAX = 200
+
+/**
+ * One live session from `claude agents --json`: its id (lowercase), process
+ * and state, and what S08 shows it with. Only documented fields; each
+ * optional one that's missing or of the wrong shape is left out.
+ */
 export interface AgentEntry {
   sessionId: string
   pid: number
   /** `busy`, `waiting` or `idle`; anything else (a newer value) is kept as is. */
   status: string
+  /** Its working folder, absolute. */
+  cwd?: string
+  /** `interactive` or `background` (a newer value is kept as is). */
+  kind?: string
+  /** When it started, Unix ms. */
+  startedAt?: number
+  /** Its display name (an interactive session's default one until it's named), as plain text. */
+  name?: string
+  /** While waiting: on what (`permission prompt`, `input needed`, ...). */
+  waitingFor?: string
+}
+
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
+const WORD = /^[a-z][a-z_-]{0,30}$/
+/** Control and bidi characters: a name is shown as plain text. */
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g
+
+/** One line of plain text: no control or bidi characters, spaces collapsed, cut to AGENT_NAME_MAX. */
+function plainText(s: string): string {
+  return s.replace(UNSAFE, ' ').replace(/\s+/g, ' ').trim().slice(0, AGENT_NAME_MAX)
+}
+
+/** The optional fields of one entry that have the documented shape. */
+function extras(e: Record<string, unknown>): Omit<AgentEntry, 'sessionId' | 'pid' | 'status'> {
+  const { cwd, kind, startedAt, name, waitingFor } = e
+  const name_ = typeof name === 'string' ? plainText(name) : ''
+  return {
+    ...(typeof cwd === 'string' && path.isAbsolute(cwd) && !CONTROL.test(cwd) ? { cwd } : {}),
+    ...(typeof kind === 'string' && WORD.test(kind) ? { kind } : {}),
+    ...(typeof startedAt === 'number' && Number.isInteger(startedAt) && startedAt > 0 && startedAt < 8.64e15 ? { startedAt } : {}),
+    ...(name_ ? { name: name_ } : {}),
+    ...(typeof waitingFor === 'string' && waitingFor.length <= 40 && !CONTROL.test(waitingFor) ? { waitingFor } : {}),
+  }
 }
 
 /**
@@ -45,13 +86,29 @@ export function parseAgents(out: string): AgentEntry[] {
     const { pid, sessionId, status } = e as { pid?: unknown; sessionId?: unknown; status?: unknown }
     if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) continue
     if (typeof sessionId !== 'string' || !UUID.test(sessionId)) continue
-    entries.push({ sessionId: sessionId.toLowerCase(), pid, status: typeof status === 'string' ? status : '' })
+    entries.push({
+      sessionId: sessionId.toLowerCase(), pid, status: typeof status === 'string' ? status : '',
+      ...extras(e as Record<string, unknown>),
+    })
   }
   return entries
 }
 
-/** `agents`: the entries themselves (S07 matches them by process id); absent when a test gives ids only. */
-export type Running = { ids: Set<string>; agents?: AgentEntry[] } | { none: string }
+/**
+ * `agents`: the entries themselves (S07 matches them by process id); absent
+ * when a test gives ids only. `disabled`: agent view is off, so the command
+ * refuses (S08 says so, once).
+ */
+export type Running = { ids: Set<string>; agents?: AgentEntry[] } | { none: string; disabled?: true }
+
+/**
+ * Claude Code's refusal with agent view off: "'claude agents --json' is
+ * disabled by CLAUDE_CODE_DISABLE_AGENT_VIEW." (2.1.308), or by the
+ * disableAgentView setting.
+ */
+export function agentViewOff(message: string): boolean {
+  return /\bis disabled by\b/i.test(message) && /agent_?view/i.test(message)
+}
 
 /**
  * Asks Claude Code which sessions are running: an argument array, no shell,
@@ -70,7 +127,8 @@ export function runningSessions(
         windowsHide: true, shell: false,
       }, (err, stdout, stderr) => {
         if (err) {
-          resolve({ none: (String(stderr).trim().split(/\r?\n/)[0] || err.message).slice(0, 200) })
+          const why = (String(stderr).trim().split(/\r?\n/)[0] || err.message).slice(0, 200)
+          resolve({ none: why, ...(agentViewOff(why) ? { disabled: true as const } : {}) })
           return
         }
         const trimmed = String(stdout).trim()

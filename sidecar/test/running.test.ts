@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
-import { parseAgents, parseRunning, runningSessions } from '../src/providers/claude/running.ts'
+import { AGENT_NAME_MAX, agentViewOff, parseAgents, parseRunning, runningSessions } from '../src/providers/claude/running.ts'
 
 const A = '941123d6-76b6-49dd-a535-ead2d397f818'
 const B = '7f5fa86f-d520-41df-a38c-dc9c01d7a087'
@@ -40,12 +40,53 @@ test('parse agents (S07): each live entry with its process and state, ids lowerc
     { pid: 0, sessionId: A }, { pid: -1, sessionId: A }, { pid: 1.5, sessionId: A }, { pid: '6', sessionId: A },
   ])
   assert.deepEqual(parseAgents(out), [
-    { sessionId: A, pid: 20048, status: 'idle' },
+    // A Windows folder is only absolute on Windows.
+    { sessionId: A, pid: 20048, status: 'idle', ...(path.isAbsolute('C:\\p') ? { cwd: 'C:\\p' } : {}), kind: 'interactive' },
     { sessionId: C, pid: 3, status: 'waiting' },
     { sessionId: B, pid: 8, status: 'thinking' },
     { sessionId: A, pid: 9, status: '' },
   ])
   for (const bad of ['', 'not json', '{"pid":1}', 'null']) assert.deepEqual(parseAgents(bad), [], bad)
+})
+
+test('parse agents (S08): the documented fields an outside session is shown with; each of the wrong shape left out', () => {
+  const abs = path.resolve(os.tmpdir(), 'proj')
+  const out = JSON.stringify([
+    { pid: 1, sessionId: A, status: 'waiting', cwd: abs, kind: 'interactive', startedAt: 1792667057753, name: 'Session #65 (W12)', waitingFor: 'permission prompt' },
+    // Wrong shapes: a relative or control-laden folder, an odd kind, a start that isn't a whole positive number, a name of nothing but spaces.
+    { pid: 2, sessionId: B, status: 'idle', cwd: 'relative/p', kind: 'Inter active', startedAt: -5, name: '  \t ', waitingFor: 'x'.repeat(41) },
+    { pid: 3, sessionId: C, status: 'idle', cwd: abs + '\n', kind: 7, startedAt: 1.5, name: 7, waitingFor: 'a\u0007b' },
+    { pid: 4, sessionId: C, status: 'idle', startedAt: '1792667057753', cwd: 42 },
+  ])
+  assert.deepEqual(parseAgents(out), [
+    { sessionId: A, pid: 1, status: 'waiting', cwd: abs, kind: 'interactive', startedAt: 1792667057753, name: 'Session #65 (W12)', waitingFor: 'permission prompt' },
+    { sessionId: B, pid: 2, status: 'idle' },
+    { sessionId: C, pid: 3, status: 'idle' },
+    { sessionId: C, pid: 4, status: 'idle' },
+  ])
+})
+
+test('parse agents (S08): a name is plain text on one line, without control or bidi characters, cut to its limit', () => {
+  const name = (n: string) => parseAgents(JSON.stringify([{ pid: 1, sessionId: A, status: 'idle', name: n }]))[0]!.name
+  assert.equal(name('fix\nthe\u0000 login‮ reversed⁦'), 'fix the login reversed')
+  assert.equal(name('x'.repeat(AGENT_NAME_MAX + 50))!.length, AGENT_NAME_MAX)
+})
+
+test('agent view off (S08): Claude Code\'s refusal is told apart from other failures', () => {
+  assert.equal(agentViewOff("'claude agents --json' is disabled by CLAUDE_CODE_DISABLE_AGENT_VIEW."), true)
+  assert.equal(agentViewOff("'claude agents --json' is disabled by the 'disableAgentView' setting."), true)
+  for (const other of ['spawn claude ENOENT', 'Command failed: claude agents --json', 'claude agents --json printed no list', 'agent view crashed']) {
+    assert.equal(agentViewOff(other), false, other)
+  }
+})
+
+test('asking (S08): with agent view off, the answer says so', async () => {
+  const got = await withAgents("console.error(\"'claude agents --json' is disabled by CLAUDE_CODE_DISABLE_AGENT_VIEW.\"); process.exit(1)",
+    () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }))
+  assert.deepEqual(got, { none: "'claude agents --json' is disabled by CLAUDE_CODE_DISABLE_AGENT_VIEW.", disabled: true })
+  const other = await withAgents("console.error('something else broke'); process.exit(1)",
+    () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }))
+  assert.deepEqual(other, { none: 'something else broke' })
 })
 
 test('parse: anything but the documented array gives nothing', () => {
