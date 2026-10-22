@@ -91,5 +91,11 @@ S07's read-only mode).
    background (rejected: 10 s always; 5 s always).
 4. **Agent view off:** a notice once per launch saying why outside
    sessions can't be shown (rejected: silent, log only).
+5. **The mark covers S07's read-only sessions too** (user's addition):
+   a session of ours that came back read-only because its hook port was
+   taken (S07 → If the old port is taken; snapshot `read_only: true`)
+   gets the same mark, so every island you can't control from the
+   world looks the same. The mark follows `read_only`, not where the
+   session was started.
 
-Still open: the chat window's offer (5) and the provider scope (6).
+Still open: the chat window's offer and the provider scope (points 5 and 6 above).
