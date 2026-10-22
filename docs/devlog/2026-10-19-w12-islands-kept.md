@@ -90,3 +90,5 @@ drop the real sessions' entries; such runs now use
 `user://dev-fake-islands.json`. The text cap went from 256 to 4096 so a
 long project path doesn't lose its island. The owner-only check runs
 only off Windows: unproven until CI runs again.
+
+Live check passed with the user (2026-10-22); merged to `main`.

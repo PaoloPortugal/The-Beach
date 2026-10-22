@@ -1939,7 +1939,7 @@ uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 *Live check passed (2026-10-10)* with the user, my picks included.
 
 ### W12 Islands kept across restarts
-*Built (2026-10-19), live check pending. Scope: core* (world only, plus S07's start
+*Built (2026-10-19), live check passed with the user (2026-10-22). Scope: core* (world only, plus S07's start
 time kept). A session taken back after a restart (S07) gets its island
 back as it was: the same biome and seed (so the same shape and props),
 in the same cluster, in the same order. Before W12 each came back with
@@ -4936,12 +4936,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** W12, islands kept across restarts, built on
-`w12-islands-kept` (user's request, 2026-10-19), waiting for the live
-check and the user's review. Then (user's order, 2026-10-13): read-only islands
+**Current focus:** next (user's order, 2026-10-13): read-only islands
 for sessions started outside the world (Deferred ideas → Read-only
 islands for sessions started outside the game). Subagents stay
 read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-22), approved by the user: W12, islands
+kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
+taken back after a restart gets its island back (biome, seed, cluster,
+order; gaps closed), from the game's owner-only `islands.json`.
+Live check passed with the user.
 **Merged to `main` (2026-10-19), approved by the user: S07, reattaching
 to running sessions** (dev log 2026-10-13-s07-reattach): sessions the
 game started come back after a restart, islands standing and chat back;
