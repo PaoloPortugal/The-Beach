@@ -1,42 +1,78 @@
-LIVE CHECK: W12 islands kept
+LIVE CHECK: S08 outside sessions
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-A. Before the restart
-1. Start 2 sessions from the
-   world in repo A, and 1 in
-   repo B.
-2. Start 1 more (either
-   repo) in New cluster (+
-   panel).
-3. Note each island's kind
-   and shape, which cluster
-   it's in (ring, M map), the
-   clusters' order around the
-   platform and the bridges.
-4. Quit the game.
+A. Shown, read-only
+1. Before starting the game:
+   run claude in a plain
+   terminal in repo A and say
+   hi. Open a Code session in
+   the Claude desktop app (or
+   VS Code) in repo B.
+2. Start the game: both
+   islands already standing,
+   each in its repo's
+   cluster, with a tall grey
+   flag near the edge?
+3. Does the flag read well
+   from the platform, from
+   the sea and from close up?
+4. Walk up to the terminal
+   one: the chat so far, the
+   notice "This session was
+   started outside the game
+   ...", and "Read-only: use
+   its own window." where
+   you'd type?
+5. Chat in that terminal: the
+   message, reply and tool
+   calls show in the world
+   within a few seconds?
+6. Ask it for something that
+   needs a permission: the
+   island shows waiting?
+   Answer in the terminal.
+7. Start a session from the
+   world: no flag on it, chat
+   works as usual?
+8. Run claude -p "hi" in a
+   terminal: no island ever
+   rises for it?
+9. Run a new claude in a
+   terminal (repo A): its
+   island rises within ~10 s?
+10. /exit it: its island
+   sinks within ~10 s?
 
-B. Coming back
-5. While closed, /exit repo
-   A's first session (nearest
-   the platform) and repo B's.
-6. Start the game: the other
-   2 islands already standing,
-   each the same kind and
-   shape as in (3)?
-7. Repo A's other island
-   moved in to its first spot?
-   The hand-made cluster moved
-   into B's slice (no empty
-   slice between)?
-8. The hand-made cluster
-   still has its name? Bridges
-   rebuilt, about as before?
-9. Start a new session in
-   repo A: it joins repo A's
-   cluster?
-10. Quit and start again:
-   all the same as in (6)-(9)?
-11. /exit every session.
+B. The setting
+11. Esc → Game: turn off
+   "Show sessions started
+   outside the game": the
+   outside islands sink?
+12. Quit and start again: no
+   outside islands?
+13. Turn it on: they rise
+   at once?
+14. Quit and start again: the
+   outside islands standing,
+   as they were?
+
+C. Agent view off
+15. Quit. In PowerShell:
+   $env:CLAUDE_CODE_DISABLE_
+   AGENT_VIEW="1"; then start
+   the game from there.
+16. No outside islands, no
+   notice on screen?
+17. Esc → Game: the toggle
+   greyed out and off, with
+   "Sessions started outside
+   the game can't be shown:
+   agent view is off in
+   Claude Code." in red?
+18. Quit, start it normally
+   (new window): the toggle
+   back as you left it in B?
+19. /exit every session.

@@ -119,7 +119,7 @@ v1 slice.
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` |
-| S08 | Read-only islands for outside sessions    | designed | —            | `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `world/session_islands.gd` |
+| S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
 
 ## When a feature lands
 
@@ -680,15 +680,38 @@ has for that session (e.g. from a snapshot) is stale and ignored.
 
 **IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
 (e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
-`app` (started here) or `external` (attached; not in v1). Agents are keyed by
+`app` (started here) or `external` (started elsewhere and only watched,
+always `read_only`: S08, 2026-10-22). Agents are keyed by
 `agent` within their session.
 
 **Read-only.** A session the world can only watch has `read_only: true`
 (absent otherwise; core, set once in its snapshot): `message.send` and
 `interrupt.request` get `not_supported` (answers get `invalid_message`:
 nothing of it is ever pending), and Godot shows no message box for it. Claude: a session back after a restart whose hook port was taken
-(S07); sessions started outside the game, once S08 is built. Added 2026-10-19 (user's decision) without a
+(S07); sessions started outside the game (S08, `origin: external`). Added 2026-10-19 (user's decision) without a
 version change (optional and additive).
+
+**Provider capabilities and notices** (S08, 2026-10-22; added without
+a version change, optional and additive). A provider in `hello` may
+have `capabilities` of its own (not of one session), keyed by name with
+a config object, and `notices`: its notices so far, one per code.
+- **`outside_sessions`**: sessions started outside the app get islands,
+  as `read_only` sessions with `origin: external` (S08). The command
+  `client.set_outside_sessions {enabled}` (the player's setting) turns
+  them off, each provider ending its outside sessions
+  (`session.ended`, reason `user`) and no longer looking, or on, the
+  ones found then announced as `session.created` (they rise). The
+  sidecar starts with them on, or off with `serve
+  --no-outside-sessions`.
+- `provider.notice {provider, notice}`: a notice about a provider
+  rather than a session, replacing one with the same code, and kept for
+  the next `hello`. Code: `outside_sessions_off` (the provider can't
+  list sessions started outside the app; Claude: agent view is off).
+- `client.set_focus {focused}`: whether the app's window has focus,
+  sent on every change and after a sync if unfocused; until told, the
+  sidecar takes it as focused. Providers may check on things less
+  often in the background (S08's poll).
+- Both `client.*` commands are answered `ok` with no result.
 
 **Project.** A session's `project` has `path` (absolute) and `name` (the
 folder's name unless given). On sessions the sidecar adds `repo`: the git
@@ -719,6 +742,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice`, `session.notice_cleared` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`, optional `option`) |
+| `provider.notice` | `client.set_focus`, `client.set_outside_sessions` |
 | `tool.started`, `tool.finished` | |
 | `permission.requested`, `permission.resolved` | |
 
@@ -777,8 +801,13 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   out in its own window; Godot shows the provider's `message` as is,
   S06), `reattached_read_only` (a session taken over after a restart
   whose hooks can't reach the game: the world only watches it until it
-  ends; S07, 2026-10-19; it was `reattached_limited`). *(Shape accepted by the user, 2026-09-29, to be revisited if the
+  ends; S07, 2026-10-19; it was `reattached_limited`), `outside_read_only`
+  (a session started outside the app: the world only watches it; S08,
+  2026-10-22). *(Shape accepted by the user, 2026-09-29, to be revisited if the
   world needs more.)*
+- `session.ended` has `reason`: `user` (ended from the app; for an
+  outside session, outside sessions were turned off, S08), `exited`
+  (stopped on its own or closed elsewhere) or `error`.
 - `session.notice_cleared` (`code`): that notice no longer applies (e.g.
   `sign_in_needed` once the user signed in again); it leaves the
   snapshot's `notices` too. Added 2026-10-08 (S06) without a version
@@ -2940,7 +2969,8 @@ later SMAA default):*
   render scale, shadow quality, lightning on/off. *Controls:* mouse
   sensitivity, field of view. *Sound:* the waiting chime (moved from the
   sessions menu). *Game:* being taken to a new session's island on/off;
-  the crosshair on/off (C11, 2026-10-12). Key rebinding later (rejected: graphics only; everything including
+  the crosshair on/off (C11, 2026-10-12); sessions started outside the
+  game on/off (S08, 2026-10-22). Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
   (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA); **MSAA
@@ -3014,6 +3044,15 @@ later SMAA default):*
     going there from the sessions menu or the map still takes you.
   - *Crosshair* (C11): off hides the ring (`Crosshair.ring_on`); the
     aiming and the hint under it stay.
+  - *Show sessions started outside the game* (S08, on by default): off,
+    their islands sink and are forgotten; on, they rise at once
+    (`world.set_outside_sessions`, which tests replace, calls
+    `SidecarClient.set_outside_sessions`). The sidecar is started with
+    it (S08 → The setting). While a provider says it can't list them
+    (its `outside_sessions_off` notice: agent view is off), the toggle
+    is greyed out and shown off, with the notice in red beside it, and
+    the saved choice is kept (user's, 2026-10-22). The menu follows
+    `SidecarClient.providers_changed`.
 - *Sound:* A05's chime toggle, moved here from the sessions menu; it
   still sets `Attention.sound_on`, saved where it was.
 - Reset to defaults sets every setting back, the chime on too.
@@ -3021,7 +3060,8 @@ later SMAA default):*
 Tested in the world test (`_settings`): Esc opening and closing it, Esc
 in the sessions menu closing only that, the tabs, each setting applied
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
-the chime, the trip to a new island off and on, the crosshair), every value kept in a
+the chime, the trip to a new island off and on, the crosshair, the
+outside sessions with and without the notice: S08), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
 defaults or clamped, and Reset (the crosshair too). The window mode, vsync and the mouse
 being captured can't be seen headless: the live check's. Screenshots of
@@ -3197,7 +3237,9 @@ so on its own it serves an empty world. Dev log 2026-09-29-sidecar-core.
   log files), and exit when stdin closes, which covers Godot quitting or
   crashing on every OS (verified on Windows, including a hard kill of
   Godot). `main.ts` picks the executable's mode; S02 adds the bridge,
-  launcher and relay modes, C08 the `statusline` mode.
+  launcher and relay modes, C08 the `statusline` mode. `serve` takes
+  one flag, `--no-outside-sessions` (S08: the player turned them off);
+  anything else is refused.
 - **Packaging** (`scripts/`): esbuild bundles to one CommonJS file (Node's
   single-executable feature runs only CommonJS), which is injected into the
   official Node binary for each platform (`win-x64`, `linux-x64`,
@@ -4343,13 +4385,16 @@ its terminal." in place of the message box.
   they don't show). A session busy at the restart stays working until
   its transcript shows the turn's end. One with no transcript yet
   (nothing prompted before the restart) has it looked for
-  (`ClaudeProvider.findOwn`: `findStored`, only a file whose working folder is this project's, compared as
+  (`ClaudeProvider.findOwn`: `findTranscript`, whatever started the
+  conversation (S08), only a file whose working folder is this project's, compared as
   written or with links resolved; the same check picks the transcript
   at the restore) every second for a minute, then every 10 s, until
   Claude Code writes it, then read from its start.
-- **Shown, from `claude agents --json`** (asked every 5 s while any
-  read-only session runs, one at a time for all of them; about 0.8 s of
-  a `claude` process each time; `ClaudeSession.onAgent`): waiting on the
+- **Shown, from `claude agents --json`** (asked while any read-only
+  session runs, in the one poll S08 shares: every 5 s while the game
+  has focus, every 10 s in the background, one at a time for all of
+  them; about 0.7 s of a `claude` process each time;
+  `ClaudeSession.onAgent`): waiting on the
   user in the terminal (a prompt, a question: `waiting`, reason `input`,
   back to working or idle when it says so; no card), and `/clear` and
   `/resume`: when it names another conversation for the session (by
@@ -4418,13 +4463,14 @@ nothing and they rely on `%LOCALAPPDATA%`'s per-user permissions.
   whose chat can't reach anything.
 - After a crash, if the old sidecar's process id is reused, its run
   folders are left alone until that process exits.
-- Read-only, a `/clear` or `/resume` shows up to 5 s late (the poll).
+- Read-only, a `/clear` or `/resume` shows up to 5 s late (the poll; 10 s
+  with the game in the background, S08).
   A `/resume` to an earlier conversation with no reply yet is taken for
   a new one: its messages show as news, not as history. Shown wrong
   only.
 
-**Not covered:** sessions started outside the game (S08, designed), and
-sessions launched before S07.
+**Not covered:** sessions launched before S07. Sessions started outside
+the game are S08's (read-only islands).
 
 *Tests:* `sidecar/test/reattach.test.ts` (app data folder, run folder
 checks, kept port, restore and its cleanup, holder, `/clear` followed,
@@ -4446,29 +4492,35 @@ after it), `tests/core/sidecar_client_test.gd` (the suites' own
 sessions folder: Running it).
 
 ### S08 Read-only islands for sessions started outside the game
-*Designed (2026-10-22), not built. Scope: capability* (a provider that
-can list the machine's other sessions declares it; Claude names stay in
-the Claude provider). Every live session on the machine gets an island,
-not only those the game launched: a `claude` in a plain terminal, the
-desktop app's and IDEs' sessions, background sessions. Watched, never
-driven: only launch flags give a session our hooks and channel, and we
-never edit the user's settings (Watch items → Attaching to sessions
-started outside the game). Research and decisions: dev log
-2026-10-22-s08-outside-sessions-research.
+*Built (2026-10-22; designed with the user the same day; live check
+pending). Scope: capability* (`outside_sessions`, declared by a provider
+in `hello`; Claude names stay in the Claude provider). Every live
+session on the machine gets an island, not only those the game
+launched: a `claude` in a plain terminal, the desktop app's and IDEs'
+sessions, background sessions. Watched, never driven: only launch flags
+give a session our hooks and channel, and we never edit the user's
+settings (Watch items → Attaching to sessions started outside the
+game). Flow 16. Dev logs 2026-10-22-s08-outside-sessions-research (the
+research and decisions) and 2026-10-22-s08-outside-sessions (the
+build).
 
-*Decided (user's, 2026-10-22; my recommendations, the mark's reach the
-user's addition):*
+*Decided (user's, 2026-10-22; my recommendations, the mark's reach, the
+mark's look, the wording and the toggle the user's own):*
 - **Which sessions:** every live one `claude agents --json` lists except
   `sdk-cli` ones (`claude -p` runs and Agent SDK programs: short-lived,
   they'd flash islands up and down): terminals (`cli`), the desktop app
   (`claude-desktop`), IDEs (`claude-vscode`), and background sessions
   still working or blocked. Not finished background sessions (no
-  `--all`). Ours are left out by the process id our launcher spawned
-  (S07).
+  `--all`). The game's own are left out (S07's process ids).
 - **Where:** in its repository's cluster like any session (W05; kept
-  across restarts by W12), with a **read-only mark** on the island
-  (look to settle when building; a placeholder until then) and the chat
-  panel's read-only line (rejected: a cluster of their own; unmarked).
+  across restarts by W12), with a **read-only mark** on the island and
+  the chat panel's read-only line (rejected: a cluster of their own;
+  unmarked).
+- **The mark is a grey flag** on a tall pole near the island's edge
+  (user's choice of look; a placeholder from primitives until real art,
+  `world/island/read_only_flag.gd`). Taller than the trees (9 m), so it
+  shows from across the sea (user's, after the first renders: a 3.6 m
+  pale pennant vanished against the sky and under the treetops).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
@@ -4477,33 +4529,118 @@ user's addition):*
   S07's read-only mode (rejected: an "End background session" button
   through `claude stop`, which only works on background sessions and
   means something else than the world's Stop).
+- **The chat line says where to chat:** "Read-only: use its own window."
+  (it may be an app or an IDE, not a terminal); S07's stays "Read-only:
+  use its terminal." The notice `outside_read_only`: "This session was
+  started outside the game, so it's read-only here. Use its own window
+  to chat with it." (user's wording).
 - **Polling:** every 5 s while the game has focus, every 10 s in the
   background (about 0.7 s of a `claude` process each; rejected: 10 s
   always, 5 s always).
-- **Agent view off** (the command refuses): a notice once per launch,
-  "Sessions started outside the game can't be shown: agent view is off
-  in Claude Code." (wording to settle), then nothing (rejected: silent).
+- **A setting turns them off** (user's addition while building): Settings
+  → Game → "Show sessions started outside the game", on by default
+  (C10). Off: each outside island sinks and is forgotten (W12), and the
+  sidecar stops asking unless S07's read-only sessions need it. On: it
+  asks at once and their islands rise at once.
+- **Agent view off** (the command refuses): the provider notice
+  `outside_sessions_off`, "Sessions started outside the game can't be
+  shown: agent view is off in Claude Code." (user's wording), shown only
+  in the settings, in red beside the toggle, which is greyed out and
+  shown off; the saved choice is kept (user's, 2026-10-22; first
+  designed as an on-screen notice once per launch; rejected: silent).
 
-**How it would work** (my picks, to settle when building).
-- *Protocol:* an outside session is an ordinary `session.snapshot` with
-  `origin: external` (already in the schema) and `read_only: true`
-  (core, S07), so Godot needs no second path. The provider declares the
-  capability in `hello`; the agent-view-off notice needs a
-  provider-level event, the one new piece of protocol.
-- *Claude provider:* `running.ts`'s `parseAgents` keeps `cwd`, `kind`,
-  `startedAt`, `name` and `waitingFor` too; each new entry with a
-  `sessionId` gets a read-only session read from its transcript with
-  S07's reader (`transcript-hooks.ts`, the wait for a transcript not
-  written yet, `/clear` and `/resume` followed per `pid`); the
-  transcript's `entrypoint` filters out `sdk-cli`. An entry gone from
-  the list (its process exited) ends the session (`session.ended`; the
-  island sinks, W04).
-- *Startup:* the first listing goes out before `sync.completed`, so
-  W12 brings outside islands back as they were instead of dropping
-  their entries as sessions that didn't come back.
+**How it works.**
+- *Protocol* (Protocol → Provider capabilities and notices): an outside
+  session is an ordinary `session.snapshot` (or `session.created`) with
+  `origin: external` and `read_only: true`, so Godot needs no second
+  path. New: the provider's own `capabilities` and `notices` in `hello`,
+  `provider.notice`, and the commands `client.set_focus` and
+  `client.set_outside_sessions`.
+- *One shared poll* (`ClaudeProvider.poll`, `schedulePoll`): one `claude
+  agents --json` at a time serves S07's read-only sessions and S08,
+  every `AGENTS_POLL_MS` (5 s) while the game has focus and
+  `AGENTS_POLL_BACKGROUND_MS` (10 s) without (`client.set_focus`, which
+  `SidecarClient` sends on the application's focus in and out, and after
+  a sync if the window isn't focused). It runs only while there's
+  something to ask about.
+- *What it reads* (`running.ts`): besides `sessionId`, `pid` and
+  `status`, each entry's `cwd` (absolute, no control characters),
+  `kind`, `startedAt`, `name` (plain text: control and bidi characters
+  out, cut to 200) and `waitingFor`; a field missing or of the wrong
+  shape is left out. Agent view off is told apart from other failures by
+  Claude Code's refusal ("… is disabled by
+  CLAUDE_CODE_DISABLE_AGENT_VIEW", or the setting). `waitingFor` is
+  parsed but not shown yet.
+- *Who gets an island* (`outsideFrom`): each listed entry with a live
+  `pid`, a working folder that exists and a session id, unless it's the
+  game's own (its run folders' `claude` process ids, or a session id it
+  runs) or its transcript's `entrypoint` is `sdk-cli`. The transcript is
+  found by `findTranscript` (any entrypoint, only one whose working
+  folder is the entry's). One with no transcript yet waits one listing
+  (a `claude -p` writes its transcript at once, so it's caught then),
+  except at start and just after the setting was turned on, when it's
+  shown at once. Its title is the transcript's, else the entry's `name`.
+  A session held by a second game is someone else's to drive: it shows
+  read-only here (my pick).
+- *At start* the first listing is part of the restore, before
+  `sync.completed`, so W12 brings outside islands back as they were
+  (standing) instead of dropping them as sessions that didn't come back.
+- *Each one* is a `ClaudeSession` read from its transcript as S07's
+  read-only sessions are (`transcript-hooks.ts`; the wait for a
+  transcript not written yet; `/clear` and `/resume` followed per
+  `pid`; waiting on the user from `status`), with no run folder, no
+  launcher and no hook token: nothing of it is written anywhere. Its
+  state at first is the entry's `status` (`busy` working, `waiting`
+  waiting for input, else idle).
+- *It ends* (`session.ended`, reason `exited`; the island sinks, W04)
+  once Claude Code no longer lists its `pid`; with the setting turned
+  off, reason `user` (W12 forgets it). Agent view found off ends every
+  outside session and stops looking for this launch.
+- *The setting* (`SidecarClient.set_outside_sessions`): sends
+  `client.set_outside_sessions`; the sidecar is started with `serve
+  --no-outside-sessions` when it's off (`SidecarClient` reads `[game]
+  outside_sessions` from `user://settings.cfg` before starting it,
+  `SidecarClient.settings_file`), so none shows at start. The suites
+  point that at their own file with it off (`tests/error_watch.gd`), so
+  a test never shows the developer's real sessions.
+- *Godot:* `Island.set_read_only` adds or removes the `ReadOnlyFlag`
+  for every snapshot or change with `read_only`; it stands between two
+  torches on the side furthest from the island's bridges (and moves when
+  they change), props cleared around it, its pennant across the edge,
+  swaying. The chat panel shows the line per origin.
+
+**Open points** (not fixed; low likelihood):
+- An Agent SDK program found before its transcript is written, and
+  still without one at the next listing, shows as an island, and never
+  ends unless Claude Code stops listing it.
+- `waitingFor` (what it waits on) isn't shown; the world shows only
+  "waiting".
+- The mark is on the islands only, not on the minimap or the world map.
 
 **Not covered:** sending, answering or stopping from the world (needs a
 documented way to attach, Watch items); sessions on other machines.
+
+*Tests:* `sidecar/test/outside.test.ts` (in the first sync, read-only and
+external, with its chat, title, state and start time; which are shown:
+terminals, the desktop app and IDEs, not `claude -p` or SDK programs,
+none without a working folder or with one that isn't there, never
+another project's transcript of the same id; the display name as title;
+later ones as snapshots, one with no transcript at its second listing;
+ended once unlisted; nothing sent, stopped or answered, nothing
+written; `/clear` followed; ours left out by session id and process;
+agent view off at start and while running: the notice once, in
+`hello`, the sessions ended, no more asking; other failures logged
+once; the pace with and without focus, its defaults, stopped at
+shutdown; turned off and on: ended with reason user, asked at once,
+rising; `serve --no-outside-sessions`; S07's still polled while off),
+`running.test.ts` (the fields, their checks, agent view off told
+apart), `tests/world/world_test.gd` (the flag on every read-only
+island, clear of bridges, gone and back with `read_only`; the notice
+and the chat line per origin; the setting: sent and saved, greyed out
+with the notice in red, the saved choice kept),
+`tests/core/sidecar_client_test.gd` (the serve arguments from the
+setting, provider capabilities, `provider.notice` kept and not a
+session event, focus told once per change, both commands answered).
 
 ## Conventions
 
@@ -4688,6 +4825,10 @@ test and `process.test.ts`).
 Likewise the error watch points `IslandMemory.file` (W12) at
 `user://test-islands.json` and deletes it, so the suites never read or
 wipe the user's remembered islands (`clusters_test.gd` checks it).
+And it points `SidecarClient.settings_file` at
+`user://test-sidecar-settings.cfg` with `[game] outside_sessions`
+off, so a suite's sidecar never shows the user's own running sessions
+(S08; the sidecar client test checks it).
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
@@ -4948,9 +5089,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    running elsewhere); (b) sessions the game started are reattached
    after a restart (S07, built: run folders kept, the bridge
    reconnects, the hook port kept, already standing); (c) sessions
-   started outside the game are not attached for now: they have none of
-   our hooks or channel, which only launch flags give (Deferred ideas,
-   Watch items).
+   started outside the game are not attached: they have none of
+   our hooks or channel, which only launch flags give (Watch items);
+   since S08 (2026-10-22) they get read-only islands.
 6. ~~**Sidecar language.**~~ *Decided (user's):* TypeScript on Node. Chosen
    while the Agent SDK was the plan (its TypeScript version is the more
    complete one). It still fits the CLI route: channels are MCP servers and
@@ -4996,8 +5137,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** S08, read-only islands for sessions started outside
-the game (user's order, 2026-10-13), designed on `s08-outside-sessions`
-(user's decisions, 2026-10-22); building next. Subagents stay read-only
+the game (user's order, 2026-10-13), built on `s08-outside-sessions`
+(2026-10-22): the user's review and live check next
+(`tests/live/checklist.txt`, S08), then merge. Subagents stay read-only
 in the world (Open questions → 4).
 **Merged to `main` (2026-10-22), approved by the user: W12, islands
 kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
@@ -5377,17 +5519,9 @@ the user's vision first; others using the MIT code afterwards is fine.
   2026-10-07): built (C10, 2026-10-12).
 
 - **Read-only islands for sessions started outside the game**
-  (designed as S08, 2026-10-22; researched 2026-10-12; first decided not now, then brought forward
-  by the user the same day to be part of the public release: similar
-  projects, Agent World and Pixel Agents, already show every session on
-  the machine, and we shouldn't offer less). Islands for every `claude` started in a plain terminal,
-  from `claude agents --json` (title, project, working / waiting /
-  idle), with their chat read live from the transcript, but no chat,
-  answers or stop from the world (a read-only mode through the chat
-  UI); nothing when the user's agent view is off; polling the command
-  costs about 0.8 s of a `claude` process each time. Full control would
-  need our hooks and channel, which only launch flags give (Watch items
-  → Attaching to sessions started outside the game).
+  (researched 2026-10-12, brought forward by the user to be part of the
+  public release: similar projects, Agent World and Pixel Agents,
+  already show every session on the machine): built (S08, 2026-10-22).
 
 - **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
   The sidecar and its protocol don't depend on the game: others could
@@ -5663,9 +5797,10 @@ Ideas weighed and turned down. Each says what would reopen it.
   2.1.290 fixed the channel relay approving a different prompt on a
   repeated reply ID; we echo Claude Code's own `request_id`, so this
   only helps.
-- **`claude agents --json`** (S04, S07). Documented as the supported way
-  to read session state from outside; refused when agent view is off.
-  Recheck its fields when raising the minimum version.
+- **`claude agents --json`** (S04, S07, S08). Documented as the supported way
+  to read session state from outside; refused when agent view is off
+  (S08 tells that apart by its message, "… is disabled by …": recheck
+  the wording after Claude Code updates). Recheck its fields when raising the minimum version.
 - **`agents`' process ids on macOS and Linux** (S07, 2026-10-13). A
   session is taken back only if `claude agents --json` lists the
   process id our launcher spawned. Probed on Windows only (native

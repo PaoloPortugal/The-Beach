@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S01, S07). NOTES.md → S01, S07 and Architecture → Security rules.
+> **Status:** Built (S01, S07, S08). NOTES.md → S01, S07, S08, Protocol and Architecture → Security rules.
 
 ```mermaid
 sequenceDiagram
@@ -15,18 +15,21 @@ sequenceDiagram
 
     rect rgba(255,193,7,0.18)
         Note over World,Sidecar: sidecar/src/serve.ts (handshake), server.ts (the checks)<br/>Godot: core/sidecar/sidecar_client.gd
-        World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr)
-        Sidecar->>Sidecar: take back sessions still running (S07, flow 14)
+        World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr#59;<br/>serve --no-outside-sessions if the player turned them off, S08)
+        Sidecar->>Sidecar: take back sessions still running (S07, flow 14)<br/>and find those started outside the game (S08, flow 16)
         Sidecar->>Sidecar: new random token, listen on 127.0.0.1 (free port)
         Sidecar->>World: stdout: one line {ready, protocol, port, token}
         World->>Sidecar: WebSocket connect, Authorization: Bearer token
         Sidecar-->>World: accepted (no Origin, right Host and token)
     end
-    Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12)
+    Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12,<br/>its own capabilities and notices, S08)
     loop each live session
         Sidecar->>World: session.snapshot
     end
     Sidecar->>World: sync.completed
+    opt the game's window isn't focused
+        World->>Sidecar: client.set_focus false (and on every change after)
+    end
     Note over World,Sidecar: From here on: commands up, events down.<br/>Every command's reply comes before the events it causes.
     alt the connection drops, the sidecar still runs
         World->>Sidecar: connect again with the same token
