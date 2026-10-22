@@ -1,8 +1,8 @@
 class_name SettingsMenu
 extends CanvasLayer
-## The settings menu (C10): Esc opens it when nothing else is open (the
-## chat, the menus and the map take Esc first) and frees the mouse; Esc
-## again closes it. Tabs for Graphics, Controls, Sound and Game; every
+## The settings menu (C10): the pause menu's Settings opens it (C13) and
+## it frees the mouse; Esc goes back to the pause menu ([member back]).
+## Tabs for Graphics, Controls, Sound and Game; every
 ## change applies at once and is saved ([Settings]). A PLACEHOLDER, like
 ## all UI for now.
 
@@ -25,6 +25,9 @@ var shadows_available := true
 ## Screen-space anti-aliasing isn't in the Compatibility renderer either
 ## (Godot's docs), so its setting is greyed out there too.
 var screen_space_aa_available := true
+## Called when Esc leaves the menu, instead of giving the controls back:
+## the pause menu's way back (C13). Unset, Esc just closes it.
+var back := Callable()
 
 var _open := false
 var _panel := PanelContainer.new()
@@ -90,19 +93,16 @@ func current_tab() -> String:
 	return TABS[_tabs.current_tab]
 
 
-# _input, so Esc closes it before anything else sees it. It opens in
-# _unhandled_input: the chat, the sessions menu, the map and the debug
-# console take their Esc in _input first.
+# _input, so Esc leaves it before anything else (the pause menu) sees it.
 func _input(event: InputEvent) -> void:
 	if _open and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		close()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not _open and player and player.controls_enabled and event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		open()
+		if back.is_valid():
+			_open = false
+			_panel.visible = false
+			back.call()
+		else:
+			close()
 
 
 func _build() -> void:
@@ -168,7 +168,7 @@ func _build() -> void:
 	reset.pressed.connect(reset_all)
 	bottom.add_child(reset)
 	var hint := Label.new()
-	hint.text = "Esc to close"
+	hint.text = "Esc to go back"
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	hint.modulate = Color(1, 1, 1, 0.6)
