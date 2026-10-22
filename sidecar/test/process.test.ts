@@ -14,8 +14,12 @@ const command: string[] = process.env.SIDECAR_CMD
   ? JSON.parse(process.env.SIDECAR_CMD)
   : [process.execPath, path.join(here, '..', 'src', 'main.ts')]
 
-/** Each sidecar gets its own sessions folder: none touches the user's (NOTES.md -> S07). */
-function start(args: string[] = [], stdin: 'pipe' | 'ignore' = 'pipe', sessions = tempSessionsDir()) {
+/**
+ * Each sidecar gets its own sessions folder: none touches the user's
+ * (NOTES.md -> S07). And sessions started outside the game are off (S08),
+ * so none shows the developer's own running sessions, nor asks `claude`.
+ */
+function start(args: string[] = ['serve', '--no-outside-sessions'], stdin: 'pipe' | 'ignore' = 'pipe', sessions = tempSessionsDir()) {
   const child = spawn(command[0]!, [...command.slice(1), ...args], {
     stdio: [stdin, 'pipe', 'pipe'], env: { ...process.env, [TEST_SESSIONS_DIR]: sessions },
   })
@@ -46,7 +50,7 @@ function kill(child: ChildProcess) {
 
 test('prints one handshake line, then serves the protocol', async () => {
   const sessions = tempSessionsDir()
-  const p = start([], 'pipe', sessions)
+  const p = start(undefined, 'pipe', sessions)
   try {
     const hs = await within(p.handshake, 10000, 'handshake')
     assert.ok(fs.existsSync(path.join(sessions, 'hook-port.json')), 'its run folders in the test\'s own folder')

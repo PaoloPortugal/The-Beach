@@ -48,12 +48,27 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
 /** How Godot started it: `outsideSessions` false is `serve --no-outside-sessions` (the player's setting, S08). */
 export interface ServeOptions { outsideSessions?: boolean }
 
+/** `serve`'s arguments (main.ts): only `--no-outside-sessions`; anything else is refused. */
+export function serveOptions(args: string[]): ServeOptions {
+  const flags = new Set(args)
+  flags.delete('--no-outside-sessions')
+  if (flags.size > 0) throw new Error(`unexpected arguments: ${[...flags].join(' ')}`)
+  return { outsideSessions: !args.includes('--no-outside-sessions') }
+}
+
+/**
+ * Before listening: the player's setting first, so with outside sessions off
+ * none is shown at start and `claude` isn't asked for them; then the restore.
+ */
+export async function prepare(registry: Registry, providers: Provider[], log: Log, o: ServeOptions): Promise<void> {
+  if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
+  await restoreSessions(registry, providers, log)
+}
+
 export async function serve(providers: Provider[], log: Log = stderrLog, o: ServeOptions = {}): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
-  // Before restore, so none is shown at start.
-  if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
-  await restoreSessions(registry, providers, log)
+  await prepare(registry, providers, log, o)
   const server = await startServer({ registry, token, log })
 
   let stopping = false

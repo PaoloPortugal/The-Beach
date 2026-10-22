@@ -2014,6 +2014,25 @@ func _quit(world: Node3D, player: Player) -> void:
 	empty.quit = func() -> void: quits[0] += 10
 	empty.request_quit()
 	_check(quits[0] == 11, "quit: with no session running, it just quits")
+	# S08: a session started outside the game never had our hooks; quitting
+	# changes nothing for it, so it isn't counted or listed.
+	var outside := _snapshot("x1")
+	outside["origin"] = "external"
+	outside["read_only"] = true
+	outside["title"] = "outside one"
+	empty.store.apply({"type": "session.snapshot", "session": outside})
+	empty.request_quit()
+	_check(quits[0] == 21, "quit (S08): with only outside sessions running, it just quits")
+	var ours := _snapshot("x2")
+	ours["read_only"] = true
+	empty.store.apply({"type": "session.snapshot", "session": ours})
+	get_root().add_child(empty)
+	empty.setup(empty.store, player)
+	empty.request_quit()
+	await _settle()
+	_check(quits[0] == 21 and empty.shown_text().begins_with("1 session is still running") and not empty.shown_text().contains("outside one"), "quit (S08): S07's read-only one counted, the outside one left out")
+	empty.dialog().get_cancel_button().pressed.emit()
+	await _frames(1)
 	empty.free()
 	await _quit_many(player)
 

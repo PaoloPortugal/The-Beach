@@ -13,7 +13,9 @@ import { programPidFile } from '../src/launch/launcher.ts'
 import type { AgentEntry, Running } from '../src/providers/claude/running.ts'
 import { ClaudeProvider, OUTSIDE_SESSIONS_OFF, type ClaudeOptions } from '../src/providers/claude/index.ts'
 import { OUTSIDE_READ_ONLY } from '../src/providers/claude/session.ts'
-import { restoreSessions } from '../src/serve.ts'
+import { prepare, restoreSessions, serveOptions } from '../src/serve.ts'
+import { Registry } from '../src/registry.ts'
+import type { Provider } from '../src/provider.ts'
 import { connect, RecordingLog, tempSessionsDir, testServer, type Msg } from './helpers.ts'
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -439,7 +441,7 @@ test('turned back on: later ones arrive as snapshots again, a session with no tr
   } finally { await r.close() }
 })
 
-test('off from the start (serve --no-outside-sessions): none in the first sync, no polls; agent view off still said; on later: they rise', { timeout: 15_000 }, async () => {
+test('off from the start (serve --no-outside-sessions): none in the first sync, claude never asked; on later: they rise, or agent view off is said then', { timeout: 15_000 }, async () => {
   const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
   const cwd = project()
   transcript(projects, ID(1), cwd, 'cli', ...said(1, 'hello'))
@@ -454,14 +456,14 @@ test('off from the start (serve --no-outside-sessions): none in the first sync, 
     const { hello, snapshots } = await c.sync()
     assert.deepEqual(snapshots, [])
     assert.deepEqual((hello.providers as any[])[0].capabilities, { outside_sessions: {} }, 'still declared: the setting can be turned on')
-    assert.equal(l.calls, 1, 'asked once, at the restore')
+    assert.equal(l.calls, 0, 'not asked at the restore')
     await sleep(300)
-    assert.equal(l.calls, 1, 'no polls')
+    assert.equal(l.calls, 0, 'no polls')
     assert.equal((await c.command({ type: 'client.set_outside_sessions', enabled: true })).type, 'ok')
     assert.equal(snapshotOf(await c.next('session.created', 2000)).native_id, ID(1))
   } finally { await c.close(); await s.close(); await p.shutdown() }
 
-  // Agent view off with the setting off: the notice still comes, so the setting can say why.
+  // Agent view off with the setting off: found once turned on, and said then.
   const off = listing({ none: 'disabled', disabled: true })
   const p2 = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: tempSessionsDir(), agentsPollMs: 50, projectsDir: projects, runningSessions: off.ask })
   p2.setOutsideSessions(false)
@@ -470,9 +472,13 @@ test('off from the start (serve --no-outside-sessions): none in the first sync, 
   const c2 = await connect(s2.port, s2.token)
   try {
     const { hello } = await c2.sync()
-    assert.deepEqual((hello.providers as any[])[0].notices, [OUTSIDE_SESSIONS_OFF])
-    // Turned on anyway: nothing (agent view stays off this launch).
+    assert.equal((hello.providers as any[])[0].notices, undefined)
+    assert.equal(off.calls, 0)
     assert.equal((await c2.command({ type: 'client.set_outside_sessions', enabled: true })).type, 'ok')
+    assert.deepEqual((await c2.next('provider.notice', 2000)).notice, OUTSIDE_SESSIONS_OFF)
+    // No more asking (agent view stays off this launch), even turned off and on again.
+    await c2.command({ type: 'client.set_outside_sessions', enabled: false })
+    await c2.command({ type: 'client.set_outside_sessions', enabled: true })
     await sleep(300)
     assert.equal(off.calls, 1)
   } finally { await c2.close(); await s2.close(); await p2.shutdown() }
@@ -493,4 +499,39 @@ test('turned off: S07\'s read-only sessions still polled; a bad command refused'
     const bad = await r.c.command({ type: 'client.set_outside_sessions', enabled: 'no' })
     assert.equal(bad.code, 'invalid_message')
   } finally { await r.close() }
+})
+
+test('serve --no-outside-sessions: parsed, and set before the restore, so none is shown and claude isn\'t asked', async () => {
+  assert.deepEqual(serveOptions([]), { outsideSessions: true })
+  assert.deepEqual(serveOptions(['--no-outside-sessions']), { outsideSessions: false })
+  assert.throws(() => serveOptions(['--no-outside-sessions', 'extra']), /unexpected arguments: extra/)
+  assert.throws(() => serveOptions(['--outside-sessions']), /unexpected arguments/)
+
+  const order: string[] = []
+  const spy = {
+    id: 'spy', name: 'Spy',
+    setOutsideSessions: (on: boolean) => { order.push(`set ${on}`) },
+    restore: async () => { order.push('restore') },
+    shutdown: async () => {},
+  } as unknown as Provider
+  const log = new RecordingLog()
+  await prepare(new Registry([spy], log), [spy], log, { outsideSessions: false })
+  assert.deepEqual(order, ['set false', 'restore'])
+  order.length = 0
+  await prepare(new Registry([spy], log), [spy], log, { outsideSessions: true })
+  assert.deepEqual(order, ['restore'], 'on: left as the provider starts (on)')
+
+  // The Claude provider: nothing listed, nothing asked.
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const cwd = project()
+  transcript(projects, ID(1), cwd, 'cli', ...said(1, 'hello'))
+  const l = listing([{ sessionId: ID(1), pid: 50001, status: 'idle', cwd }])
+  const p = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: tempSessionsDir(), agentsPollMs: 50, projectsDir: projects, runningSessions: l.ask })
+  const registry = new Registry([p], log)
+  try {
+    await prepare(registry, [p], log, serveOptions(['--no-outside-sessions']))
+    await sleep(200)
+    assert.equal(l.calls, 0)
+    assert.deepEqual(registry.snapshots(), [])
+  } finally { await p.shutdown() }
 })
