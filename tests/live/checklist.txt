@@ -1,42 +1,54 @@
-LIVE CHECK: W12 islands kept
+LIVE CHECK: S02 finding claude
+through the login shell
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
-Real Claude. Never pick Fable
-(no access).
+macOS or Linux only (Windows
+doesn't use it). Real Claude.
+Never pick Fable (no access).
 
-A. Before the restart
-1. Start 2 sessions from the
-   world in repo A, and 1 in
-   repo B.
-2. Start 1 more (either
-   repo) in New cluster (+
-   panel).
-3. Note each island's kind
-   and shape, which cluster
-   it's in (ring, M map), the
-   clusters' order around the
-   platform and the bridges.
-4. Quit the game.
+A. Set up
+1. Install Claude Code with
+   npm under nvm (or fnm,
+   Volta): `npm i -g
+   @anthropic-ai/claude-code`
+   in a terminal where nvm
+   is loaded.
+2. Make sure no other claude
+   is found: none in
+   ~/.local/bin, Homebrew,
+   /usr/local/bin.
+3. In a terminal, `claude
+   --version` works.
 
-B. Coming back
-5. While closed, /exit repo
-   A's first session (nearest
-   the platform) and repo B's.
-6. Start the game: the other
-   2 islands already standing,
-   each the same kind and
-   shape as in (3)?
-7. Repo A's other island
-   moved in to its first spot?
-   The hand-made cluster moved
-   into B's slice (no empty
-   slice between)?
-8. The hand-made cluster
-   still has its name? Bridges
-   rebuilt, about as before?
-9. Start a new session in
-   repo A: it joins repo A's
-   cluster?
-10. Quit and start again:
-   all the same as in (6)-(9)?
-11. /exit every session.
+B. From the Dock or a menu
+4. Start the game from the
+   Dock (macOS) or the app
+   menu (Linux), not from a
+   terminal.
+5. Hold Tab, +, start a
+   session: no "Claude Code
+   wasn't found"?
+6. The terminal opens with
+   the nvm claude (`/status`
+   or `which claude` there).
+7. Start a second session:
+   no extra wait before the
+   terminal opens (the shell
+   is asked once per run)?
+
+C. Fails safe
+8. Add `sleep 20` to the end
+   of ~/.zshrc (or ~/.bashrc),
+   restart the game from the
+   Dock: after about 10 s,
+   "Claude Code wasn't found"
+   and nothing hangs?
+9. Remove the `sleep 20`.
+   Restart: found again?
+
+D. Optional
+10. fish as login shell:
+    found?
+11. A Steam launch (Linux):
+    found, or the not-found
+    message (no hang)?
