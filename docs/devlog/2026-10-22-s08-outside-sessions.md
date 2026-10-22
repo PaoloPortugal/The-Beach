@@ -17,7 +17,8 @@ NOTES.md → S08 has how it works.
   renders; a darker, bigger pennant across the edge still sat under the
   treetops from the sea. The user asked for it way taller: now a 9 m
   pole with a 1.7 × 2.8 m dark grey pennant, which shows from across the
-  sea. Credited as Claude-made (AI-written code) in `assets/CREDITS.md`,
+  sea. The user approved it from renders near, at 45 m and at 90 m
+  ("reads well"). Credited as Claude-made (AI-written code) in `assets/CREDITS.md`,
   at the user's request, until real art replaces it. Offered: the mark
   on the minimap and world map too (not built).
 - **The wording:** the notice `outside_read_only`, "This session was
