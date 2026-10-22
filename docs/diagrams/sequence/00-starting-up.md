@@ -38,7 +38,9 @@ sequenceDiagram
 
 Until the first `sync.completed` (or a failure, or 30 s) the world is
 covered (`world/loading_cover.gd`), so islands of sessions taken back
-are standing from the first frame (S07).
+are standing from the first frame (S07). They wait for that
+`sync.completed`, then come back as they were, from the game's
+`islands.json` (W12, [flow 14](14-reattach-after-restart.md)).
 
 A connection without the token, with an `Origin` header (any web page), or
 with the wrong `Host` is refused before it starts. Events whose `seq` a
