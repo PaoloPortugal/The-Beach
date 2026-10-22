@@ -15,6 +15,8 @@ var _errors := ErrorWatch.new(self)
 
 
 func _initialize() -> void:
+	# Never the user's remembered islands: keep_only below would wipe them.
+	_check(IslandMemory.file == "user://test-islands.json", "W12: the suites use their own islands file")
 	var c := SessionClusters.new()
 	var a := c.add("a", _s("/r/game", "game", "/r/game"))
 	var b := c.add("b", _s("/r/.claude/worktrees/x", "x", "/r/game"))
@@ -193,14 +195,24 @@ func _w12_memory() -> void:
 	again.keep_only({k: true, "a": true})
 	m.load_file()
 	_check(m.has(k) and m.has("a") and not m.has("b"), "W12: ones not kept are dropped from the file")
-	var f := FileAccess.open(IslandMemory.file, FileAccess.WRITE)
-	f.store_string('{"version": 1, "islands": {"bad": {"biome": 99, "seed": 1, "cluster": "1", "name": "x", "repo_key": "", "slot": 0, "index": 0}, "ok": %s}}' % JSON.stringify(_entry("1", 0, 0)))
-	f.close()
+	_check(not FileAccess.file_exists(IslandMemory.file + ".tmp"), "W12: written through a .tmp renamed over")
+	if OS.get_name() != "Windows":
+		_check((FileAccess.get_unix_permissions(IslandMemory.file) & 0x1FF) == (FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER), "W12: the file is owner-only")
+	var bad := {
+		"a biome": _entry("1", 0, 0, 99), "seed 0": _entry("1", 0, 0, Biome.Kind.BEACH, 0),
+		"not a Dictionary": [1], "a number as text": _entry("1", 0, 0).merged({"slot": "0"}, true),
+		"text as a number": _entry("1", 0, 0).merged({"name": 3}, true),
+		"a number past 32 bits": _entry("1", 0, 0).merged({"index": 4294967296}, true),
+		"text too long": _entry("1", 0, 0).merged({"name": "x".repeat(IslandMemory.MAX_TEXT + 1)}, true),
+	}
+	for what: String in bad:
+		_write('{"version": 1, "islands": {"bad": %s, "ok": %s}}' % [JSON.stringify(bad[what]), JSON.stringify(_entry("1", 0, 0))])
+		m.load_file()
+		_check(m.has("ok") and not m.has("bad"), "W12: an entry with %s is ignored" % what)
+	_write('{"version": 2, "islands": {"ok": %s}}' % JSON.stringify(_entry("1", 0, 0)))
 	m.load_file()
-	_check(m.has("ok") and not m.has("bad"), "W12: a damaged entry is ignored")
-	f = FileAccess.open(IslandMemory.file, FileAccess.WRITE)
-	f.store_string("{not json")
-	f.close()
+	_check(not m.has("ok"), "W12: a file of another version is ignored")
+	_write("{not json")
 	m.load_file()
 	_check(not m.has("ok"), "W12: a damaged file is ignored")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
@@ -240,6 +252,12 @@ func _w12_islands() -> void:
 	_check(not saved.has(IslandMemory.key(_live("k2"))), "W12: one that ends is forgotten")
 	islands.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+
+
+func _write(text: String) -> void:
+	var f := FileAccess.open(IslandMemory.file, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
 
 
 func _entry(cluster: String, slot: int, index: int, biome := Biome.Kind.BEACH, island_seed := 1234, name := "game") -> Dictionary:
