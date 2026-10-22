@@ -76,3 +76,20 @@ S07's read-only mode).
    once it ends).
 6. Scope: a capability (`outside_sessions`) a provider declares, with
    Claude names only inside the Claude provider.
+
+## Decided (user's, 2026-10-22; my recommendations)
+
+1. **Which:** every live session except `sdk-cli` (short `-p` runs and
+   SDK programs would flash islands): terminals, the desktop app, IDEs,
+   and background sessions still working or blocked. Not finished
+   background sessions (no `--all`).
+2. **Where and how:** in its repository's cluster like any session
+   (W05, kept across restarts by W12), with a visible mark and a
+   read-only line in the chat (rejected: a cluster of their own;
+   unmarked).
+3. **Polling:** every 5 s while the game has focus, every 10 s in the
+   background (rejected: 10 s always; 5 s always).
+4. **Agent view off:** a notice once per launch saying why outside
+   sessions can't be shown (rejected: silent, log only).
+
+Still open: the chat window's offer (5) and the provider scope (6).
