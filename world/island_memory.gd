@@ -12,6 +12,7 @@ static var file := "user://islands.json"
 
 const VERSION := 1
 const NUMBERS: Array[String] = ["biome", "seed", "slot", "index"]
+const MAX_TEXT := 256
 
 var _entries := {} # key → entry
 
@@ -87,21 +88,39 @@ func ordered(keys: Array) -> Array:
 	return out
 
 
+## Owner-only where the system has permissions (macOS, Linux), like the
+## sidecar's run folders: it holds running sessions' project paths. Written
+## to a .tmp first and renamed over, so a crash never leaves half a file.
 func _save() -> void:
-	var f := FileAccess.open(file, FileAccess.WRITE)
+	var tmp := file + ".tmp"
+	# Created empty and restricted before anything is written to it.
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f != null:
+		f.close()
+		var err := FileAccess.set_unix_permissions(tmp, FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER)
+		f = FileAccess.open(tmp, FileAccess.READ_WRITE) if err == OK or err == ERR_UNAVAILABLE else null
 	if f == null:
-		push_warning("IslandMemory: can't write %s (%s)" % [file, error_string(FileAccess.get_open_error())])
+		push_warning("IslandMemory: can't write %s" % tmp)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 		return
 	f.store_string(JSON.stringify({"version": VERSION, "islands": _entries}))
+	f.close()
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(file))
+	if err != OK:
+		push_warning("IslandMemory: can't write %s (%s)" % [file, error_string(err)])
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
 
+## An entry as [method put] writes it: its strings at most [constant
+## MAX_TEXT] long, its numbers within 32 bits, a known biome, a seed not 0.
 static func _valid(e: Variant) -> bool:
 	if not e is Dictionary:
 		return false
 	for f: String in ["cluster", "name", "repo_key"]:
-		if not e.get(f) is String:
+		if not (e.get(f) is String and e[f].length() <= MAX_TEXT):
 			return false
 	for f: String in NUMBERS:
-		if not (e.get(f) is float or e.get(f) is int):
+		var n: Variant = e.get(f)
+		if not ((n is float or n is int) and n >= -2147483648 and n <= 2147483647):
 			return false
 	return Biome.NAMES.has(int(e["biome"])) and int(e["seed"]) != 0
