@@ -305,7 +305,8 @@ feature that touches them follows these rules, and each is tested:
   own copy of a session's conversation to disk, so a user who turned
   Claude Code's transcripts off keeps nothing on disk because of us.
   The game's `islands.json` (W12) holds running sessions' project paths
-  and start times, never what's said; it's owner-only and loses each
+  and start times (sessions started outside the game's too, S08, until
+  they end or the setting is turned off), never what's said; it's owner-only and loses each
   session's entry once it's gone.
 - **Known gap: hooks that outlive the sidecar** (documented 2026-10-13
   at the user's request; not ours to close). Claude Code fixes an HTTP
@@ -494,7 +495,8 @@ removing a provider means deleting its folders.
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
 | `src/launch/` | Generic: the app data folder for run folders (`app-data.ts`, S07), terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04), run folders and the read-only mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
+| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04;
+`running.ts` also reads what S08 shows and tells agent view off apart), run folders and the read-only mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
 | `licenses/` | Node's license text, for the shipped notices. |
@@ -657,7 +659,8 @@ Godot connects to `ws://127.0.0.1:<port>/` with `Authorization: Bearer
 **Connecting.** The sidecar sends `hello` (protocol version, providers), one
 `session.snapshot` per live session, then `sync.completed`. Godot refuses a
 protocol version it doesn't know. Each provider in `hello` has
-`provider`, `name` and optional `launch_options`: what a session can be
+`provider`, `name`, optional `capabilities` and `notices` (below:
+Provider capabilities and notices, S08) and optional `launch_options`: what a session can be
 started or resumed with, lists `model`, `effort` and `mode` of choices
 `{id, label}` (the provider's id and its words) in the provider's order,
 each list optional; Godot offers "Default" before each and shows only
@@ -1969,7 +1972,8 @@ uphill, the slide jump, landing with no new burst, and Ctrl in the water.
 
 ### W12 Islands kept across restarts
 *Built (2026-10-19), live check passed with the user (2026-10-22). Scope: core* (world only, plus S07's start
-time kept). A session taken back after a restart (S07) gets its island
+time kept). A session taken back after a restart (S07), or one started
+outside the game still running (S08), gets its island
 back as it was: the same biome and seed (so the same shape and props),
 in the same cluster, in the same order. Before W12 each came back with
 a random biome and seed, in whatever order the snapshots arrived.
@@ -1987,7 +1991,8 @@ a random biome and seed, in whatever order the snapshots arrived.
   saved order, each bridged to its nearest (W06), which is usually the
   same tree (rejected: saving each bridge's ends; a tree patched after
   a sinking can come back different).
-- Only for sessions that come back (S07). A cluster still isn't
+- Only for sessions that come back (S07) or are found running again
+  (S08). A cluster still isn't
   remembered once its sessions end, nor for a resumed session
   (Deliberate limitations → Clusters aren't remembered).
 
@@ -4132,6 +4137,11 @@ seen such sessions shown as idle). The sessions ring (W07) uses it too.
 "working" while a subagent works, the dialog with the session and the
 `/exit` hint, following its state, Back to the game and Esc, Quit leaving
 the terminal running, and closing at once with no session.
+Sessions started outside the game (S08, `origin: external`) are left
+out of the count and the list: they never had the game's hooks, so
+quitting changes nothing for them (security review, 2026-10-22; with
+them in, the warning would come up whenever any Claude session was
+open, and its advice wouldn't apply).
 
 **Known issue: a session from before a restart can be resumed twice**
 (seen live, 2026-10-02). After the game restarts, sessions still running
@@ -4600,14 +4610,22 @@ mark's look, the wording and the toggle the user's own):*
   `client.set_outside_sessions`; the sidecar is started with `serve
   --no-outside-sessions` when it's off (`SidecarClient` reads `[game]
   outside_sessions` from `user://settings.cfg` before starting it,
-  `SidecarClient.settings_file`), so none shows at start. The suites
+  `SidecarClient.settings_file`), so none shows at start. Started so
+  with no session of its own to take back, the sidecar doesn't ask
+  `claude agents` at all (agent view off is then found when they're
+  turned on; security review, 2026-10-22). The suites
   point that at their own file with it off (`tests/error_watch.gd`), so
   a test never shows the developer's real sessions.
 - *Godot:* `Island.set_read_only` adds or removes the `ReadOnlyFlag`
   for every snapshot or change with `read_only`; it stands between two
   torches on the side furthest from the island's bridges (and moves when
   they change), props cleared around it, its pennant across the edge,
-  swaying. The chat panel shows the line per origin.
+  swaying. The chat panel shows the line per origin. The quit warning
+  leaves outside sessions out (S05).
+- *What it keeps:* nothing of an outside session is written by the
+  sidecar; the game's `islands.json` (W12) holds its project path and
+  start time like any running session's, until it ends or the setting
+  is turned off (Security rules → Private by default).
 
 **Open points** (not fixed; low likelihood):
 - An Agent SDK program found before its transcript is written, and
@@ -5762,8 +5780,8 @@ Ideas weighed and turned down. Each says what would reopen it.
 - **Attaching to sessions started outside the game, and retaking our
   own** (user's, 2026-10-12; retaking added 2026-10-19). If Claude Code
   ever offers a documented way to attach to a running session with full
-  control (hooks, chat, answers), revisit attaching them (Deferred
-  ideas → Read-only islands for sessions started outside the game). The
+  control (hooks, chat, answers), revisit attaching them (today
+  read-only: S08). The
   same way would retake our own sessions cleanly: today one whose old
   hook port was taken while the game was closed only comes back
   read-only (S07 → If the old port is taken), and its hooks, fixed at
@@ -5811,11 +5829,13 @@ Ideas weighed and turned down. Each says what would reopen it.
 - **`agents` for read-only sessions** (S07, 2026-10-19). A read-only
   session's waiting state and its `/clear` and `/resume` come from
   `claude agents --json` (its `status` and `sessionId` for `claude`'s
-  process id), asked every 5 s. Seen working live (2026-10-19, live
+  process id), asked in the poll S08 shares (every 5 s with the game
+  focused, 10 s in the background). Seen working live (2026-10-19, live
   checklist S07): the id changes after `/clear` and `/resume`, and a
   prompt shows as `waiting`. Kept as a watch item: `agents` is new and
-  its fields may change. Its cost (about 0.8 s of a `claude`
-  process each time) is only paid while a read-only session runs.
+  its fields may change. Its cost (about 0.7 s of a `claude`
+  process each time) is paid while a read-only session runs or
+  outside sessions are on (S08: the default, so nearly always).
 - **The transcript in S07's read-only mode** (2026-10-13). A session back
   with its hook port taken is seen from its transcript (and `claude agents`), which isn't
   a documented interface: the turn's end is Claude Code's

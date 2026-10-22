@@ -175,7 +175,8 @@ asks first. It lists them with what each is doing (scroll the list if
 there are many), and reminds you that to end a session you type `/exit`
 in its terminal. **Quit** closes the game anyway; **Back to the game**
 (or Esc) returns you to where you were. With no session running, the
-game just closes.
+game just closes. Sessions started outside the game (S08) don't count:
+quitting the game changes nothing for them.
 
 On a computer shared with other accounts, the dialog also suggests
 ending sessions with `/exit` before quitting: while the game is
@@ -239,7 +240,8 @@ for a repository still takes that repository's new sessions.
 
 The game keeps this in a small file of its own, `islands.json`, in
 Godot's user data folder for the game; it lists each running session's
-island and its project folder, never what's said. On macOS and Linux
+island and its project folder (sessions started outside the game too,
+until they end or you turn them off: S08), never what's said. On macOS and Linux
 only you can read it, and a session's entry goes once it's ended. If
 the file is missing or damaged, the islands come back as new ones (a
 kind picked at random), each joining
@@ -252,7 +254,7 @@ also comes back as a new island.
 Every Claude Code session running on your computer gets an island, not
 only the ones the game started: a `claude` you typed in a terminal, the
 Claude desktop app's sessions, your editor's (e.g. VS Code), and
-background sessions still working. They join their repository's
+background sessions still working or waiting on you. They join their repository's
 cluster like any other, and come back as they were after a restart
 (W12). Short `claude -p` runs and programs built on the Agent SDK
 don't get one, and nor do finished background sessions.
@@ -341,8 +343,9 @@ now, the trees and rocks are simple placeholders.
 Which kind you get is up to you, or chance: it means nothing about the
 session, and it isn't remembered, so a resumed session gets the menu's
 choice again (Random unless you pick one), and sessions started
-outside the game are random. A session the game started that comes
-back after a restart keeps its kind (see Islands kept across restarts
+outside the game get a random one. A session that comes back after a
+restart, or one started outside the game still running then, keeps
+its kind (see Islands kept across restarts
 above).
 
 ## Clusters (W05)
