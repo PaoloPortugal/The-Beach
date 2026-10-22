@@ -47,35 +47,55 @@ well as login because nvm's installer writes to `~/.bashrc`, which a
 non-interactive shell skips (the guard at its top returns at once).
 
 Differences from Claudian's version, on purpose:
-- It runs only as a last resort, not at every start.
+- It runs only as a last resort, at most once per run (the answer,
+  even an empty one, is kept), not at every start.
 - Our clean environment, not the whole inherited one.
-- Its own process group: on the 10 s timeout the whole group is killed,
-  so a stuck profile leaves nothing behind. Once both marks are in, we
-  stop reading at once, so a background job the profile started that
-  keeps the pipe open doesn't hold us up.
-- Output over 64 KB counts for nothing; folders with control
-  characters are dropped.
+- Its own process group. Once both marks are in, we stop reading at
+  once (a background job the profile started may keep the pipe open)
+  and hang the group up, as closing a terminal does. On the 10 s
+  timeout, on output over 64 KB, or if the sidecar exits first, the
+  whole group is killed, so a stuck profile leaves nothing behind.
+- Folders with control characters are dropped.
 - The PATH is used only to look up `claude`, then checked like any
   candidate; it never reaches the sessions or anything else we start.
 
 Security: the shell gets an argument array with constant text, so
 nothing a project or session holds can reach it (Security rules → No
 shell strings, now naming it). It does run the user's startup files
-unseen, the same ones they run each time they open a terminal.
+unseen, the same ones they run each time they open a terminal. With no
+input and no controlling terminal, a question in them goes unanswered
+and the shell carries on.
+
+## Review (security-reviewer and docs-sync, 2026-10-22)
+
+No blockers. Fixed from it: the lookup ran again on every retry of
+finding `claude` while nothing was found (each launch, and the running
+sessions' poll every 5 s), so it is now asked once per run; a flood
+cancelled the timeout without killing the group, so it is killed now;
+a group still running when the sidecar exits is killed; a successful
+lookup now hangs up its group; and a test now checks that `findClaude`
+gives the shell the clean environment and the home folder. Docs: Steam
+and macOS not claimed as working until checked, tcsh added to the
+Watch item, and the guide no longer says a profile's question makes it
+give up (it goes unanswered). The npm `claude` is the native binary
+(`bin/claude.exe` plus per-platform packages, 2.1.308), not a Node
+script, so a version manager's `node` isn't needed to run it.
 
 ## Checks
 
 - `sidecar/test/login-shell.test.ts`: parsing (banners, relative and
   repeated folders, control characters, an unfinished answer), choosing
-  the shell, and, with fake shells on macOS and Linux, the whole lookup:
-  a stuck profile cut off with its background child gone, a background
-  job holding the output, a missing or failing shell, a flood; and
-  `findClaude` asking last, not at all when a candidate works, on
-  Windows or with a path set by hand, and saying "too old" for an old
-  one found this way.
+  the shell, and, with fake shells (POSIX only), the whole lookup: a
+  stuck profile and a flood each killed with their whole group, a
+  background job hung up and not waited for, a missing or failing
+  shell; and `findClaude` giving the shell the clean environment and
+  the home folder, asking once per run, asking last, not at all when a
+  candidate works, on Windows or with a path set by hand, and saying
+  "too old" for an old one found this way.
 - The POSIX tests can't run on Windows and CI is paused, so they ran on
   Linux in WSL (Arch, Node 22.21.0 from nodejs.org, checksum checked):
-  11/11. By hand there: a real bash with an nvm-style `~/.bashrc`
-  behind its interactive guard found the fake `claude` in 98 ms.
-- Not checked: macOS, zsh, fish, and a Steam launch on Linux (Watch
-  items).
+  14/14, plus the whole sidecar suite there. By hand there: a real bash
+  with an nvm-style `~/.bashrc` behind its interactive guard found the
+  fake `claude` in 98 ms.
+- Not checked: macOS, zsh, fish, tcsh, and a Steam launch on Linux
+  (Watch items).

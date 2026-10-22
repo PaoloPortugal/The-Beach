@@ -413,25 +413,36 @@ the same `~/.claude` layout. What differs, and how we handle it:
   asdf, mise) sits in a folder only the user's shell profile adds to
   PATH. Only when none of the above works, and never with a path set by
   hand, the sidecar starts the user's login shell (`$SHELL`, else the
-  account's; only an absolute path) once, interactive and login as a
-  terminal starts it (`-i -l -c`, since version managers often set PATH
-  only for interactive shells), with a fixed script that prints PATH
-  between two marks. No input, our clean environment, the home folder,
-  its own process group, killed whole after 10 s; output over 64 KB
-  counts for nothing. Of what it prints, only absolute folders between
-  the marks are kept, and they are used only to look up `claude` (the
-  first on that PATH, as the terminal would pick), which is then checked
-  like any candidate (`--version`, the clean environment). The PATH is
-  never passed on to anything we start. On Linux a terminal usually
-  starts a non-login shell, so a `~/.bashrc` that no `~/.bash_profile`
-  or `~/.profile` sources isn't read; most distributions' defaults source
-  it. Code: `findClaude` in `sidecar/src/providers/claude/find.ts`;
-  tested in `sidecar/test/login-shell.test.ts` (fake shells on macOS and
-  Linux: banner output, a stuck profile and its whole group killed, a
-  background job holding the output, a missing or failing shell, a
-  flood; never asked when a candidate works, on Windows or with a path
-  set by hand) and checked by hand against a real bash with an
-  nvm-style `~/.bashrc` (Arch in WSL, 2026-10-22).
+  account's; only an absolute path; a `$SHELL` that isn't one means no
+  lookup), interactive and login as a terminal starts it (`-i -l -c`,
+  since version managers often set PATH only for interactive shells),
+  with a fixed script that prints PATH between two marks. No input (no
+  controlling terminal either: a profile's question gets no answer and
+  the shell carries on), our clean environment, the home folder, its
+  own process group. Once it has answered, the group is hung up
+  (SIGHUP), as closing a terminal does; after 10 s, on output over
+  64 KB, or if the sidecar exits first, it is killed whole. **At most
+  once per run:** the answer, even an empty one, is kept, because
+  finding `claude` is retried (each launch, and each look at the
+  running sessions until it is found) and the user's startup files
+  must not run each time.
+  Of what it prints, only absolute folders between the marks, without
+  control characters, are kept, and they are used only to look up
+  `claude` (the first on that PATH, as the terminal would pick), which
+  is then checked like any candidate (`--version`, the clean
+  environment). The PATH is never passed on to anything we start. A
+  login bash reads `~/.bash_profile` or `~/.profile`, not `~/.bashrc`
+  (where nvm's installer writes), unless one of them sources it; most
+  distributions' defaults do. Code: `findClaude` in
+  `sidecar/src/providers/claude/find.ts`; tested in
+  `sidecar/test/login-shell.test.ts` with fake shells (POSIX only, run
+  on Linux so far: banner output, the clean environment and home
+  folder reaching the shell, asked once per run, a stuck profile and a
+  flood killed with their whole group, a background job hung up and not
+  waited for, a missing or failing shell; never asked when a candidate
+  works, on Windows or with a path set by hand) and checked by hand
+  against a real bash with an nvm-style `~/.bashrc` (Arch in WSL,
+  2026-10-22).
 - **Paths.** Build them with the platform's path functions, never by
   joining strings with `/` or `\`. Never decode the transcript folder
   names under `~/.claude/projects` (the encoding loses information, and
@@ -3276,14 +3287,16 @@ next to the game come with the first export.
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
 `interrupt`, `permission_modes`, `plans`, `usage` and `model_info`
 capabilities, no extension yet). Code:
-`sidecar/src/providers/claude/` (`index.ts` finds and launches `claude`,
+`sidecar/src/providers/claude/` (`index.ts` launches `claude`, which
+`find.ts` finds: Architecture → Platforms → Finding `claude`;
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
 `prompt-options.ts`, `bridge.ts` and `bridge-server.ts`, `transcript.ts`,
 `usage.ts` and `statusline.ts` for C08, `launch-options.ts` for C12)
 and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md` (index). Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
--s02-relay-questions-stop, 2026-10-01-agent-view-clear. The only place
+-s02-relay-questions-stop, 2026-10-01-agent-view-clear,
+2026-10-22-login-shell-path. The only place
 Claude-specific names may appear. It drives the user's own installed
 `claude` (minimum 2.1.284), signed in with their own account; our code
 never reads, stores or passes on Claude credentials, and never modifies
@@ -4973,8 +4986,9 @@ read-only in the world (Open questions → 4).
 **Ready for review (2026-10-22): S02, finding `claude` through the login
 shell** (branch `s02-login-shell-path`, dev log
 2026-10-22-login-shell-path): on macOS and Linux, a `claude` installed
-under a Node version manager is found even when the game starts from
-the Dock, a menu or Steam. The path set by hand follows after S08
+under a Node version manager is looked for through the user's login
+shell when the game started from the Dock or a menu (checked on Linux
+only; macOS and a Steam launch are Watch items). The path set by hand follows after S08
 (Known issues and next steps → A path to `claude` set by hand).
 **Merged to `main` (2026-10-22), approved by the user: W12, islands
 kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
@@ -5742,8 +5756,11 @@ Ideas weighed and turned down. Each says what would reopen it.
   the user's own custom models instead (open question 7, 2026-10-12).
 - **Finding `claude` through the login shell, live** (Platforms →
   Finding `claude`). Checked on Linux only (Arch in WSL, bash, fake
-  and real profiles). To check before a public release: macOS (zsh,
-  started from the Dock), fish, and a Steam launch on Linux, where the
+  and real profiles); the fake-shell tests have run on Linux only (CI
+  paused). To check before a public release: the tests on macOS, macOS
+  live (zsh, started from the Dock), fish, tcsh (which takes `-l` only
+  as its sole flag, so `-i -l -c` likely finds nothing: fails safe),
+  and a Steam launch on Linux, where the
   Steam Linux Runtime runs games in a container in which the user's
   shell may not start; if it doesn't, the lookup finds nothing and the
   not-found message stands (plus the path set by hand, once built).
