@@ -102,7 +102,7 @@ test('exits when its stdin pipe closes (Godot quit or crashed)', async () => {
 })
 
 test('exits at once when started without a stdin pipe', async () => {
-  const p = start([], 'ignore')
+  const p = start(undefined, 'ignore')
   try {
     await within(p.exited, 10000, 'exit')
   } finally { kill(p.child) }
