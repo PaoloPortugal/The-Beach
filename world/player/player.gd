@@ -6,7 +6,7 @@ extends CharacterBody3D
 ## surface or leaping out of it when you come up fast; out of the water
 ## only by walking up a beach. Holding Ctrl on land crouches, and slides
 ## when you crouch at a run (W11). A click captures the mouse when it's
-## free (Esc opens the settings menu, which frees it: C10).
+## free (Esc opens the pause menu, which frees it: C13).
 
 @export var walk_speed := 5.0
 @export var sprint_speed := 8.5

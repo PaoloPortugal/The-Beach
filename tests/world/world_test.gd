@@ -406,6 +406,7 @@ func _scene() -> void:
 	await _menu(world, player)
 	await _sessions(world, player)
 	await _agents(world)
+	await _pause(world, player)
 	await _settings(world, player)
 	await _biome_island(world, player)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
@@ -414,6 +415,79 @@ func _scene() -> void:
 	world.queue_free()
 	await _frames(1)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
+
+
+# C13: the pause menu: Esc opens and closes it, Esc in other menus closes
+# only those, Settings and back, and Quit game through the quit guard.
+func _pause(world: Node3D, player: Player) -> void:
+	var pause: PauseMenu = world.pause_menu
+	var menu: SettingsMenu = world.settings_menu
+	var sessions: SessionsMenu = world.get_node("SessionsMenu")
+	var dim: ColorRect = pause.get_node("Dim")
+	_press("ui_cancel")
+	await _settle()
+	# The mouse itself can't be captured headless: the live check's.
+	_check(pause.is_open() and dim.visible and not player.controls_enabled and not menu.is_open(), "C13: Esc opens the pause menu, dimmed, and stops the player")
+	_check(pause.button("Resume").is_visible_in_tree() and pause.button("Settings").is_visible_in_tree() and pause.button("Quit game").is_visible_in_tree(), "C13: Resume, Settings and Quit game")
+	_press("ui_cancel")
+	await _settle()
+	_check(not pause.is_open() and not dim.visible and player.controls_enabled, "C13: Esc again closes it")
+	pause.open()
+	pause.button("Resume").pressed.emit()
+	_check(not pause.is_open() and player.controls_enabled, "C13: and so does Resume")
+	_hold("sessions_menu")
+	await _settle()
+	_check(sessions.ring_open(), "C13: (the sessions ring open)")
+	_press("ui_cancel")
+	await _settle()
+	_check(not sessions.is_open() and not pause.is_open(), "C13: Esc in the sessions ring closes only that")
+	_release("sessions_menu")
+	await _open_create(sessions)
+	_press("ui_cancel")
+	await _settle()
+	_check(not sessions.is_open() and not pause.is_open(), "C13: and in the create panel")
+
+	# Settings, and Esc back.
+	_press("ui_cancel")
+	await _settle()
+	pause.button("Settings").pressed.emit()
+	await _settle()
+	_check(menu.is_open() and pause.is_open() and dim.visible and not pause.button("Settings").is_visible_in_tree() and not player.controls_enabled, "C13: Settings opens the settings menu in its place, still dimmed")
+	_press("ui_cancel")
+	await _settle()
+	_check(not menu.is_open() and pause.is_open() and pause.button("Settings").is_visible_in_tree() and not player.controls_enabled, "C13: Esc in the settings goes back to the pause menu")
+	_press("ui_cancel")
+	await _settle()
+	_check(not pause.is_open() and player.controls_enabled, "C13: and Esc again back to the game")
+	# The settings opened without it (as other tests do) give the controls back.
+	menu.open()
+	_press("ui_cancel")
+	await _settle()
+	_check(not menu.is_open() and not pause.is_open() and player.controls_enabled, "C13: settings opened on their own close to the game")
+
+	# Quit game asks first while sessions run, as closing the window does.
+	var guard: QuitGuard = world.quit_guard
+	var quits := [0]
+	var quit_before := guard.quit
+	guard.quit = func() -> void: quits[0] += 1
+	pause.open()
+	pause.button("Quit game").pressed.emit()
+	_check(quits[0] == 1, "C13: Quit game with no session running quits")
+	world.store.apply({"type": "session.snapshot", "session": _snapshot("p1")})
+	await _frames(1)
+	pause.button("Quit game").pressed.emit()
+	await _settle()
+	_check(guard.is_asking() and quits[0] == 1, "C13: with a session running, the quit guard asks first (S05)")
+	guard.dialog().get_cancel_button().pressed.emit()
+	await _frames(1)
+	_check(not guard.is_asking() and pause.is_open() and not player.controls_enabled, "C13: Back to the game leaves the pause menu open")
+	pause.button("Quit game").pressed.emit()
+	guard.dialog().get_ok_button().pressed.emit()
+	_check(quits[0] == 2, "C13: and its Quit quits")
+	guard.quit = quit_before
+	world.store.apply({"type": "session.ended", "session": "p1", "seq": 2, "reason": "exited"})
+	pause.close()
+	await _settle()
 
 
 # C10: the settings menu, each setting applied, saved and reset.
@@ -425,25 +499,6 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(settings.value("controls/fov") == 80.0 and settings.value("graphics/shadows") == "high", "C10: no file, the defaults")
 	var smaa := Viewport.SCREEN_SPACE_AA_SMAA if menu.screen_space_aa_available else Viewport.SCREEN_SPACE_AA_DISABLED
 	_check(world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa, "C10: SMAA by default (none under Compatibility), no MSAA")
-	_press("ui_cancel")
-	await _settle()
-	# The mouse itself can't be captured headless: the live check's.
-	_check(menu.is_open() and not player.controls_enabled, "C10: Esc opens the settings and stops the player")
-	_press("ui_cancel")
-	await _settle()
-	_check(not menu.is_open() and player.controls_enabled, "C10: Esc again closes them")
-	_hold("sessions_menu")
-	await _settle()
-	_check(sessions.ring_open(), "C10: (the sessions ring open)")
-	_press("ui_cancel")
-	await _settle()
-	_check(not sessions.is_open() and not menu.is_open(), "C10: Esc in the sessions ring closes only that")
-	_release("sessions_menu")
-	await _open_create(sessions)
-	_press("ui_cancel")
-	await _settle()
-	_check(not sessions.is_open() and not menu.is_open(), "C10: and in the create panel")
-
 	menu.open()
 	var tabs := []
 	for t: String in SettingsMenu.TABS:
