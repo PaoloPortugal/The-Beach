@@ -73,3 +73,10 @@ snapshots) carries `repo`, its git repository, worked out by the sidecar
 from the folder's `.git`; the world puts the island in that repository's
 cluster, or in the cluster chosen in the menu, which it noted against the
 session id from `ok { session }` (NOTES.md → W05).
+
+Once its island is placed, the world saves it in its own
+`user://islands.json`: its biome, seed, cluster and spot, under a key
+made of the provider, `started_at` (the launch time its run folder
+keeps) and the project's path; `session.ended` removes the entry. So
+if the game restarts while the session runs, its island comes back as
+it was (NOTES.md → W12, [flow 14](14-reattach-after-restart.md)).

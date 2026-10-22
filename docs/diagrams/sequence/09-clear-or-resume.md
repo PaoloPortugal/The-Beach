@@ -46,7 +46,9 @@ sequenceDiagram
     Sidecar->>World: the turn as usual (flow 2), from the new transcript too
 ```
 
-The island stays. After `/clear` the world's chat window clears, and
+The island stays, and so does its saved entry (W12): its key uses
+the session's start and project, not the conversation's id, so after a
+restart the island still comes back as it was. After `/clear` the world's chat window clears, and
 the notice says the earlier conversation can be brought back with
 `/resume`; after `/resume` the chat becomes the
 resumed conversation's (NOTES.md → S02 → Following the conversation).
