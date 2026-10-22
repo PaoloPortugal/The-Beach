@@ -7,12 +7,14 @@ extends RefCounted
 ## missing or damaged file, or a damaged entry, is ignored: that island
 ## comes back as a new one would.
 
-## Where it's kept. The suites use their own (tests/error_watch.gd).
-static var file := "user://islands.json"
+## Where it's kept. The suites use their own (tests/error_watch.gd), and
+## so does a run with the fake provider, whose sessions would otherwise
+## replace the real ones' entries.
+static var file := "user://dev-fake-islands.json" if "--sidecar-dev-fake" in OS.get_cmdline_user_args() else "user://islands.json"
 
 const VERSION := 1
 const NUMBERS: Array[String] = ["biome", "seed", "slot", "index"]
-const MAX_TEXT := 256
+const MAX_TEXT := 4096 # a long project path (Linux allows 4096)
 
 var _entries := {} # key → entry
 
