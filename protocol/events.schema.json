@@ -41,6 +41,7 @@
     { "$ref": "#/$defs/question.answer" },
     { "$ref": "#/$defs/plan.answer" },
     { "$ref": "#/$defs/client.set_focus" },
+    { "$ref": "#/$defs/client.set_outside_sessions" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -524,7 +525,7 @@
         "session": { "$ref": "#/$defs/id" },
         "seq": { "$ref": "#/$defs/seq" },
         "reason": {
-          "description": "user: ended from this app. exited: the session stopped on its own or was closed elsewhere. error: it crashed.",
+          "description": "user: ended from this app (for an outside session, the app stopped showing outside sessions: client.set_outside_sessions). exited: the session stopped on its own or was closed elsewhere. error: it crashed.",
           "enum": ["user", "exited", "error"]
         }
       },
@@ -850,6 +851,17 @@
         "type": { "const": "client.set_focus" },
         "id": { "$ref": "#/$defs/id" },
         "focused": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "client.set_outside_sessions": {
+      "description": "Godot -> sidecar. Whether sessions started outside the app get islands (outside_sessions capability; the player's setting). Off: every provider ends its outside sessions (session.ended, reason user) and stops looking for them. On: it looks at once, and the ones it finds come as session.created. The sidecar starts with it on, or off with serve --no-outside-sessions. Replied ok with no result.",
+      "type": "object",
+      "required": ["type", "id", "enabled"],
+      "properties": {
+        "type": { "const": "client.set_outside_sessions" },
+        "id": { "$ref": "#/$defs/id" },
+        "enabled": { "type": "boolean" }
       },
       "additionalProperties": false
     },

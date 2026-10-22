@@ -1,7 +1,8 @@
 // Read-only islands for sessions started outside the game (NOTES.md -> S08):
 // which of `claude agents --json`'s sessions get one, shown from their
 // transcripts like S07's read-only sessions, in the first sync or later,
-// ended once no longer listed; agent view off; the poll's pace with focus.
+// ended once no longer listed; agent view off; the poll's pace with focus;
+// the player's setting turning them off and on.
 // A fake listing stands in for Claude Code, and fake transcripts for its store.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -89,6 +90,7 @@ test('at start: an outside session is in the first sync, read-only and external,
     assert.deepEqual(Object.keys(s.capabilities).sort(), ['model_info', 'permission_modes', 'usage'], 'what its transcript shows, no stop or answers')
     assert.deepEqual(s.agents.map((a: any) => [a.agent, a.state]), [['main', 'working']])
     assert.deepEqual(s.notices, [OUTSIDE_READ_ONLY])
+    assert.equal(OUTSIDE_READ_ONLY.message, 'This session was started outside the game, so it\'s read-only here. Use its own window to chat with it.', 'the user\'s wording')
     const history = (await r.c.command({ type: 'session.get_history', session: s.session })).result as { messages: any[] }
     assert.deepEqual(history.messages.map((m) => [m.role, m.text]), [['user', 'fix the login'], ['assistant', 're: fix the login']])
     assert.deepEqual(r.c.invalid, [])
@@ -372,5 +374,123 @@ test('the provider\'s shutdown stops the poll', async () => {
     const stopped = l.calls
     await sleep(300)
     assert.equal(l.calls, stopped)
+  } finally { await r.close() }
+})
+
+test('turned off (client.set_outside_sessions): each ends (user), no more polls, none shown; back on: asked at once, rising (session.created)', { timeout: 15_000 }, async () => {
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const cwd = project()
+  transcript(projects, ID(1), cwd, 'cli', ...said(1, 'hello'))
+  const l = listing([{ sessionId: ID(1), pid: 50001, status: 'idle', cwd }])
+  const r = await start({ projectsDir: projects, runningSessions: l.ask, agentsPollMs: 100 })
+  try {
+    const id = r.snapshots[0]!.session
+    // Sent as is: command() would read past the session.ended before its reply.
+    r.c.send({ type: 'client.set_outside_sessions', id: 'off', enabled: false })
+    const ended = await r.c.next('session.ended', 3000)
+    assert.equal((await r.c.next((m) => m.id === 'off')).type, 'ok')
+    assert.deepEqual([ended.session, ended.reason], [id, 'user'])
+    const calls = l.calls
+    // A new one, even with no transcript yet: shown at once when turned back on.
+    l.now = [{ sessionId: ID(1), pid: 50001, status: 'idle', cwd }, { sessionId: ID(2), pid: 50002, status: 'busy', cwd }]
+    await sleep(400)
+    assert.ok(l.calls <= calls + 1, 'no more polls (one may have been on its way)')
+    assert.ok(!r.c.received.some((m) => m.type === 'session.snapshot' || m.type === 'session.created'))
+    assert.equal((await r.c.command({ type: 'client.set_outside_sessions', enabled: false })).type, 'ok', 'off twice: nothing')
+
+    // Slow polls from here, so "at once" can't be the timer.
+    ;(r.p as any).opts.agentsPollMs = 60_000
+    const at = Date.now()
+    r.c.send({ type: 'client.set_outside_sessions', id: 'on', enabled: true })
+    const created = () => r.c.received.filter((m) => m.type === 'session.created').map(snapshotOf)
+    await until(() => created().length === 2, 2000)
+    assert.ok(Date.now() - at < 2000, 'at once')
+    assert.ok(r.c.received.some((m) => m.id === 'on' && m.type === 'ok'))
+    const [a, b] = created() as [Record<string, any>, Record<string, any>]
+    assert.deepEqual([a.native_id, b.native_id].sort(), [ID(1), ID(2)])
+    for (const s of [a, b]) {
+      assert.equal(s.origin, 'external')
+      assert.equal(s.read_only, true)
+      // Its notice follows, as an event (a snapshot in the sync has it in its notices).
+      assert.ok(r.c.received.some((m) => m.type === 'session.notice' && m.session === s.session && (m.notice as { code: string }).code === OUTSIDE_READ_ONLY.code))
+    }
+    assert.notEqual(a.session, id, 'a new island')
+    assert.ok(!r.c.received.some((m) => m.type === 'session.snapshot'))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close() }
+})
+
+test('turned back on: later ones arrive as snapshots again, a session with no transcript waiting its listing as before', { timeout: 15_000 }, async () => {
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const cwd = project()
+  const l = listing([])
+  const r = await start({ projectsDir: projects, runningSessions: l.ask, agentsPollMs: 150 })
+  try {
+    await r.c.command({ type: 'client.set_outside_sessions', enabled: false })
+    await r.c.command({ type: 'client.set_outside_sessions', enabled: true })
+    const at = l.calls
+    await until(() => l.calls >= at + 2)
+    l.now = [{ sessionId: ID(2), pid: 50002, status: 'idle', cwd }]
+    const seen = l.calls
+    const s = snapshotOf(await r.c.next('session.snapshot', 3000))
+    assert.equal(s.native_id, ID(2))
+    assert.ok(l.calls >= seen + 2, 'no transcript: shown at its second listing')
+    assert.ok(!r.c.received.some((m) => m.type === 'session.created'))
+  } finally { await r.close() }
+})
+
+test('off from the start (serve --no-outside-sessions): none in the first sync, no polls; agent view off still said; on later: they rise', { timeout: 15_000 }, async () => {
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const cwd = project()
+  transcript(projects, ID(1), cwd, 'cli', ...said(1, 'hello'))
+  const l = listing([{ sessionId: ID(1), pid: 50001, status: 'idle', cwd }])
+  const log = new RecordingLog()
+  const p = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: tempSessionsDir(), agentsPollMs: 50, projectsDir: projects, runningSessions: l.ask })
+  p.setOutsideSessions(false)
+  const s = await testServer([p])
+  await restoreSessions(s.registry, [p], log)
+  const c = await connect(s.port, s.token)
+  try {
+    const { hello, snapshots } = await c.sync()
+    assert.deepEqual(snapshots, [])
+    assert.deepEqual((hello.providers as any[])[0].capabilities, { outside_sessions: {} }, 'still declared: the setting can be turned on')
+    assert.equal(l.calls, 1, 'asked once, at the restore')
+    await sleep(300)
+    assert.equal(l.calls, 1, 'no polls')
+    assert.equal((await c.command({ type: 'client.set_outside_sessions', enabled: true })).type, 'ok')
+    assert.equal(snapshotOf(await c.next('session.created', 2000)).native_id, ID(1))
+  } finally { await c.close(); await s.close(); await p.shutdown() }
+
+  // Agent view off with the setting off: the notice still comes, so the setting can say why.
+  const off = listing({ none: 'disabled', disabled: true })
+  const p2 = new ClaudeProvider({ log, findClaude: FOUND, selfCommand: self, sessionsDir: tempSessionsDir(), agentsPollMs: 50, projectsDir: projects, runningSessions: off.ask })
+  p2.setOutsideSessions(false)
+  const s2 = await testServer([p2])
+  await restoreSessions(s2.registry, [p2], log)
+  const c2 = await connect(s2.port, s2.token)
+  try {
+    const { hello } = await c2.sync()
+    assert.deepEqual((hello.providers as any[])[0].notices, [OUTSIDE_SESSIONS_OFF])
+    // Turned on anyway: nothing (agent view stays off this launch).
+    assert.equal((await c2.command({ type: 'client.set_outside_sessions', enabled: true })).type, 'ok')
+    await sleep(300)
+    assert.equal(off.calls, 1)
+  } finally { await c2.close(); await s2.close(); await p2.shutdown() }
+})
+
+test('turned off: S07\'s read-only sessions still polled; a bad command refused', { timeout: 15_000 }, async () => {
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const l = listing([])
+  const r = await start({ projectsDir: projects, runningSessions: l.ask })
+  try {
+    // A read-only session of ours stands in: one watched program.
+    ;(r.p as any).watched.set(40001, { onAgent() {}, host: { id: 'x' } })
+    await r.c.command({ type: 'client.set_outside_sessions', enabled: false })
+    const at = l.calls
+    await until(() => l.calls >= at + 3)
+    assert.ok(l.calls >= at + 3, 'the poll goes on for it')
+    ;(r.p as any).watched.clear()
+    const bad = await r.c.command({ type: 'client.set_outside_sessions', enabled: 'no' })
+    assert.equal(bad.code, 'invalid_message')
   } finally { await r.close() }
 })

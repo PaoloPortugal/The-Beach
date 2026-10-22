@@ -65,6 +65,17 @@ test('prints one handshake line, then serves the protocol', async () => {
   } finally { kill(p.child) }
 })
 
+test('serve --no-outside-sessions (the player turned them off, S08) starts as usual', async () => {
+  const p = start(['serve', '--no-outside-sessions'])
+  try {
+    const hs = await within(p.handshake, 10000, 'handshake')
+    const c = await connect(hs.port, hs.token)
+    const { hello } = await c.sync()
+    assert.equal(hello.protocol, 1)
+    await c.close()
+  } finally { kill(p.child) }
+})
+
 test('each start makes a new token', async () => {
   const a = start()
   const b = start()
@@ -94,7 +105,7 @@ test('exits at once when started without a stdin pipe', async () => {
 })
 
 test('refuses unknown modes and arguments', async () => {
-  for (const args of [['bogus'], ['serve', 'extra']]) {
+  for (const args of [['bogus'], ['serve', 'extra'], ['serve', '--no-outside-sessions', 'extra']]) {
     const p = start(args)
     try {
       assert.equal(await within(p.exited, 10000, 'exit'), 1)
