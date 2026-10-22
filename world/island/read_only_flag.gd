@@ -9,8 +9,9 @@ extends Node3D
 ## primitives (the user's choice of look, 2026-10-22), until real art.
 
 const POLE := Color(0.62, 0.62, 0.6)
-const PENNANT := Color(0.6, 0.62, 0.66)
-const HEIGHT := 3.6
+const PENNANT := Color(0.42, 0.44, 0.48)
+## Well above the trees, so it shows from across the sea.
+const HEIGHT := 9.0
 ## How far inward from the edge it stands, metres.
 const INSET := 1.2
 ## Props are cleared this far around it.
@@ -25,8 +26,8 @@ func _init() -> void:
 	var pole := MeshInstance3D.new()
 	pole.name = "Pole"
 	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.04
-	cylinder.bottom_radius = 0.06
+	cylinder.top_radius = 0.07
+	cylinder.bottom_radius = 0.11
 	cylinder.height = HEIGHT
 	cylinder.radial_segments = 5
 	cylinder.rings = 1
@@ -36,12 +37,12 @@ func _init() -> void:
 	add_child(pole)
 	# A flat triangle off the pole's top, pointing away along +x.
 	var prism := PrismMesh.new()
-	prism.size = Vector3(0.9, 1.4, 0.04)
+	prism.size = Vector3(1.7, 2.8, 0.06)
 	prism.left_to_right = 0.0
 	_pennant.name = "Pennant"
 	_pennant.mesh = prism
 	_pennant.rotation.z = -PI * 0.5
-	_pennant.position = Vector3(0.7, HEIGHT - 0.5, 0.0)
+	_pennant.position = Vector3(1.4, HEIGHT - 0.9, 0.0)
 	_pennant.material_override = _material(PENNANT)
 	var hinge := Node3D.new()
 	hinge.name = "Hinge"
