@@ -4530,7 +4530,8 @@ mark's look, the wording and the toggle the user's own):*
   (user's choice of look; a placeholder from primitives until real art,
   `world/island/read_only_flag.gd`). Taller than the trees (9 m), so it
   shows from across the sea (user's, after the first renders: a 3.6 m
-  pale pennant vanished against the sky and under the treetops).
+  pale pennant vanished against the sky and under the treetops;
+  approved from renders the same day).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
