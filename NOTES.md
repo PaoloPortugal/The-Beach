@@ -1962,7 +1962,8 @@ a random biome and seed, in whatever order the snapshots arrived.
   remembered once its sessions end, nor for a resumed session
   (Deliberate limitations → Clusters aren't remembered).
 
-**How it works** (my picks).
+**How it works** (my picks; the key and where a session with nothing
+saved goes confirmed by the user, 2026-10-22).
 - *The key:* provider, `started_at` and the project's path, which stay
   the same across a restart and a `/clear` (`native_id` doesn't). For
   that the sidecar announces a session's start as the launch time its
