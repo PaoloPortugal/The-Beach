@@ -4580,7 +4580,7 @@ sessions folder: Running it).
 
 ### S08 Read-only islands for sessions started outside the game
 *Built (2026-10-22; designed with the user the same day; live check
-in progress, steps 12 on to run again). Scope: capability* (`outside_sessions`, declared by a provider
+passed with the user, 2026-10-23). Scope: capability* (`outside_sessions`, declared by a provider
 in `hello`; Claude names stay in the Claude provider). Every live
 session on the machine gets an island, not only those the game
 launched: a `claude` in a plain terminal, the desktop app's and IDEs'
@@ -5264,11 +5264,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S08, read-only islands for sessions started outside
-the game (user's order, 2026-10-13), built on `s08-outside-sessions`
-(2026-10-22): the user's review and live check next
-(`tests/live/checklist.txt`, S08), then merge. Subagents stay read-only
-in the world (Open questions → 4).
+**Current focus:** S02, a path to `claude` set by hand (Known issues
+and next steps → A path to `claude` set by hand), next after S08.
+Subagents stay read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-23), approved by the user: S08, read-only
+islands for sessions started outside the game** (dev log
+2026-10-22-s08-outside-sessions): every Claude Code session running on
+the machine gets a read-only island with a grey flag (a placeholder),
+kept like the game's own, and a setting to hide them. Live check
+passed with the user.
 **Merged to `main` (2026-10-22), approved by the user: S02, finding
 `claude` through the login shell** (dev log
 2026-10-22-login-shell-path): on macOS and Linux, a `claude` installed
