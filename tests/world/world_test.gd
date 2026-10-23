@@ -490,6 +490,13 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(outside.is_visible_in_tree() and outside.button_pressed and not outside.disabled and _outside_sent.size() > 0 and _outside_sent.all(func(on: bool) -> bool: return on), "S08: Game has the outside sessions toggle, on, and the world said so at start")
 	outside.button_pressed = false
 	_check(_outside_sent.back() == false and settings.value("game/outside_sessions") == false, "S08: off: the sidecar is told, and it's saved")
+	var islands_of: SessionIslands = world.get_node("SessionIslands")
+	_check(not islands_of.outside_shown.call(), "S08: off: the islands know they aren't shown (their entries kept)")
+	outside.button_pressed = true
+	_check(islands_of.outside_shown.call(), "S08: on: shown (those no longer running forgotten at a start)")
+	outside.button_pressed = false
+	var notice := {"code": "outside_sessions_off", "message": "x"}
+	_check(SessionIslands.outside_shown_by(true, {}) and not SessionIslands.outside_shown_by(true, notice) and not SessionIslands.outside_shown_by(false, {}) and not SessionIslands.outside_shown_by(null, {}), "S08: shown only with the setting on and no notice that they can't be listed")
 	# A provider that can't list them: greyed out and off, its notice beside it, the saved choice kept.
 	var stand_in := SidecarClient.new()
 	stand_in.providers = [{"provider": "fake", "name": "Fake", "capabilities": {"outside_sessions": {}}}]

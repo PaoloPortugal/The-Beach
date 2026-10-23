@@ -240,9 +240,11 @@ for a repository still takes that repository's new sessions.
 
 The game keeps this in a small file of its own, `islands.json`, in
 Godot's user data folder for the game; it lists each running session's
-island and its project folder (sessions started outside the game too,
-until they end or you turn them off: S08), never what's said. On macOS and Linux
-only you can read it, and a session's entry goes once it's ended. If
+island and its project folder, never what's said. On macOS and Linux
+only you can read it, and a session's entry goes once it's ended.
+Sessions started outside the game are in it too, with their session
+id, and stay after they end or you turn them off, until a start with
+them shown finds them gone (S08); with the setting left off, they stay. If
 the file is missing or damaged, the islands come back as new ones (a
 kind picked at random), each joining
 its repository's cluster after those that were kept. A session that
@@ -256,8 +258,9 @@ only the ones the game started: a `claude` you typed in a terminal, the
 Claude desktop app's sessions, your editor's (e.g. VS Code), and
 background sessions still working or waiting on you. They join their repository's
 cluster like any other, and come back as they were after a restart
-(W12), after their app restarts them, and when you turn them off and
-on again. Short `claude -p` runs and programs built on the Agent SDK
+(W12). When one rises again during a game (you turned them back on, or
+its app restarted it) it keeps its kind and shape, but may stand in
+another spot of its cluster. Short `claude -p` runs and programs built on the Agent SDK
 don't get one, and nor do finished background sessions.
 
 The world can only **watch** these sessions. A tall grey flag near the
@@ -345,8 +348,9 @@ now, the trees and rocks are simple placeholders.
 Which kind you get is up to you, or chance: it means nothing about the
 session, and it isn't remembered, so a resumed session gets the menu's
 choice again (Random unless you pick one), and sessions started
-outside the game get a random one. A session that comes back after a
-restart, or one started outside the game still running then, keeps
+outside the game get a random one the first time. A session that comes back after a
+restart, or one started outside the game seen before (after a
+restart, turned back on, or restarted by its app), keeps
 its kind (see Islands kept across restarts
 above).
 

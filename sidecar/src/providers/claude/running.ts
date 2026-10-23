@@ -130,8 +130,9 @@ export function runningSessions(
           // Without a message, what happened: slow, or failed quietly.
           // (A string code is Node's own, e.g. too much output.)
           const what = typeof err.code === 'number' ? `claude agents --json exited with code ${err.code} and no message`
-            : typeof err.code !== 'string' && (err.killed || err.signal) ? `claude agents --json timed out after ${(limits.timeoutMs ?? RUNNING_TIMEOUT_MS) / 1000} s`
-              : err.message
+            : typeof err.code !== 'string' && err.killed ? `claude agents --json timed out after ${(limits.timeoutMs ?? RUNNING_TIMEOUT_MS) / 1000} s`
+              : typeof err.code !== 'string' && err.signal ? `claude agents --json ended by ${err.signal}`
+                : err.message
           const why = (String(stderr).trim().split(/\r?\n/)[0] || what).slice(0, 200)
           resolve({ none: why, ...(agentViewOff(why) ? { disabled: true as const } : {}) })
           return

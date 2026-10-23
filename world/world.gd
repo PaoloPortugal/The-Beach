@@ -80,7 +80,7 @@ func _ready() -> void:
 	_islands.setup(store)
 	# Shown only with the setting on and agent view on in Claude Code (S08).
 	_islands.outside_shown = func() -> bool:
-		return settings.value("game/outside_sessions") == true and Sidecar.provider_notice("outside_sessions_off").is_empty()
+		return SessionIslands.outside_shown_by(settings.value("game/outside_sessions"), Sidecar.provider_notice("outside_sessions_off"))
 	fit_draw_distance()
 	# The platform is in every near cluster's bridge tree (W06; a far
 	# cluster's leaves it out, W05).
