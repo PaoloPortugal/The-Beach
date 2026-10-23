@@ -1364,8 +1364,8 @@ and the real layout (user's, 2026-10-02; W07).
   side), 16 px from the top left (lower under the live checklist), north-up.
   It shows the cluster of the island nearest you
   (`SessionIslands.nearest_cluster`): its islands in their wedges (empty
-  ones greyed), its bridges, the platform when in view and you as a white
-  arrow, fitted to them and you with 30 m of sea around; a far cluster
+  ones greyed), its bridges, a read-only island's mark (S08), the
+  platform when in view and you as a white arrow, fitted to them and you with 30 m of sea around; a far cluster
   the same way (its islands and bridges). It hides while the chat, the
   sessions menu or the big map is open, or with no islands.
 - *Big map* (`WorldMap`, `world/world_map.gd`, a `CanvasLayer` made by
@@ -1374,8 +1374,8 @@ and the real layout (user's, 2026-10-02; W07).
   chatting, in the sessions menu or asked about quitting), turning the
   player's controls off and freeing the mouse; M or Esc closes it and
   gives them back. It fills the window, 24 px in from its edges, drawn
-  like the minimap (sea, islands, empty ones grey, bridges, the platform,
-  you as an arrow). It opens centred on you, at the scale that fits the
+  like the minimap (sea, islands, empty ones grey, bridges, read-only
+  marks (S08), the platform, you as an arrow). It opens centred on you, at the scale that fits the
   cluster the minimap shows (with 30 m of sea around), or 1 px a metre
   with no islands. Zoom: the wheel, 1.25 times a notch, keeping the point
   under the pointer still, from 4 px a metre out until every island
@@ -4704,7 +4704,8 @@ shutdown; turned off and on: ended with reason user, asked at once,
 rising; `serve --no-outside-sessions`; S07's still polled while off),
 `running.test.ts` (the fields, their checks, agent view off told
 apart), `tests/world/world_test.gd` (the flag on every read-only
-island, clear of bridges, gone and back with `read_only`; the notice
+island, clear of bridges, gone and back with `read_only`; the mark on
+the minimap and the big map, on read-only islands only, zoomed in too; the notice
 and the chat line per origin; the setting: sent and saved, greyed out
 with the notice in red, the saved choice kept),
 `tests/core/sidecar_client_test.gd` (the serve arguments from the
