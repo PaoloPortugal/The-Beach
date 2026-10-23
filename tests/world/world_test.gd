@@ -21,6 +21,8 @@ extends SceneTree
 const ErrorWatch := preload("res://tests/error_watch.gd")
 
 var _failed := false
+## What the world asked the sidecar for sessions started outside the game (S08).
+var _outside_sent: Array[bool] = []
 var _errors := ErrorWatch.new(self)
 
 
@@ -374,6 +376,8 @@ func _scene() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
 	world.settings.path = settings_file
 	world.attention.settings_path = settings_file
+	# Never the user's own running sessions (S08): the setting is recorded, not sent.
+	world.set_outside_sessions = func(on: bool) -> void: _outside_sent.append(on)
 	root.add_child(world)
 	await process_frame  # _ready runs once the tree is going
 	var player: Player = world.get_node("Player")
@@ -480,12 +484,35 @@ func _settings(world: Node3D, player: Player) -> void:
 	(menu.control("game/go_to_new_island") as CheckButton).button_pressed = false
 	(menu.control("game/crosshair") as CheckButton).button_pressed = false
 	_check(not world.crosshair.ring_on, "C10/C11: the crosshair's toggle hides its ring")
+	# S08: sessions started outside the game, on by default, sent at start and on each change.
+	var outside: CheckButton = menu.control("game/outside_sessions")
+	menu.show_tab("Game")
+	_check(outside.is_visible_in_tree() and outside.button_pressed and not outside.disabled and _outside_sent.size() > 0 and _outside_sent.all(func(on: bool) -> bool: return on), "S08: Game has the outside sessions toggle, on, and the world said so at start")
+	var islands_of: SessionIslands = world.get_node("SessionIslands")
+	islands_of.memory.put(["gone-key", "gone-alias"], {"biome": Biome.Kind.BEACH, "seed": 1, "cluster": "", "name": "", "repo_key": "", "slot": 0, "index": 0})
+	islands_of._gone_outside.append(["gone-key", "gone-alias"])
+	outside.button_pressed = false
+	_check(_outside_sent.back() == false and settings.value("game/outside_sessions") == false, "S08: off: the sidecar is told, and it's saved")
+	_check(not islands_of.memory.has("gone-key") and not islands_of.memory.has("gone-alias"), "S08: off: the islands of outside sessions kept after they went are forgotten")
+	# A provider that can't list them: greyed out and off, its notice beside it, the saved choice kept.
+	var stand_in := SidecarClient.new()
+	stand_in.providers = [{"provider": "fake", "name": "Fake", "capabilities": {"outside_sessions": {}}}]
+	menu.sidecar = stand_in
+	outside.button_pressed = true
+	_check(menu.outside_off_text() == "" and not outside.disabled, "S08: no notice, the toggle works")
+	stand_in.providers[0]["notices"] = [{"code": "outside_sessions_off", "message": "Can't list them: agent view is off."}]
+	stand_in.providers_changed.emit()
+	_check(outside.disabled and not outside.button_pressed and menu.outside_off_text() == "Can't list them: agent view is off.", "S08: the provider's notice: greyed out, shown off, the notice in red beside it")
+	_check(settings.value("game/outside_sessions") == true, "S08: and the saved choice is kept")
+	menu.sidecar = root.get_node("Sidecar")
+	stand_in.free()
+	_check(not outside.disabled, "S08: (back to the real sidecar)")
 	menu.close()
 
 	var saved := Settings.new()
 	saved.path = settings.path
 	saved.load_file()
-	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false, "game/crosshair": false}
+	var expect := {"graphics/shadows": "off", "graphics/msaa": "2x", "graphics/screen_space_aa": "fxaa", "graphics/fps_cap": 60, "graphics/render_scale": 0.7, "graphics/lightning": false, "graphics/vsync": false, "graphics/window_mode": "borderless", "controls/mouse_sensitivity": 2.0, "controls/fov": 100.0, "game/go_to_new_island": false, "game/crosshair": false, "game/outside_sessions": true}
 	var lost := expect.keys().filter(func(k: String) -> bool:
 		return not (is_equal_approx(saved.value(k), expect[k]) if expect[k] is float else saved.value(k) == expect[k]))
 	_check(lost.is_empty(), "C10: every setting is kept between runs (not: %s)" % [lost])
@@ -1597,6 +1624,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	shown = panel.get_node("Layout/Notices").text
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
 	await _sign_in(world, panel)
+	await _read_only_marks(world, panel)
 	await _attention(world)
 	var on_island := player.global_position
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
@@ -1769,6 +1797,85 @@ func _sign_in(world: Node3D, panel: ChatPanel) -> void:
 	await _frames(2)
 
 
+# S08: an island the world only watches has the grey flag, whatever made it
+# read-only (S07's or started outside the game); the chat line says where to
+# chat with an outside one, and its notice is in our words.
+func _read_only_marks(world: Node3D, panel: ChatPanel) -> void:
+	var store: SessionStore = world.store
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	_check(not islands.island("h1").read_only(), "S08: an island the world drives has no read-only mark")
+	var outside := _snapshot("o1")
+	outside["read_only"] = true
+	outside["origin"] = "external"
+	outside["notices"] = [{"code": "outside_read_only", "message": "provider text"}]
+	var ours := _snapshot("o2")
+	ours["read_only"] = true
+	store.apply({"type": "session.snapshot", "session": outside})
+	store.apply({"type": "session.created", "session": ours})
+	await _frames(2)
+	for id: String in ["o1", "o2"]:
+		var i := islands.island(id)
+		var flag := i.get_node_or_null("ReadOnlyFlag") as Node3D
+		_check(i.read_only() and flag != null, "S08: the read-only mark on %s's island" % id)
+		if flag:
+			var r := Vector2(flag.position.x, flag.position.z).length()
+			_check(r > 3.0 and absf(flag.position.y - i.generator.surface_height(flag.position.x, flag.position.z)) < 0.01, "S08: %s's flag stands on its island, near the edge (r %.1f)" % [id, r])
+	# Once its bridges land, it keeps clear of them.
+	await _until(func() -> bool: return not islands.is_rising("o2"), 10.0)
+	await _frames(2)
+	for id: String in ["o1", "o2"]:
+		var i := islands.island(id)
+		var flag := i.get_node("ReadOnlyFlag") as Node3D
+		var at := Vector2(flag.position.x, flag.position.z)
+		_check(not i.landings().is_empty() and i.landings().all(func(l: Vector3) -> bool: return Vector2(l.x, l.z).distance_to(at) > 3.0), "S08: %s's flag keeps clear of its bridges" % id)
+	# The maps mark them too, and only them. The minimap is shown for this
+	# even with the chat open.
+	var minimap: Minimap = world.minimap
+	var hidden_when := minimap.hidden_when
+	minimap.hidden_when = func() -> bool: return false
+	await _frames(2)
+	var shown := islands.cluster_islands(minimap.shown_cluster())
+	_check(islands.island("o1") in shown and islands.island("o2") in shown and islands.island("h1") in shown, "S08: the minimap shows the read-only islands' cluster")
+	_check(shown.all(func(i: Island) -> bool: return (i in minimap.marked()) == i.read_only()), "S08: the minimap marks the read-only islands, and only them")
+	minimap.hidden_when = hidden_when
+	var big: WorldMap = world.world_map
+	var controls := (world.get_node("Player") as Player).controls_enabled
+	big.open()
+	big.zoom = big.min_zoom()
+	big.centre = Vector2(islands.island("o1").global_position.x, islands.island("o1").global_position.z)
+	await _frames(2)
+	_check(islands.island("o1") in big.marked() and islands.island("o2") in big.marked() and islands.island("h1") not in big.marked(), "S08: so does the big map")
+	big.zoom = WorldMap.MAX_ZOOM
+	await _frames(2)
+	_check(islands.island("o1") in big.marked(), "S08: zoomed in too")
+	big.close()
+	(world.get_node("Player") as Player).controls_enabled = controls
+	panel.open("o1")
+	await _frames(1)
+	var notices: String = panel.get_node("Layout/Notices").text
+	_check(notices.contains("This session was started outside the game, so it's read-only here. Use its own window to chat with it.") and not notices.contains("provider text"), "S08: the outside notice, in our words (the user's)")
+	_check(not panel._compose.visible and panel._read_only_hint.text == "Read-only: use its own window.", "S08: an outside session's chat points to its own window")
+	panel.open("o2")
+	await _frames(1)
+	_check(panel._read_only_hint.text == "Read-only: use its terminal.", "S08: S07's read-only line stays its own")
+	# A resync that changes it moves the mark.
+	var driven := _snapshot("o2")
+	driven["seq"] = 5
+	store.apply({"type": "session.snapshot", "session": driven})
+	await _frames(1)
+	_check(not islands.island("o2").read_only(), "S08: no longer read-only, no mark")
+	driven["seq"] = 6
+	driven["read_only"] = true
+	store.apply({"type": "session.snapshot", "session": driven})
+	await _frames(1)
+	_check(islands.island("o2").read_only(), "S08: read-only again, the mark again")
+	panel.open("h1")
+	store.apply({"type": "session.ended", "session": "o1", "seq": 2, "reason": "user"})
+	store.apply({"type": "session.ended", "session": "o2", "seq": 7, "reason": "exited"})
+	await _frames(1)
+	_check(islands.island("o1") == null and islands.island("o2") == null, "S08: turned off (reason user) or gone, the session goes like any other")
+
+
 # A05: h1's orchestrator waits on a permission; h2's comes and goes.
 func _attention(world: Node3D) -> void:
 	var store: SessionStore = world.store
@@ -1933,6 +2040,25 @@ func _quit(world: Node3D, player: Player) -> void:
 	empty.quit = func() -> void: quits[0] += 10
 	empty.request_quit()
 	_check(quits[0] == 11, "quit: with no session running, it just quits")
+	# S08: a session started outside the game never had our hooks; quitting
+	# changes nothing for it, so it isn't counted or listed.
+	var outside := _snapshot("x1")
+	outside["origin"] = "external"
+	outside["read_only"] = true
+	outside["title"] = "outside one"
+	empty.store.apply({"type": "session.snapshot", "session": outside})
+	empty.request_quit()
+	_check(quits[0] == 21, "quit (S08): with only outside sessions running, it just quits")
+	var ours := _snapshot("x2")
+	ours["read_only"] = true
+	empty.store.apply({"type": "session.snapshot", "session": ours})
+	get_root().add_child(empty)
+	empty.setup(empty.store, player)
+	empty.request_quit()
+	await _settle()
+	_check(quits[0] == 21 and empty.shown_text().begins_with("1 session is still running") and not empty.shown_text().contains("outside one"), "quit (S08): S07's read-only one counted, the outside one left out")
+	empty.dialog().get_cancel_button().pressed.emit()
+	await _frames(1)
 	empty.free()
 	await _quit_many(player)
 

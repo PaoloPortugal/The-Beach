@@ -24,6 +24,8 @@ const DEFAULTS := {
 	"controls/fov": 80.0,
 	"game/go_to_new_island": true,
 	"game/crosshair": true,
+	# S08: sessions started outside the game get read-only islands.
+	"game/outside_sessions": true,
 }
 
 ## The choices a text or whole-number setting can take, in menu order.

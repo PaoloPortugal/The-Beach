@@ -109,6 +109,15 @@ export const REATTACHED_READ_ONLY = {
   message: 'This session started before the game restarted, so it\'s read-only here. Use its terminal, or /exit it and resume it from the world for full control.',
 }
 
+/**
+ * The notice for a session started outside the game (S08): it's read-only.
+ * The user's wording (2026-10-22).
+ */
+export const OUTSIDE_READ_ONLY = {
+  code: 'outside_read_only',
+  message: 'This session was started outside the game, so it\'s read-only here. Use its own window to chat with it.',
+}
+
 /** Why the world can't send to or stop a read-only session. */
 export const READ_ONLY_ERROR = 'This session is read-only here; use its terminal.'
 
@@ -196,6 +205,8 @@ export class ClaudeSession implements ProviderSession {
    * from its transcript alone, read as the hooks it stands for.
    */
   private readOnly: TranscriptHooks | null = null
+  /** Started outside the game (S08): no run folder or launcher of ours; it ends when Claude Code no longer lists it. */
+  private outside = false
   /** When it was launched, as its run folder keeps it: announced as its start, so the same after a restart (W12). */
   startedAt: string | undefined
   /** Whether any hook has arrived yet. */
@@ -321,6 +332,7 @@ export class ClaudeSession implements ProviderSession {
         questions: {}, interrupt: { immediate: false }, permission_modes: {}, plans: {}, usage: {}, model_info: {},
       },
       ...(this.readOnly ? { read_only: true } : {}),
+      ...(this.outside ? { origin: 'external' as const } : {}),
       extensions: [],
       model: this.model,
       effort: this.effort,
@@ -341,14 +353,19 @@ export class ClaudeSession implements ProviderSession {
    * It's seen from its transcript alone (a busy session stays working
    * until its transcript shows the turn's end) and from what `claude
    * agents` says of it (onAgent); its launcher exiting ends it.
+   * `outside`: a session started outside the game (S08), read-only the
+   * same way, with no run folder or launcher of ours: the provider ends it
+   * (gone) once Claude Code no longer lists it.
    */
   restored(o: {
     state: 'working' | 'waiting' | 'idle'; reason: string | null; startedAt: string; transcript: string | null; readOnly: boolean
     /** This project's transcript of a conversation, if written: read-only only. */
     findTranscript?: (nativeId: string) => string | null
+    outside?: boolean
   }) {
     this.translator.assume(o.state, o.reason)
-    if (o.readOnly) {
+    this.outside = o.outside === true
+    if (o.readOnly || this.outside) {
       this.hooksChecked = true
       this.readOnly = new TranscriptHooks()
       this.findTranscript = o.findTranscript ?? null
@@ -357,13 +374,17 @@ export class ClaudeSession implements ProviderSession {
     if (o.transcript) {
       this.transcriptDir = path.dirname(o.transcript)
       this.transcript.follow(o.transcript)
-    } else if (o.readOnly) {
-      // No prompt before the restart, so no transcript yet, and no hook to
-      // name it: looked for until written, then read from its start.
+    } else if (this.readOnly) {
+      // No prompt before the restart (or yet), so no transcript yet, and no
+      // hook to name it: looked for until written, then read from its start.
       this.searchTranscript(Date.now())
     }
     this.announce(o.startedAt)
     this.sendUsage()
+    if (this.outside) {
+      this.host.emit({ type: 'session.notice', notice: OUTSIDE_READ_ONLY })
+      return
+    }
     if (o.readOnly) this.host.emit({ type: 'session.notice', notice: REATTACHED_READ_ONLY })
     this.launcherCheck = setInterval(() => {
       if (launcherGone(this.launch.runDir)) this.onGone('its terminal closed')
@@ -804,12 +825,20 @@ export class ClaudeSession implements ProviderSession {
     this.launcherCheck = null
   }
 
+  /**
+   * A session started outside the game is no longer running, or no longer
+   * shown (`user`: the player turned outside sessions off; S08): it ends.
+   */
+  gone(why: string, reason: 'exited' | 'user' = 'exited') {
+    this.onGone(why, reason)
+  }
+
   /** Claude Code exited, or never came up. */
-  private onGone(why: string) {
+  private onGone(why: string, reason: 'exited' | 'user' = 'exited') {
     if (this.disposed) return
     this.log.info(`session ${this.host.id} is gone: ${why}`)
     this.dispose()
-    this.host.end('exited')
+    this.host.end(reason)
   }
 
   dispose() {

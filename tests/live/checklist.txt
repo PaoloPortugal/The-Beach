@@ -1,54 +1,84 @@
-LIVE CHECK: S02 finding claude
-through the login shell
+LIVE CHECK: S08 outside sessions
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
-macOS or Linux only (Windows
-doesn't use it). Real Claude.
-Never pick Fable (no access).
+Real Claude. Never pick Fable
+(no access).
 
-A. Set up
-1. Install Claude Code with
-   npm under nvm (or fnm,
-   Volta): `npm i -g
-   @anthropic-ai/claude-code`
-   in a terminal where nvm
-   is loaded.
-2. Make sure no other claude
-   is found: none in
-   ~/.local/bin, Homebrew,
-   /usr/local/bin.
-3. In a terminal, `claude
-   --version` works.
+A. Shown, read-only
+1. Before starting the game:
+   run claude in a plain
+   terminal in repo A and say
+   hi. Open a Code session in
+   the Claude desktop app (or
+   VS Code) in repo B.
+2. Start the game: both
+   islands already standing,
+   each in its repo's
+   cluster, with a tall grey
+   flag near the edge?
+3. Does the flag read well
+   from the platform, from
+   the sea and from close up?
+4. The minimap and the big
+   map (M): a little grey
+   flag on both outside
+   islands?
+5. Walk up to the terminal
+   one: the chat so far, the
+   notice "This session was
+   started outside the game
+   ...", and "Read-only: use
+   its own window." where
+   you'd type?
+6. Chat in that terminal: the
+   message, reply and tool
+   calls show in the world
+   within a few seconds?
+7. Ask it for something that
+   needs a permission: the
+   island shows waiting?
+   Answer in the terminal.
+8. Start a session from the
+   world: no flag on it (nor
+   on the maps), chat
+   works as usual?
+9. Run claude -p "hi" in a
+   terminal: no island ever
+   rises for it?
+10. Run a new claude in a
+   terminal (repo A): its
+   island rises within ~10 s?
+11. /exit it: its island
+   sinks within ~10 s?
 
-B. From the Dock or a menu
-4. Start the game from the
-   Dock (macOS) or the app
-   menu (Linux), not from a
-   terminal.
-5. Hold Tab, +, start a
-   session: no "Claude Code
-   wasn't found"?
-6. The terminal opens with
-   the nvm claude (`/status`
-   or `which claude` there).
-7. Start a second session:
-   no extra wait before the
-   terminal opens (the shell
-   is asked once per run)?
+B. The setting
+12. Esc → Game: turn off
+   "Show sessions started
+   outside the game": the
+   outside islands sink?
+13. Quit and start again: no
+   outside islands?
+14. Turn it on: they rise
+   within ~5 s, as new
+   islands?
+15. Quit and start again: the
+   outside islands standing,
+   as they were?
 
-C. Fails safe
-8. Add `sleep 20` to the end
-   of ~/.zshrc (or ~/.bashrc),
-   restart the game from the
-   Dock: after about 10 s,
-   "Claude Code wasn't found"
-   and nothing hangs?
-9. Remove the `sleep 20`.
-   Restart: found again?
-
-D. Optional
-10. fish as login shell:
-    found?
-11. A Steam launch (Linux):
-    found, or the not-found
-    message (no hang)?
+C. Agent view off
+16. Quit. In PowerShell:
+   $env:CLAUDE_CODE_DISABLE_
+   AGENT_VIEW="1"; then start
+   the game from there.
+17. No outside islands, no
+   notice on screen?
+18. Esc → Game: the toggle
+   greyed out and off, with
+   "Sessions started outside
+   the game can't be shown:
+   agent view is off in
+   Claude Code." in red?
+19. Quit, start it normally
+   (new window): the toggle
+   back as you left it in B?
+20. /exit every session.

@@ -6,7 +6,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Adopt, Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { History, Launch as LaunchChoice, Project, StoredSession } from '../../protocol.ts'
+import type { History, Launch as LaunchChoice, Notice, Project, StoredSession } from '../../protocol.ts'
 import { LAUNCH_OPTIONS, launchArgs } from './launch-options.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
@@ -25,7 +25,10 @@ import { HookServer, type HookLink } from './hook-server.ts'
 import {
   HOLDER_FILE, readHookPort, readRunRecord, RUN_DIR_NAME, writeHolder, writeHookPort, writeRunRecord, type RunRecord,
 } from './run-folder.ts'
-import { findStored, listStored, NO_TITLES, projectsDir, readConversation, readTitles, samePath, StoredCache, type StoredInfo, type Titles } from './store.ts'
+import {
+  findStored, findTranscript, listStored, NO_TITLES, pickTitle, projectsDir, readConversation, readTitles, samePath, StoredCache,
+  type Titles, type TranscriptInfo,
+} from './store.ts'
 import { hookSettings } from './hooks.ts'
 import { ourStatusLine } from './statusline.ts'
 import type { UsageCounter } from './usage.ts'
@@ -43,11 +46,28 @@ export {
 export const STARTUP_TIMEOUT_MS = 15 * 60 * 1000
 
 /**
- * How often `claude agents --json` is asked about read-only sessions (S07):
- * which conversation each is in, and whether it waits on the user. Each
- * time costs about 0.8 s of a `claude` process, so only while there are any.
+ * How often `claude agents --json` is asked, while the game has focus and
+ * in the background (S08's decision): which sessions run outside the game
+ * (S08), and, for read-only sessions (S07, S08), which conversation each is
+ * in and whether it waits on the user. Each time costs about 0.7 s of a
+ * `claude` process.
  */
 export const AGENTS_POLL_MS = 5000
+export const AGENTS_POLL_BACKGROUND_MS = 10_000
+
+/**
+ * The provider notice when agent view is off (S08): Claude Code won't list
+ * its sessions, so none started outside the game can be shown. Sent once
+ * per launch. The user's wording (2026-10-22); the game's settings show it
+ * beside the greyed-out toggle.
+ */
+export const OUTSIDE_SESSIONS_OFF = {
+  code: 'outside_sessions_off',
+  message: 'Sessions started outside the game can\'t be shown: agent view is off in Claude Code.',
+}
+
+/** What started a conversation that gets no island (S08): `claude -p` runs and Agent SDK programs. */
+const NOT_SHOWN_ENTRYPOINTS = new Set(['sdk-cli'])
 
 /**
  * The terminal window's title. The name can come from a stored session's
@@ -87,8 +107,9 @@ export interface ClaudeOptions {
    * TEST_SESSIONS_DIR (launch/app-data.ts), so none touches the real folder.
    */
   sessionsDir?: string
-  /** For tests: how often read-only sessions are asked about (AGENTS_POLL_MS). */
+  /** For tests: how often `claude agents` is asked (AGENTS_POLL_MS), and in the background (AGENTS_POLL_BACKGROUND_MS). */
   agentsPollMs?: number
+  agentsPollBackgroundMs?: number
 }
 
 /** A run folder's files (S07). The bridge file holds where the bridge connects. */
@@ -103,6 +124,8 @@ export class ClaudeProvider implements Provider {
   readonly id = 'claude'
   readonly name = 'Claude Code'
   readonly launchOptions = LAUNCH_OPTIONS
+  /** Sessions started outside the game get read-only islands (S08). */
+  readonly capabilities = { outside_sessions: {} }
   private readonly opts: ClaudeOptions
   private readonly log: Log
   /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
@@ -113,10 +136,35 @@ export class ClaudeProvider implements Provider {
   private foundPath: string | undefined
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
-  /** Read-only sessions (S07) by their `claude`'s process id, asked about together. */
+  /** Read-only sessions (S07, S08) by their `claude`'s process id, asked about together. */
   private readonly watched = new Map<number, ClaudeSession>()
-  private watchTimer: NodeJS.Timeout | null = null
+  /** The run folders of the sessions this game runs (launched, or taken back): their programs are ours, not outside ones. */
+  private readonly runDirs = new Set<string>()
+  /**
+   * Sessions started outside the game (S08), by process id. Adopted
+   * through the registry's `adopt` from restore, so only once restore ran.
+   */
+  private readonly outside = new Map<number, ClaudeSession>()
+  private adoptOutside: Adopt | null = null
+  private notice: ((notice: Notice) => void) | null = null
+  /** False once agent view is found off: no more looking for outside sessions this launch. */
+  private outsideOn = true
+  /** The player's setting (setOutsideSessions): false shows none and stops looking. */
+  private outsideWanted = true
+  /** Just turned back on: the next listing shows them at once, rising (session.created). */
+  private turnedOn = false
+  /** Whether outsideFrom has had a listing yet (the one at start). */
+  private polled = false
+  /** Listed once with no transcript yet (pid -> session id): adopted at the next listing if still none (a `claude -p` run writes it at once). */
+  private readonly sightings = new Map<number, string>()
+  /** Listed but given no island (pid -> session id): `claude -p` runs, Agent SDK programs, or one that failed to adopt. */
+  private readonly passed = new Map<number, string>()
+  /** Why the last listing failed, so a failure repeated every poll is logged once. */
+  private lastFailure: string | null = null
+  private pollTimer: NodeJS.Timeout | null = null
   private asking = false
+  private focused = true
+  private stopped = false
 
   constructor(opts: ClaudeOptions = {}) {
     this.opts = opts
@@ -213,8 +261,9 @@ export class ClaudeProvider implements Provider {
     const hooks = await this.hookServer()
     const launch = this.prepare(o.nativeId)
     this.live.add(o.nativeId)
+    this.runDirs.add(launch.runDir)
     const session: ClaudeSession = new ClaudeSession(host, launch, o.project, o.titles, this.log,
-      () => { this.forget(launch.runDir); this.live.delete(session.nativeId) },
+      () => { this.forget(launch.runDir); this.runDirs.delete(launch.runDir); this.live.delete(session.nativeId) },
       this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, o.history, o.prompt, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
       o.usage ?? undefined)
     session.link = bridges.register(session.bridgeHandlers())
@@ -263,10 +312,12 @@ export class ClaudeProvider implements Provider {
    * takes those back (S07). Each is deleted once its session has ended.
    */
   async shutdown(): Promise<void> {
-    if (this.watchTimer) clearInterval(this.watchTimer)
-    this.watchTimer = null
+    this.stopped = true
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = null
     // An answer still on its way then has no one to go to.
     this.watched.clear()
+    this.outside.clear()
     await this.bridges?.close()
     this.bridges = null
     await this.hooks?.close()
@@ -282,18 +333,19 @@ export class ClaudeProvider implements Provider {
    * and, where `claude agents --json` answers, Claude Code must list its
    * program's process, so a reused process id alone doesn't count. Folders
    * of sessions gone are deleted; ones that can't be read are left alone.
+   * Then, from the same answer, the sessions started outside the game
+   * (S08), so they're in the first sync too (W12), and from then on the
+   * poll (AGENTS_POLL_MS) keeps looking.
    */
-  async restore(adopt: Adopt): Promise<void> {
+  async restore(adopt: Adopt, notice?: (notice: Notice) => void): Promise<void> {
     const hooks = await this.hookServer()
     const root = this.sessionsRoot()
     if (!this.opts.sessionsDir && root === process.env[TEST_SESSIONS_DIR]) this.log.info(`sessions folder: the tests' own (${TEST_SESSIONS_DIR})`)
-    let names: string[]
+    let names: string[] = []
     try {
       names = fs.readdirSync(root, { withFileTypes: true })
         .filter((d) => d.isDirectory() && RUN_DIR_NAME.test(d.name)).map((d) => d.name)
-    } catch {
-      return
-    }
+    } catch { /* none yet */ }
     const found: Found[] = []
     for (const name of names) {
       const runDir = path.join(root, name)
@@ -322,26 +374,36 @@ export class ClaudeProvider implements Provider {
       }
       found.push({ runDir, record, program })
     }
-    if (found.length === 0) return
 
-    const answer = await this.askRunning()
-    const agents = 'none' in answer ? null : answer.agents ?? null
-    if (agents === null) {
+    // Nothing to take back and outside sessions off: `claude` isn't asked
+    // at all (so a suite's sidecar never runs the developer's). Agent view
+    // off is then found when they're turned on.
+    const answer = found.length > 0 || this.outsideWanted ? await this.askRunning() : null
+    const agents = answer === null || 'none' in answer ? null : answer.agents ?? null
+    if (answer !== null && agents === null && found.length > 0) {
       this.log.info(`can't ask Claude Code which sessions run (${'none' in answer ? answer.none : 'no entries'}); trusting their launchers`)
     }
-    const bridges = await this.bridgeServer()
-    for (const f of found) {
-      const entry = agents === null ? null : agents.find((a) => a.pid === f.program) ?? null
-      if (agents !== null && entry === null) {
-        this.remove(f.runDir, 'Claude Code no longer lists it')
-        continue
-      }
-      try {
-        this.takeOver(adopt, hooks, bridges, f, entry)
-      } catch (e) {
-        this.log.error(`couldn't take back the session in ${path.basename(f.runDir)}: ${e instanceof Error ? e.message : String(e)}`)
+    if (found.length > 0) {
+      const bridges = await this.bridgeServer()
+      for (const f of found) {
+        const entry = agents === null ? null : agents.find((a) => a.pid === f.program) ?? null
+        if (agents !== null && entry === null) {
+          this.remove(f.runDir, 'Claude Code no longer lists it')
+          continue
+        }
+        try {
+          this.takeOver(adopt, hooks, bridges, f, entry)
+        } catch (e) {
+          this.log.error(`couldn't take back the session in ${path.basename(f.runDir)}: ${e instanceof Error ? e.message : String(e)}`)
+        }
       }
     }
+    // Once: a second restore (never in the sidecar) keeps the first one's.
+    if (this.adoptOutside || this.stopped) return
+    this.adoptOutside = adopt
+    this.notice = notice ?? null
+    if (answer) this.outsideFrom(answer)
+    this.schedulePoll()
   }
 
   /** Takes back one running session (see restore). */
@@ -384,7 +446,9 @@ export class ClaudeProvider implements Provider {
       }
       adopt((host) => {
         session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
-          () => { this.forget(f.runDir); this.live.delete(session?.nativeId ?? nativeId); this.unwatch(f.program) },
+          () => {
+            this.forget(f.runDir); this.runDirs.delete(f.runDir); this.live.delete(session?.nativeId ?? nativeId); this.watched.delete(f.program)
+          },
           this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
           read?.usage)
         return session
@@ -396,6 +460,7 @@ export class ClaudeProvider implements Provider {
     }
     const s = session as unknown as ClaudeSession
     this.live.add(nativeId)
+    this.runDirs.add(f.runDir)
     s.hookLink = hookLink
     s.link = link
     const record = { native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token, started_at: f.record.started_at }
@@ -410,30 +475,76 @@ export class ClaudeProvider implements Provider {
       readOnly,
       findTranscript: (id) => this.findOwn(id, f.record.project.path)?.file ?? null,
     })
-    if (readOnly) this.watch(f.program, s)
+    if (readOnly) {
+      this.watched.set(f.program, s)
+      this.schedulePoll()
+    }
     this.log.info(`took back session ${s.host.id}${readOnly ? ' (its hook port was taken: read-only)' : ''}`)
   }
 
-  /** Asks `claude agents` about a read-only session from now on, with the others (see AGENTS_POLL_MS). */
-  private watch(program: number, session: ClaudeSession) {
-    this.watched.set(program, session)
-    if (this.watchTimer) return
-    this.watchTimer = setInterval(() => void this.askWatched(), this.opts.agentsPollMs ?? AGENTS_POLL_MS)
-    this.watchTimer.unref()
+  /** The window gained or lost focus (client.set_focus): the poll's pace changes from now. */
+  setFocused(focused: boolean): void {
+    if (focused === this.focused) return
+    this.focused = focused
+    if (!this.pollTimer) return
+    clearTimeout(this.pollTimer)
+    this.pollTimer = null
+    this.schedulePoll()
   }
 
-  private unwatch(program: number) {
-    if (!this.watched.delete(program) || this.watched.size > 0 || !this.watchTimer) return
-    clearInterval(this.watchTimer)
-    this.watchTimer = null
+  /**
+   * The player turned sessions started outside the game off or on (S08).
+   * Off: each ends (reason user, so its island sinks and W12 forgets it)
+   * and the poll stops unless a read-only session of ours still needs it.
+   * On: asked at once, each found shown at once and rising.
+   */
+  setOutsideSessions(on: boolean): void {
+    if (on === this.outsideWanted) return
+    this.outsideWanted = on
+    this.turnedOn = on
+    if (!on) {
+      for (const s of [...this.outside.values()]) s.gone('sessions started outside the game turned off', 'user')
+      this.sightings.clear()
+      this.passed.clear()
+      if (this.pollTimer && this.watched.size === 0) {
+        clearTimeout(this.pollTimer)
+        this.pollTimer = null
+      }
+      return
+    }
+    if (!this.adoptOutside || !this.outsideOn || this.stopped) return
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = null
+    // A listing already on its way shows them instead (turnedOn).
+    if (!this.asking) void this.poll().finally(() => this.schedulePoll())
   }
 
-  /** One `claude agents` at a time; each read-only session gets its own entry, or null. */
-  private async askWatched() {
+  /**
+   * The next `claude agents`, while there's anything to ask about: outside
+   * sessions (once restore ran, while the player wants them, until agent
+   * view is found off) or
+   * read-only ones. Every AGENTS_POLL_MS with focus, AGENTS_POLL_BACKGROUND_MS without.
+   */
+  private schedulePoll() {
+    if (this.pollTimer || this.stopped) return
+    if (!(this.adoptOutside && this.outsideOn && this.outsideWanted) && this.watched.size === 0) return
+    const wait = this.focused
+      ? this.opts.agentsPollMs ?? AGENTS_POLL_MS
+      : this.opts.agentsPollBackgroundMs ?? this.opts.agentsPollMs ?? AGENTS_POLL_BACKGROUND_MS
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null
+      void this.poll().finally(() => this.schedulePoll())
+    }, wait)
+    this.pollTimer.unref()
+  }
+
+  /** One `claude agents` at a time, for all: each read-only session gets its own entry, or null; then the outside sessions. */
+  private async poll() {
     if (this.asking) return
     this.asking = true
     try {
       const answer = await this.askRunning()
+      if (this.stopped) return
       const agents = 'none' in answer ? null : answer.agents ?? null
       for (const [program, session] of [...this.watched]) {
         // One session's failure mustn't stop the poll for the others, or the sidecar.
@@ -441,9 +552,121 @@ export class ClaudeProvider implements Provider {
           this.log.warn(`session ${session.host.id}: claude agents' answer not taken: ${e instanceof Error ? e.message : String(e)}`)
         }
       }
+      if (this.adoptOutside && this.outsideOn) this.outsideFrom(answer)
     } finally {
       this.asking = false
     }
+  }
+
+  /**
+   * The sessions started outside the game (S08), from one `claude agents`
+   * answer: each live one with a working folder and a session id gets a
+   * read-only island, except the game's own (by the process its launcher
+   * started, or its session id) and `claude -p` runs and Agent SDK
+   * programs (their transcript's entrypoint). One with no transcript yet
+   * waits for the next listing, in case it's a `claude -p` about to write
+   * one, except at start, so it's in the first sync (W12), and just after
+   * the player turned them back on (then announced as session.created, so
+   * they rise). One no longer listed ends. Agent view off: said once, the
+   * outside sessions end, and no more are looked for this launch, even with
+   * the setting off when S07's read-only sessions keep the poll going (the
+   * setting shows why it can't be turned on).
+   */
+  private outsideFrom(answer: Running) {
+    const first = !this.polled || this.turnedOn
+    const created = this.turnedOn
+    this.polled = true
+    if ('none' in answer) {
+      if (answer.disabled) {
+        this.outsideOn = false
+        this.log.info(`no sessions from outside the game: ${answer.none}`)
+        this.notice?.(OUTSIDE_SESSIONS_OFF)
+        for (const s of [...this.outside.values()]) s.gone('agent view is off')
+      } else if (answer.none !== this.lastFailure) {
+        this.log.info(`can't look for sessions started outside the game: ${answer.none}`)
+      }
+      this.lastFailure = answer.none
+      return
+    }
+    if (this.lastFailure !== null) this.log.info('looking for sessions started outside the game again')
+    this.lastFailure = null
+    if (!this.outsideWanted) return
+    this.turnedOn = false
+    const agents = answer.agents ?? []
+    const listed = new Map(agents.map((a) => [a.pid, a]))
+    for (const [pid, s] of [...this.outside]) if (!listed.has(pid)) s.gone('Claude Code no longer lists it')
+    for (const m of [this.sightings, this.passed]) for (const [pid, id] of [...m]) if (listed.get(pid)?.sessionId !== id) m.delete(pid)
+    const ours = this.ownPrograms()
+    for (const a of agents) {
+      if (this.outside.has(a.pid) || ours.has(a.pid) || this.live.has(a.sessionId) || this.passed.has(a.pid) || !a.cwd) continue
+      try {
+        this.considerOutside(a, a.cwd, first, created)
+      } catch (e) {
+        this.passed.set(a.pid, a.sessionId)
+        this.log.error(`couldn't show a session started outside the game: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+  }
+
+  /** The `claude` processes of the sessions this game runs, from their run folders. */
+  private ownPrograms(): Set<number> {
+    const pids = new Set<number>(this.watched.keys())
+    for (const runDir of this.runDirs) {
+      const pid = readPidFile(programPidFile(runDir))
+      if (pid !== null) pids.add(pid)
+    }
+    return pids
+  }
+
+  private considerOutside(a: AgentEntry, cwd: string, first: boolean, created: boolean) {
+    const t = this.findOwn(a.sessionId, cwd)
+    if (t?.entrypoint && NOT_SHOWN_ENTRYPOINTS.has(t.entrypoint)) {
+      this.passed.set(a.pid, a.sessionId)
+      return
+    }
+    if (!t && !first && this.sightings.get(a.pid) !== a.sessionId) {
+      this.sightings.set(a.pid, a.sessionId)
+      return
+    }
+    this.sightings.delete(a.pid)
+    if (!fs.statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) {
+      this.passed.set(a.pid, a.sessionId)
+      this.log.info('a session started outside the game runs in a folder that isn\'t there; not shown')
+      return
+    }
+    this.adoptOutsideSession(a, cwd, t?.file ?? null, created)
+  }
+
+  /** One outside session's read-only island (see outsideFrom), read from its transcript like S07's read-only ones. */
+  private adoptOutsideSession(a: AgentEntry, cwd: string, file: string | null, created: boolean) {
+    const read = file ? readConversation(file) : null
+    let titles = file ? readTitles(file) : NO_TITLES
+    // Its display name, when the transcript has none yet.
+    if (pickTitle(titles) === null && a.name) titles = { ...titles, custom: a.name }
+    const project: Project = { path: cwd }
+    // No run folder: nothing of the session is written anywhere.
+    const launch: Launch = { runDir: '', nativeId: a.sessionId }
+    let session: ClaudeSession | null = null
+    this.adoptOutside!((host) => {
+      session = new ClaudeSession(host, launch, project, titles, this.log,
+        () => { this.outside.delete(a.pid); this.watched.delete(a.pid) },
+        this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
+        read?.usage)
+      return session
+    }, { created })
+    const s = session as unknown as ClaudeSession
+    this.outside.set(a.pid, s)
+    this.watched.set(a.pid, s)
+    s.restored({
+      state: a.status === 'busy' ? 'working' : a.status === 'waiting' ? 'waiting' : 'idle',
+      reason: a.status === 'waiting' ? 'input' : null,
+      startedAt: new Date(a.startedAt ?? Date.now()).toISOString(),
+      transcript: file,
+      readOnly: true,
+      outside: true,
+      findTranscript: (id) => this.findOwn(id, cwd)?.file ?? null,
+    })
+    this.log.info(`showing session ${s.host.id}, started outside the game (read-only)`)
   }
 
   /**
@@ -461,6 +684,8 @@ export class ClaudeProvider implements Provider {
   }
 
   private rewriteRecord(runDir: string, record: Omit<RunRecord, 'version'>) {
+    // A session started outside the game has none (S08).
+    if (!runDir) return
     try {
       writeRunRecord(runDir, record)
     } catch (e) {
@@ -503,9 +728,9 @@ export class ClaudeProvider implements Provider {
     return this.hooks
   }
 
-  /** A stored conversation's transcript, only if it's this project's (its cwd). */
-  private findOwn(nativeId: string, project: string): StoredInfo | null {
-    return findStored(nativeId, this.projects(), (s) => sameFolder(s.project.path, project))
+  /** A conversation's transcript, only if it's this project's (its cwd), whatever started it. */
+  private findOwn(nativeId: string, project: string): TranscriptInfo | null {
+    return findTranscript(nativeId, this.projects(), (cwd) => sameFolder(cwd, project))
   }
 
   private projects(): string {

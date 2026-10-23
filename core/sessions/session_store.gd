@@ -503,7 +503,7 @@ func _put_session(snapshot: Dictionary, created: bool) -> void:
 	if known:
 		# Everything may have changed (a resync after a gap).
 		var fields := []
-		for key in ["title", "mode", "model", "effort"]:
+		for key in ["title", "mode", "model", "effort", "read_only"]:
 			if s.get(key) != old.get(key):
 				fields.append(key)
 		if not fields.is_empty():
