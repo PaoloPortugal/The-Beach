@@ -256,7 +256,8 @@ only the ones the game started: a `claude` you typed in a terminal, the
 Claude desktop app's sessions, your editor's (e.g. VS Code), and
 background sessions still working or waiting on you. They join their repository's
 cluster like any other, and come back as they were after a restart
-(W12). Short `claude -p` runs and programs built on the Agent SDK
+(W12), after their app restarts them, and when you turn them off and
+on again. Short `claude -p` runs and programs built on the Agent SDK
 don't get one, and nor do finished background sessions.
 
 The world can only **watch** these sessions. A tall grey flag near the

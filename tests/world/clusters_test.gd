@@ -73,6 +73,7 @@ func _initialize() -> void:
 	_w12_memory()
 	await process_frame # islands are made in the tree
 	_w12_islands()
+	await _w12_outside()
 	var passed := not _failed and _errors.ok()
 	if passed:
 		print("PASS clusters_test")
@@ -185,9 +186,9 @@ func _w12_memory() -> void:
 	var m := IslandMemory.new()
 	m.load_file()
 	_check(not m.has(k), "W12: the suites start with no remembered islands")
-	m.put(k, _entry("1", 2, 1))
-	m.put("b", _entry("1", 2, 0))
-	m.put("a", _entry("2", 0, 3))
+	m.put([k], _entry("1", 2, 1))
+	m.put(["b"], _entry("1", 2, 0))
+	m.put(["a"], _entry("2", 0, 3))
 	var again := IslandMemory.new()
 	again.load_file()
 	_check(again.entry(k) == m.entry(k) and int(again.entry(k)["seed"]) == 1234, "W12: read back from the file")
@@ -215,6 +216,23 @@ func _w12_memory() -> void:
 	_write("{not json")
 	m.load_file()
 	_check(not m.has("ok"), "W12: a damaged file is ignored")
+	_write('{"version": 1, "islands": {"bad": %s, "ok": %s}}' % [JSON.stringify(_entry("1", 0, 0).merged({"outside": "yes"}, true)), JSON.stringify(_entry("1", 0, 0).merged({"outside": true}, true))])
+	m.load_file()
+	_check(m.has("ok") and m.entry("ok")["outside"] == true and not m.has("bad"), "S08: an entry's outside mark is true or false, else it's ignored")
+	# The second key, from the provider's own id.
+	var a := IslandMemory.alias(s.merged({"native_id": "n-1"}))
+	_check(a == "claude|id|n-1" and IslandMemory.alias(s) == "" and IslandMemory.alias(s.merged({"native_id": ""})) == "", "S08: a second key from provider and its own id; none without one")
+	m.put([k, a, ""], _entry("1", 2, 1))
+	_check(m.find(["none", a, k]) == a and m.find(["", "none"]) == "", "S08: found by either key, the first that has one")
+	m.erase([k, a])
+	_check(not m.has(k) and not m.has(a), "S08: both keys go together")
+	# Sessions started outside the game are kept while they aren't shown.
+	m.put(["o"], _entry("1", 0, 0).merged({"outside": true}, true))
+	m.put(["r"], _entry("1", 0, 1))
+	m.keep_only({}, true)
+	_check(m.has("o") and not m.has("r"), "S08: while not shown, outside ones are kept, others not live dropped")
+	m.keep_only({})
+	_check(not m.has("o"), "S08: once shown, an outside one not running is dropped")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
 
@@ -223,10 +241,10 @@ func _w12_memory() -> void:
 # are forgotten, and one that ends is too.
 func _w12_islands() -> void:
 	var m := IslandMemory.new()
-	m.put(IslandMemory.key(_live("k1")), _entry("7", 3, 0, Biome.Kind.SNOWY, 111))
-	m.put(IslandMemory.key(_live("k2")), _entry("7", 3, 4, Biome.Kind.DESERT, 222))
-	m.put(IslandMemory.key(_live("k3")), _entry("9", 5, 0, Biome.Kind.FOREST, 333, "mine"))
-	m.put(IslandMemory.key(_live("gone")), _entry("7", 3, 2))
+	m.put([IslandMemory.key(_live("k1"))], _entry("7", 3, 0, Biome.Kind.SNOWY, 111))
+	m.put([IslandMemory.key(_live("k2"))], _entry("7", 3, 4, Biome.Kind.DESERT, 222))
+	m.put([IslandMemory.key(_live("k3"))], _entry("9", 5, 0, Biome.Kind.FOREST, 333, "mine"))
+	m.put([IslandMemory.key(_live("gone"))], _entry("7", 3, 2))
 	var store := SessionStore.new()
 	var islands := SessionIslands.new()
 	root.add_child(islands)
@@ -250,6 +268,55 @@ func _w12_islands() -> void:
 	store.apply({"type": "session.ended", "session": "k2", "seq": 2, "reason": "exited"})
 	saved.load_file()
 	_check(not saved.has(IslandMemory.key(_live("k2"))), "W12: one that ends is forgotten")
+	islands.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+
+
+# S08: a session started outside the game keeps its island like the
+# game's own: across its app relaunching it (new start, same id), turned
+# off and back on, and a start with them off.
+func _w12_outside() -> void:
+	var shown := [true]
+	var outside := _live("o1").merged({"origin": "external", "native_id": "n-o", "read_only": true}, true)
+	var m := IslandMemory.new()
+	# Saved before its app relaunched it: another start, the same id.
+	m.put([IslandMemory.alias(outside)], _entry("7", 3, 0, Biome.Kind.SNOWY, 555))
+	var store := SessionStore.new()
+	var islands := SessionIslands.new()
+	islands.outside_shown = func() -> bool: return shown[0]
+	root.add_child(islands)
+	islands.setup(store)
+	store.syncing = true
+	store.apply({"type": "session.snapshot", "session": outside})
+	store._on_synced()
+	var o := islands.island("o1")
+	_check(o != null and o.biome == Biome.Kind.SNOWY and o.island_seed == 555, "S08: relaunched by its app, it's found by its id: same biome and seed")
+	var saved := IslandMemory.new()
+	saved.load_file()
+	_check(saved.has(IslandMemory.key(outside)) and saved.entry(IslandMemory.key(outside))["outside"] == true, "S08: kept under its new start too, marked as outside")
+	# Turned off: it goes, remembered.
+	store.apply({"type": "session.ended", "session": "o1", "seq": 2, "reason": "user"})
+	saved.load_file()
+	_check(saved.has(IslandMemory.key(outside)) and saved.has(IslandMemory.alias(outside)), "S08: turned off, it's still remembered")
+	# A start with them off: kept.
+	shown[0] = false
+	store.syncing = true
+	store._on_synced()
+	saved.load_file()
+	_check(saved.has(IslandMemory.key(outside)), "S08: a start with them off keeps it")
+	# Back on: it rises with its biome and seed.
+	shown[0] = true
+	var again := outside.merged({"session": "o2"}, true)
+	store.apply({"type": "session.created", "session": again})
+	await process_frame
+	var o2 := islands.island("o2")
+	_check(o2 != null and islands.is_rising("o2") and o2.biome == Biome.Kind.SNOWY and o2.island_seed == 555, "S08: turned back on, it rises as it was")
+	store.apply({"type": "session.ended", "session": "o2", "seq": 2, "reason": "user"})
+	# A start that shows them, without it: forgotten.
+	store.syncing = true
+	store._on_synced()
+	saved.load_file()
+	_check(not saved.has(IslandMemory.key(outside)) and not saved.has(IslandMemory.alias(outside)), "S08: a start that shows them forgets one no longer running")
 	islands.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 

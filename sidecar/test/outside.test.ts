@@ -338,8 +338,10 @@ test('another failure (slow, missing claude): logged once, the sessions stay, an
     await until(() => l.calls >= calls + 4)
     assert.equal(r.log.lines.filter((x) => x.includes('spawn claude ETIMEDOUT')).length, 1, 'logged once')
     assert.ok(!r.c.received.some((m) => m.type === 'session.ended' || m.type === 'provider.notice'))
+    assert.ok(!r.log.lines.some((x) => x.includes('looking for sessions started outside the game again')))
     l.now = []
     await r.c.next('session.ended', 3000)
+    assert.equal(r.log.lines.filter((x) => x.includes('looking for sessions started outside the game again')).length, 1, 'its answer back is logged, once')
   } finally { await r.close() }
 })
 

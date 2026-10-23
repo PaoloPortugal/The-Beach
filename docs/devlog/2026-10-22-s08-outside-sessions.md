@@ -100,6 +100,31 @@ on each poll (small; revisit if it shows up in profiling). The
 docs-sync check found stale text in S07's watch item, W10, W12 and
 flow 16; fixed.
 
+## The live check (2026-10-23)
+
+- **Step 14 failed** (turned back on after a start with it off: no
+  islands rose). The sidecar log: `can't look for sessions started
+  outside the game: Command failed: …claude.exe agents --json`, with no
+  message from `claude`. The user quit within seconds, before the next
+  poll (5 s) would have asked again. Not reproduced: the same path
+  against the real `claude` (a probe: started off, then turned on)
+  answered in under a second and offered all three sessions as rising
+  ones; `claude agents --json` took 0.8 to 1.1 s here. Now a failure
+  without a message says whether it timed out or which exit code it
+  gave, and the log says when it answers again, so the next live check
+  tells them apart.
+- **Biomes not kept** (the user's): between two runs, two outside
+  islands came back as they were and the third (the desktop app's)
+  with another biome. The desktop app relaunches a session's process:
+  this session, started the day before, showed a process started that
+  morning in `claude agents`. W12's key has the start, so the session
+  looked new. Now kept under a second key too, provider and
+  `native_id` (the same across a relaunch). The user asked for outside
+  islands to keep "the same information as regular islands", so their
+  entries also outlive the setting turned off (and a start with it off)
+  until a start that shows them finds them gone; one that rises later
+  gets its biome and seed back.
+
 ## Open points
 
 - An Agent SDK program found before its transcript is written, and still
@@ -109,7 +134,7 @@ flow 16; fixed.
 ## Tests
 
 `sidecar/test/outside.test.ts` (new, 20 tests), `running.test.ts`
-(the new fields, agent view off), the world test (the flag, the marks on both maps, the chat
+(the new fields, agent view off), the clusters test (`_w12_outside`: kept like the game's own), the world test (the flag, the marks on both maps, the chat
 line and notice, the setting with and without the notice), the sidecar
 client test (provider notices and capabilities, focus, the serve
 arguments). Sidecar 327/327, every Godot suite passes. Live check

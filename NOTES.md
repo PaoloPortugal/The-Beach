@@ -2045,21 +2045,42 @@ saved goes confirmed by the user, 2026-10-22).
   that the sidecar announces a session's start as the launch time its
   run folder keeps (before, a new session's `started_at` was a little
   later than the one a restart reported).
+- *The second key* (S08, 2026-10-23): provider and `native_id`. Each
+  entry is kept under both keys, and a session is found by either, so
+  it's found when one changed: an app (the Claude desktop app) relaunches
+  an outside session's process, which gives it a new start in
+  `claude agents` but keeps its id (found in the live check: one of
+  three outside islands came back with another biome). Both changing at
+  once still gives a new island.
+- *Sessions started outside the game* (S08, user's: "the same
+  information as regular islands"): an entry marked `outside` isn't
+  dropped when its island goes (turned off, or no longer listed: its app
+  may relaunch it), nor at a sync while outside sessions aren't shown
+  (the setting off, or agent view off: nobody can tell then whether they
+  still run). A sync while they're shown drops those not running. One
+  that rises later (turned back on, or found again mid-game) gets its
+  remembered biome and seed and joins its repository's cluster as a new
+  one would (its exact spot isn't kept then: a cluster restored mid-game
+  could duplicate one already there).
 - *The file:* `user://islands.json` (`IslandMemory`,
   `world/island_memory.gd`): per session its biome, its seed, its
   cluster (an id, the name, the repository it was made for, or none if
-  made by hand) and its slot and index. Written when an island is placed
+  made by hand), its slot and index, and whether it was started outside
+  the game (S08). Written when an island is placed
   and when a session ends; a missing or damaged file is ignored (each
   island comes back as before W12), as is a file of another version;
   so is a damaged entry (a wrong type, text over 4096 characters, a
-  number past 32 bits, an unknown biome, seed 0).
+  number past 32 bits, an unknown biome, seed 0, an `outside` mark that
+  isn't true or false).
 - *Private:* it holds running sessions' project paths and start times,
   so it's owner-only where the system has permissions (macOS, Linux),
   like the sidecar's run folders (S07): created empty, restricted, then
   written. It's written to `islands.json.tmp` and renamed over, so a
   crash never leaves half a file (on Windows, where the rename removes
   the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
-  back are dropped at the next sync.
+  back are dropped at the next sync (outside sessions' only at a sync
+  that shows them, so a hidden one's project path stays in the file
+  until then).
 - *Coming back:* islands of sessions taken back wait for the first
   sync to finish (under the loading cover, S07). Then those with an
   entry are placed, cluster by cluster in saved slot order, each
@@ -2097,7 +2118,10 @@ macOS or Linux), a damaged entry (each kind above), another version or
 a damaged file ignored; `_w12_islands`: islands waiting for the
 sync, then placed with their biome, seed, cluster and order, one with
 nothing saved after them, the file rewritten, entries of sessions that
-didn't come back or that end dropped), `sidecar/test/reattach.test.ts`
+didn't come back or that end dropped; `_w12_memory` and `_w12_outside`, S08:
+the second key, found by either, an outside one relaunched by its app,
+turned off and on, a start with them off keeping it, one that shows
+them forgetting it), `sidecar/test/reattach.test.ts`
 (a launched session's `started_at` the same after a restart). The
 suites use their own file (`tests/error_watch.gd`; `clusters_test.gd`
 checks it before anything else), and `tests/world/layout_demo.gd` run
@@ -4583,6 +4607,11 @@ mark's look, the wording and the toggle the user's own):*
   real art (user's; the look may change too). Rejected: a dashed
   outline (looks like the big map's hover), the word "read-only" in the
   big map's titles (longer labels, fewer fit).
+- **Their islands are kept like the game's own** (user's, 2026-10-23,
+  after the live check): the same biome, seed and place after a restart,
+  after their app relaunches them, and after the setting is turned off
+  and on, even across a restart (W12 → The second key, Sessions started
+  outside the game).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
