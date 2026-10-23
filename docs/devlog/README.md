@@ -100,3 +100,4 @@ reading; look things up by feature ID.
 | 2026-10-13 | [S07: reattaching to running sessions](2026-10-13-s07-reattach.md) | S07, S05, S02, S04 |
 | 2026-10-19 | [W12: islands kept across restarts](2026-10-19-w12-islands-kept.md) | W12, S07, W05, W06, W10 |
 | 2026-10-22 | [S02: finding claude through the login shell](2026-10-22-login-shell-path.md) | S02 |
+| 2026-10-23 | [Similar projects (second look)](2026-10-23-similar-projects.md) | docs |
