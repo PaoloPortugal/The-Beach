@@ -261,7 +261,8 @@ don't get one, and nor do finished background sessions.
 
 The world can only **watch** these sessions. A tall grey flag near the
 island's edge marks them (and any other island you can't drive from
-the world, S07). Their chat shows what's said, the tool calls,
+the world, S07), and a little grey flag marks them on the minimap and
+the big map too. Their chat shows what's said, the tool calls,
 subagents, token usage and whether they're working or waiting on you,
 a moment late, and says "Read-only: use its own window." where you'd
 type: chatting, answering prompts and questions, and stopping it happen

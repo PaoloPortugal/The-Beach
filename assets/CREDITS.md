@@ -36,5 +36,6 @@ Every new one Claude writes or rewrites gets a row.
 | `agents/attention_beacon.gd` | Claude (Claude Code) | Placeholder beacon (A05, 2026-10-02; W04's green one too). |
 | `world/minimap.gd`, `world/world_map.gd` | Claude (Claude Code) | Placeholder maps drawn in code (W06, 2026-10-07). |
 | `world/island/read_only_flag.gd` | Claude (Claude Code) | Placeholder read-only mark (S08, 2026-10-22): a grey pennant on a pole from a cylinder and a prism, swaying a little. AI-made (written by Claude), not art by the user or CC0; replace with real art. |
+| `Minimap.draw_read_only` in `world/minimap.gd` | Claude (Claude Code) | Placeholder read-only mark on the minimap and big map (S08, 2026-10-23): a little grey flag drawn from lines. AI-made (written by Claude), not art by the user or CC0; replace with real art. |
 | `world/crosshair.gd` | Claude (Claude Code) | The crosshair drawn in code (C11, 2026-10-12): a white ring with a dark outline that grows on what you can use, and the hint under it in Godot's fallback font. |
 | `world/sessions_menu/session_ring.gd`, `world/sessions_menu/ring_icons.gd` | Claude (Claude Code) | The sessions ring drawn in code (W07, 2026-10-12): its segments, rims and text, and placeholder icons (a house, a plus, dots and one per biome: palm, tree, peak, snowflake, cactus) until real ones, the user's or CC0. |
