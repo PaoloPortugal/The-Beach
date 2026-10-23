@@ -160,5 +160,6 @@ message told apart), the clusters test (`_w12_outside`: relaunched at a restart,
 line and notice, the setting with and without the notice), the sidecar
 client test (provider notices and capabilities, focus, the serve
 arguments). Sidecar 332 passing (11 skipped: macOS and Linux only),
-every Godot suite passes. Live check: see above; steps 14 on to be run
-again (`tests/live/checklist.txt`).
+every Godot suite passes. Live check: run again from step 12 after
+the fixes above, passed with the user (2026-10-23). Merged to `main`
+the same day.
