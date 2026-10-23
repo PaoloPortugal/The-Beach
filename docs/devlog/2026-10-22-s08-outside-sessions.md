@@ -121,9 +121,30 @@ flow 16; fixed.
   looked new. Now kept under a second key too, provider and
   `native_id` (the same across a relaunch). The user asked for outside
   islands to keep "the same information as regular islands", so their
-  entries also outlive the setting turned off (and a start with it off)
-  until a start that shows them finds them gone; one that rises later
-  gets its biome and seed back.
+  entries at first also outlived the setting turned off (and a start
+  with it off) until a start that shows them found them gone.
+- **Settled the same day** (user's): outside islands keep their data
+  like regular ones and survive the desktop app restarting, but no
+  longer outlive the setting. One that stops being listed during a game
+  (`session.ended`, reason `exited`) keeps its entry until the next
+  start, so its app relaunching it finds it again, and that start's
+  sync drops it if it isn't running, as for a regular session that
+  ended while the game was closed. Turning the setting off (reason
+  `user`) drops their entries at once, so turning it back on makes
+  them anew; a start where they aren't shown keeps none. Undone with
+  it: `keep_only`'s `keep_outside`, the entry's `outside` field
+  (an earlier file's still loads), `SessionIslands.outside_shown` and
+  `outside_shown_by`, and `world.gd`'s closure. Step 14 of the live
+  checklist now expects new islands.
+- **Its security review** found two ways an outside session's entry
+  outlived the setting turned off: one already kept after it went (the
+  sidecar only ends those still shown, so nothing told the game), now
+  dropped by `SessionIslands.forget_outside` when the setting goes off;
+  and a change made while the client reconnected to a live sidecar,
+  which was dropped (only sent while connected), so the sidecar kept
+  showing them: `SidecarClient` now sends the setting again at every
+  `sync.completed`. A reconnect's sync drops kept entries early, which
+  errs on the safe side; left as it is.
 
 ## Open points
 
@@ -135,7 +156,7 @@ flow 16; fixed.
 
 `sidecar/test/outside.test.ts` (new, 20 tests; its answer back logged),
 `running.test.ts` (the new fields, agent view off, failures without a
-message told apart), the clusters test (`_w12_outside`: kept like the game's own), the world test (the flag, the marks on both maps, the chat
+message told apart), the clusters test (`_w12_outside`: relaunched at a restart, back mid-game with its biome and seed, turned off forgotten and back on new, a start without it forgets it, one kept after it went forgotten when turned off), the world test (the flag, the marks on both maps, the chat
 line and notice, the setting with and without the notice), the sidecar
 client test (provider notices and capabilities, focus, the serve
 arguments). Sidecar 332 passing (11 skipped: macOS and Linux only),

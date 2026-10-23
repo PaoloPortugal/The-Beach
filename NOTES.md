@@ -311,10 +311,10 @@ feature that touches them follows these rules, and each is tested:
   The game's `islands.json` (W12) holds running sessions' project paths
   and start times, never what's said; it's owner-only and loses each
   session's entry once it's gone. Sessions started outside the game
-  (S08) are there too, with their Claude Code session id, and kept after
-  they end or are turned off, until a start that shows them finds them
-  no longer running (W12 → Sessions started outside the game): with the
-  setting left off, nothing clears them.
+  (S08) are there too, with their Claude Code session id; one that stops
+  being listed mid-game is kept until the next start, which drops it if
+  it isn't running, and turning them off drops theirs at once (W12 →
+  Sessions started outside the game).
 - **Known gap: hooks that outlive the sidecar** (documented 2026-10-13
   at the user's request; not ours to close). Claude Code fixes an HTTP
   hook's URL at launch and never checks who answers it. Once the
@@ -2055,35 +2055,39 @@ saved goes confirmed by the user, 2026-10-22).
   `claude agents` but keeps its id (found in the live check: one of
   three outside islands came back with another biome). Both changing at
   once still gives a new island.
-- *Sessions started outside the game* (S08, user's: "the same
-  information as regular islands"): an entry marked `outside` isn't
-  dropped when its island goes (turned off, or no longer listed: its app
-  may relaunch it), nor at a sync while outside sessions aren't shown
-  (the setting off, or agent view off: nobody can tell then whether they
-  still run). A sync while they're shown drops those not running. One
-  that rises later (turned back on, or found again mid-game) gets its
-  remembered biome and seed and joins its repository's cluster as a new
+- *Sessions started outside the game* (S08, user's, 2026-10-23: "the
+  same information as regular islands", and they survive the desktop app
+  restarting): kept across game restarts while the session runs, found
+  by either key. One that stops being listed mid-game (ended, reason
+  `exited`: its app may relaunch it) keeps its entry until the next
+  start, whose sync drops it if it isn't running, as a regular session
+  that ended while the game was closed is (a sidecar reconnect's sync
+  drops it too: the safe side). Turning the setting off drops theirs at
+  once: those shown end with reason `user`, and those kept after they
+  went are dropped by `SessionIslands.forget_outside` (world.gd, on
+  the setting off; found by the security review, 2026-10-23); turned back on, they're made
+  anew. A start where they aren't shown (the setting off, or agent view
+  off) keeps none. One that rises again mid-game gets its remembered
+  biome and seed and joins its repository's cluster as a new
   one would (its exact spot isn't kept then: a cluster restored mid-game
   could duplicate one already there).
 - *The file:* `user://islands.json` (`IslandMemory`,
   `world/island_memory.gd`): per session its biome, its seed, its
   cluster (an id, the name, the repository it was made for, or none if
-  made by hand), its slot and index, and whether it was started outside
-  the game (S08). Written when an island is placed
-  and when a session ends; a missing or damaged file is ignored (each
+  made by hand), its slot and index. Written when an island is placed
+  and when a session ends (not one started outside the game that stops
+  being listed, S08); a missing or damaged file is ignored (each
   island comes back as before W12), as is a file of another version;
   so is a damaged entry (a wrong type, text over 4096 characters, a
-  number past 32 bits, an unknown biome, seed 0, an `outside` mark that
-  isn't true or false).
+  number past 32 bits, an unknown biome, seed 0; a field it doesn't
+  know, like an earlier build's `outside`, is left alone).
 - *Private:* it holds running sessions' project paths and start times,
   so it's owner-only where the system has permissions (macOS, Linux),
   like the sidecar's run folders (S07): created empty, restricted, then
   written. It's written to `islands.json.tmp` and renamed over, so a
   crash never leaves half a file (on Windows, where the rename removes
   the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
-  back are dropped at the next sync (outside sessions' only at a sync
-  that shows them, so a hidden one's project path stays in the file
-  until then).
+  back are dropped at the next sync.
 - *Coming back:* islands of sessions taken back wait for the first
   sync to finish (under the loading cover, S07). Then those with an
   entry are placed, cluster by cluster in saved slot order, each
@@ -2122,9 +2126,11 @@ a damaged file ignored; `_w12_islands`: islands waiting for the
 sync, then placed with their biome, seed, cluster and order, one with
 nothing saved after them, the file rewritten, entries of sessions that
 didn't come back or that end dropped; `_w12_memory` and `_w12_outside`, S08:
-the second key, found by either, an outside one relaunched by its app,
-turned off and on, a start with them off keeping it, one that shows
-them forgetting it), `sidecar/test/reattach.test.ts`
+the second key, found by either, an entry with an earlier build's
+`outside` still loading; an outside one relaunched by its app at a
+restart, no longer listed mid-game and back with its biome and seed,
+turned off forgotten and back on new, a start where it isn't listed
+forgetting it), `sidecar/test/reattach.test.ts`
 (a launched session's `started_at` the same after a restart). The
 suites use their own file (`tests/error_watch.gd`; `clusters_test.gd`
 checks it before anything else), and `tests/world/layout_demo.gd` run
@@ -3119,9 +3125,8 @@ later SMAA default):*
   - *Crosshair* (C11): off hides the ring (`Crosshair.ring_on`); the
     aiming and the hint under it stay.
   - *Show sessions started outside the game* (S08, on by default): off,
-    their islands sink (W12 remembers them); on, they rise at once, as
-    they were
-    (`world.set_outside_sessions`, which tests replace, calls
+    their islands sink and W12 forgets them; on, they rise at once, as
+    new islands (`world.set_outside_sessions`, which tests replace, calls
     `SidecarClient.set_outside_sessions`). The sidecar is started with
     it (S08 → The setting). While a provider says it can't list them
     (its `outside_sessions_off` notice: agent view is off), the toggle
@@ -4575,7 +4580,7 @@ sessions folder: Running it).
 
 ### S08 Read-only islands for sessions started outside the game
 *Built (2026-10-22; designed with the user the same day; live check
-pending). Scope: capability* (`outside_sessions`, declared by a provider
+in progress, steps 12 on to run again). Scope: capability* (`outside_sessions`, declared by a provider
 in `hello`; Claude names stay in the Claude provider). Every live
 session on the machine gets an island, not only those the game
 launched: a `claude` in a plain terminal, the desktop app's and IDEs'
@@ -4612,11 +4617,13 @@ mark's look, the wording and the toggle the user's own):*
   outline (looks like the big map's hover), the word "read-only" in the
   big map's titles (longer labels, fewer fit).
 - **Their islands are kept like the game's own** (user's, 2026-10-23,
-  after the live check): the same biome, seed and place after a
-  restart; the same biome and seed when one rises again mid-game (turned
-  back on, or relaunched by its app), joining its repository's cluster
-  as a new one would (W12 → The second key, Sessions started outside the
-  game).
+  after the live check, settled the same day): the same biome, seed and
+  place after a restart, also when the desktop app relaunched it; the
+  same biome and seed when its app relaunches it mid-game, joining its
+  repository's cluster as a new one would. Turned off, they're
+  forgotten, and turned back on they rise as new islands; a start where
+  they aren't shown keeps none (W12 → The second key, Sessions started
+  outside the game).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
@@ -4635,7 +4642,7 @@ mark's look, the wording and the toggle the user's own):*
   always, 5 s always).
 - **A setting turns them off** (user's addition while building): Settings
   → Game → "Show sessions started outside the game", on by default
-  (C10). Off: each outside island sinks, remembered (W12), and the
+  (C10). Off: each outside island sinks, forgotten (W12), and the
   sidecar stops asking unless S07's read-only sessions need it. On: it
   asks at once and their islands rise at once.
 - **Agent view off** (the command refuses): the provider notice
@@ -4690,10 +4697,13 @@ mark's look, the wording and the toggle the user's own):*
   waiting for input, else idle).
 - *It ends* (`session.ended`, reason `exited`; the island sinks, W04)
   once Claude Code no longer lists its `pid`; with the setting turned
-  off, reason `user` (W12 keeps it either way, S08). Agent view found off ends every
+  off, reason `user` (W12 keeps its entry for `exited` until the next
+start and forgets it for `user`, S08). Agent view found off ends every
   outside session and stops looking for this launch.
 - *The setting* (`SidecarClient.set_outside_sessions`): sends
-  `client.set_outside_sessions`; the sidecar is started with `serve
+  `client.set_outside_sessions`, and again at every `sync.completed`,
+  so a change made while reconnecting isn't lost (the sidecar ignores
+  one that isn't a change; security review, 2026-10-23); the sidecar is started with `serve
   --no-outside-sessions` when it's off (`SidecarClient` reads `[game]
   outside_sessions` from `user://settings.cfg` before starting it,
   `SidecarClient.settings_file`), so none shows at start. Started so
@@ -4710,9 +4720,9 @@ mark's look, the wording and the toggle the user's own):*
   leaves outside sessions out (S05).
 - *What it keeps:* nothing of an outside session is written by the
   sidecar; the game's `islands.json` (W12) holds its project path,
-  start time and session id, kept after it ends or is turned off until
-  a start that shows outside sessions finds it no longer running
-  (Security rules → Private by default).
+  start time and session id while it runs, and after it stops being
+  listed until the next start; turning them off drops it (Security
+  rules → Private by default).
 
 **Open points** (not fixed; low likelihood):
 - If `claude agents` fails at a start that shows outside sessions (slow,
@@ -4744,16 +4754,21 @@ shutdown; turned off and on: ended with reason user, asked at once,
 rising; `serve --no-outside-sessions`; S07's still polled while off),
 `running.test.ts` (the fields, their checks, agent view off told
 apart, a failure without a message says it timed out or its exit
-code), `tests/world/clusters_test.gd` (`_w12_outside`: kept like the
-game's own), `tests/world/world_test.gd` (the flag on every read-only
+code), `tests/world/clusters_test.gd` (`_w12_outside`: relaunched
+by its app at a restart, found by its id; no longer listed mid-game and
+back with the same id, its biome and seed; turned off, forgotten, and
+back on, a new island; a start where it isn't listed forgets it; one
+kept after it went, forgotten when turned off), `tests/world/world_test.gd` (the flag on every read-only
 island, clear of bridges, gone and back with `read_only`; the mark on
 the minimap and the big map, on read-only islands only, zoomed in too; the notice
 and the chat line per origin; the setting: sent and saved, greyed out
-with the notice in red, the saved choice kept; the islands told
-whether they're shown),
+with the notice in red, the saved choice kept; off forgets those kept
+after they went),
 `tests/core/sidecar_client_test.gd` (the serve arguments from the
 setting, provider capabilities, `provider.notice` kept and not a
-session event, focus told once per change, both commands answered).
+session event, focus told once per change, both commands answered,
+the setting sent again once synced after a change lost while
+reconnecting).
 
 ## Conventions
 

@@ -30,6 +30,7 @@ sequenceDiagram
     opt the game's window isn't focused
         World->>Sidecar: client.set_focus false (and on every change after)
     end
+    World->>Sidecar: client.set_outside_sessions (the setting, S08: a change<br/>lost while reconnecting comes through#59; no change is ignored)
     Note over World,Sidecar: From here on: commands up, events down.<br/>Every command's reply comes before the events it causes.
     alt the connection drops, the sidecar still runs
         World->>Sidecar: connect again with the same token

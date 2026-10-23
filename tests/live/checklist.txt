@@ -59,8 +59,8 @@ B. The setting
 13. Quit and start again: no
    outside islands?
 14. Turn it on: they rise
-   within ~5 s, each with the
-   biome it had before?
+   within ~5 s, as new
+   islands?
 15. Quit and start again: the
    outside islands standing,
    as they were?

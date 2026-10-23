@@ -55,6 +55,21 @@ func _run() -> void:
 	_check(sidecar._next_id == sent_before + 2 and sidecar._focused, "S08: focus back: told")
 	sidecar.set_outside_sessions(false)
 	_check(sidecar._next_id == sent_before + 2, "S08: the setting unchanged: nothing sent")
+	# A change made while reconnecting is lost; the setting goes again
+	# once synced. On a stand-in that records, so the test's sidecar never
+	# looks for the user's own sessions.
+	var rec := Recording.new()
+	rec.status = SidecarClient.Status.CONNECTING
+	rec.set_outside_sessions(false)
+	_check(rec.sent.is_empty(), "S08: a change while reconnecting can't be sent")
+	rec.status = SidecarClient.Status.SYNCING
+	rec._handle(JSON.stringify({"type": "sync.completed"}))
+	_check(rec.status == SidecarClient.Status.READY and rec.sent == [["client.set_outside_sessions", {"enabled": false}]], "S08: the setting sent again once synced")
+	rec.outside_sessions = true
+	rec.sent.clear()
+	rec._handle(JSON.stringify({"type": "sync.completed"}))
+	_check(rec.sent == [["client.set_outside_sessions", {"enabled": true}]], "S08: on as well as off")
+	rec.free()
 	# A provider notice: kept with its provider, announced, never passed on as a session event.
 	var changes := [0]
 	var count := func() -> void: changes[0] += 1
@@ -107,6 +122,18 @@ func _run() -> void:
 	if not _failed and _errors.ok():
 		print("PASS sidecar_client_test")
 		quit(0)
+
+
+# Records commands instead of sending them, as the real one would while
+# connected.
+class Recording extends SidecarClient:
+	var sent: Array = []
+
+	func send_command(type: String, fields: Dictionary = {}, _on_reply := Callable()) -> String:
+		if status != Status.READY and status != Status.SYNCING:
+			return ""
+		sent.append([type, fields])
+		return "r%d" % sent.size()
 
 
 func _command(sidecar: SidecarClient, type: String, fields: Dictionary) -> Dictionary:

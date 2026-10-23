@@ -43,11 +43,13 @@ sequenceDiagram
         Sidecar->>Agents: which sessions run?
         Agents-->>Sidecar: its pid no longer listed
         Sidecar->>World: session.ended exited (the island sinks)
+        Note over World: W12 keeps its entry until the next start#59; its app relaunching it<br/>(same session id) finds it: it rises with its biome and seed
     end
     opt the player turns it off (Settings → Game)
         World->>Sidecar: client.set_outside_sessions false
         Sidecar-->>World: ok
-        Sidecar->>World: session.ended user, each (islands sink, W12 remembers them)
+        Sidecar->>World: session.ended user, each (islands sink, W12 forgets them)
+        Note over World: W12 also forgets those kept after they went (forget_outside)
         Note over Sidecar: stops asking, unless S07's read-only sessions need it#59;<br/>at the next start: serve --no-outside-sessions, and claude isn't asked<br/>unless a session of the game's own is to be taken back
     end
     opt turned on again
@@ -55,7 +57,7 @@ sequenceDiagram
         Sidecar-->>World: ok
         Sidecar->>Agents: which sessions run? (at once)
         Agents-->>Sidecar: the list
-        Sidecar->>World: session.created, each (islands rise, with their remembered biome and seed)
+        Sidecar->>World: session.created, each (islands rise, as new ones)
     end
     opt agent view is off
         Sidecar->>Agents: which sessions run?
@@ -73,5 +75,6 @@ background sessions. A session held by a second copy of the game is
 shown read-only here too.
 
 **Not from the world:** chat, answers to prompts, questions and plans,
-and the stop, as in flow 15. Nothing of the session is written
-anywhere: no run folder, no hook token.
+and the stop, as in flow 15. Nothing of the session is written by
+the sidecar: no run folder, no hook token (the game's `islands.json`
+keeps its island, W12).

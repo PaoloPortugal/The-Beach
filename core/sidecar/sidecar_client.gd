@@ -356,6 +356,9 @@ func _handle(text: String) -> void:
 			# Until told, the sidecar takes the window as focused.
 			if not _focused:
 				send_command("client.set_focus", {"focused": false})
+			# A change made while reconnecting was lost (S08); the sidecar
+			# ignores one that isn't a change.
+			send_command("client.set_outside_sessions", {"enabled": outside_sessions})
 			synced.emit(providers)
 			return
 		"provider.notice":

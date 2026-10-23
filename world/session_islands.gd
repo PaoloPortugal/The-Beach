@@ -50,16 +50,6 @@ var bridges := BridgeNetwork.new()
 var player: Node3D
 ## Each live session's island, kept for the next start (W12).
 var memory := IslandMemory.new()
-## Whether sessions started outside the game are shown (S08, the
-## player's setting): while they aren't, their islands are remembered
-## anyway (world.gd sets it).
-var outside_shown := func() -> bool: return true
-
-
-## Whether they're shown: the setting on, and no provider notice that it
-## can't list them ([code]outside_sessions_off[/code]: agent view off).
-static func outside_shown_by(setting: Variant, off_notice: Dictionary) -> bool:
-	return setting == true and off_notice.is_empty()
 ## The biome of an island nobody chose one for (a session already running,
 ## or one started outside the menu): [constant Biome.RANDOM] or a kind.
 var default_biome := Biome.RANDOM
@@ -87,6 +77,7 @@ var _biome_choice := {} # session id → the biome chosen for its island
 var _keys := {} # session id → its IslandMemory key
 var _aliases := {} # session id → its IslandMemory alias, or ""
 var _outside := {} # session id → true, for one started outside the game (S08)
+var _gone_outside: Array[Array] = [] # [key, alias] of outside ones kept after they went, till the next sync
 var _waiting: Array[String] = [] # sessions taken back, placed once synced
 
 
@@ -247,9 +238,9 @@ func _on_added(id: String, created: bool) -> void:
 		_outside[id] = true
 	# One already running (taken back) waits for the sync's others, to
 	# come back in their order. One outside a sync (taken back late, or
-	# one started outside the game that rises: turned back on, or its app
-	# relaunched it, S08) is placed at once, with its remembered biome and
-	# seed if any; it joins its cluster as a new one would.
+	# one started outside the game that rises: turned back on, new, or its
+	# app relaunched it, S08) is placed at once, with its remembered biome
+	# and seed if any; it joins its cluster as a new one would.
 	if not created and store.syncing:
 		_waiting.append(id)
 		return
@@ -258,7 +249,7 @@ func _on_added(id: String, created: bool) -> void:
 
 # Places those taken back: the remembered ones in their saved order, then
 # the others as they came. Then forgets the islands of sessions that
-# didn't come back (those started outside the game only while they're shown).
+# didn't come back.
 func _on_synced() -> void:
 	var by_key := {}
 	var waiting := _waiting.duplicate()
@@ -276,7 +267,17 @@ func _on_synced() -> void:
 	for id: String in _keys:
 		live[_keys[id]] = true
 		live[_aliases[id]] = true
-	memory.keep_only(live, not outside_shown.call())
+	memory.keep_only(live)
+	_gone_outside.clear()
+
+
+## Forgets the islands of sessions started outside the game that went
+## during this game and were kept for their app relaunching them (S08):
+## the setting was turned off (those still shown end, reason user).
+func forget_outside() -> void:
+	for keys: Array in _gone_outside:
+		memory.erase(keys)
+	_gone_outside.clear()
 
 
 # [param saved]: its remembered island, all of it, or with
@@ -316,7 +317,6 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	memory.put([_keys[id], _aliases[id]], {
 		"biome": i.biome, "seed": i.island_seed, "cluster": cluster, "name": clusters.cluster_name(cluster),
 		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
-		"outside": _outside.has(id),
 	})
 	island_added.emit(id, i, o)
 	if not created:
@@ -341,13 +341,15 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	_rising[id] = tween
 
 
-func _on_removed(id: String, _reason: String) -> void:
+func _on_removed(id: String, reason: String) -> void:
 	_waiting.erase(id)
-	# One started outside the game is remembered after it goes (S08): it
-	# may come back when it's turned on again or its app relaunches it. A
-	# start that shows them forgets those no longer running.
-	if not _outside.has(id):
+	# One started outside the game that stops being listed is remembered
+	# until the next start (S08), so its app relaunching it finds it again;
+	# that start's sync forgets it if it's gone. Turning them off forgets it.
+	if not _outside.has(id) or reason == "user":
 		memory.erase([_keys.get(id, ""), _aliases.get(id, "")])
+	else:
+		_gone_outside.append([_keys.get(id, ""), _aliases.get(id, "")])
 	_keys.erase(id)
 	_aliases.erase(id)
 	_outside.erase(id)

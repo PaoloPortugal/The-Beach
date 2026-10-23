@@ -38,7 +38,7 @@ sequenceDiagram
         World->>World: look each up in user://islands.json, read at start<br/>(keyed by provider, started_at, project path#59; or by provider and native_id)
         World->>World: place the waiting islands: saved ones by slot, then index,<br/>each with its biome, seed and cluster (gaps closed)#59; then any with nothing saved
         World->>World: bridge each to its nearest (W06), in that order
-        World->>World: rewrite islands.json: entries of sessions that didn't come back dropped<br/>(outside sessions' only while they're shown, S08)
+        World->>World: rewrite islands.json: entries of sessions that didn't come back dropped<br/>(outside sessions' too, also one that stopped being listed last game, S08)
     end
     Note over World: The cover lifts: its island is standing (no rise).
     World->>Sidecar: session.get_history
