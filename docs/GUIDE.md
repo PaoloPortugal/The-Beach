@@ -405,7 +405,8 @@ near clusters, about 70 for a far one) can start to reach into another
 cluster's sea; nothing stops it yet.
 
 The **minimap** in the top left shows the cluster you're in or nearest
-to: its islands (an empty one is grey), its bridges, the platform when
+to: its islands (an empty one is grey, a little grey flag marks one
+you can only watch), its bridges, the platform when
 it's close, and you as a white arrow pointing the way you face, with
 north at the top. It hides while the chat, the sessions menu or the big
 map is open.
