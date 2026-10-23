@@ -78,6 +78,9 @@ func _ready() -> void:
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
+	# Shown only with the setting on and agent view on in Claude Code (S08).
+	_islands.outside_shown = func() -> bool:
+		return settings.value("game/outside_sessions") == true and Sidecar.provider_notice("outside_sessions_off").is_empty()
 	fit_draw_distance()
 	# The platform is in every near cluster's bridge tree (W06; a far
 	# cluster's leaves it out, W05).

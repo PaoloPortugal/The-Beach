@@ -120,14 +120,20 @@ test('asking fails soft: one that hangs is stopped at the time limit', async () 
   const started = Date.now()
   const got = await withAgents('setTimeout(() => {}, 60000)',
     () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }, { timeoutMs: 500 }))
-  assert.ok(got && typeof got === 'object' && 'none' in got, JSON.stringify(got))
+  assert.deepEqual(got, { none: 'claude agents --json timed out after 0.5 s' }, 'the log says it was slow')
   assert.ok(Date.now() - started < 10000, 'stopped, not waited out')
+})
+
+test('asking fails soft: one that fails without a message says its exit code (S08)', async () => {
+  const got = await withAgents('process.exit(3)',
+    () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }))
+  assert.deepEqual(got, { none: 'claude agents --json exited with code 3 and no message' })
 })
 
 test('asking fails soft: output over the limit is refused', async () => {
   const got = await withAgents("process.stdout.write('[' + '0,'.repeat(100000) + '0]')",
     () => runningSessions(process.execPath, { PATH: process.env.PATH ?? '' }, { maxOutput: 1024 }))
-  assert.ok(got && typeof got === 'object' && 'none' in got, JSON.stringify(got))
+  assert.ok(got && typeof got === 'object' && 'none' in got && !String(got.none).includes('timed out'), JSON.stringify(got))
 })
 
 test('asking fails soft: an answer that is no list gives a reason, a list gives its ids', async () => {

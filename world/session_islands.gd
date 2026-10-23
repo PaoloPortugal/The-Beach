@@ -47,6 +47,10 @@ var bridges := BridgeNetwork.new()
 var player: Node3D
 ## Each live session's island, kept for the next start (W12).
 var memory := IslandMemory.new()
+## Whether sessions started outside the game are shown (S08, the
+## player's setting): while they aren't, their islands are remembered
+## anyway (world.gd sets it).
+var outside_shown := func() -> bool: return true
 ## The biome of an island nobody chose one for (a session already running,
 ## or one started outside the menu): [constant Biome.RANDOM] or a kind.
 var default_biome := Biome.RANDOM
@@ -72,6 +76,8 @@ var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
 var _biome_choice := {} # session id → the biome chosen for its island
 var _keys := {} # session id → its IslandMemory key
+var _aliases := {} # session id → its IslandMemory alias, or ""
+var _outside := {} # session id → true, for one started outside the game (S08)
 var _waiting: Array[String] = [] # sessions taken back, placed once synced
 
 
@@ -225,25 +231,33 @@ func _process(_delta: float) -> void:
 
 
 func _on_added(id: String, created: bool) -> void:
-	_keys[id] = IslandMemory.key(store.session(id))
+	var session := store.session(id)
+	_keys[id] = IslandMemory.key(session)
+	_aliases[id] = IslandMemory.alias(session)
+	if session.get("origin") == "external":
+		_outside[id] = true
 	# One already running (taken back) waits for the sync's others, to
-	# come back in their order. One outside a sync (taken back late) is
-	# placed at once.
+	# come back in their order. One outside a sync (taken back late, or
+	# one started outside the game that rises: turned back on, or its app
+	# relaunched it, S08) is placed at once, with its remembered biome and
+	# seed if any; it joins its cluster as a new one would.
 	if not created and store.syncing:
 		_waiting.append(id)
 		return
-	_place(id, created)
+	_place(id, created, memory.entry(memory.find([_keys[id], _aliases[id]])), false)
 
 
 # Places those taken back: the remembered ones in their saved order, then
 # the others as they came. Then forgets the islands of sessions that
-# didn't come back.
+# didn't come back (those started outside the game only while they're shown).
 func _on_synced() -> void:
 	var by_key := {}
-	for id in _waiting:
-		by_key[_keys[id]] = id
 	var waiting := _waiting.duplicate()
 	_waiting.clear()
+	for id in waiting:
+		var k := memory.find([_keys[id], _aliases[id]])
+		if not k.is_empty():
+			by_key[k] = id
 	for k: String in memory.ordered(by_key.keys()):
 		_place(by_key[k], false, memory.entry(k))
 		waiting.erase(by_key[k])
@@ -252,15 +266,20 @@ func _on_synced() -> void:
 	var live := {}
 	for id: String in _keys:
 		live[_keys[id]] = true
-	memory.keep_only(live)
+		live[_aliases[id]] = true
+	memory.keep_only(live, not outside_shown.call())
 
 
-func _place(id: String, created: bool, saved := {}) -> void:
+# [param saved]: its remembered island, all of it, or with
+# [param whole] false only its biome and seed.
+func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	var i := Island.new()
 	i.name = "Island"
-	if saved.is_empty():
+	if saved.is_empty() or not whole:
 		clusters.add(id, store.session(id))
-		i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
+		i.biome = Biome.resolve(_biome_choice.get(id, default_biome)) if saved.is_empty() else int(saved["biome"])
+		if not saved.is_empty():
+			i.island_seed = int(saved["seed"])
 	else:
 		clusters.restore(id, saved)
 		clusters.add(id, store.session(id))
@@ -285,9 +304,10 @@ func _place(id: String, created: bool, saved := {}) -> void:
 	_islands[id] = i
 	var cluster := clusters.cluster_of(id)
 	_cluster[i] = cluster
-	memory.put(_keys[id], {
+	memory.put([_keys[id], _aliases[id]], {
 		"biome": i.biome, "seed": i.island_seed, "cluster": cluster, "name": clusters.cluster_name(cluster),
 		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
+		"outside": _outside.has(id),
 	})
 	island_added.emit(id, i, o)
 	if not created:
@@ -314,8 +334,14 @@ func _place(id: String, created: bool, saved := {}) -> void:
 
 func _on_removed(id: String, _reason: String) -> void:
 	_waiting.erase(id)
-	memory.erase(_keys.get(id, ""))
+	# One started outside the game is remembered after it goes (S08): it
+	# may come back when it's turned on again or its app relaunches it. A
+	# start that shows them forgets those no longer running.
+	if not _outside.has(id):
+		memory.erase([_keys.get(id, ""), _aliases.get(id, "")])
 	_keys.erase(id)
+	_aliases.erase(id)
+	_outside.erase(id)
 	var i: Island = _islands.get(id)
 	if i == null:
 		return

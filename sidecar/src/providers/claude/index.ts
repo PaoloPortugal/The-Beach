@@ -588,6 +588,7 @@ export class ClaudeProvider implements Provider {
       this.lastFailure = answer.none
       return
     }
+    if (this.lastFailure !== null) this.log.info('looking for sessions started outside the game again')
     this.lastFailure = null
     if (!this.outsideWanted) return
     this.turnedOn = false
