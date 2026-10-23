@@ -72,8 +72,7 @@ func find(keys: Array) -> String:
 
 ## The saved entry for a key, or {}: {"biome", "seed", "cluster" (the
 ## cluster's id when saved), "name", "repo_key" ("" for one made by
-## hand), "slot", "index", "outside" (true for a session started outside
-## the game, S08; absent in older files)}.
+## hand), "slot", "index"}.
 func entry(k: String) -> Dictionary:
 	return _entries.get(k, {})
 
@@ -101,12 +100,9 @@ func erase(keys: Array) -> void:
 		_save()
 
 
-## Drops every entry whose key isn't in [param live], except, with
-## [param keep_outside], those of sessions started outside the game (S08):
-## while they aren't shown, nobody can tell whether they still run.
-func keep_only(live: Dictionary, keep_outside := false) -> void:
-	var gone := _entries.keys().filter(func(k: String) -> bool:
-		return not live.has(k) and not (keep_outside and _entries[k].get("outside", false) == true))
+## Drops every entry whose key isn't in [param live].
+func keep_only(live: Dictionary) -> void:
+	var gone := _entries.keys().filter(func(k: String) -> bool: return not live.has(k))
 	for k: String in gone:
 		_entries.erase(k)
 	if not gone.is_empty():
@@ -150,8 +146,6 @@ func _save() -> void:
 ## MAX_TEXT] long, its numbers within 32 bits, a known biome, a seed not 0.
 static func _valid(e: Variant) -> bool:
 	if not e is Dictionary:
-		return false
-	if e.has("outside") and not e["outside"] is bool:
 		return false
 	for f: String in ["cluster", "name", "repo_key"]:
 		if not (e.get(f) is String and e[f].length() <= MAX_TEXT):

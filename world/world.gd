@@ -78,9 +78,6 @@ func _ready() -> void:
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
-	# Shown only with the setting on and agent view on in Claude Code (S08).
-	_islands.outside_shown = func() -> bool:
-		return SessionIslands.outside_shown_by(settings.value("game/outside_sessions"), Sidecar.provider_notice("outside_sessions_off"))
 	fit_draw_distance()
 	# The platform is in every near cluster's bridge tree (W06; a far
 	# cluster's leaves it out, W05).
@@ -218,6 +215,8 @@ func apply_settings() -> void:
 	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")
 	crosshair.ring_on = settings.value("game/crosshair")
 	set_outside_sessions.call(settings.value("game/outside_sessions"))
+	if settings.value("game/outside_sessions") != true:
+		_islands.forget_outside()
 
 
 # The debug commands (C09), in debug builds only: T opens their line.

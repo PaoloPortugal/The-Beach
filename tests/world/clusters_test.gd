@@ -216,9 +216,9 @@ func _w12_memory() -> void:
 	_write("{not json")
 	m.load_file()
 	_check(not m.has("ok"), "W12: a damaged file is ignored")
-	_write('{"version": 1, "islands": {"bad": %s, "ok": %s}}' % [JSON.stringify(_entry("1", 0, 0).merged({"outside": "yes"}, true)), JSON.stringify(_entry("1", 0, 0).merged({"outside": true}, true))])
+	_write('{"version": 1, "islands": {"ok": %s}}' % JSON.stringify(_entry("1", 0, 0).merged({"outside": true}, true)))
 	m.load_file()
-	_check(m.has("ok") and m.entry("ok")["outside"] == true and not m.has("bad"), "S08: an entry's outside mark is true or false, else it's ignored")
+	_check(m.has("ok"), "S08: an entry with a field of an earlier build (outside) still loads")
 	# The second key, from the provider's own id.
 	var a := IslandMemory.alias(s.merged({"native_id": "n-1"}))
 	_check(a == "claude|id|n-1" and IslandMemory.alias(s) == "" and IslandMemory.alias(s.merged({"native_id": ""})) == "", "S08: a second key from provider and its own id; none without one")
@@ -226,13 +226,6 @@ func _w12_memory() -> void:
 	_check(m.find(["none", a, k]) == a and m.find(["", "none"]) == "", "S08: found by either key, the first that has one")
 	m.erase([k, a])
 	_check(not m.has(k) and not m.has(a), "S08: both keys go together")
-	# Sessions started outside the game are kept while they aren't shown.
-	m.put(["o"], _entry("1", 0, 0).merged({"outside": true}, true))
-	m.put(["r"], _entry("1", 0, 1))
-	m.keep_only({}, true)
-	_check(m.has("o") and not m.has("r"), "S08: while not shown, outside ones are kept, others not live dropped")
-	m.keep_only({})
-	_check(not m.has("o"), "S08: once shown, an outside one not running is dropped")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
 
@@ -273,50 +266,61 @@ func _w12_islands() -> void:
 
 
 # S08: a session started outside the game keeps its island like the
-# game's own: across its app relaunching it (new start, same id), turned
-# off and back on, and a start with them off.
+# game's own: across a restart its app relaunched it in (new start, same
+# id), and when it stops being listed mid-game, until the next start.
+# Turned off, it's forgotten at once; turned back on, it's made anew.
 func _w12_outside() -> void:
-	var shown := [true]
 	var outside := _live("o1").merged({"origin": "external", "native_id": "n-o", "read_only": true}, true)
 	var m := IslandMemory.new()
 	# Saved before its app relaunched it: another start, the same id.
 	m.put([IslandMemory.alias(outside)], _entry("7", 3, 0, Biome.Kind.SNOWY, 555))
 	var store := SessionStore.new()
 	var islands := SessionIslands.new()
-	islands.outside_shown = func() -> bool: return shown[0]
 	root.add_child(islands)
 	islands.setup(store)
 	store.syncing = true
 	store.apply({"type": "session.snapshot", "session": outside})
 	store._on_synced()
 	var o := islands.island("o1")
-	_check(o != null and o.biome == Biome.Kind.SNOWY and o.island_seed == 555, "S08: relaunched by its app, it's found by its id: same biome and seed")
+	_check(o != null and o.biome == Biome.Kind.SNOWY and o.island_seed == 555, "S08: relaunched by its app at a restart, it's found by its id: same biome and seed")
 	var saved := IslandMemory.new()
 	saved.load_file()
-	_check(saved.has(IslandMemory.key(outside)) and saved.entry(IslandMemory.key(outside))["outside"] == true, "S08: kept under its new start too, marked as outside")
-	# Turned off: it goes, remembered.
-	store.apply({"type": "session.ended", "session": "o1", "seq": 2, "reason": "user"})
+	_check(saved.has(IslandMemory.key(outside)) and saved.has(IslandMemory.alias(outside)), "S08: kept under its new start too")
+	# No longer listed mid-game (its app relaunching it): remembered.
+	store.apply({"type": "session.ended", "session": "o1", "seq": 2, "reason": "exited"})
 	saved.load_file()
-	_check(saved.has(IslandMemory.key(outside)) and saved.has(IslandMemory.alias(outside)), "S08: turned off, it's still remembered")
-	# A start with them off: kept.
-	shown[0] = false
-	store.syncing = true
-	store._on_synced()
-	saved.load_file()
-	_check(saved.has(IslandMemory.key(outside)), "S08: a start with them off keeps it")
-	# Back on: it rises with its biome and seed.
-	shown[0] = true
-	var again := outside.merged({"session": "o2"}, true)
-	store.apply({"type": "session.created", "session": again})
+	_check(saved.has(IslandMemory.key(outside)) and saved.has(IslandMemory.alias(outside)), "S08: no longer listed mid-game, it's still remembered")
+	var back := outside.merged({"session": "o2"}, true)
+	store.apply({"type": "session.created", "session": back})
 	await process_frame
 	var o2 := islands.island("o2")
-	_check(o2 != null and islands.is_rising("o2") and o2.biome == Biome.Kind.SNOWY and o2.island_seed == 555, "S08: turned back on, it rises as it was")
+	_check(o2 != null and islands.is_rising("o2") and o2.biome == Biome.Kind.SNOWY and o2.island_seed == 555, "S08: back with the same id, it rises with its biome and seed")
+	# Turned off: forgotten at once.
 	store.apply({"type": "session.ended", "session": "o2", "seq": 2, "reason": "user"})
-	# A start that shows them, without it: forgotten.
+	saved.load_file()
+	_check(not saved.has(IslandMemory.key(back)) and not saved.has(IslandMemory.alias(back)), "S08: turned off, it's forgotten")
+	# Turned back on: a new island.
+	var again := outside.merged({"session": "o3"}, true)
+	store.apply({"type": "session.created", "session": again})
+	await process_frame
+	var o3 := islands.island("o3")
+	_check(o3 != null and islands.is_rising("o3") and not (o3.biome == Biome.Kind.SNOWY and o3.island_seed == 555), "S08: turned back on, it rises as a new island")
+	# Agent view turned off mid-game, then a start with them not shown: none kept.
+	store.apply({"type": "session.ended", "session": "o3", "seq": 2, "reason": "exited"})
 	store.syncing = true
 	store._on_synced()
 	saved.load_file()
-	_check(not saved.has(IslandMemory.key(outside)) and not saved.has(IslandMemory.alias(outside)), "S08: a start that shows them forgets one no longer running")
+	_check(not saved.has(IslandMemory.key(again)) and not saved.has(IslandMemory.alias(again)) and not saved.has(IslandMemory.key(outside)), "S08: a start where it isn't listed forgets it")
+	# Gone mid-game, kept, then the setting turned off: forgotten at once.
+	var later := outside.merged({"session": "o4"}, true)
+	store.apply({"type": "session.created", "session": later})
+	await process_frame
+	store.apply({"type": "session.ended", "session": "o4", "seq": 2, "reason": "exited"})
+	saved.load_file()
+	var kept := saved.has(IslandMemory.key(later)) and saved.has(IslandMemory.alias(later))
+	islands.forget_outside()
+	saved.load_file()
+	_check(kept and not saved.has(IslandMemory.key(later)) and not saved.has(IslandMemory.alias(later)), "S08: one kept after it went is forgotten when the setting is turned off")
 	islands.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
