@@ -19,60 +19,65 @@ A. Shown, read-only
 3. Does the flag read well
    from the platform, from
    the sea and from close up?
-4. Walk up to the terminal
+4. The minimap and the big
+   map (M): a little grey
+   flag on both outside
+   islands?
+5. Walk up to the terminal
    one: the chat so far, the
    notice "This session was
    started outside the game
    ...", and "Read-only: use
    its own window." where
    you'd type?
-5. Chat in that terminal: the
+6. Chat in that terminal: the
    message, reply and tool
    calls show in the world
    within a few seconds?
-6. Ask it for something that
+7. Ask it for something that
    needs a permission: the
    island shows waiting?
    Answer in the terminal.
-7. Start a session from the
-   world: no flag on it, chat
+8. Start a session from the
+   world: no flag on it (nor
+   on the maps), chat
    works as usual?
-8. Run claude -p "hi" in a
+9. Run claude -p "hi" in a
    terminal: no island ever
    rises for it?
-9. Run a new claude in a
+10. Run a new claude in a
    terminal (repo A): its
    island rises within ~10 s?
-10. /exit it: its island
+11. /exit it: its island
    sinks within ~10 s?
 
 B. The setting
-11. Esc → Game: turn off
+12. Esc → Game: turn off
    "Show sessions started
    outside the game": the
    outside islands sink?
-12. Quit and start again: no
+13. Quit and start again: no
    outside islands?
-13. Turn it on: they rise
+14. Turn it on: they rise
    at once?
-14. Quit and start again: the
+15. Quit and start again: the
    outside islands standing,
    as they were?
 
 C. Agent view off
-15. Quit. In PowerShell:
+16. Quit. In PowerShell:
    $env:CLAUDE_CODE_DISABLE_
    AGENT_VIEW="1"; then start
    the game from there.
-16. No outside islands, no
+17. No outside islands, no
    notice on screen?
-17. Esc → Game: the toggle
+18. Esc → Game: the toggle
    greyed out and off, with
    "Sessions started outside
    the game can't be shown:
    agent view is off in
    Claude Code." in red?
-18. Quit, start it normally
+19. Quit, start it normally
    (new window): the toggle
    back as you left it in B?
-19. /exit every session.
+20. /exit every session.

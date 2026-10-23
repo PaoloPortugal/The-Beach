@@ -1824,6 +1824,28 @@ func _read_only_marks(world: Node3D, panel: ChatPanel) -> void:
 		var flag := i.get_node("ReadOnlyFlag") as Node3D
 		var at := Vector2(flag.position.x, flag.position.z)
 		_check(not i.landings().is_empty() and i.landings().all(func(l: Vector3) -> bool: return Vector2(l.x, l.z).distance_to(at) > 3.0), "S08: %s's flag keeps clear of its bridges" % id)
+	# The maps mark them too, and only them. The minimap is shown for this
+	# even with the chat open.
+	var minimap: Minimap = world.minimap
+	var hidden_when := minimap.hidden_when
+	minimap.hidden_when = func() -> bool: return false
+	await _frames(2)
+	var shown := islands.cluster_islands(minimap.shown_cluster())
+	_check(islands.island("o1") in shown and islands.island("o2") in shown and islands.island("h1") in shown, "S08: the minimap shows the read-only islands' cluster")
+	_check(shown.all(func(i: Island) -> bool: return (i in minimap.marked()) == i.read_only()), "S08: the minimap marks the read-only islands, and only them")
+	minimap.hidden_when = hidden_when
+	var big: WorldMap = world.world_map
+	var controls := (world.get_node("Player") as Player).controls_enabled
+	big.open()
+	big.zoom = big.min_zoom()
+	big.centre = Vector2(islands.island("o1").global_position.x, islands.island("o1").global_position.z)
+	await _frames(2)
+	_check(islands.island("o1") in big.marked() and islands.island("o2") in big.marked() and islands.island("h1") not in big.marked(), "S08: so does the big map")
+	big.zoom = WorldMap.MAX_ZOOM
+	await _frames(2)
+	_check(islands.island("o1") in big.marked(), "S08: zoomed in too")
+	big.close()
+	(world.get_node("Player") as Player).controls_enabled = controls
 	panel.open("o1")
 	await _frames(1)
 	var notices: String = panel.get_node("Layout/Notices").text

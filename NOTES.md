@@ -119,7 +119,7 @@ v1 slice.
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` |
-| S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
+| S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
 
 ## When a feature lands
 
@@ -1246,7 +1246,8 @@ and the real layout (user's, 2026-10-02; W07).
   first; tilting with the island).
 - **Rails** you can't walk through, so you don't fall in the sea (since
   W08 you'd have to swim to a beach: no climbing back on).
-- **Minimap now:** a small map of the cluster (islands, bridges, you).
+- **Minimap now:** a small map of the cluster (islands, bridges, you;
+  read-only marks since S08).
   Placeholder UI, like all UI. A square in the top left (the top right
   has A05's count), north-up, fitted to the cluster you're in or nearest
   to, with you as an arrow; always on (rejected: the
@@ -1259,7 +1260,7 @@ and the real layout (user's, 2026-10-02; W07).
   opens centred on you, fitted to your cluster; drag with the mouse or
   use WASD or the arrow keys to move it, the mouse wheel zooms (toward
   the pointer). It shows the whole world: islands (far clusters too),
-  bridges, the platform, you, each cluster's name, and, zoomed in
+  bridges, read-only marks (S08), the platform, you, each cluster's name, and, zoomed in
   enough, each island's session title and state. Clicking a session's
   island takes you there, like the sessions ring (W07),
   and clicking the platform takes you to it (W08).
@@ -4575,6 +4576,13 @@ mark's look, the wording and the toggle the user's own):*
   shows from across the sea (user's, after the first renders: a 3.6 m
   pale pennant vanished against the sky and under the treetops;
   approved from renders the same day).
+- **The maps mark them too** (user's, 2026-10-23): a little grey flag
+  (pole and pennant, a dark edge) on the minimap and the big map, drawn
+  where the island's flag stands, 10 px tall, up to 20 px zoomed in
+  (`Minimap.draw_read_only`). A placeholder like the flag itself, until
+  real art (user's; the look may change too). Rejected: a dashed
+  outline (looks like the big map's hover), the word "read-only" in the
+  big map's titles (longer labels, fewer fit).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
@@ -4677,7 +4685,6 @@ mark's look, the wording and the toggle the user's own):*
   ends unless Claude Code stops listing it.
 - `waitingFor` (what it waits on) isn't shown; the world shows only
   "waiting".
-- The mark is on the islands only, not on the minimap or the world map.
 
 **Not covered:** sending, answering or stopping from the world (needs a
 documented way to attach, Watch items); sessions on other machines.

@@ -19,8 +19,15 @@ NOTES.md → S08 has how it works.
   pole with a 1.7 × 2.8 m dark grey pennant, which shows from across the
   sea. The user approved it from renders near, at 45 m and at 90 m
   ("reads well"). Credited as Claude-made (AI-written code) in `assets/CREDITS.md`,
-  at the user's request, until real art replaces it. Offered: the mark
-  on the minimap and world map too (not built).
+  at the user's request, until real art replaces it.
+- **The mark on the maps** (2026-10-23, user's pick of three): a
+  little grey flag where the island's flag stands, on the minimap and
+  the big map (10 px, up to 20 px zoomed in), with a dark edge so it
+  shows on sand, snow and sea. Rejected: a dashed outline (too like the
+  big map's hover outline); the flag plus "read-only" in the big map's
+  titles (longer labels, fewer fit). Checked from renders (the minimap,
+  the big map, zoomed in) before the live check. The user asked for it
+  to be marked a placeholder: the assets will change, maybe the design.
 - **The wording:** the notice `outside_read_only`, "This session was
   started outside the game, so it's read-only here. Use its own window
   to chat with it."; the provider notice `outside_sessions_off`,
@@ -98,12 +105,11 @@ flow 16; fixed.
 - An Agent SDK program found before its transcript is written, and still
   without one at the next listing, shows as an island, and never ends
   unless Claude Code stops listing it.
-- The mark isn't on the minimap or the world map.
 
 ## Tests
 
 `sidecar/test/outside.test.ts` (new, 20 tests), `running.test.ts`
-(the new fields, agent view off), the world test (the flag, the chat
+(the new fields, agent view off), the world test (the flag, the marks on both maps, the chat
 line and notice, the setting with and without the notice), the sidecar
 client test (provider notices and capabilities, focus, the serve
 arguments). Sidecar 327/327, every Godot suite passes. Live check
