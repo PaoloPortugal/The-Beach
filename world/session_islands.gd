@@ -14,7 +14,10 @@ extends Node3D
 ## rolled at random.
 ## A session taken back after a restart (S07) gets its island back as it
 ## was (W12, [IslandMemory]): its biome, seed and cluster, placed in the
-## saved order once the sync is done, gaps closed up.
+## saved order once the sync is done, gaps closed up. One started outside
+## the game (S08) is remembered after it goes, until a start that shows
+## them finds it gone; when it rises again mid-game it gets its biome and
+## seed back.
 ## An island whose session the world only watches ([code]read_only[/code]:
 ## S07, S08) has the read-only mark, a grey flag ([ReadOnlyFlag]).
 ## Everything under it, agents and bridges that come later included, is
@@ -51,6 +54,12 @@ var memory := IslandMemory.new()
 ## player's setting): while they aren't, their islands are remembered
 ## anyway (world.gd sets it).
 var outside_shown := func() -> bool: return true
+
+
+## Whether they're shown: the setting on, and no provider notice that it
+## can't list them ([code]outside_sessions_off[/code]: agent view off).
+static func outside_shown_by(setting: Variant, off_notice: Dictionary) -> bool:
+	return setting == true and off_notice.is_empty()
 ## The biome of an island nobody chose one for (a session already running,
 ## or one started outside the menu): [constant Biome.RANDOM] or a kind.
 var default_biome := Biome.RANDOM

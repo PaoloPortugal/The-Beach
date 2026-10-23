@@ -47,7 +47,7 @@ sequenceDiagram
     opt the player turns it off (Settings → Game)
         World->>Sidecar: client.set_outside_sessions false
         Sidecar-->>World: ok
-        Sidecar->>World: session.ended user, each (islands sink, W12 forgets them)
+        Sidecar->>World: session.ended user, each (islands sink, W12 remembers them)
         Note over Sidecar: stops asking, unless S07's read-only sessions need it#59;<br/>at the next start: serve --no-outside-sessions, and claude isn't asked<br/>unless a session of the game's own is to be taken back
     end
     opt turned on again
@@ -55,7 +55,7 @@ sequenceDiagram
         Sidecar-->>World: ok
         Sidecar->>Agents: which sessions run? (at once)
         Agents-->>Sidecar: the list
-        Sidecar->>World: session.created, each (islands rise)
+        Sidecar->>World: session.created, each (islands rise, with their remembered biome and seed)
     end
     opt agent view is off
         Sidecar->>Agents: which sessions run?

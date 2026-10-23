@@ -133,9 +133,11 @@ flow 16; fixed.
 
 ## Tests
 
-`sidecar/test/outside.test.ts` (new, 20 tests), `running.test.ts`
-(the new fields, agent view off), the clusters test (`_w12_outside`: kept like the game's own), the world test (the flag, the marks on both maps, the chat
+`sidecar/test/outside.test.ts` (new, 20 tests; its answer back logged),
+`running.test.ts` (the new fields, agent view off, failures without a
+message told apart), the clusters test (`_w12_outside`: kept like the game's own), the world test (the flag, the marks on both maps, the chat
 line and notice, the setting with and without the notice), the sidecar
 client test (provider notices and capabilities, focus, the serve
-arguments). Sidecar 327/327, every Godot suite passes. Live check
-pending (`tests/live/checklist.txt`).
+arguments). Sidecar 332 passing (11 skipped: macOS and Linux only),
+every Godot suite passes. Live check: see above; steps 14 on to be run
+again (`tests/live/checklist.txt`).

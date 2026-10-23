@@ -309,9 +309,12 @@ feature that touches them follows these rules, and each is tested:
   own copy of a session's conversation to disk, so a user who turned
   Claude Code's transcripts off keeps nothing on disk because of us.
   The game's `islands.json` (W12) holds running sessions' project paths
-  and start times (sessions started outside the game's too, S08, until
-  they end or the setting is turned off), never what's said; it's owner-only and loses each
-  session's entry once it's gone.
+  and start times, never what's said; it's owner-only and loses each
+  session's entry once it's gone. Sessions started outside the game
+  (S08) are there too, with their Claude Code session id, and kept after
+  they end or are turned off, until a start that shows them finds them
+  no longer running (W12 → Sessions started outside the game): with the
+  setting left off, nothing clears them.
 - **Known gap: hooks that outlive the sidecar** (documented 2026-10-13
   at the user's request; not ours to close). Claude Code fixes an HTTP
   hook's URL at launch and never checks who answers it. Once the
@@ -3116,7 +3119,8 @@ later SMAA default):*
   - *Crosshair* (C11): off hides the ring (`Crosshair.ring_on`); the
     aiming and the hint under it stay.
   - *Show sessions started outside the game* (S08, on by default): off,
-    their islands sink and are forgotten; on, they rise at once
+    their islands sink (W12 remembers them); on, they rise at once, as
+    they were
     (`world.set_outside_sessions`, which tests replace, calls
     `SidecarClient.set_outside_sessions`). The sidecar is started with
     it (S08 → The setting). While a provider says it can't list them
@@ -4608,10 +4612,11 @@ mark's look, the wording and the toggle the user's own):*
   outline (looks like the big map's hover), the word "read-only" in the
   big map's titles (longer labels, fewer fit).
 - **Their islands are kept like the game's own** (user's, 2026-10-23,
-  after the live check): the same biome, seed and place after a restart,
-  after their app relaunches them, and after the setting is turned off
-  and on, even across a restart (W12 → The second key, Sessions started
-  outside the game).
+  after the live check): the same biome, seed and place after a
+  restart; the same biome and seed when one rises again mid-game (turned
+  back on, or relaunched by its app), joining its repository's cluster
+  as a new one would (W12 → The second key, Sessions started outside the
+  game).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
@@ -4630,7 +4635,7 @@ mark's look, the wording and the toggle the user's own):*
   always, 5 s always).
 - **A setting turns them off** (user's addition while building): Settings
   → Game → "Show sessions started outside the game", on by default
-  (C10). Off: each outside island sinks and is forgotten (W12), and the
+  (C10). Off: each outside island sinks, remembered (W12), and the
   sidecar stops asking unless S07's read-only sessions need it. On: it
   asks at once and their islands rise at once.
 - **Agent view off** (the command refuses): the provider notice
@@ -4685,7 +4690,7 @@ mark's look, the wording and the toggle the user's own):*
   waiting for input, else idle).
 - *It ends* (`session.ended`, reason `exited`; the island sinks, W04)
   once Claude Code no longer lists its `pid`; with the setting turned
-  off, reason `user` (W12 forgets it). Agent view found off ends every
+  off, reason `user` (W12 keeps it either way, S08). Agent view found off ends every
   outside session and stops looking for this launch.
 - *The setting* (`SidecarClient.set_outside_sessions`): sends
   `client.set_outside_sessions`; the sidecar is started with `serve
@@ -4704,11 +4709,17 @@ mark's look, the wording and the toggle the user's own):*
   swaying. The chat panel shows the line per origin. The quit warning
   leaves outside sessions out (S05).
 - *What it keeps:* nothing of an outside session is written by the
-  sidecar; the game's `islands.json` (W12) holds its project path and
-  start time like any running session's, until it ends or the setting
-  is turned off (Security rules → Private by default).
+  sidecar; the game's `islands.json` (W12) holds its project path,
+  start time and session id, kept after it ends or is turned off until
+  a start that shows outside sessions finds it no longer running
+  (Security rules → Private by default).
 
 **Open points** (not fixed; low likelihood):
+- If `claude agents` fails at a start that shows outside sessions (slow,
+  or a quiet failure, as once in the live check), they aren't in the
+  first sync, so W12 forgets their islands and they come back as new
+  ones at the next listing (security review, 2026-10-23: it errs on the
+  side of forgetting).
 - An Agent SDK program found before its transcript is written, and
   still without one at the next listing, shows as an island, and never
   ends unless Claude Code stops listing it.
@@ -4728,15 +4739,18 @@ ended once unlisted; nothing sent, stopped or answered, nothing
 written; `/clear` followed; ours left out by session id and process;
 agent view off at start and while running: the notice once, in
 `hello`, the sessions ended, no more asking; other failures logged
-once; the pace with and without focus, its defaults, stopped at
+once, and its answer back logged once; the pace with and without focus, its defaults, stopped at
 shutdown; turned off and on: ended with reason user, asked at once,
 rising; `serve --no-outside-sessions`; S07's still polled while off),
 `running.test.ts` (the fields, their checks, agent view off told
-apart), `tests/world/world_test.gd` (the flag on every read-only
+apart, a failure without a message says it timed out or its exit
+code), `tests/world/clusters_test.gd` (`_w12_outside`: kept like the
+game's own), `tests/world/world_test.gd` (the flag on every read-only
 island, clear of bridges, gone and back with `read_only`; the mark on
 the minimap and the big map, on read-only islands only, zoomed in too; the notice
 and the chat line per origin; the setting: sent and saved, greyed out
-with the notice in red, the saved choice kept),
+with the notice in red, the saved choice kept; the islands told
+whether they're shown),
 `tests/core/sidecar_client_test.gd` (the serve arguments from the
 setting, provider capabilities, `provider.notice` kept and not a
 session event, focus told once per change, both commands answered).
@@ -5910,15 +5924,42 @@ Ideas weighed and turned down. Each says what would reopen it.
   on 2.1.296 only; whether 2.1.284 accepts a `PostModelSwitch` hook in
   our `--settings`, `--effort` and the `xhigh` level is unchecked. If
   not, raise the minimum (S02) rather than detect it.
-- **Claude Code changelog reviewed up to 2.1.296** (2026-10-13): no
-  watch item resolved or broken; the next check starts after 2.1.296.
-  2.1.290 fixed the channel relay approving a different prompt on a
-  repeated reply ID; we echo Claude Code's own `request_id`, so this
-  only helps.
+- **Claude Code changelog reviewed up to 2.1.309** (2026-10-23; there
+  is no 2.1.297 or 2.1.298), with the raw channels, channels reference,
+  MCP, statusline, hooks and agent view docs: no watch item resolved or
+  broken; the next check starts after 2.1.309. Earlier: 2.1.290 fixed
+  the channel relay approving a different prompt on a repeated reply
+  ID; we echo Claude Code's own `request_id`, so this only helps. In
+  this round: the MCP revision note (Own MCP code in the bridge), new
+  transcript entries (Transcript format), `agents`' fields (below), the
+  resume warning (below). Unchanged: the channel verdict is still only
+  `request_id` and `behavior`; the status line still runs only through
+  a shell; no way yet for hooks to check the server, though since
+  2.1.300 a hook's `updatedInput` is validated like Claude's own
+  (unknown keys dropped, input the tool rejects denies the call), which
+  narrows a stranger's rewrite but doesn't close the gap (our
+  AskUserQuestion `answers` is a documented field); background sessions
+  still get no channel flag. Also 2.1.309: sandboxed commands and
+  auto-accepted edits can no longer change our `--mcp-config` file.
+- **A usage warning on resume** (S04; 2.1.304, found 2026-10-23, not
+  yet seen live). On Pro and Max, resuming an inactive conversation that
+  would use a noticeable share of the 5-hour limit now asks first:
+  resume anyway, or start a new conversation. A world resume
+  (`claude --resume`) could show it in the terminal before the session
+  starts. To check live: whether the world waits calmly until it's
+  answered, and whether "start a new conversation" (a new session id)
+  is followed like `/clear`. Mirror the terminal: the player answers it
+  there; we never pick for them.
 - **`claude agents --json`** (S04, S07, S08). Documented as the supported way
   to read session state from outside; refused when agent view is off
   (S08 tells that apart by its message, "… is disabled by …": recheck
   the wording after Claude Code updates). Recheck its fields when raising the minimum version.
+  The agent view docs (2026-10-23) now describe `state`
+  (`working`, `blocked`, `done`, `failed`, `stopped`) and `waitingFor`
+  for background sessions; interactive entries on 2.1.309 still carry
+  `pid`, `sessionId` and `status` (`idle`, `busy`; seen live), which is
+  all we read. If `status` ever loses `waiting`, `state: blocked` is the
+  documented replacement.
 - **`agents`' process ids on macOS and Linux** (S07, 2026-10-13). A
   session is taken back only if `claude agents --json` lists the
   process id our launcher spawned. Probed on Windows only (native
@@ -6032,6 +6073,13 @@ Ideas weighed and turned down. Each says what would reopen it.
   up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
   Claude Code updates: if it stops accepting older servers, or channels
   move to subscriptions, adopt the SDK once it supports the new revision.
+  *Confirmed by the MCP docs (2026-10-23):* Claude Code's v2 MCP client
+  asks stdio servers for 2026-07-28 but doesn't register a channel
+  server that uses it, as that revision "can't carry channel messages";
+  a channel server without it connects on the older handshake and
+  registers as before. Our bridge answers only the older revisions
+  (`MCP_VERSIONS` in `bridge.ts`), so it stays on the supported path.
+  `MCP_PROTOCOL_NEGOTIATION=legacy` would force it, but isn't needed.
 - **Generated session titles** (S02 → Titles). Claude Code doesn't
   generate a title (`ai-title`) when a session's first message comes
   from the world (a channel message, `isMeta`); such sessions are named
@@ -6042,7 +6090,11 @@ Ideas weighed and turned down. Each says what would reopen it.
   the session titles in it (`custom-title`, `ai-title`; S02 → Titles). It is used
   for status only, parsed defensively, and re-checked on Claude Code
   updates; if it changes, the world falls back to inferring from the next
-  event.
+  event. Since 2.1.300 transcripts also record each API request
+  (`api-request` and `api-request-blob` entries; about 8% of a session's
+  file, seen 2026-10-23). Our readers act only on entry types they
+  know, so these are skipped; they make files grow a little faster
+  toward the history's 64 MiB budget (Large chat histories).
 - **Channels are a research preview.** Chat and permission answers from the
   world depend on them (S02). Flags and protocol may change, custom channels
   need `--dangerously-load-development-channels` (confirmed by the user at
