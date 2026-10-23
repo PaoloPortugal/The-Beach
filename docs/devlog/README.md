@@ -102,3 +102,4 @@ reading; look things up by feature ID.
 | 2026-10-22 | [S02: finding claude through the login shell](2026-10-22-login-shell-path.md) | S02 |
 | 2026-10-22 | [S08: read-only islands for sessions started outside the game (research)](2026-10-22-s08-outside-sessions-research.md) | S08, S07, S04, W05, W12 |
 | 2026-10-22 | [S08: read-only islands for sessions started outside the game (the build)](2026-10-22-s08-outside-sessions.md) | S08, S07, C10, W12, Protocol |
+| 2026-10-23 | [Similar projects (second look)](2026-10-23-similar-projects.md) | docs |
