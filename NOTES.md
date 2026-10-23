@@ -5661,14 +5661,41 @@ Ideas weighed and turned down. Each says what would reopen it.
   on 2.1.296 only; whether 2.1.284 accepts a `PostModelSwitch` hook in
   our `--settings`, `--effort` and the `xhigh` level is unchecked. If
   not, raise the minimum (S02) rather than detect it.
-- **Claude Code changelog reviewed up to 2.1.296** (2026-10-13): no
-  watch item resolved or broken; the next check starts after 2.1.296.
-  2.1.290 fixed the channel relay approving a different prompt on a
-  repeated reply ID; we echo Claude Code's own `request_id`, so this
-  only helps.
+- **Claude Code changelog reviewed up to 2.1.309** (2026-10-23; there
+  is no 2.1.297 or 2.1.298), with the raw channels, channels reference,
+  MCP, statusline, hooks and agent view docs: no watch item resolved or
+  broken; the next check starts after 2.1.309. Earlier: 2.1.290 fixed
+  the channel relay approving a different prompt on a repeated reply
+  ID; we echo Claude Code's own `request_id`, so this only helps. In
+  this round: the MCP revision note (Own MCP code in the bridge), new
+  transcript entries (Transcript format), `agents`' fields (below), the
+  resume warning (below). Unchanged: the channel verdict is still only
+  `request_id` and `behavior`; the status line still runs only through
+  a shell; no way yet for hooks to check the server, though since
+  2.1.300 a hook's `updatedInput` is validated like Claude's own
+  (unknown keys dropped, input the tool rejects denies the call), which
+  narrows a stranger's rewrite but doesn't close the gap (our
+  AskUserQuestion `answers` is a documented field); background sessions
+  still get no channel flag. Also 2.1.309: sandboxed commands and
+  auto-accepted edits can no longer change our `--mcp-config` file.
+- **A usage warning on resume** (S04; 2.1.304, found 2026-10-23, not
+  yet seen live). On Pro and Max, resuming an inactive conversation that
+  would use a noticeable share of the 5-hour limit now asks first:
+  resume anyway, or start a new conversation. A world resume
+  (`claude --resume`) could show it in the terminal before the session
+  starts. To check live: whether the world waits calmly until it's
+  answered, and whether "start a new conversation" (a new session id)
+  is followed like `/clear`. Mirror the terminal: the player answers it
+  there; we never pick for them.
 - **`claude agents --json`** (S04, S07). Documented as the supported way
   to read session state from outside; refused when agent view is off.
   Recheck its fields when raising the minimum version.
+  The agent view docs (2026-10-23) now describe `state`
+  (`working`, `blocked`, `done`, `failed`, `stopped`) and `waitingFor`
+  for background sessions; interactive entries on 2.1.309 still carry
+  `pid`, `sessionId` and `status` (`idle`, `busy`; seen live), which is
+  all we read. If `status` ever loses `waiting`, `state: blocked` is the
+  documented replacement.
 - **`agents`' process ids on macOS and Linux** (S07, 2026-10-13). A
   session is taken back only if `claude agents --json` lists the
   process id our launcher spawned. Probed on Windows only (native
@@ -5780,6 +5807,13 @@ Ideas weighed and turned down. Each says what would reopen it.
   up to 2025-11-25), and Claude Code 2.1.284 falls back to it. Recheck on
   Claude Code updates: if it stops accepting older servers, or channels
   move to subscriptions, adopt the SDK once it supports the new revision.
+  *Confirmed by the MCP docs (2026-10-23):* Claude Code's v2 MCP client
+  asks stdio servers for 2026-07-28 but doesn't register a channel
+  server that uses it, as that revision "can't carry channel messages";
+  a channel server without it connects on the older handshake and
+  registers as before. Our bridge answers only the older revisions
+  (`MCP_VERSIONS` in `bridge.ts`), so it stays on the supported path.
+  `MCP_PROTOCOL_NEGOTIATION=legacy` would force it, but isn't needed.
 - **Generated session titles** (S02 → Titles). Claude Code doesn't
   generate a title (`ai-title`) when a session's first message comes
   from the world (a channel message, `isMeta`); such sessions are named
@@ -5790,7 +5824,11 @@ Ideas weighed and turned down. Each says what would reopen it.
   the session titles in it (`custom-title`, `ai-title`; S02 → Titles). It is used
   for status only, parsed defensively, and re-checked on Claude Code
   updates; if it changes, the world falls back to inferring from the next
-  event.
+  event. Since 2.1.300 transcripts also record each API request
+  (`api-request` and `api-request-blob` entries; about 8% of a session's
+  file, seen 2026-10-23). Our readers act only on entry types they
+  know, so these are skipped; they make files grow a little faster
+  toward the history's 64 MiB budget (Large chat histories).
 - **Channels are a research preview.** Chat and permission answers from the
   world depend on them (S02). Flags and protocol may change, custom channels
   need `--dangerously-load-development-channels` (confirmed by the user at
