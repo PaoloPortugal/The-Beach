@@ -10,6 +10,7 @@ here; each section is labelled with its feature ID.
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [Sessions coming back after a restart (S07)](#sessions-coming-back-after-a-restart-s07)
 - [Islands kept across restarts (W12)](#islands-kept-across-restarts-w12)
+- [Sessions started outside the game (S08)](#sessions-started-outside-the-game-s08)
 - [The islands and the ocean (W01, W02, W04)](#the-islands-and-the-ocean-w01-w02-w04)
 - [Kinds of island (W10)](#kinds-of-island-w10)
 - [Clusters (W05)](#clusters-w05)
@@ -174,7 +175,8 @@ asks first. It lists them with what each is doing (scroll the list if
 there are many), and reminds you that to end a session you type `/exit`
 in its terminal. **Quit** closes the game anyway; **Back to the game**
 (or Esc) returns you to where you were. With no session running, the
-game just closes.
+game just closes. Sessions started outside the game (S08) don't count:
+quitting the game changes nothing for them.
 
 On a computer shared with other accounts, the dialog also suggests
 ending sessions with `/exit` before quitting: while the game is
@@ -196,15 +198,17 @@ Whatever happened while the game was closed (a reply, `/clear`,
 `/resume`) is there too. A prompt or question that was open when you
 quit stays in the terminal: answer it there.
 
-Sessions you started yourself in a terminal, and sessions started by a
-version of the game from before this feature, don't come back; while
-they run they aren't listed under Resume either (with Claude Code's
-agent view on, as above).
+Sessions started by a version of the game from before this feature
+don't come back; while they run they aren't listed under Resume either
+(with Claude Code's agent view on, as above). Sessions you started
+yourself are shown read-only (see Sessions started outside the game
+(S08)).
 
 **"This session started before the game restarted, so it's read-only
 here."** This notice means another program took the game's connection
 point while it was closed, so the world can't drive the session any
-more, only watch it. Its island still comes back, and its chat shows
+more, only watch it. Its island still comes back, with a grey flag on
+it like the islands of sessions started outside the game (S08), and its chat shows
 "Read-only: use its terminal." where you'd type. You see what happens
 in the terminal a moment late: your messages, its replies (whole, not
 word by word), tool calls and subagents, its permission mode, model and
@@ -237,12 +241,49 @@ for a repository still takes that repository's new sessions.
 The game keeps this in a small file of its own, `islands.json`, in
 Godot's user data folder for the game; it lists each running session's
 island and its project folder, never what's said. On macOS and Linux
-only you can read it, and a session's entry goes once it's ended. If
+only you can read it, and a session's entry goes once it's ended.
+Sessions started outside the game are in it too, with their session
+id (S08). One that disappears during a game stays until the game next
+starts, in case its app restarts it, and goes then if it isn't
+running; turning them off removes theirs at once. If
 the file is missing or damaged, the islands come back as new ones (a
 kind picked at random), each joining
 its repository's cluster after those that were kept. A session that
 was slow to come back, arriving after the world had already appeared,
 also comes back as a new island.
+
+## Sessions started outside the game (S08)
+
+Every Claude Code session running on your computer gets an island, not
+only the ones the game started: a `claude` you typed in a terminal, the
+Claude desktop app's sessions, your editor's (e.g. VS Code), and
+background sessions still working or waiting on you. They join their repository's
+cluster like any other, and come back as they were after a restart
+(W12), even if the Claude desktop app restarted them meanwhile. When
+its app restarts one during a game, it rises again with its kind and
+shape, but may stand in another spot of its cluster. Short `claude -p` runs and programs built on the Agent SDK
+don't get one, and nor do finished background sessions.
+
+The world can only **watch** these sessions. A tall grey flag near the
+island's edge marks them (and any other island you can't drive from
+the world, S07), and a little grey flag marks them on the minimap and
+the big map too. Their chat shows what's said, the tool calls,
+subagents, token usage and whether they're working or waiting on you,
+a moment late, and says "Read-only: use its own window." where you'd
+type: chatting, answering prompts and questions, and stopping it happen
+in the window it runs in. When the session ends there, its island
+sinks.
+
+The game asks Claude Code which sessions are running every 5 seconds
+while its window is in front, every 10 seconds in the background. To
+see only the game's own sessions, turn off **Show sessions started
+outside the game** in Settings → Game: their islands sink at once and
+are forgotten, and rise again as new islands when you turn it back on.
+
+This needs Claude Code's agent view. With agent view turned off, no
+outside sessions are shown, and the setting is greyed out with "Sessions
+started outside the game can't be shown: agent view is off in Claude
+Code." beside it in red.
 
 ## The islands and the ocean (W01, W02, W04)
 
@@ -308,8 +349,10 @@ now, the trees and rocks are simple placeholders.
 Which kind you get is up to you, or chance: it means nothing about the
 session, and it isn't remembered, so a resumed session gets the menu's
 choice again (Random unless you pick one), and sessions started
-outside the game are random. A session the game started that comes
-back after a restart keeps its kind (see Islands kept across restarts
+outside the game get a random one the first time. A session that comes back after a
+restart, or one started outside the game seen before (after a
+restart, or restarted by its app), keeps
+its kind (see Islands kept across restarts
 above).
 
 ## Clusters (W05)
@@ -368,7 +411,8 @@ near clusters, about 70 for a far one) can start to reach into another
 cluster's sea; nothing stops it yet.
 
 The **minimap** in the top left shows the cluster you're in or nearest
-to: its islands (an empty one is grey), its bridges, the platform when
+to: its islands (an empty one is grey, a little grey flag marks one
+you can only watch), its bridges, the platform when
 it's close, and you as a white arrow pointing the way you face, with
 north at the top. It hides while the chat, the sessions menu or the big
 map is open.
@@ -878,7 +922,11 @@ puts everything back.
   off, you stay where you are; its green beacon and the arrow at the
   screen's edge show where it rose. And **Crosshair**: off hides the
   ring in the middle of the screen; what E does still shows when you
-  look at something (see The crosshair (C11)).
+  look at something (see The crosshair (C11)). And **Show sessions
+  started outside the game** (on by default): off, only the game's own
+  sessions have islands (see Sessions started outside the game (S08)).
+  Greyed out, with the reason in red, when Claude Code's agent view is
+  off; your choice is kept for when it's back on.
 
 ## Debug commands (C09)
 

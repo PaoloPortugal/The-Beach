@@ -53,7 +53,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 
 | # | Flow | Features |
 |---|------|----------|
-| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07 |
+| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07, S08 |
 | 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03, C12 |
 | 2 | [A chat turn](diagrams/sequence/02-chat-turn.md) | S02, C02 |
 | 3 | [A permission prompt](diagrams/sequence/03-permission-prompt.md) | S02, C05 |
@@ -69,6 +69,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02 |
 | 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01, W12 |
 | 15 | [A session back with its hook port taken (read-only)](diagrams/sequence/15-read-only-mode.md) | S07 |
+| 16 | [Sessions started outside the game (read-only)](diagrams/sequence/16-outside-sessions.md) | S08, C10, W12 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the

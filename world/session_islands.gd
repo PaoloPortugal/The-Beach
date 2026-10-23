@@ -14,7 +14,12 @@ extends Node3D
 ## rolled at random.
 ## A session taken back after a restart (S07) gets its island back as it
 ## was (W12, [IslandMemory]): its biome, seed and cluster, placed in the
-## saved order once the sync is done, gaps closed up.
+## saved order once the sync is done, gaps closed up. One started outside
+## the game (S08) is remembered after it goes, until a start that shows
+## them finds it gone; when it rises again mid-game it gets its biome and
+## seed back.
+## An island whose session the world only watches ([code]read_only[/code]:
+## S07, S08) has the read-only mark, a grey flag ([ReadOnlyFlag]).
 ## Everything under it, agents and bridges that come later included, is
 ## hidden past [member draw_distance] ([DrawDistance]).
 
@@ -70,6 +75,9 @@ var _unvisited := {} # session id → its new-island AttentionBeacon
 var _cluster := {} # Island → its cluster id, while it's in the world
 var _biome_choice := {} # session id → the biome chosen for its island
 var _keys := {} # session id → its IslandMemory key
+var _aliases := {} # session id → its IslandMemory alias, or ""
+var _outside := {} # session id → true, for one started outside the game (S08)
+var _gone_outside: Array[Array] = [] # [key, alias] of outside ones kept after they went, till the next sync
 var _waiting: Array[String] = [] # sessions taken back, placed once synced
 
 
@@ -86,6 +94,9 @@ func setup(p_store: SessionStore) -> void:
 	memory.load_file()
 	store.session_added.connect(_on_added)
 	store.session_removed.connect(_on_removed)
+	store.session_changed.connect(func(id: String, fields: Array) -> void:
+		if "read_only" in fields and _islands.has(id):
+			(_islands[id] as Island).set_read_only(store.session(id).get("read_only", false) == true))
 	store.synced.connect(_on_synced)
 
 
@@ -220,14 +231,20 @@ func _process(_delta: float) -> void:
 
 
 func _on_added(id: String, created: bool) -> void:
-	_keys[id] = IslandMemory.key(store.session(id))
+	var session := store.session(id)
+	_keys[id] = IslandMemory.key(session)
+	_aliases[id] = IslandMemory.alias(session)
+	if session.get("origin") == "external":
+		_outside[id] = true
 	# One already running (taken back) waits for the sync's others, to
-	# come back in their order. One outside a sync (taken back late) is
-	# placed at once.
+	# come back in their order. One outside a sync (taken back late, or
+	# one started outside the game that rises: turned back on, new, or its
+	# app relaunched it, S08) is placed at once, with its remembered biome
+	# and seed if any; it joins its cluster as a new one would.
 	if not created and store.syncing:
 		_waiting.append(id)
 		return
-	_place(id, created)
+	_place(id, created, memory.entry(memory.find([_keys[id], _aliases[id]])), false)
 
 
 # Places those taken back: the remembered ones in their saved order, then
@@ -235,10 +252,12 @@ func _on_added(id: String, created: bool) -> void:
 # didn't come back.
 func _on_synced() -> void:
 	var by_key := {}
-	for id in _waiting:
-		by_key[_keys[id]] = id
 	var waiting := _waiting.duplicate()
 	_waiting.clear()
+	for id in waiting:
+		var k := memory.find([_keys[id], _aliases[id]])
+		if not k.is_empty():
+			by_key[k] = id
 	for k: String in memory.ordered(by_key.keys()):
 		_place(by_key[k], false, memory.entry(k))
 		waiting.erase(by_key[k])
@@ -247,15 +266,30 @@ func _on_synced() -> void:
 	var live := {}
 	for id: String in _keys:
 		live[_keys[id]] = true
+		live[_aliases[id]] = true
 	memory.keep_only(live)
+	_gone_outside.clear()
 
 
-func _place(id: String, created: bool, saved := {}) -> void:
+## Forgets the islands of sessions started outside the game that went
+## during this game and were kept for their app relaunching them (S08):
+## the setting was turned off (those still shown end, reason user).
+func forget_outside() -> void:
+	for keys: Array in _gone_outside:
+		memory.erase(keys)
+	_gone_outside.clear()
+
+
+# [param saved]: its remembered island, all of it, or with
+# [param whole] false only its biome and seed.
+func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	var i := Island.new()
 	i.name = "Island"
-	if saved.is_empty():
+	if saved.is_empty() or not whole:
 		clusters.add(id, store.session(id))
-		i.biome = Biome.resolve(_biome_choice.get(id, default_biome))
+		i.biome = Biome.resolve(_biome_choice.get(id, default_biome)) if saved.is_empty() else int(saved["biome"])
+		if not saved.is_empty():
+			i.island_seed = int(saved["seed"])
 	else:
 		clusters.restore(id, saved)
 		clusters.add(id, store.session(id))
@@ -276,10 +310,11 @@ func _place(id: String, created: bool, saved := {}) -> void:
 	agents.name = "Agents"
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
+	i.set_read_only(store.session(id).get("read_only", false) == true)
 	_islands[id] = i
 	var cluster := clusters.cluster_of(id)
 	_cluster[i] = cluster
-	memory.put(_keys[id], {
+	memory.put([_keys[id], _aliases[id]], {
 		"biome": i.biome, "seed": i.island_seed, "cluster": cluster, "name": clusters.cluster_name(cluster),
 		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
 	})
@@ -306,10 +341,18 @@ func _place(id: String, created: bool, saved := {}) -> void:
 	_rising[id] = tween
 
 
-func _on_removed(id: String, _reason: String) -> void:
+func _on_removed(id: String, reason: String) -> void:
 	_waiting.erase(id)
-	memory.erase(_keys.get(id, ""))
+	# One started outside the game that stops being listed is remembered
+	# until the next start (S08), so its app relaunching it finds it again;
+	# that start's sync forgets it if it's gone. Turning them off forgets it.
+	if not _outside.has(id) or reason == "user":
+		memory.erase([_keys.get(id, ""), _aliases.get(id, "")])
+	else:
+		_gone_outside.append([_keys.get(id, ""), _aliases.get(id, "")])
 	_keys.erase(id)
+	_aliases.erase(id)
+	_outside.erase(id)
 	var i: Island = _islands.get(id)
 	if i == null:
 		return
@@ -368,11 +411,9 @@ func _bridge(id: String) -> void:
 
 
 # Tells every island where its bridges land now, after bridges came or
-# went, so its zipline keeps off them (W10).
+# went, so its zipline (W10) and its read-only flag (S08) keep off them.
 func _tell_landings() -> void:
 	for i in all_islands():
-		if not i.generator.profile.get("zipline", false):
-			continue
 		var key := region(i)
 		var landings: Array[Vector3] = []
 		for l in bridges.links():
