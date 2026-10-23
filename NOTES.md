@@ -5976,8 +5976,9 @@ Ideas weighed and turned down. Each says what would reopen it.
   The agent view docs (2026-10-23) now describe `state`
   (`working`, `blocked`, `done`, `failed`, `stopped`) and `waitingFor`
   for background sessions; interactive entries on 2.1.309 still carry
-  `pid`, `sessionId` and `status` (`idle`, `busy`; seen live), which is
-  all we read. If `status` ever loses `waiting`, `state: blocked` is the
+  `pid`, `sessionId` and `status` (`idle`, `busy`; seen live), all S07
+  reads (S08 also reads `cwd`, `kind`, `startedAt`, `name` and
+  `waitingFor`). If `status` ever loses `waiting`, `state: blocked` is the
   documented replacement.
 - **`agents`' process ids on macOS and Linux** (S07, 2026-10-13). A
   session is taken back only if `claude agents --json` lists the
