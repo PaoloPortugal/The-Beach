@@ -2,8 +2,8 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S07, W12). NOTES.md → S07 Reattach to running
-> sessions, W12 Islands kept across restarts.
+> **Status:** Built (S07, W12, C14). NOTES.md → S07 Reattach to running
+> sessions, W12 Islands kept across restarts, C14 Main menu.
 
 ```mermaid
 sequenceDiagram
@@ -21,7 +21,7 @@ sequenceDiagram
     end
 
     Note over Claude,Bridge: Launched by the last game, still running.<br/>Its run folder (app data, agent-sessions/) holds session.json,<br/>the launcher's and claude's process ids, bridge.json, holder.pid.
-    World->>Sidecar: start it (flow 0)#59; the world stays covered (LoadingCover)
+    World->>Sidecar: start it (flow 0)#59; the main menu shows over the world (C14)
     rect rgba(255,193,7,0.18)
         Note over World,Claude: sidecar/src/serve.ts (restoreSessions, at most 8 s), providers/claude/index.ts (restore, takeOver), run-folder.ts<br/>world/session_islands.gd (_on_synced), world/island_memory.gd, world/session_clusters.gd (restore)
         Sidecar->>Sidecar: hook server on the kept port (hook-port.json), first thing
@@ -40,7 +40,7 @@ sequenceDiagram
         World->>World: bridge each to its nearest (W06), in that order
         World->>World: rewrite islands.json: entries of sessions that didn't come back dropped<br/>(outside sessions' too, also one that stopped being listed last game, S08)
     end
-    Note over World: The cover lifts: its island is standing (no rise).
+    Note over World: Its island appears standing (no rise),<br/>behind the main menu or, after an early Play, in the world.
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok (the conversation so far)
     loop every 2 s while not connected
@@ -81,5 +81,5 @@ it comes back as a new island (NOTES.md → W12, Open points).
 one that can't be read is left alone, and a restore that fails or takes
 longer than 8 s never stops the start (the world shows what's there; a
 session found later arrives on its own as a `session.snapshot`).
-The cover lifts on the first `sync.completed`, the sidecar failing, or
-after 30 s.
+Until the first `sync.completed` the main menu is up (C14), unless the
+player pressed Play first: Play doesn't wait for it.

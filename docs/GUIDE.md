@@ -6,6 +6,7 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
+- [The main menu (C14)](#the-main-menu-c14)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
 - [Sessions coming back after a restart (S07)](#sessions-coming-back-after-a-restart-s07)
@@ -40,13 +41,38 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: you arrive on a wooden platform in the open sea. Hold Tab
-and click the + to start a session.
+press F5: the game opens on the main menu (below); click **Play** and
+you arrive on a wooden platform in the open sea. Hold Tab and click
+the + to start a session.
 
 The game picks its graphics mode by itself. If it won't start or looks
 wrong, you can force the simpler mode by starting it with
 `--rendering-method gl_compatibility`; it looks nearly the same, but
 without the sun's shadows.
+
+## The main menu (C14)
+
+The game opens on the main menu, titled "The Beach" (a working name).
+Behind it the world is already there, dimmed, and the view circles
+slowly high above the islands; sessions come back and islands appear
+while you're on it.
+
+- **Play** takes you in: the view glides down to your character, and
+  you can move once it's there. You never wait for anything first; an
+  island still coming back may appear a moment later.
+- **Settings** opens the settings (see Settings (C10)). Esc there takes
+  you back to the main menu.
+- **Credits** shows who made what: every asset with its source and
+  licence (including which visuals were written in code by Claude),
+  then Godot Engine's licence and the licences of the parts Godot
+  includes. Scroll to read it; links open in your browser. **Back** or
+  Esc returns to the menu.
+- **Quit** closes the game, asking first if sessions are still running
+  (see Quitting the game (S05)).
+
+To come back to it, press Esc and choose **Main menu** (see The pause
+menu (C13)): the view rises back above the islands. Your sessions keep
+running, and Play puts you back where you were.
 
 ## The sessions menu (S03, S04, W07)
 
@@ -198,8 +224,8 @@ that from outside.
 
 Sessions the game started come back when you start it again, as long
 as they're still running in their terminals: their islands are already
-standing when the world appears (the game shows "Loading…" for a moment
-while it looks for them), their chat holds the conversation so far, and
+appear behind the main menu within a moment, while the game looks for
+them (C14), their chat holds the conversation so far, and
 chatting, answering prompts and questions work from the world again.
 Whatever happened while the game was closed (a reply, `/clear`,
 `/resume`) is there too. A prompt or question that was open when you
@@ -449,7 +475,7 @@ You see the world through your character's eyes.
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
-| Pause menu: resume, settings, quit (frees the mouse pointer) | Esc (Esc again closes it; click in the game to take the pointer back) |
+| Pause menu: resume, settings, main menu, quit (frees the mouse pointer) | Esc (Esc again closes it; click in the game to take the pointer back) |
 | Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
 | Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
@@ -907,11 +933,13 @@ warning.)
 
 Press **Esc** to open the pause menu: the screen dims, the mouse pointer
 is free, and you stop moving. (If the chat, the sessions menu or the
-map is open, Esc closes that first.) It has three buttons:
+map is open, Esc closes that first.) It has four buttons:
 
 - **Resume** (or Esc) takes you back to the game.
 - **Settings** opens the settings (below). Esc there takes you back to
   the pause menu.
+- **Main menu** takes you back to the main menu (see The main menu
+  (C14)); your sessions keep running.
 - **Quit game** closes the game. If sessions are still running, it asks
   first, as closing the window does (see Quitting the game (S05));
   **Back to the game** there leaves you in the pause menu.
