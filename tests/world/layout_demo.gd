@@ -58,6 +58,7 @@ func _ready() -> void:
 		# Nor the user's own running sessions (S08).
 		world.set_outside_sessions = func(_on: bool) -> void: pass
 	add_child(world)
+	world.main_menu.close_now() # straight into the world (C14)
 	var store: SessionStore = world.store
 	var n := 0
 	for c in sizes.size():

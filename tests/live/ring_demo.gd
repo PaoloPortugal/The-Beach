@@ -43,6 +43,7 @@ var _work_timer := 0.0
 func _ready() -> void:
 	world = load("res://world/world.tscn").instantiate()
 	add_child(world)
+	world.main_menu.close_now() # straight into the world (C14)
 	# By path: the autoload's name isn't known to the parser here.
 	_sidecar = get_node("/root/Sidecar")
 	if not "--sidecar-dev-fake" in OS.get_cmdline_user_args():
