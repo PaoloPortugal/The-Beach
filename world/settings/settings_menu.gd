@@ -2,7 +2,7 @@ class_name SettingsMenu
 extends CanvasLayer
 ## The settings menu (C10): the pause menu's Settings opens it (C13) and
 ## it frees the mouse; Esc goes back to the pause menu ([member back]).
-## Tabs for Graphics, Controls, Sound and Game; every
+## Tabs for Graphics, Controls, Sound, Game and Providers; every
 ## change applies at once and is saved ([Settings]). A PLACEHOLDER, like
 ## all UI for now.
 ##
@@ -10,13 +10,13 @@ extends CanvasLayer
 ## shown off, the saved choice kept, while a provider says it can't list
 ## them (its [code]outside_sessions_off[/code] notice, in red beside it).
 ##
-## Game also has a row per provider that runs a program of the user's
+## Providers has a row per provider that runs a program of the user's
 ## (S02, [code]program_path[/code]): what it found (path and version, or
 ## why not, in red), Browse… to set it by hand and Reset to find it as
 ## usual again. The sidecar checks a path first; one it refuses is said in
 ## red and nothing changes.
 
-const TABS := ["Graphics", "Controls", "Sound", "Game"]
+const TABS := ["Graphics", "Controls", "Sound", "Game", "Providers"]
 ## What each choice reads as in the menu.
 const NAMES := {
 	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen",
@@ -59,7 +59,9 @@ var _outside_off := Label.new()
 ## Each program_path provider's row (S02): provider id → {status, error,
 ## browse, reset, label, box, busy}.
 var _programs := {}
-var _game: GridContainer
+var _providers: GridContainer
+## Said while no provider has anything to set.
+var _no_providers := Label.new()
 var _file_dialog: FileDialog
 
 
@@ -197,7 +199,10 @@ func _build() -> void:
 	_outside_off.visible = false
 	game.add_child(_outside_off)
 	game.add_child(Control.new())
-	_game = game
+	_providers = _tabs.get_child(4)
+	_no_providers.text = "Nothing to set for the AI tools in use."
+	_no_providers.modulate = Color(1, 1, 1, 0.6)
+	_providers.add_child(_no_providers)
 
 	var bottom := HBoxContainer.new()
 	layout.add_child(bottom)
@@ -357,6 +362,7 @@ func _refresh_programs() -> void:
 		status.modulate = Color(0.95, 0.35, 0.3) if missing and not row["busy"] else Color.WHITE
 		row["browse"].disabled = row["busy"]
 		row["reset"].disabled = row["busy"] or not sidecar.program_paths.has(id)
+	_no_providers.visible = _programs.is_empty()
 
 
 # One row: the provider's name; what it found, Browse… and Reset, and why a
@@ -370,7 +376,7 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	box.name = "Program_%s" % id
 	box.custom_minimum_size.x = 300.0
 	# The path and messages are shown as plain text. Wrapping labels get a
-	# width of their own: while Game is a hidden tab they have none, would
+	# width of their own: while Providers is a hidden tab they have none, would
 	# wrap at every character, and the panel (as tall as its tallest tab)
 	# would grow past the screen.
 	var status := Label.new()
@@ -395,8 +401,8 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	error.custom_minimum_size.x = 300.0
 	error.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
 	box.add_child(error)
-	_game.add_child(label)
-	_game.add_child(box)
+	_providers.add_child(label)
+	_providers.add_child(box)
 	return {"status": status, "error": error, "browse": browse, "reset": reset, "label": label, "box": box, "busy": false}
 
 
