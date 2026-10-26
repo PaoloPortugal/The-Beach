@@ -75,7 +75,8 @@ answers, and a refusal in red, "Not changed: <why>".
   sessions on, sessions to take back); otherwise at the first session
   start. So the row can say "Not looked for yet", and the Godot suites
   (outside sessions off, their own sessions folder) never run the real
-  `claude`. A path set at start is checked at once.
+  `claude`. A path set at start is checked at once. (Replaced at the
+  live check: see Looked for at start, below.)
 - **Unknown providers in `--program-path` are ignored** (warned in the
   log), not refused: refusing would stop the sidecar from starting over
   an old setting, for example after a provider is removed.
@@ -170,6 +171,38 @@ changed: the settings file is trusted as the user's own, and two
 choices sent at once could end with the slower one (Godot sends one at
 a time). The `.cmd` check only runs on a Windows host.
 
+**Second pass, after the look at start and Look again.** No blockers.
+Fixed:
+- A path set at start was checked before the sidecar listened. A
+  hanging one (a `claude.exe` on a mapped network drive gone offline:
+  `--version` up to 15 s, then the restore's own look up to 8 s) could
+  run past Godot's 20 s handshake, and Reset needs the sidecar, so
+  only editing `settings.cfg` would get the game back. The setting now
+  takes effect at once and its check runs in the background like any
+  look; the restore shares it.
+- An older look could report after Look again: the look at start still
+  waiting on the login shell, the player installs Claude Code and
+  presses Look again, it's found, then the older look says not found
+  and greys out Add a session. Look again now counts as a change, so
+  older looks don't report.
+- Tests for two claims that had none: `serve` turns off the look at
+  start only under a suite (`serveDefaults`), and the login shell is
+  asked again only on Look again (the provider takes the "forget" as an
+  option in tests).
+- Any error looking at a path (no access, say), not only "none",
+  reads as "There's no program at that path." instead of a generic
+  failure that left the row stale.
+- Godot leaves out a `[programs]` path with a quote or a control
+  character (hand-edited), which Windows' command line could split
+  into another argument and so stop the sidecar from starting.
+
+Recorded, not changed: a mapped network drive or a `subst` drive
+passes the "drive of this computer" check (it needs a Windows API to
+tell; the player's own choice, and it can no longer hold up the
+start). `provider.program` waits while any command is answered, not
+only the program ones, so a program found during a long
+`session.create` shows a little later; harmless.
+
 ## Tests
 
 - `sidecar/test/program-path.test.ts`: each check and its message, a
@@ -181,14 +214,17 @@ a time). The `.cmd` check only runs on a Windows host.
   answer not sent twice; a stale look not reported; the serve flags
   (parsing, applied before the restore, a failing path kept, unknown
   providers ignored); the look at start (in the background, none under
-  a suite, none twice with a path set); looks shared, a fresh one not;
+  a suite, `serveDefaults`, none twice with a path set, a hanging path
+  set at start not holding it up); Look again outranking an older look;
+  the login shell asked again only on Look again; looks shared, a fresh one not;
   `client.find_program` (not found then found, the same answer not
   sent again, a path set by hand checked again when gone and back,
   `not_supported`, `unknown_provider`, `invalid_message`).
   `outside.test.ts` and `conversations.test.ts` follow the new
   capability and event.
 - `tests/core/sidecar_client_test.gd`: the start arguments, sorted and
-  after `--no-outside-sessions`; `provider.program` kept and announced;
+  after `--no-outside-sessions`, a path with a quote or a control
+  character left out; `provider.program` kept and announced;
   a refusal from the real sidecar ("That isn't a full path.") not
   kept or saved; accepted, saved with the other settings kept; cleared
   as `null` and removed from the file; no sidecar; `find_program` sent

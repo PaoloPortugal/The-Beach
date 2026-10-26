@@ -90,33 +90,40 @@ export function serveOptions(args: string[]): ServeOptions {
   return { outsideSessions, ...(Object.keys(programPaths).length > 0 ? { programPaths } : {}) }
 }
 
+/** serve()'s defaults: under a Godot suite (TEST_SESSIONS_DIR set), no look at start. */
+export function serveDefaults(env: NodeJS.ProcessEnv): ServeOptions {
+  return { lookAtStart: !env[TEST_SESSIONS_DIR] }
+}
+
 /**
  * Before listening: the player's settings first, so with outside sessions off
  * none is shown at start and `claude` isn't asked for them, and a program set
- * by hand is the one the restore uses (checked: one that fails is kept and
- * reported not found; a provider unknown or without program_path is skipped,
- * so an old setting never stops the start). Then the restore.
+ * by hand is the one the restore uses (set at once, checked in the
+ * background like any look: a slow or hanging one never holds up the start;
+ * one that fails is kept and reported not found; a provider unknown or
+ * without program_path is skipped, so an old setting never stops the start).
+ * Then the restore.
  */
 export async function prepare(registry: Registry, providers: Provider[], log: Log, o: ServeOptions): Promise<void> {
   if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
+  const setByHand = new Set<string>()
   for (const [id, file] of Object.entries(o.programPaths ?? {})) {
     const p = registry.providers.get(id)
     if (!p?.setProgramPath || !('program_path' in (p.capabilities ?? {}))) {
       log.warn(`--program-path: no provider ${JSON.stringify(id)} with program_path; ignored`)
       continue
     }
-    try {
-      await p.setProgramPath(file, true)
-    } catch (e) {
-      log.error(`${id}: couldn't use the program set by hand: ${e instanceof Error ? e.message : String(e)}`)
-    }
+    // Not awaited: the setting takes effect before the first await, and the
+    // restore shares the check that follows.
+    setByHand.add(id)
+    p.setProgramPath(file, true).catch((e) => log.error(`${id}: couldn't use the program set by hand: ${e instanceof Error ? e.message : String(e)}`))
   }
   // Every other program_path provider looks at once, in the background, so
   // the game knows before a session is asked for (hello's program, or
   // provider.program once it's found); the restore shares that look.
   if (o.lookAtStart === false) log.info('a test run: programs not looked for at start')
   for (const p of o.lookAtStart === false ? [] : providers) {
-    if (!p.findProgram || !('program_path' in (p.capabilities ?? {})) || registry.providerProgramOf(p.id)) continue
+    if (!p.findProgram || !('program_path' in (p.capabilities ?? {})) || setByHand.has(p.id)) continue
     p.findProgram().catch((e) => log.error(`${p.id}: couldn't look for its program: ${e instanceof Error ? e.message : String(e)}`))
   }
   await restoreSessions(registry, providers, log)
@@ -125,7 +132,7 @@ export async function prepare(registry: Registry, providers: Provider[], log: Lo
 export async function serve(providers: Provider[], log: Log = stderrLog, o: ServeOptions = {}): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
-  await prepare(registry, providers, log, { lookAtStart: !process.env[TEST_SESSIONS_DIR], ...o })
+  await prepare(registry, providers, log, { ...serveDefaults(process.env), ...o })
   const server = await startServer({ registry, token, log })
 
   let stopping = false

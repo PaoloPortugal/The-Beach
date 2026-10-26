@@ -907,7 +907,7 @@
       "additionalProperties": false
     },
     "client.set_program_path": {
-      "description": "Godot -> sidecar. Sets the provider's program by hand (program_path capability; the player's setting), or clears it (null: found as usual). Checked first: absolute, a file, on Windows an .exe, answers --version with a version the provider supports; a path that fails gets error invalid_program and the previous setting stays. A path set by hand is the only one used, even once it stops working. For sessions started or resumed afterwards. The sidecar starts with serve --program-path <provider>=<path>. Reply result: {\"program\": program}; provider.program follows.",
+      "description": "Godot -> sidecar. Sets the provider's program by hand (program_path capability; the player's setting), or clears it (null: found as usual). Checked first: absolute, without control characters, on Windows on a drive of this computer, a file, on Windows an .exe, answers --version with a version the provider supports; a path that fails gets error invalid_program and the previous setting stays. A path set by hand is the only one used, even once it stops working. For sessions started or resumed afterwards. The sidecar starts with serve --program-path <provider>=<path>. Reply result: {\"program\": program}; provider.program follows if the answer changed.",
       "type": "object",
       "required": ["type", "id", "provider", "path"],
       "properties": {

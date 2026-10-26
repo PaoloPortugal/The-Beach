@@ -22,7 +22,7 @@ sequenceDiagram
         World->>Sidecar: start it with serve
         Note over Sidecar: ready at once#59; looks for claude in the background<br/>(PATH, install folders, on macOS and Linux the login shell last)<br/>none under a test suite
         Sidecar->>Claude: --version
-        Sidecar->>World: provider.program {path, version, set_by_hand: false} or {path: null, message}
+        Sidecar->>World: provider.program {provider, program: {path, version, set_by_hand: false}<br/>or {path: null, set_by_hand: false, message}}
         Note over World: until then the row says "Looking for it…"
     end
     Note over World: Settings → Providers: a row per provider with program_path#59;<br/>its program from hello or provider.program (path and version, or why not)
@@ -33,7 +33,7 @@ sequenceDiagram
         User->>World: Look again
         Note over World: the row says "Looking…"
         World->>Sidecar: client.find_program {provider: claude}
-        Note over Sidecar: looks afresh (the login shell asked again)#59;<br/>set by hand: only that file is checked again
+        Note over Sidecar: looks afresh (the login shell asked again)#59;<br/>set by hand: only that file is checked again#59;<br/>a look begun before it no longer reports
         Sidecar-->>World: ok {program} (found or not)
         Sidecar->>World: provider.program (only if the answer changed)
         Note over World: the row shows it#59; the sessions menu greys out or back in
@@ -64,7 +64,7 @@ sequenceDiagram
     end
     opt the next start of the game
         World->>Sidecar: start it with serve --program-path claude=path
-        Note over Sidecar: checked the same way before listening#59;<br/>failing, it's kept and reported not found, the start goes on
+        Note over Sidecar: set at once, checked the same way in the background<br/>(the ready line doesn't wait, the restore shares the check)#59;<br/>failing, it's kept and reported not found, the start goes on
     end
     opt the chosen file stops working (moved, deleted, too old)
         World->>Sidecar: session.create

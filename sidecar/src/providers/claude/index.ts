@@ -93,6 +93,8 @@ export interface ClaudeOptions {
   findClaude?: () => Promise<FoundClaude>
   /** For tests: replaces running `claude --version` (finding, and checking a path set by hand). */
   readVersion?: ReadVersion
+  /** For tests: replaces forgetting the login shell's answer (findProgram only). */
+  forgetLoginShell?: () => void
   /** For tests: a shorter startup timeout. */
   startupTimeoutMs?: number
   /** For tests: Claude Code's projects folder (stored sessions). */
@@ -218,10 +220,12 @@ export class ClaudeProvider implements Provider {
   /**
    * Looks for `claude` afresh (S02: at start, and the player's "Look
    * again"), the login shell asked again too: the player may have just
-   * installed it.
+   * installed it. Looks begun before it no longer report: their answer is
+   * older than this one.
    */
   async findProgram(): Promise<Program> {
-    forgetLoginShellPath()
+    ;(this.opts.forgetLoginShell ?? forgetLoginShellPath)()
+    this.programRun++
     return this.look(true)
   }
 
