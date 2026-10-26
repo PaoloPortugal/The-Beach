@@ -5329,11 +5329,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** S02, a path to `claude` set by hand (Known issues
-and next steps → A path to `claude` set by hand), next after S08.
-C13, the pause menu (user's ask, 2026-10-22), built on `c13-pause-menu`:
-the user's live check next (`tests/live/checklist.txt`, C13), then
-merge.
+and next steps → A path to `claude` set by hand), next.
 Subagents stay read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-26), approved by the user: C13, the pause
+menu** (dev log 2026-10-22-c13-pause-menu): Esc opens a pause menu with
+Resume, Settings and Quit game; nothing pauses. Live check passed with
+the user. **And a C02 fix: a long chat no longer jitters while it's
+laid out** (dev log 2026-10-26-c02-chat-jitter): the view keeps its
+place in the same frame the rows grow.
 **Merged to `main` (2026-10-23), approved by the user: S08, read-only
 islands for sessions started outside the game** (dev log
 2026-10-22-s08-outside-sessions): every Claude Code session running on
