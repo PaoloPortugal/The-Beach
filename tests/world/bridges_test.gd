@@ -127,6 +127,7 @@ func _demo() -> void:
 	await _frames(5)
 	var world: Node3D = demo.world
 	var islands: SessionIslands = world.get_node("SessionIslands")
+	await _until(islands.all_up, 30.0) # made off the main thread, then risen (C14)
 	var clusters := islands.clusters
 	_check(world.store.sessions.size() == 64 and clusters.ids().size() == 20, "demo: 64 sessions in 20 clusters")
 	_layout_ok(islands, "demo")
@@ -193,6 +194,7 @@ func _crowd() -> void:
 	await _frames(5)
 	var world: Node3D = demo.world
 	var islands: SessionIslands = world.get_node("SessionIslands")
+	await _until(islands.all_up, 120.0) # made off the main thread, then risen (C14)
 	var clusters := islands.clusters
 	var total: int = demo.sizes.reduce(func(a: int, b: int) -> int: return a + b, 0)
 	var ids := clusters.ids()

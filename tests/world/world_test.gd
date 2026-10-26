@@ -383,6 +383,7 @@ func _scene() -> void:
 	var player: Player = world.get_node("Player")
 	var spawn := player.spawn_point
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
+	await _menu_start(world, player)
 	await _loading_cover(world, player)
 
 	await _frames(30)
@@ -411,6 +412,7 @@ func _scene() -> void:
 	await _sessions(world, player)
 	await _agents(world)
 	await _pause(world, player)
+	await _main_menu(world, player)
 	await _settings(world, player)
 	await _biome_island(world, player)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
@@ -432,7 +434,7 @@ func _pause(world: Node3D, player: Player) -> void:
 	await _settle()
 	# The mouse itself can't be captured headless: the live check's.
 	_check(pause.is_open() and dim.visible and not player.controls_enabled and not menu.is_open(), "C13: Esc opens the pause menu, dimmed, and stops the player")
-	_check(pause.button("Resume").is_visible_in_tree() and pause.button("Settings").is_visible_in_tree() and pause.button("Quit game").is_visible_in_tree(), "C13: Resume, Settings and Quit game")
+	_check(pause.button("Resume").is_visible_in_tree() and pause.button("Settings").is_visible_in_tree() and pause.button("Main menu").is_visible_in_tree() and pause.button("Quit game").is_visible_in_tree(), "C13: Resume, Settings, Main menu (C14) and Quit game")
 	_press("ui_cancel")
 	await _settle()
 	_check(not pause.is_open() and not dim.visible and player.controls_enabled, "C13: Esc again closes it")
@@ -492,6 +494,117 @@ func _pause(world: Node3D, player: Player) -> void:
 	world.store.apply({"type": "session.ended", "session": "p1", "seq": 2, "reason": "exited"})
 	pause.close()
 	await _settle()
+
+
+# C14: back to the main menu from the pause menu, the camera easing up;
+# its Settings, Credits and Quit; the camera's circle round the islands.
+func _main_menu(world: Node3D, player: Player) -> void:
+	var menu: MainMenu = world.main_menu
+	var camera: MenuCamera = world.menu_camera
+	var pause: PauseMenu = world.pause_menu
+	var settings: SettingsMenu = world.settings_menu
+	var own: Camera3D = player.get_node("Head/Camera3D")
+	var where := player.global_position
+	pause.open()
+	pause.button("Main menu").pressed.emit()
+	await _frames(1)
+	_check(menu.is_open() and not pause.is_open() and not player.controls_enabled and camera.mode() == MenuCamera.Mode.ASCEND and get_root().get_camera_3d() == camera, "C14: the pause menu's Main menu opens it, the camera easing up")
+	_check(camera.global_position.distance_to(own.global_position) < 2.0, "C14: from the player's own view")
+	await _until(func() -> bool: return camera.mode() == MenuCamera.Mode.ORBIT, MenuCamera.EASE_TIME + 2.0)
+	_check(camera.mode() == MenuCamera.Mode.ORBIT, "C14: then circles")
+
+	# Settings, and Esc back to the main menu; the pause menu's way back kept.
+	menu.button("Settings").pressed.emit()
+	await _settle()
+	_check(settings.is_open() and not menu.get_node("Panel").visible and menu.get_node("Dim").visible and not player.controls_enabled, "C14: Settings opens the settings menu in its place")
+	_press("ui_cancel")
+	await _settle()
+	_check(not settings.is_open() and menu.is_open() and menu.get_node("Panel").visible and not pause.is_open() and not player.controls_enabled, "C14: Esc in the settings goes back to the main menu")
+	_check(settings.back.is_valid() and settings.back.get_object() == pause, "C14: the settings' Esc goes to the pause menu again afterwards")
+
+	# Credits: the file as it is, then Godot's notices; Back and Esc.
+	menu.button("Credits").pressed.emit()
+	await _settle()
+	var shown := menu.credits_text()
+	_check(menu.credits_open() and not menu.get_node("Panel").visible, "C14: Credits opens in the menu's place")
+	_check(shown.contains("Asset credits") and shown.contains("Kenney Interface Sounds") and shown.contains("Shaders and code-generated visuals"), "C14: it shows assets/CREDITS.md")
+	_check(shown.contains("Made with Godot Engine") and shown.contains("Show Godot licences") and not shown.contains("FreeType") and not menu.godot_licences_shown(), "C14: then Made with Godot Engine, its licences behind a toggle")
+	menu.button("Godot licences").pressed.emit()
+	await _settle()
+	shown = menu.credits_text()
+	_check(menu.godot_licences_shown() and shown.contains(Engine.get_license_text().substr(0, 60)) and shown.contains("FreeType") and shown.contains("Hide Godot licences"), "C14: the toggle shows Godot's licence and its third-party parts")
+	menu.button("Godot licences").pressed.emit()
+	_check(not menu.godot_licences_shown() and not menu.credits_text().contains("FreeType"), "C14: and hides them again")
+	var opened: Array[String] = []
+	menu.open_link = func(url: String) -> void: opened.append(url)
+	var view: MarkdownView = menu.find_child("Body", true, false).get_child(0)
+	view.link_clicked.emit("https://kenney.nl/assets/interface-sounds")
+	_check(opened == ["https://kenney.nl/assets/interface-sounds"], "C14: a link in the credits opens")
+	_press("ui_cancel")
+	await _settle()
+	_check(not menu.credits_open() and menu.get_node("Panel").visible and menu.is_open(), "C14: Esc goes back from the credits")
+	menu.open_credits()
+	menu.button("Back").pressed.emit()
+	_check(not menu.credits_open() and menu.get_node("Panel").visible, "C14: and so does Back")
+
+	# Quit asks first while sessions run (S05).
+	var guard: QuitGuard = world.quit_guard
+	var quits := [0]
+	var quit_before := guard.quit
+	guard.quit = func() -> void: quits[0] += 1
+	menu.button("Quit").pressed.emit()
+	_check(quits[0] == 1, "C14: Quit with no session running quits")
+	world.store.apply({"type": "session.snapshot", "session": _snapshot("m1")})
+	await _frames(1)
+	menu.button("Quit").pressed.emit()
+	await _settle()
+	_check(guard.is_asking() and quits[0] == 1, "C14: with a session running, the quit guard asks first")
+	guard.dialog().get_cancel_button().pressed.emit()
+	await _frames(1)
+	_check(not guard.is_asking() and menu.is_open() and not player.controls_enabled, "C14: Back to the game leaves the main menu up")
+	guard.quit = quit_before
+
+	# The circle: round the islands' middle, past the farthest.
+	var circle := camera.target_circle()
+	var islands: Array[Island] = world.get_node("SessionIslands").all_islands()
+	_check(not islands.is_empty() and islands.all(func(i: Island) -> bool: return circle[1] == MenuCamera.MAX_RADIUS or Vector2(i.global_position.x - circle[0].x, i.global_position.z - circle[0].z).length() <= circle[1]), "C14: the circle takes in every island (or is as wide as it goes)")
+	_check(circle[1] >= MenuCamera.MIN_RADIUS and circle[1] <= MenuCamera.MAX_RADIUS, "C14: within its limits (%.0f m)" % circle[1])
+
+	# Play: back where the player was, sessions untouched.
+	menu.button("Play").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), MenuCamera.EASE_TIME + 2.0)
+	_check(player.controls_enabled and get_root().get_camera_3d() == own and player.global_position.distance_to(where) < 1.0 and world.store.sessions.has("m1"), "C14: Play again, the player where they were and the session still there")
+	world.store.apply({"type": "session.ended", "session": "m1", "seq": 2, "reason": "exited"})
+	await _settle()
+
+	# Standing on an island whose session ends behind the menu: it sinks
+	# there and then, and Play puts the player on the platform (user's).
+	var session_islands: SessionIslands = world.get_node("SessionIslands")
+	world.store.apply({"type": "session.snapshot", "session": _snapshot("m2")})
+	await _islands_up(session_islands)
+	world.teleport("m2")
+	await _frames(2)
+	var m2 := session_islands.island("m2")
+	_check(session_islands.session_at(player.global_position) == "m2", "C14: (the player on m2's island)")
+	pause.open()
+	pause.button("Main menu").pressed.emit()
+	await _frames(1)
+	world.store.apply({"type": "session.ended", "session": "m2", "seq": 2, "reason": "exited"})
+	await _settle()
+	_check(is_instance_valid(m2) and m2.position.y < 0.0 and m2 in session_islands.left_islands(), "C14: an ended session's island sinks while the main menu's up, the player on it or not")
+	var m2_ref: WeakRef = weakref(m2)
+	await _until(func() -> bool: return m2_ref.get_ref() == null, session_islands.sink_time + 2.0)
+	menu.button("Play").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), MenuCamera.EASE_TIME + 2.0)
+	_check(not is_instance_valid(m2) and player.global_position.distance_to(player.spawn_point) < 1.0 and player.controls_enabled, "C14: and Play puts the player on the platform")
+	pause.open()
+	pause.button("Main menu").pressed.emit()
+	await _frames(1)
+	player.global_position += Vector3(1.0, 0.0, 0.0)
+	where = player.global_position
+	menu.button("Play").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), MenuCamera.EASE_TIME + 2.0)
+	_check(player.global_position.distance_to(where) < 1.0, "C14: only that once")
 
 
 # C10: the settings menu, each setting applied, saved and reset.
@@ -622,7 +735,7 @@ func _settings(world: Node3D, player: Player) -> void:
 	# Being taken to a session you started, off and on.
 	var store: SessionStore = world.store
 	store.apply({"type": "session.snapshot", "session": _snapshot("s10")})
-	await _frames(2)
+	await _islands_up(world.get_node("SessionIslands"))
 	var at := player.global_position
 	sessions.launcher.session_started.emit("s10")
 	await _frames(2)
@@ -1471,21 +1584,38 @@ func _biome_island(world: Node3D, player: Player) -> void:
 	_check(not is_instance_id_valid(gone), "W10: and sinks when its session ends")
 
 
-# S07: the world is covered, keys and controls waiting, until the sidecar
-# has looked for sessions from before a restart (its first sync), then
-# shows. A sidecar already up, failed or stopped never covers it.
+# C14: the game opens on the main menu over the world, the camera
+# circling; Play eases it down to the player, at once even while the
+# sidecar starts.
+func _menu_start(world: Node3D, player: Player) -> void:
+	var menu: MainMenu = world.main_menu
+	var camera: MenuCamera = world.menu_camera
+	var own: Camera3D = player.get_node("Head/Camera3D")
+	_check(menu.is_open() and menu.get_node("Panel").visible and menu.get_node("Dim").visible and not player.controls_enabled, "C14: the game opens on the main menu, the world dimmed, the player still")
+	_check((menu.find_child("Title", true, false) as Label).text == MainMenu.TITLE and MainMenu.BUTTONS.all(func(b: String) -> bool: return menu.button(b).is_visible_in_tree()), "C14: the title, Play, Settings, Credits and Quit")
+	_check(get_root().get_camera_3d() == camera and camera.mode() == MenuCamera.Mode.ORBIT, "C14: the menu's camera circles")
+	_check(not world.usage_limits.visible and not world.pointers.visible and world.minimap.hidden_when.call() and not world.crosshair.shown(), "C14: no HUD under it")
+	var at := camera.global_position
+	await _frames(10)
+	_check(camera.global_position.distance_to(at) > 0.01 and camera.global_position.y >= MenuCamera.MIN_HEIGHT - 0.1, "C14: it moves round, high up")
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open(), "C14: keys wait under it")
+	_press("ui_cancel")
+	await _frames(2)
+	_check(menu.is_open() and not world.pause_menu.is_open(), "C14: Esc on it does nothing")
+	var played := [false]
+	menu.played.connect(func() -> void: played[0] = true, CONNECT_ONE_SHOT)
+	menu.button("Play").pressed.emit()
+	_check(not menu.get_node("Panel").visible and camera.mode() == MenuCamera.Mode.DESCEND and not player.controls_enabled, "C14: Play hides the menu and the camera eases down, never held back")
+	await _until(func() -> bool: return played[0], MenuCamera.EASE_TIME + 2.0)
+	_check(played[0] and not menu.is_open() and player.controls_enabled and get_root().get_camera_3d() == own, "C14: once there, the player's own camera and the controls")
+	_check(world.usage_limits.visible and world.pointers.visible, "C14: and the HUD back")
+
+
+# S07's cover isn't in the world any more (C14 shows the menu instead);
+# kept, and still tested, in case it's wanted again (user's, 2026-10-26).
 func _loading_cover(world: Node3D, player: Player) -> void:
-	var cover: LoadingCover = world.loading_cover
-	var sidecar: SidecarClient = root.get_node("Sidecar")
-	# The suite's earlier parts give the sidecar time to sync first; the
-	# stand-in below covers the wait.
-	if sidecar.status != SidecarClient.Status.READY:
-		_check(cover.is_covering() and cover.visible and not player.controls_enabled, "S07: the world is covered while the sidecar starts")
-	await _until(func() -> bool: return not cover.is_covering(), LoadingCover.TIMEOUT_S + 1.0)
-	_check(not cover.is_covering() and not cover.visible and player.controls_enabled, "S07: it lifts at the sidecar's first sync, the controls given back")
-	_check(sidecar.status == SidecarClient.Status.READY, "S07: lifted by the sync, not the timeout")
-	cover.lift()
-	_check(player.controls_enabled, "S07: lifting twice changes nothing")
 	for status in [SidecarClient.Status.READY, SidecarClient.Status.FAILED, SidecarClient.Status.STOPPED]:
 		var other := LoadingCover.new()
 		var stand_in := SidecarClient.new()
@@ -1528,8 +1658,11 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var at := player.global_position
 	store.apply({"type": "session.snapshot", "session": _snapshot("h1")})
 	store.apply({"type": "session.snapshot", "session": _snapshot("h2")})
-	await _frames(2)
 	var island := islands.island("h1")
+	_check(island != null and not island.is_built() and island.position.y == SessionIslands.BUILDING_Y and islands.is_rising("h1"), "C14: its ground is made on a worker thread, the island out of sight meanwhile")
+	await _until(func() -> bool: return island.is_built(), 5.0)
+	_check(island.is_built() and island.position.y < -1.0 and islands.is_rising("h1"), "C14: then a session already running's island rises too")
+	await _islands_up(islands)
 	var orchestrator := islands.orchestrator("h1")
 	_check(island != null and islands.island("h2") != null, "an island per session")
 	_check(island.global_position.distance_to(islands.island("h2").global_position) > 90.0, "islands apart from each other")
@@ -1541,7 +1674,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.session_id == "h1", "its orchestrator belongs to the session")
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
-	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is just there, not rising")
+	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is up")
 	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	var bridges := islands.bridges
 	var r1 := SessionIslands.region(island)
@@ -1824,7 +1957,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
 	_check(island_ref.get_ref() == null, "and goes")
 	store.apply({"type": "session.snapshot", "session": _snapshot("h5")})
-	_check(islands.island("h5").global_position.is_equal_approx(SessionClusters.cluster_position(0)), "its spot is free again")
+	var h5_at := islands.island("h5").global_position
+	_check(Vector2(h5_at.x, h5_at.z).is_equal_approx(Vector2(SessionClusters.cluster_position(0).x, SessionClusters.cluster_position(0).z)), "its spot is free again")
 	# A session that ends as its island rises: back down at once (you're not
 	# on it).
 	store.apply({"type": "session.created", "session": _snapshot("h6")})
@@ -2562,7 +2696,7 @@ func _agents(world: Node3D) -> void:
 	snap["agents"].append(_agent("old", "main", "done"))
 	snap["agents"].append(_agent("s0", "main", "working"))
 	store.apply({"type": "session.snapshot", "session": snap})
-	await _frames(2)
+	await _islands_up(islands)
 	_check(store.activity("h4") == "working", "activity: working")
 	var agents := islands.agents("h4")
 	var island := islands.island("h4")
@@ -3106,6 +3240,12 @@ func _frames(n: int) -> void:
 func _settle() -> void:
 	for i in 2:
 		await process_frame
+
+
+# Every island's ground made and the island up (C14: those taken back
+# rise too).
+func _islands_up(islands: SessionIslands, timeout_s := 10.0) -> void:
+	await _until(islands.all_up, timeout_s)
 
 
 func _until(cond: Callable, timeout_s: float) -> void:

@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S01, S07, S08, S02). NOTES.md → S01, S07, S08, S02 → The program set by hand, Protocol and Architecture → Security rules.
+> **Status:** Built (S01, S07, S08, S02, C14). NOTES.md → S01, S07, S08, S02 → The program set by hand, C14, Protocol and Architecture → Security rules.
 
 ```mermaid
 sequenceDiagram
@@ -40,11 +40,12 @@ sequenceDiagram
     end
 ```
 
-Until the first `sync.completed` (or a failure, or 30 s) the world is
-covered (`world/loading_cover.gd`), so islands of sessions taken back
-are standing from the first frame (S07). They wait for that
+Meanwhile the game shows the main menu over the world (C14; S07's
+loading cover before it, now unused), and Play isn't held back for
+the sync. Islands of sessions taken back wait for the first
 `sync.completed`, then come back as they were, from the game's
-`islands.json` (W12, [flow 14](14-reattach-after-restart.md)).
+`islands.json` (W12, [flow 14](14-reattach-after-restart.md)), rising
+behind the menu once each one's ground is made on a worker thread.
 
 A connection without the token, with an `Origin` header (any web page), or
 with the wrong `Host` is refused before it starts. Events whose `seq` a

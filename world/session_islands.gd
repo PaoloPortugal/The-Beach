@@ -2,14 +2,16 @@ class_name SessionIslands
 extends Node3D
 ## One island per live session, each with its orchestrator bound to the
 ## session and its subagents (IslandAgents). Islands are placed by
-## cluster (W05, [SessionClusters]). A new session's island rises out of
-## the sea (W04); one already running when the world connects is simply
-## there. Until the player has been on a new session's island, a beacon
+## cluster (W05, [SessionClusters]). Each island's ground is made on a
+## worker thread, out of sight, then it rises out of the sea (W04); since
+## C14 one already running when the world connects rises too, behind the
+## main menu. Until the player has been on a new session's island, a beacon
 ## stands over it (and [NewIslandPointers] points to it); not over one
-## started outside the game (S08). When a session
+## taken back or started outside the game (S08). When a session
 ## ends its orchestrator and agents go at once; the empty island stays
 ## while the player is on it (or on one of its bridges), then sinks and is
-## freed. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
+## freed; while the player is away ([member player_away]) it sinks at
+## once. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
 ## spawn platform once an island is up, and go when it starts sinking.
 ## Each island is of a [Biome] (W10), chosen in the sessions menu or
 ## rolled at random.
@@ -34,6 +36,9 @@ const ORCHESTRATOR := preload("res://agents/orchestrator/orchestrator.tscn")
 ## (W08), so it rises out of the seabed and sinks back into it. Higher
 ## islands (W10) go deeper: see [method sunk_y].
 const SUNK_Y := Seabed.DEEPEST - 4.0
+## Where an island waits, out of sight, while its ground is made
+## (Island.build_in_background): its orchestrator is already on it.
+const BUILDING_Y := Seabed.DEEPEST - 100.0
 ## The new-island beacon's colour: not A05's orange, which means waiting.
 const NEW_COLOUR := Color(0.35, 1.0, 0.55)
 ## Props are cleared this far either side of a bridge's landing, and this
@@ -49,6 +54,9 @@ var clusters := SessionClusters.new()
 var bridges := BridgeNetwork.new()
 ## Whoever has to leave an ended session's island before it sinks.
 var player: Node3D
+## The player is away (the main menu's up, C14): an ended session's
+## island sinks even with them on it, and [method take_stranded] says so.
+var player_away := false
 ## Each live session's island, kept for the next start (W12).
 var memory := IslandMemory.new()
 ## The biome of an island nobody chose one for (a session already running,
@@ -80,6 +88,7 @@ var _aliases := {} # session id → its IslandMemory alias, or ""
 var _outside := {} # session id → true, for one started outside the game (S08)
 var _gone_outside: Array[Array] = [] # [key, alias] of outside ones kept after they went, till the next sync
 var _waiting: Array[String] = [] # sessions taken back, placed once synced
+var _stranded := false # an island sank from under the player while away
 
 
 func _ready() -> void:
@@ -119,6 +128,11 @@ func agents(session_id: String) -> IslandAgents:
 ## Whether a session's island is still rising.
 func is_rising(session_id: String) -> bool:
 	return _rising.has(session_id)
+
+
+## Whether every island is built and up (none rising).
+func all_up() -> bool:
+	return _rising.is_empty()
 
 
 ## New sessions whose islands the player hasn't been on yet.
@@ -192,6 +206,14 @@ static func region(i: Island) -> String:
 	return "island:%d" % i.get_instance_id()
 
 
+## Whether an ended session's island sank from under the player while
+## they were away ([member player_away]); asking clears it.
+func take_stranded() -> bool:
+	var was := _stranded
+	_stranded = false
+	return was
+
+
 ## Ended sessions' islands still in the world: waiting for the player to
 ## leave, or sinking.
 func left_islands() -> Array[Island]:
@@ -227,7 +249,12 @@ func _process(_delta: float) -> void:
 			_unvisited[id].set_on(false)
 			_unvisited.erase(id)
 	for i: Island in _left:
-		if not _sinking.has(i) and not (player and (_is_over(i, player.global_position) or bridges.on_bridge_of(region(i), player.global_position))):
+		if _sinking.has(i):
+			continue
+		var on := player != null and (_is_over(i, player.global_position) or bridges.on_bridge_of(region(i), player.global_position))
+		if on and player_away:
+			_stranded = true
+		if not on or player_away:
 			_sink(i)
 
 
@@ -299,9 +326,10 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	_biome_choice.erase(id)
 	i.position = clusters.island_position(id)
 	i.zipline_waits = true # placed once its bridges land (W10)
-	add_child(i, true) # generates the island
-	if created:
-		i.position.y = sunk_y(i)
+	i.build_in_background = true
+	# Out of sight till its ground is made (it then rises from sunk_y).
+	i.position.y = BUILDING_Y
+	add_child(i, true)
 	var o: Orchestrator = ORCHESTRATOR.instantiate()
 	o.name = "Orchestrator"
 	o.session_id = id
@@ -320,13 +348,10 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
 	})
 	island_added.emit(id, i, o)
-	if not created:
-		_bridge(id)
-		island_risen.emit(id)
-		return
-	# Rises with the island, from its middle. Not for one started outside
-	# the game (S08): the player didn't ask for it, so it isn't news.
-	if not _outside.has(id):
+	# Rises with the island, from its middle. Not for one already running
+	# (taken back) or started outside the game (S08): the player didn't
+	# just ask for it, so it isn't news.
+	if created and not _outside.has(id):
 		var beacon := AttentionBeacon.new()
 		beacon.name = "NewBeacon"
 		beacon.colour = NEW_COLOUR
@@ -334,6 +359,16 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 		i.add_child(beacon)
 		beacon.set_on(true)
 		_unvisited[id] = beacon
+	# Every island rises once its ground is made (C14: taken-back ones too,
+	# behind the main menu); it counts as rising till then.
+	_rising[id] = null
+	i.built.connect(_rise.bind(id, i), CONNECT_ONE_SHOT)
+
+
+func _rise(id: String, i: Island) -> void:
+	if _islands.get(id) != i:
+		return
+	i.position.y = sunk_y(i)
 	# Bound to the island, so it stops if the island goes.
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", 0.0, rise_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -361,7 +396,8 @@ func _on_removed(id: String, reason: String) -> void:
 		return
 	_islands.erase(id)
 	if _rising.has(id):
-		_rising[id].kill()
+		if _rising[id]:
+			_rising[id].kill()
 		_rising.erase(id)
 	if _unvisited.has(id):
 		_unvisited[id].set_on(false)
@@ -375,8 +411,10 @@ func _sink(i: Island) -> void:
 	_sinking[i] = true
 	bridges.remove(region(i))
 	_tell_landings()
+	# One ended before it rose is out of sight: gone at once.
+	var time := sink_time if i.is_built() and i.position.y >= sunk_y(i) else 0.0
 	var tween := i.create_tween()
-	tween.tween_property(i, "position:y", sunk_y(i), sink_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween.tween_property(i, "position:y", sunk_y(i), time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween.finished.connect(func() -> void:
 		clusters.remove(_left[i])
 		_left.erase(i)

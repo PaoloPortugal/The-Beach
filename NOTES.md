@@ -113,13 +113,14 @@ v1 slice.
 | C11 | Crosshair                                 | built (UI placeholder) | C11 | `world/crosshair.gd`, `world/interactable.gd`, `world/world.gd` |
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
+| C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `sidecar/src/providers/claude/running.ts`, `world/sessions_menu/` |
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
-| S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` |
+| S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
 
 ## When a feature lands
@@ -524,7 +525,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -1000,6 +1001,20 @@ The water level is y = 0.
   prints its seed; any other value pins it. The seed rolled is kept in
   `island_seed`, which W12 saves so a session taken back after a
   restart gets the same island.
+- *Made off the main thread* (C14, after its live check: islands
+  appearing at start stuttered the menu's camera). Making the ground
+  takes 55-90 ms an island (measured headless, by biome), so a session's
+  island (`build_in_background`, set by `SessionIslands`) makes it on a
+  `WorkerThreadPool` task: `IslandGenerator.make` (the grid, the top, the
+  mesh's arrays, the collision faces) and `prop_spots`, on a generator
+  of its own, writing only to a dictionary of its own, so the island can
+  be freed meanwhile (it waits for the task when freed). `take` then
+  hands the grid and top to the island's generator, and the mesh,
+  collision, props, torches and any waiting zipline go in on the main
+  thread; `built` fires and `is_built` turns true. Before that
+  `height_at` works and `surface_height` falls back to it. Islands made
+  outside `SessionIslands` (W01 and W10 tests) make their ground at once, on
+  the main thread.
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1087,10 +1102,15 @@ session makes its island sink, and the island is then removed.
   just there, no rise, and so will sessions reattached after a restart
   be (user's decision, 2026-10-12, S07: the rise keeps meaning a new
   session; many rising at once each time the game starts would say
-  nothing).
+  nothing). *Changed (user's, 2026-10-26, C14's live check):* they rise
+  too, with no beacon, since the main menu's camera now watches them
+  arrive; popping up looked wrong.
 - **Ending:** the orchestrator and its agents go at once; the empty
   island stays while you're on it, then sinks. Its bridges count as "on
-  it" (built with W06).
+  it" (built with W06). *Except behind the main menu* (user's,
+  2026-10-26, C14's live check): there it sinks at once, and Play puts
+  you on the platform (rejected: Play putting you back on it, then it
+  sinking).
 - **Motion only** for now: no splash, foam or sound.
 - **Finding a new island** (after trying it: the rise was easy to miss,
   and there is to be an option to turn off being taken there, C10's
@@ -1102,13 +1122,16 @@ session makes its island sink, and the island is then removed.
   minimap). Built with W04. Both are **placeholders**, like all UI.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
-- *Rise.* An island for `session.created` starts at y = -34 m (`SUNK_Y`,
+- *Rise.* Every island, `session.created` or a snapshot (since C14),
+  waits out of sight (`BUILDING_Y`, 100 m under the deepest sea floor)
+  while its ground is made on a worker thread (W01), then starts at
+  y = -34 m (`SUNK_Y`,
   4 m under the deepest sea floor, so all of it is under the seabed, W08;
   deeper for an island whose top is higher, W10's `sunk_y`)
   and rises to 0 in 3 s
   (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
-  says so, and `island_risen` fires when it's up (at once for a
-  snapshot). `world.gd` → `teleport` waits for it: it notes the session
+  says so from the start, and `island_risen` fires when it's up.
+  `world.gd` → `teleport` waits for it: it notes the session
   and goes on `island_risen`; a later teleport replaces the wait.
 - *Sink.* On `session.ended` the orchestrator and `IslandAgents` are
   freed (the chat forgets the orchestrator as it leaves the tree) and the
@@ -1117,8 +1140,14 @@ session makes its island sink, and the island is then removed.
   `session_at`), nor on one of its bridges (W06), sinks to the same depth (`sunk_y`) in 4 s (`sink_time`, cubic ease-in) and
   is freed. You leave by swimming away (W08), by going to another
   session or to the platform, or over a bridge (W06). A session ending mid-rise sinks from where
-  it got to (nobody can be on it yet). A sinking island can't be stood on
+  it got to (nobody can be on it yet); one ending before it rose is
+  freed at once. A sinking island can't be stood on
   again: there's no way back to it.
+- *Behind the main menu* (C14): `player_away` (set by `world.gd` while
+  the main menu is open, from its `opened` to its `leaving`) lets a left
+  island sink with the player on it; that sets a flag `take_stranded`
+  reads once, and `world.gd` calls `go_to_platform` on `leaving` if it
+  was set, before the camera eases down, so it eases to the platform.
 - *Its spot.* `SessionClusters.hold` takes the ended session out of its
   cluster but keeps its island's spot until the island is freed
   (`remove` with the hold). A cluster with only held islands isn't listed
@@ -2125,7 +2154,7 @@ saved goes confirmed by the user, 2026-10-22).
   the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
   back are dropped at the next sync.
 - *Coming back:* islands of sessions taken back wait for the first
-  sync to finish (under the loading cover, S07). Then those with an
+  sync to finish (behind the main menu, C14; under S07's loading cover before). Then those with an
   entry are placed, cluster by cluster in saved slot order, each
   cluster's islands in saved index order, slots and indexes closed up;
   then any without one, as before. Entries of sessions that didn't come
@@ -3362,8 +3391,8 @@ the world test (the selectors on both pages and their reset, the
 
 ### C13 Pause menu
 *Built (2026-10-22). Scope: core* (world only: no provider, protocol or
-sidecar part). Esc opens a pause menu with Resume, Settings and Quit
-game, so the game can be quit without Alt+F4 and the settings sit behind
+sidecar part). Esc opens a pause menu with Resume, Settings, Main menu
+(C14, since 2026-10-26) and Quit game, so the game can be quit without Alt+F4 and the settings sit behind
 it. It takes over C10's "Esc opens the settings".
 
 *Decided (user's, 2026-10-22; my recommendations taken for the ID, the
@@ -3377,7 +3406,8 @@ pausing and the Esc back; the look is the user's):*
 - **Esc in Settings goes back to the pause menu**, Esc again to the game
   (rejected: Esc in Settings straight back to the game).
 - **The look:** the settings menu's dark rounded panel, centred, titled
-  "Paused", with **Resume**, **Settings** and **Quit game** stacked, "Esc
+  "Paused", with **Resume**, **Settings** and **Quit game** stacked
+  (**Main menu** between the last two since C14), "Esc
   to resume" under them, and the screen dimmed behind it (the user added
   Resume and the dim to my recommended two-button panel). A
   **placeholder**, like all UI.
@@ -3402,15 +3432,154 @@ pausing and the Esc back; the look is the user's):*
   the window: with no session running the game quits; with sessions
   running it asks first. "Back to the game" there leaves the pause menu
   open (the guard gives back the controls as they were: off).
+- *Main menu* (C14, user's: "a back to main menu button in addition to
+  the regular quit") closes the pause menu and emits
+  `main_menu_chosen`, which `world.gd` connects to `MainMenu.open`.
 
 Tested in the world test (`_pause`): Esc opening it (dimmed, the player
-stopped, the three buttons) and closing it, Resume, Esc in the sessions
+stopped, the four buttons) and closing it, Resume, Esc in the sessions
 ring and the create panel closing only those, Settings opening the
 settings menu in its place and Esc going back, then to the game,
 settings opened on their own closing to the game, and Quit game quitting
 with no session, asking with one, Back to the game leaving it open, and
 Quit quitting. The mouse being captured and the look can't be seen
 headless: the live check's.
+
+### C14 Main menu
+*Built (2026-10-26; live check and its re-check passed). Scope: core* (world only: no provider, protocol
+or sidecar part). A title menu at start, so the game opens on a menu
+instead of straight into the world.
+
+*Decided (user's, 2026-10-26; my recommendations taken, Credits added
+by the user; the ID and scope are my pick):*
+- **Over the live world:** shown at start over the world as it loads,
+  in place of the loading cover (S07); the sidecar starts and islands
+  rise behind it, so Play is instant (rejected: a separate title scene
+  before the world loads, a wait after Play and a second backdrop; a
+  hub menu opened in the world).
+- **Backdrop:** a camera circling the islands slowly; on Play it eases
+  down to the player (rejected: the player's view blurred; a fixed
+  shot).
+- **First version:** Play, Settings (C10, reused as the pause menu
+  does), Credits (from `assets/CREDITS.md`) and Quit (rejected for
+  now: New session / Resume on the menu itself).
+- **Back to it:** the pause menu (C13) gains "Main menu"; sessions keep
+  running, nothing is lost.
+
+*Decided before building (user's, 2026-10-26):*
+- **Look:** the pause menu's panel (C13), centred, the world dimmed
+  all round; a placeholder like all UI (rejected: a column on the left
+  over a gradient, my recommendation; a bar along the bottom).
+- **Title:** "The Beach" as plain text above the buttons, from one
+  constant, listed in Conventions → Renaming the project (rejected: no
+  title until the real name).
+- **Play at once:** Play is never held back; pressed while the sidecar
+  is still starting, the camera eases down straight away and islands
+  still to come rise as they arrive, so S07's "standing from
+  the first frame" doesn't hold for that start (rejected: Play waiting
+  for the sync, my recommendation, or greyed until it).
+- **Credits:** `assets/CREDITS.md` as it is, read when opened and drawn
+  with the chat's Markdown renderer (C03) in a scrolling panel with
+  Back, then "Made with Godot Engine" with the engine's own copyright
+  and licence text (its MIT licence needs the notice in shipped
+  builds). The file joins the export filter once exports exist
+  (rejected: a separate player-facing credits text; the file alone).
+  *Changed (user's, 2026-10-26, after seeing it):* Godot's licences sit
+  behind a **Show Godot licences** toggle on the same page, under "Made
+  with Godot Engine", since their long list read as things the project
+  had added. A player-facing credits file is likely later; CREDITS.md
+  does for now.
+- **S07's loading cover kept, unused** (user's, 2026-10-26; rejected:
+  deleting it, my recommendation).
+- **Main menu in the pause menu** next to Quit game (user's, during the
+  build).
+
+*After the live check (user's, 2026-10-26; my recommendations taken):*
+- **The stutter** as islands came in at start (the loading cover had
+  hidden it): each island's ground is now made on a worker thread (W01),
+  which also ends the hitch a new island made mid-game (rejected: one
+  island a frame, which only splits the stutter up).
+- **Islands taken back rise** behind the menu, with no beacon, instead
+  of popping up (W04; was S07's "standing from the first frame").
+- **An island whose session ends behind the menu** sinks then, the
+  player on it or not, and Play puts the player on the platform (W04;
+  was: back on it, then it sank).
+
+**How it works.**
+- `MainMenu` (`world/main_menu.gd`, a `CanvasLayer` on layer 2, added
+  by `world.gd` after the pause menu and before the settings menu, so
+  its dim is drawn under that panel): the pause menu's 45 % black dim
+  and its panel style, titled `MainMenu.TITLE` ("The Beach", the one
+  place in code: Conventions → Renaming the project), with **Play**,
+  **Settings**, **Credits** and **Quit**. `world.gd` opens it at the
+  end of `_ready` (`open_at_start`), where the loading cover was. Open,
+  it frees the mouse, turns the player's controls off (so the other
+  menus, the crosshair and Esc's pause menu stay shut) and hides the
+  usage limits and the new-island arrows; the minimap hides itself
+  (`hidden_when`).
+- `MenuCamera` (`world/menu_camera.gd`, a `Camera3D` made by
+  `world.gd`) circles once every 240 s round the middle of the
+  platform and every island (`SessionIslands.all_islands`), 40 m past
+  the farthest (60-220 m, inside the fog and the draw distance), at
+  0.45 of that high (at least 25 m), looking at the middle. The circle
+  follows islands coming and going smoothly.
+- *Play* hides the panel and dim at once and the camera eases down to
+  the player's own camera over 2.5 s (position, turn and field of view,
+  smoothstep), following it if it moves; there it makes the player's
+  camera current, gives back the controls and the mouse and the HUD,
+  and emits `played`. Never held back for the sidecar.
+- *Main menu* in the pause menu calls `open`: the camera starts at the
+  player's view and eases up onto the circle. The player stays where
+  they were, sessions run on; Play brings them back there, unless the
+  island they stood on sank meanwhile: then to the platform. `opened`
+  and `leaving` (Play, `close_now`) let `world.gd` set
+  `SessionIslands.player_away` (W04).
+- *Settings* hides the panel (the dim stays) and opens `SettingsMenu`
+  with its `back` set to the main menu's; Esc there shows the panel
+  again and puts `back` back to the pause menu's.
+- *Credits* replaces the panel with a bigger one (70 % by 84 % of the
+  screen) holding a scroll of: `res://assets/CREDITS.md`, read on first
+  opening and drawn by `MarkdownView` (C03; its http(s) links open in
+  the browser, the file being ours); "Made with Godot Engine" and a
+  **Show Godot licences** toggle ("Hide…" while shown) for
+  `Engine.get_license_text()`, then Godot's third-party parts with
+  their copyright lines and licences (`Engine.get_copyright_info`) and
+  those licences' texts (`get_license_info`), as plain text, built the
+  first time it's shown. Back or
+  Esc returns to the menu. If the file can't be read it says so.
+- *Quit* calls `QuitGuard.request_quit` (S05): it asks first while
+  sessions run; "Back to the game" there leaves the menu up.
+- Dev tools that want the world at once (the layout and ring demos)
+  call `MainMenu.close_now()`: gone, no ease.
+
+Tested in the world test (`_menu_start`, `_main_menu`): it opens at
+start dimmed with the title and the four buttons, the menu camera
+current and circling high up, no HUD, keys and Esc doing nothing under
+it; Play hiding it at once and easing down, then the player's camera,
+the controls and the HUD back; the pause menu's Main menu opening it
+from the player's view and easing up onto the circle; Settings and Esc
+back, the settings' `back` restored to the pause menu's; Credits
+showing CREDITS.md and "Made with Godot Engine", the toggle showing
+Godot's licence and its parts (FreeType) and hiding them, a link
+opening, Esc and Back; Quit quitting or asking with a session running;
+the circle taking in every island within its limits; Play again
+leaving the player where they were with the session still there; an
+island ending under the player behind the menu sinking at once, and
+Play then putting them on the platform, only that once. `_sessions`
+checks a taken-back island waiting out of sight while its ground is
+made, then rising. The
+look, the camera's motion and the mouse can't be seen headless: the
+live check's.
+
+*Live check (2026-10-26, the user, real Claude):* all 15 steps passed.
+Found: a stutter as islands came in at start, islands popping up
+rather than rising, and Play putting the player back on an island
+whose session ended behind the menu, which only then sank. All three
+changed as above. *Re-check (2026-10-26, the user):* all 8 steps
+passed. Still not quite as smooth as the user would like as islands
+come in, which they put down to their hardware; what is left on the
+main thread (the collision shape, props, the mesh upload, a few ms an
+island) could be measured if it comes up again.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -4594,8 +4763,8 @@ changes). Flows 14 and 15. Dev logs 2026-10-12-live-sessions (the
 research and probes) and 2026-10-13-s07-reattach (the build).
 
 **What it's for.** After the game restarts, the sessions it started are
-still running in their terminals. With S07 their islands are standing
-when the world loads (no rise, W04), their chat holds the conversation
+still running in their terminals. With S07 their islands come back
+as they were (rising behind the main menu since C14, W04), their chat holds the conversation
 so far, and chat, prompts and questions work from the world again. Only
 sessions launched by a version with S07 can come back.
 
@@ -4706,7 +4875,11 @@ a dark background, above everything) covers the world and holds the
 player's controls and input until the sidecar's first `sync.completed`,
 its failure, or 30 s (the handshake timeout plus 10 s), so reattached
 islands are standing from the first frame. Rejected: islands appearing
-a moment after the world loads.
+a moment after the world loads. *Replaced by C14 (user's, 2026-10-26):*
+the game opens on the main menu over the world instead, and islands
+taken back rise behind it once synced (W04, changed after C14's live
+check); Play isn't held back for the sync. `LoadingCover` is kept, unused, its tests on stand-ins (user's
+choice).
 
 **If the old port is taken** (another program got it while the game was
 closed): the session still comes back, **read-only**, until it ends
@@ -4958,7 +5131,7 @@ mark's look, the wording and the toggle the user's own):*
   read-only here (my pick).
 - *At start* the first listing is part of the restore, before
   `sync.completed`, so W12 brings outside islands back as they were
-  (standing) instead of dropping them as sessions that didn't come back.
+  (rising, since C14) instead of dropping them as sessions that didn't come back.
 - *Each one* is a `ClaudeSession` read from its transcript as S07's
   read-only sessions are (`transcript-hooks.ts`; the wait for a
   transcript not written yet; `/clear` and `/resume` followed per
@@ -5078,6 +5251,9 @@ reconnecting).
 - `docs/GUIDE.md`: title
 - `README.md`: the clone URL (the GitHub repository's name)
 - `docs/devlog/`: past entries (historical; leave them)
+- the main menu's title, `MainMenu.TITLE` in `world/main_menu.gd`
+  (C14; user's, 2026-10-26), named in `NOTES.md` (C14) and
+  `docs/GUIDE.md` (The main menu)
 - the sidecar's app data folder, `The Beach/agent-sessions/` (S07;
   user's choice, 2026-10-12: a recognizable folder name; one
   constant in the sidecar, `APP_FOLDER`), named in `NOTES.md` (S07)
@@ -5090,7 +5266,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: you start on the spawn platform; hold Tab for the sessions
+for the world: it opens on the main menu (C14), and Play puts you on
+the spawn platform; hold Tab for the sessions
 ring and click its + to start a session in a folder you pick or resume a
 stored one, and you're taken to its island to chat with its orchestrator (S03,
 S04, W01–W03, A01, C01, C02). That runs the
@@ -5544,8 +5721,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** a main menu (user's, 2026-10-26); no ID, scope or
-design yet, to be decided with the user first.
+**Current focus:** none set; the user picks what's next. Later
+(user's): a player-facing credits file for C14's Credits, and
+`assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-26), approved by the user: C14, a main
+menu** (dev log 2026-10-26-c14-main-menu): the game opens on Play,
+Settings, Credits and Quit over the live world, a camera circling the
+islands; the pause menu's Main menu brings it back. After its live
+check: islands made off the main thread, taken-back ones rising, and
+an island ending behind the menu sinking, Play going to the platform.
 **Merged to `main` (2026-10-26), approved by the user: session
 details** (dev log 2026-10-26-session-start-details): no new-island
 beacon for outside sessions (S08), and a quicker bridge after the
