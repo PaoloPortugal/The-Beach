@@ -2016,6 +2016,16 @@ func _read_only_marks(world: Node3D, panel: ChatPanel) -> void:
 	store.apply({"type": "session.ended", "session": "o2", "seq": 7, "reason": "exited"})
 	await _frames(1)
 	_check(islands.island("o1") == null and islands.island("o2") == null, "S08: turned off (reason user) or gone, the session goes like any other")
+	# One started outside the game mid-game rises like any, but isn't
+	# marked as new: no beacon, no arrow (the user's, 2026-10-26).
+	var risen := _snapshot("o3")
+	risen["read_only"] = true
+	risen["origin"] = "external"
+	store.apply({"type": "session.created", "session": risen})
+	await _frames(2)
+	_check(islands.is_rising("o3") and not islands.island("o3").has_node("NewBeacon") and not "o3" in islands.unvisited() and not "o3" in world.pointers.shown(), "S08: an outside session's island rises with no new-island beacon or arrow")
+	store.apply({"type": "session.ended", "session": "o3", "seq": 2, "reason": "exited"})
+	await _frames(1)
 
 
 # A05: h1's orchestrator waits on a permission; h2's comes and goes.

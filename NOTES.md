@@ -535,7 +535,7 @@ removing a provider means deleting its folders.
 
 | Path | Role |
 |------|------|
-| `src/main.ts` | Entry point: picks the executable's mode. |
+| `src/main.ts` | Entry point: picks the executable's mode and loads only that mode's code. |
 | `src/serve.ts` | Server mode: handshake, stdin lifetime. |
 | `src/server.ts` | WebSocket server and its security checks. |
 | `src/registry.ts` | Session registry: state, `seq`, event checks. |
@@ -543,7 +543,7 @@ removing a provider means deleting its folders.
 | `src/protocol.ts` | Protocol types and schema validation. |
 | `src/provider.ts` | The provider interface. |
 | `src/launch/` | Generic: the app data folder for run folders (`app-data.ts`, S07), terminal launcher, `launch` mode, `relay` mode (command hooks) and `statusline` mode (C08), the status line's command string (`shell-command.ts`), clean environments. |
-| `src/providers/` | One folder per provider. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04;
+| `src/providers/` | One folder per provider, plus `index.ts` (the built-in providers) and `bridges.ts` (their `bridge <provider>` modes, apart so a bridge loads only its own code); these two are the only files outside a provider's folder that name it. `claude/`: finding `claude` and launching it (`index.ts`), a running session (`session.ts`), the channel bridge, the hook endpoint and translation, the transcript follower (S02), stored sessions and which run elsewhere (`store.ts`, `running.ts`; S04;
 `running.ts` also reads what S08 shows and tells agent view off apart), run folders and the read-only mode (`run-folder.ts`, `transcript-hooks.ts`; S07), token counting and the status line (`usage.ts`, `statusline.ts`; C08). |
 | `test/` | `node:test` suites, the fake provider, `dev-fake.ts` and `try-claude.ts`. Not shipped. |
 | `scripts/` | Build and packaging. |
@@ -1129,7 +1129,8 @@ session makes its island sink, and the island is then removed.
 - *New-island beacon* (my picks): A05's `AttentionBeacon` in green
   (`NEW_COLOUR`; orange means waiting), from the island's middle, so it
   rises with it (on from the first frame, fading in over 0.6 s). Only for
-  `session.created`. `unvisited` lists those sessions; each frame, one
+  `session.created`, and not for one started outside the game (S08;
+  user's, 2026-10-26), so no edge arrow either. `unvisited` lists those sessions; each frame, one
   whose island the player is over is cleared (its beacon fades out), and
   so is one that ends. Being taken there by the teleport counts.
 - *Edge arrow* (`NewIslandPointers`, `world/new_island_pointers.gd`, a
@@ -3470,9 +3471,13 @@ so on its own it serves an empty world. Dev log 2026-09-29-sidecar-core.
   log files), and exit when stdin closes, which covers Godot quitting or
   crashing on every OS (verified on Windows, including a hard kill of
   Godot). `main.ts` picks the executable's mode; S02 adds the bridge,
-  launcher and relay modes, C08 the `statusline` mode. `serve` takes
-  one flag, `--no-outside-sessions` (S08: the player turned them off);
-  anything else is refused.
+  launcher and relay modes, C08 the `statusline` mode. Each mode loads
+  only its own code (a dynamic import; esbuild keeps them in the one
+  bundle): the bridge starts once per session and the relay once per
+  hook, and from source the whole sidecar took about 1 s to load, the
+  bridge alone 0.24 s (measured on Windows, 2026-10-26). `serve` takes
+  `--no-outside-sessions` (S08: the player turned them off) and
+  `--program-path <provider>=<path>` (S02); anything else is refused.
 - **Packaging** (`scripts/`): esbuild bundles to one CommonJS file (Node's
   single-executable feature runs only CommonJS), which is injected into the
   official Node binary for each platform (`win-x64`, `linux-x64`,
@@ -3584,6 +3589,27 @@ refused) or the terminal window was closed (found in the W05 live check,
 counts as gone if neither happens within 15 min (e.g. a terminal that
 never ran the launcher). A reused process id would only mean falling
 back to that timeout.
+*Slow after the confirm* (user's report, 2026-10-26: the world kept
+saying "confirm" for a while after it was confirmed; one start came up
+15.2 s after launch, the user's time at the dialog included). Measured:
+`claude -p` 2.1.309 starts its MCP servers about 2.5 s after launch,
+with the project's other servers or without, and the handshake takes
+under 0.1 s; our bridge took about 1 s to load from source, now 0.24 s
+(`providers/bridges.ts`, loaded alone; S01 → Process). Godot makes the
+island as soon as `session.created` comes. The log says when the first
+status line arrives ("first status line N ms after launch", once Claude
+Code draws its screen; not SessionStart, which our matcher leaves out
+for a launch) next to "came up N ms after launch". Live start with the
+quicker bridge (2026-10-26, Windows, 2.1.309): first status line at
+8.8 s, came up at 10.6 s. So Claude Code starts and connects the bridge
+about 1.8 s after drawing its screen, in line with `claude -p`; most of
+the wait is before that (the terminal opening, Claude Code loading, the
+user's time at the dialog), which is Claude Code's and the user's.
+A probe (2.1.310, a status line and a channel server that log) showed
+Claude Code runs neither while the channel dialog is up, and both
+within 0.6 s of the confirm. So the world can't say "confirmed" much
+sooner than the island comes; a "starting" notice on the first status
+line was considered and not built (2026-10-26).
 
 **Talking to the session: the channel bridge.** A channel is an MCP server
 Claude Code starts as a subprocess; ours is the sidecar executable in
@@ -4892,6 +4918,9 @@ mark's look, the wording and the toggle the user's own):*
   forgotten, and turned back on they rise as new islands; a start where
   they aren't shown keeps none (W12 → The second key, Sessions started
   outside the game).
+- **No new-island beacon or arrow** when one rises (user's,
+  2026-10-26): the player didn't ask for it, so it isn't news (W04 →
+  New-island beacon).
 - **The mark follows `read_only`**, not where the session started, so
   S07's sessions back read-only with their hook port taken get it too:
   every island you can't drive from the world looks the same.
@@ -5544,6 +5573,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** C14, a main menu (user's, 2026-10-26): its shape
 decided with the user (C14 → Decided), on `c14-main-menu`; not built
 yet.
+**Merged to `main` (2026-10-26), approved by the user: session
+details** (dev log 2026-10-26-session-start-details): no new-island
+beacon for outside sessions (S08), and a quicker bridge after the
+confirm in the terminal (S02 → Starting up; measured live, the bridge
+is up 1.8 s after Claude Code's screen).
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: S02, a path to
 `claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
