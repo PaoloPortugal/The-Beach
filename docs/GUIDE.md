@@ -944,7 +944,11 @@ puts everything back.
   started outside the game** (on by default): off, only the game's own
   sessions have islands (see Sessions started outside the game (S08)).
   Greyed out, with the reason in red, when Claude Code's agent view is
-  off; your choice is kept for when it's back on.
+  off; your choice is kept for when it's back on. And **Claude Code**:
+  which Claude Code the game runs, with **Browse…** to choose it
+  yourself and **Reset** to let the game find it again (see Choosing
+  Claude Code yourself, in Claude Code sessions (S02)). Reset to
+  defaults leaves this one alone.
 
 ## Debug commands (C09)
 
@@ -1022,6 +1026,30 @@ runs your shell's startup files without showing you a window: nothing
 can answer a question they ask, and if they take more than 10 seconds
 the game gives up and says Claude Code wasn't found. On Windows this
 isn't needed.
+
+**Choosing Claude Code yourself.** If the game can't find Claude Code,
+or finds a different one from the one you want, choose it in **Settings
+→ Game → Claude Code**. The row shows which one the game uses (where it
+is and its version, and "set by hand" if you chose it), or in red why
+there's none. Before your first session it may say "Not looked for
+yet": the game looks when a session starts.
+- **Browse…** opens your system's file picker. Choose the Claude Code
+  program itself: on Windows that's `claude.exe` (an npm `claude.cmd`
+  won't do; the picker only shows `.exe` files). The row says
+  "Checking…" while the game makes sure it's a full path to a program
+  that answers as Claude Code 2.1.284 or newer. If it isn't, the reason
+  shows in red ("Not changed: …") and the one you had stays.
+- **Reset** forgets your choice and lets the game find Claude Code as
+  usual again, at once. It's greyed out while nothing is chosen.
+- Your choice is remembered and used for every session you start or
+  resume from then on; sessions already running keep theirs. It's the
+  **only** one the game uses: if you move, delete or downgrade it, the
+  row and the next session you start say why it doesn't work ("The
+  Claude Code set in Settings doesn't work: …"), and the game never
+  quietly runs another one. Choose it again, or press Reset.
+
+Claude Code installed inside WSL isn't supported on Windows: install
+the Windows version.
 
 **Starting a session.** When you start a session for a project folder, a
 terminal opens with Claude Code in it. On Windows, with Windows Terminal,
