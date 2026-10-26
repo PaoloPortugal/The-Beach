@@ -240,4 +240,6 @@ only the program ones, so a program found during a long
   Code row, "Checking…", and the refusal of a path that isn't a full
   one; with the fake provider, no row. And (W07's part) Add a session
   greyed out with why, set by hand or not, and back once found.
-- Live check: `tests/live/checklist.txt` (the user's).
+- Live check: `tests/live/checklist.txt` (the user's): passed with the
+  user, 2026-10-26, on Windows (the real claude.exe moved away and back
+  for part D). Merged to `main` the same day.
