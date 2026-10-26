@@ -1,6 +1,6 @@
 // Sidecar entry point: picks the mode of the one executable (NOTES.md ->
 // Architecture -> Platforms). The server mode's contract is in serve.ts.
-import { serve } from './serve.ts'
+import { serve, serveOptions } from './serve.ts'
 import { stderrLog } from './log.ts'
 import { bridgeModes, builtInProviders } from './providers/index.ts'
 import { runLauncher } from './launch/launcher.ts'
@@ -14,8 +14,8 @@ import { runRelay } from './launch/relay.ts'
 async function main(argv: string[]) {
   const [mode, ...rest] = argv
   if (mode === undefined || mode === 'serve') {
-    if (rest.length > 0) throw new Error(`unexpected arguments: ${rest.join(' ')}`)
-    await serve(builtInProviders())
+    // --no-outside-sessions: the player turned off sessions started outside the game (S08).
+    await serve(builtInProviders(), undefined, serveOptions(rest))
     return
   }
   if (mode === 'launch') {

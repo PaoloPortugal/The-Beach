@@ -3,7 +3,9 @@ extends RefCounted
 ## What each live session's island was (W12): its biome and seed, its
 ## cluster, and its spot in it, kept in a file so a session taken back
 ## after a restart (S07) gets its island back as it was. Keyed by
-## [method key], which stays the same across a restart and a /clear. A
+## [method key], which stays the same across a restart and a /clear, and
+## by [method alias], which stays the same when an app relaunches a
+## session's process (S08). A
 ## missing or damaged file, or a damaged entry, is ignored: that island
 ## comes back as a new one would.
 
@@ -48,6 +50,26 @@ static func key(session: Dictionary) -> String:
 	return "%s|%s|%s" % [provider, started, project["path"]]
 
 
+## Its second key: its provider and the provider's own id for it, or ""
+## without one. Entries are kept under both, so one is found when the
+## other changed: a session started outside the game (S08) whose app
+## relaunched its process starts again, and /clear gives a new id.
+static func alias(session: Dictionary) -> String:
+	var provider: Variant = session.get("provider")
+	var native: Variant = session.get("native_id")
+	if not (provider is String and native is String and not native.is_empty()):
+		return ""
+	return "%s|id|%s" % [provider, native]
+
+
+## The first of [param keys] with an entry, or "".
+func find(keys: Array) -> String:
+	for k: String in keys:
+		if not k.is_empty() and _entries.has(k):
+			return k
+	return ""
+
+
 ## The saved entry for a key, or {}: {"biome", "seed", "cluster" (the
 ## cluster's id when saved), "name", "repo_key" ("" for one made by
 ## hand), "slot", "index"}.
@@ -59,15 +81,22 @@ func has(k: String) -> bool:
 	return _entries.has(k)
 
 
-func put(k: String, e: Dictionary) -> void:
-	if k.is_empty():
-		return
-	_entries[k] = e
-	_save()
+## Keeps [param e] under each of [param keys] ("" ones skipped).
+func put(keys: Array, e: Dictionary) -> void:
+	var changed := false
+	for k: String in keys:
+		if not k.is_empty():
+			_entries[k] = e
+			changed = true
+	if changed:
+		_save()
 
 
-func erase(k: String) -> void:
-	if _entries.erase(k):
+func erase(keys: Array) -> void:
+	var changed := false
+	for k: String in keys:
+		changed = _entries.erase(k) or changed
+	if changed:
 		_save()
 
 

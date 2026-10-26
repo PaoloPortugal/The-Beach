@@ -55,6 +55,8 @@ func _ready() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
 		world.settings.path = settings_file
 		world.attention.settings_path = settings_file
+		# Nor the user's own running sessions (S08).
+		world.set_outside_sessions = func(_on: bool) -> void: pass
 	add_child(world)
 	var store: SessionStore = world.store
 	var n := 0

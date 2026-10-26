@@ -14,8 +14,12 @@ const command: string[] = process.env.SIDECAR_CMD
   ? JSON.parse(process.env.SIDECAR_CMD)
   : [process.execPath, path.join(here, '..', 'src', 'main.ts')]
 
-/** Each sidecar gets its own sessions folder: none touches the user's (NOTES.md -> S07). */
-function start(args: string[] = [], stdin: 'pipe' | 'ignore' = 'pipe', sessions = tempSessionsDir()) {
+/**
+ * Each sidecar gets its own sessions folder: none touches the user's
+ * (NOTES.md -> S07). And sessions started outside the game are off (S08),
+ * so none shows the developer's own running sessions, nor asks `claude`.
+ */
+function start(args: string[] = ['serve', '--no-outside-sessions'], stdin: 'pipe' | 'ignore' = 'pipe', sessions = tempSessionsDir()) {
   const child = spawn(command[0]!, [...command.slice(1), ...args], {
     stdio: [stdin, 'pipe', 'pipe'], env: { ...process.env, [TEST_SESSIONS_DIR]: sessions },
   })
@@ -46,7 +50,7 @@ function kill(child: ChildProcess) {
 
 test('prints one handshake line, then serves the protocol', async () => {
   const sessions = tempSessionsDir()
-  const p = start([], 'pipe', sessions)
+  const p = start(undefined, 'pipe', sessions)
   try {
     const hs = await within(p.handshake, 10000, 'handshake')
     assert.ok(fs.existsSync(path.join(sessions, 'hook-port.json')), 'its run folders in the test\'s own folder')
@@ -62,6 +66,17 @@ test('prints one handshake line, then serves the protocol', async () => {
     assert.match(p.err(), /listening on 127\.0\.0\.1:/)
     assert.match(p.err(), /sessions folder: the tests' own/)
     assert.ok(!p.err().includes(hs.token), 'token never logged')
+  } finally { kill(p.child) }
+})
+
+test('serve --no-outside-sessions (the player turned them off, S08) starts as usual', async () => {
+  const p = start(['serve', '--no-outside-sessions'])
+  try {
+    const hs = await within(p.handshake, 10000, 'handshake')
+    const c = await connect(hs.port, hs.token)
+    const { hello } = await c.sync()
+    assert.equal(hello.protocol, 1)
+    await c.close()
   } finally { kill(p.child) }
 })
 
@@ -87,14 +102,14 @@ test('exits when its stdin pipe closes (Godot quit or crashed)', async () => {
 })
 
 test('exits at once when started without a stdin pipe', async () => {
-  const p = start([], 'ignore')
+  const p = start(undefined, 'ignore')
   try {
     await within(p.exited, 10000, 'exit')
   } finally { kill(p.child) }
 })
 
 test('refuses unknown modes and arguments', async () => {
-  for (const args of [['bogus'], ['serve', 'extra']]) {
+  for (const args of [['bogus'], ['serve', 'extra'], ['serve', '--no-outside-sessions', 'extra']]) {
     const p = start(args)
     try {
       assert.equal(await within(p.exited, 10000, 'exit'), 1)

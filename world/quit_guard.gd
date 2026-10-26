@@ -82,7 +82,7 @@ func _notification(what: int) -> void:
 
 ## Quits, or asks first if sessions are running.
 func request_quit() -> void:
-	if store.sessions.is_empty():
+	if _ours().is_empty():
 		quit.call()
 		return
 	if is_asking():
@@ -117,9 +117,10 @@ func list_scroll() -> ScrollContainer:
 ## The dialog's text: a header, the sessions still running (one per line)
 ## and what to do.
 func _show() -> void:
-	var n := store.sessions.size()
+	var ours := _ours()
+	var n := ours.size()
 	var lines: Array[String] = []
-	for id in store.sessions:
+	for id: String in ours:
 		var s: Dictionary = store.sessions[id]
 		var project: Dictionary = s.get("project", {})
 		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
@@ -133,6 +134,16 @@ func _show() -> void:
 	_scroll.visible = n > 0
 	_footer.visible = n > 0
 	_fit()
+
+
+## The sessions the game started. One started outside it (S08) never had
+## the game's hooks, so quitting changes nothing for it: not listed.
+func _ours() -> Array[String]:
+	var out: Array[String] = []
+	for id: String in store.sessions:
+		if store.sessions[id].get("origin") != "external":
+			out.append(id)
+	return out
 
 
 ## Sizes the dialog to its text, but no bigger than the window: the list

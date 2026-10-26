@@ -128,6 +128,12 @@ async function execute(
     case 'session.end':
       await findControl(registry, c.session).end()
       return undefined
+    case 'client.set_focus':
+      for (const p of registry.providers.values()) p.setFocused?.(c.focused)
+      return undefined
+    case 'client.set_outside_sessions':
+      for (const p of registry.providers.values()) p.setOutsideSessions?.(c.enabled)
+      return undefined
   }
 }
 

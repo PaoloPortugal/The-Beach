@@ -1,42 +1,75 @@
-LIVE CHECK: W12 islands kept
+LIVE CHECK: C13 pause menu
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-A. Before the restart
-1. Start 2 sessions from the
-   world in repo A, and 1 in
-   repo B.
-2. Start 1 more (either
-   repo) in New cluster (+
-   panel).
-3. Note each island's kind
-   and shape, which cluster
-   it's in (ring, M map), the
-   clusters' order around the
-   platform and the bridges.
-4. Quit the game.
+A. Opening and closing
+1. Start the game with no
+   session running. Press
+   Esc: the screen dims, a
+   "Paused" panel in the
+   middle with Resume,
+   Settings and Quit game,
+   "Esc to resume" under
+   them, and the mouse free?
+2. Does the look read well
+   (the dim, the panel, the
+   buttons), in daylight and
+   at night?
+3. While it's open: WASD,
+   jump and the mouse don't
+   move you or the camera,
+   but the waves, the sky
+   and the weather carry on?
+4. Esc: it closes, the mouse
+   captured again, you move
+   and look as before?
+5. Esc, then Resume: the
+   same as 4?
 
-B. Coming back
-5. While closed, /exit repo
-   A's first session (nearest
-   the platform) and repo B's.
-6. Start the game: the other
-   2 islands already standing,
-   each the same kind and
-   shape as in (3)?
-7. Repo A's other island
-   moved in to its first spot?
-   The hand-made cluster moved
-   into B's slice (no empty
-   slice between)?
-8. The hand-made cluster
-   still has its name? Bridges
-   rebuilt, about as before?
-9. Start a new session in
-   repo A: it joins repo A's
-   cluster?
-10. Quit and start again:
-   all the same as in (6)-(9)?
-11. /exit every session.
+B. Esc goes to what's open
+6. Start a session from the
+   sessions menu (Tab) and
+   open its chat, then Esc:
+   only the chat closes, no
+   pause menu?
+7. The same with the
+   sessions menu (Tab), the
+   create panel and the big
+   map (M): Esc closes only
+   that?
+
+C. Settings
+8. Esc → Settings: the panel
+   goes, the settings open,
+   the screen still dimmed,
+   "Esc to go back" at the
+   bottom?
+9. Change a setting (e.g.
+   field of view): it applies
+   at once, behind the dim?
+10. Esc: back to the pause
+   menu, mouse still free?
+   Esc again: the game, the
+   mouse captured?
+
+D. Quit game
+11. With that session
+   running, Esc → Quit game:
+   the quit warning asks
+   first?
+12. Back to the game: the
+   pause menu still open,
+   the mouse free? Esc: the
+   game.
+13. Esc → Quit game → Quit:
+   the game closes, the
+   session still running in
+   its terminal?
+14. Start the game again:
+   its island is back. /exit
+   the session. Esc →
+   Quit game with nothing
+   running: it closes at
+   once, no warning?

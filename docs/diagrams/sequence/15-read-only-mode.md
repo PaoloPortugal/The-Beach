@@ -2,7 +2,8 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S07). NOTES.md → S07 → If the old port is taken.
+> **Status:** Built (S07; the poll shared with S08). NOTES.md → S07 → If the old port is taken.
+> Sessions started outside the game are read the same way: [flow 16](16-outside-sessions.md).
 
 ```mermaid
 sequenceDiagram
@@ -26,7 +27,7 @@ sequenceDiagram
     Claude-xSidecar: HTTP hooks: to the program on the old port, never us<br/>(Claude Code waits on each until it answers or times out)
     User->>Claude: types, answers its prompts
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)<br/>providers/claude/session.ts (searchTranscript, onAgent)<br/>providers/claude/index.ts (askWatched)
+        Note over Sidecar,Log: providers/claude/transcript.ts (followAll)<br/>providers/claude/transcript-hooks.ts (TranscriptHooks)<br/>providers/claude/session.ts (searchTranscript, onAgent)<br/>providers/claude/index.ts (poll, shared with S08)
         opt no transcript yet (nothing prompted before the restart)
             loop every second for a minute, then every 10 s, until written
                 Sidecar->>Log: look for it (findOwn: this project's working folder only)
@@ -42,7 +43,7 @@ sequenceDiagram
         Sidecar->>World: message.started, message.completed (no deltas), session.updated model
         Log->>Sidecar: a tool_use → as PreToolUse
         Sidecar->>World: tool.started
-        loop every 5 s, one at a time for every read-only session
+        loop every 5 s (10 s with the game in the background), one at a time for every read-only session
             Sidecar->>Agents: which conversation, and what status, for its claude pid?
             Agents-->>Sidecar: sessionId, status
         end
@@ -72,8 +73,9 @@ no transcript yet at the restart has it looked for (every second for a
 minute, then every 10 s; only a file with this project's working folder)
 until Claude Code writes it, and read from its start.
 
-**Shown from `claude agents --json`** (every 5 s, one call for all
-read-only sessions, only while there are any): waiting on the user in
+**Shown from `claude agents --json`** (every 5 s while the game has
+focus, 10 s in the background, one call for all read-only sessions and
+S08's outside ones, only while there are any): waiting on the user in
 the terminal, and `/clear` and `/resume`. With agent view off, neither.
 
 **Not from the world:** chat (`message.send` gets `not_supported`),

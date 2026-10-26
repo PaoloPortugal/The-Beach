@@ -5,7 +5,7 @@
 import crypto from 'node:crypto'
 import {
   checkMessage, EVENT_CAPABILITY, EXTENSION_TYPE,
-  type Choice, type EndReason, type Id, type Session, type SessionEvent,
+  type Choice, type EndReason, type Id, type Notice, type Session, type SessionEvent,
 } from './protocol.ts'
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from './provider.ts'
 import type { Log } from './log.ts'
@@ -36,6 +36,8 @@ export interface Entry {
 export class Registry {
   readonly providers: ReadonlyMap<string, Provider>
   private readonly sessions = new Map<Id, Entry>()
+  /** Each provider's notices (provider.notice), one per code, for hello. */
+  private readonly notices = new Map<string, Notice[]>()
   private sink: (msg: Outgoing) => void = () => {}
   private readonly log: Log
 
@@ -47,6 +49,31 @@ export class Registry {
   /** Where events go (the connected Godot client, if any). */
   setSink(sink: (msg: Outgoing) => void): void {
     this.sink = sink
+  }
+
+  /**
+   * A notice about a provider (S08): kept, one per code, and sent if the
+   * same one isn't already there. Refused (logged) if it fails the schema.
+   */
+  providerNotice(provider: string, notice: Notice): void {
+    const list = this.notices.get(provider) ?? []
+    const i = list.findIndex((n) => n.code === notice.code)
+    if (i >= 0 && list[i]!.message === notice.message) return
+    const msg = { type: 'provider.notice', provider, notice: { ...notice } }
+    const checked = checkMessage(msg)
+    if (!checked.ok) {
+      this.log.warn(`dropped provider.notice for ${provider}: fails the schema: ${checked.message}`)
+      return
+    }
+    if (i >= 0) list[i] = { ...notice }
+    else list.push({ ...notice })
+    this.notices.set(provider, list)
+    this.sink(msg)
+  }
+
+  /** A provider's notices so far (hello's notices). Copies. */
+  providerNotices(provider: string): Notice[] {
+    return (this.notices.get(provider) ?? []).map((n) => ({ ...n }))
   }
 
   get(id: Id): Entry | undefined {
@@ -72,10 +99,11 @@ export class Registry {
 
   /**
    * A session a provider took over at start (S07): no command is answering
-   * for it, so no hold, and its announce sends session.snapshot.
+   * for it, so no hold, and its announce sends session.snapshot, or
+   * session.created with `created` (S08).
    */
-  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession): void {
-    const entry = this.add(provider, 0, true)
+  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession, o: { created?: boolean } = {}): void {
+    const entry = this.add(provider, 0, o.created !== true)
     try {
       entry.control = make(entry.host)
     } catch (e) {
@@ -145,7 +173,7 @@ export class Registry {
       seq: 1,
       provider: entry.provider.id,
       native_id: intro.native_id,
-      origin: 'app',
+      origin: intro.origin ?? 'app',
       project: withRepo(intro.project),
       title: intro.title,
       started_at: intro.started_at ?? new Date().toISOString(),
