@@ -3,25 +3,26 @@
 // notices of everything inside it. `npm run build`.
 import fs from 'node:fs'
 import path from 'node:path'
-import { build } from 'esbuild'
+import { build, type BuildOptions } from 'esbuild'
 
 const root = path.join(import.meta.dirname, '..')
 const dist = path.join(root, 'dist')
 
+/** How the bundle is built (also by its test, test/bundle.test.ts). */
+export const BUNDLE_OPTIONS = {
+  entryPoints: [path.join(root, 'src', 'main.ts')],
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node22',
+  legalComments: 'eof',
+  logLevel: 'warning',
+} satisfies BuildOptions
+
 export async function buildBundle(): Promise<string> {
   fs.mkdirSync(dist, { recursive: true })
   const out = path.join(dist, 'sidecar.cjs')
-  const result = await build({
-    entryPoints: [path.join(root, 'src', 'main.ts')],
-    outfile: out,
-    bundle: true,
-    platform: 'node',
-    format: 'cjs',
-    target: 'node22',
-    legalComments: 'eof',
-    metafile: true,
-    logLevel: 'warning',
-  })
+  const result = await build({ ...BUNDLE_OPTIONS, outfile: out, metafile: true })
   // Only runtime dependencies may end up in the bundle.
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
     dependencies: Record<string, string>

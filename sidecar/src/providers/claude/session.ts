@@ -179,6 +179,8 @@ export class ClaudeSession implements ProviderSession {
   private readonly cleanup: () => void
   private readonly startupTimeoutMs: number
   private launchedAt = 0
+  /** The first status line while starting is logged (its timing). */
+  private statusTimed = false
   private startupTimer: NodeJS.Timeout | null = null
   private launcherCheck: NodeJS.Timeout | null = null
   /** Read-only, with no transcript yet: looking for it until Claude Code writes it. */
@@ -677,7 +679,14 @@ export class ClaudeSession implements ProviderSession {
    * taken for the conversation the world follows, once the session is up.
    */
   onStatus(p: Record<string, unknown>): void {
-    if (this.disposed || this.host.ended || this.startupTimer) return
+    if (this.disposed || this.host.ended) return
+    if (this.startupTimer) {
+      // Timing for NOTES.md -> S02 -> Starting up: Claude Code's screen is
+      // drawn, against "came up", when its bridge is.
+      if (!this.statusTimed) this.log.info(`session ${this.host.id}: first status line ${Date.now() - this.launchedAt} ms after launch`)
+      this.statusTimed = true
+      return
+    }
     const figures = statusFiguresIn(p)
     if (figures.sessionId !== this.nativeId) return
     if (this.usage.status(figures)) this.sendUsage()
