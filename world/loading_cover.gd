@@ -7,7 +7,9 @@ extends CanvasLayer
 ## islands are standing from the first frame instead of popping in. Lifted
 ## then, when the sidecar fails, or after [constant TIMEOUT_S] whatever
 ## happens. The player's controls and every key and click wait under it.
-## A PLACEHOLDER, like all UI.
+## A PLACEHOLDER, like all UI. Unused since C14: the game opens on the
+## main menu over the world instead; kept in case it's wanted again
+## (user's, 2026-10-26).
 
 ## Past the client's own handshake timeout, plus the sync: never stuck.
 const TIMEOUT_S := SidecarClient.HANDSHAKE_TIMEOUT_S + 10.0

@@ -10,8 +10,9 @@ extends Node3D
 ## turns to night and back, and the weather changes (W09). Esc opens the
 ## pause menu (C13), which opens the settings menu (C10), whose settings
 ## this applies, and quits through the quit guard. The crosshair picks
-## what E acts on (C11). The world shows once the sidecar has taken back
-## the sessions still running from before a restart (S07).
+## what E acts on (C11). The game opens on the main menu (C14), over the
+## world as the sidecar takes back the sessions still running from before
+## a restart (S07); Play takes the player in, the pause menu back out.
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -45,9 +46,10 @@ var pause_menu := PauseMenu.new()
 var settings_menu := SettingsMenu.new()
 ## The crosshair, and what E acts on (C11).
 var crosshair := Crosshair.new()
-## Hides the world until the sidecar has taken back the sessions still
-## running from before a restart (S07).
-var loading_cover := LoadingCover.new()
+## The game's start, and the pause menu's Main menu (C14), with the camera
+## that circles the islands behind it.
+var main_menu := MainMenu.new()
+var menu_camera := MenuCamera.new()
 ## Shows or hides the sessions started outside the game (S08, the
 ## setting); tests replace it, so a suite never shows the user's own.
 var set_outside_sessions: Callable = func(on: bool) -> void: Sidecar.set_outside_sessions(on)
@@ -99,7 +101,7 @@ func _ready() -> void:
 	pointers.setup(_islands, store)
 	add_child(minimap)
 	minimap.setup(_islands, _player)
-	minimap.hidden_when = func() -> bool: return _chat.is_open() or _menu.is_open() or world_map.is_open()
+	minimap.hidden_when = func() -> bool: return _chat.is_open() or _menu.is_open() or world_map.is_open() or main_menu.is_open()
 	crosshair.name = "Crosshair"
 	crosshair.player = _player
 	add_child(crosshair)
@@ -121,9 +123,7 @@ func _ready() -> void:
 	_menu.go_to_platform.connect(go_to_platform)
 	_setup_settings()
 	store.attach(Sidecar)
-	# Last, so its input check comes first.
-	add_child(loading_cover)
-	loading_cover.setup(Sidecar, _player)
+	main_menu.open_at_start()
 	# Dev tool: the current live check's steps, top left (NOTES → Running it).
 	if "--checklist" in OS.get_cmdline_user_args():
 		add_child(load("res://tests/live/checklist.tscn").instantiate())
@@ -177,12 +177,20 @@ func _setup_settings() -> void:
 	settings_menu.shadows_available = not compatibility
 	# Nor is there screen-space anti-aliasing there (Godot's docs).
 	settings_menu.screen_space_aa_available = not compatibility
-	# Before the settings menu, so its dim is drawn under that panel too.
+	# Before the settings menu, so their dims are drawn under that panel too.
 	pause_menu.name = "PauseMenu"
 	add_child(pause_menu)
+	main_menu.name = "MainMenu"
+	add_child(main_menu)
 	add_child(settings_menu)
 	settings_menu.setup(settings, _player, attention)
 	pause_menu.setup(_player, settings_menu, quit_guard)
+	menu_camera.name = "MenuCamera"
+	menu_camera.islands = _islands
+	add_child(menu_camera)
+	main_menu.setup(_player, settings_menu, quit_guard, menu_camera)
+	main_menu.hud = [usage_limits, pointers]
+	pause_menu.main_menu_chosen.connect(main_menu.open)
 	settings_menu.sidecar = Sidecar
 	apply_settings()
 

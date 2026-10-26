@@ -3,12 +3,16 @@ extends CanvasLayer
 ## The pause menu (C13): Esc opens it when nothing else is open (the chat,
 ## the menus, the map and the debug console take Esc first), dims the
 ## screen and frees the mouse; Esc again, or Resume, closes it. Settings
-## opens the settings menu (C10), whose Esc comes back here; Quit game
+## opens the settings menu (C10), whose Esc comes back here; Main menu goes
+## back to the main menu (C14), sessions still running; Quit game
 ## asks first while sessions run, as closing the window does (S05).
 ## Nothing pauses: the sessions, the sky and the islands carry on (user's
 ## decision, 2026-10-22). A PLACEHOLDER, like all UI for now.
 
-const BUTTONS := ["Resume", "Settings", "Quit game"]
+const BUTTONS := ["Resume", "Settings", "Main menu", "Quit game"]
+
+## Main menu was pressed; the world opens the main menu (C14).
+signal main_menu_chosen
 
 var player: Player
 var settings_menu: SettingsMenu
@@ -74,6 +78,12 @@ func button(text: String) -> Button:
 func open_settings() -> void:
 	_panel.visible = false
 	settings_menu.open()
+
+
+## Closes this and asks the world for the main menu (C14).
+func to_main_menu() -> void:
+	close()
+	main_menu_chosen.emit()
 
 
 func quit() -> void:
@@ -143,6 +153,7 @@ func _build() -> void:
 		_buttons[text] = b
 	_buttons["Resume"].pressed.connect(close)
 	_buttons["Settings"].pressed.connect(open_settings)
+	_buttons["Main menu"].pressed.connect(to_main_menu)
 	_buttons["Quit game"].pressed.connect(quit)
 	var hint := Label.new()
 	hint.text = "Esc to resume"
