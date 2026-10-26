@@ -5,7 +5,7 @@ extends CanvasLayer
 ## come behind it. Play is never held back: the camera eases down to the
 ## player and the controls come back when it gets there. Settings opens
 ## the settings menu (C10) as the pause menu does; Credits shows
-## assets/CREDITS.md, then Godot's own notices; Quit asks first while
+## assets/CREDITS.md, with Godot's own notices behind a toggle; Quit asks first while
 ## sessions run (S05). The pause menu's Main menu (C13) brings it back,
 ## the camera easing up; sessions keep running. A PLACEHOLDER, like all
 ## UI for now.
@@ -34,6 +34,7 @@ var _dim := ColorRect.new()
 var _panel := PanelContainer.new()
 var _credits := PanelContainer.new()
 var _credits_body: VBoxContainer
+var _licences: VBoxContainer # Godot's notices, behind their toggle
 var _buttons := {} # text → its Button
 
 
@@ -128,17 +129,40 @@ func button(text: String) -> Button:
 	return _buttons[text]
 
 
+## Shows or hides Godot's licences under the credits (their toggle).
+func toggle_godot_licences() -> void:
+	if _licences.get_child_count() == 0:
+		_licences.add_child(_plain(Engine.get_license_text()))
+		_licences.add_child(_plain(_godot_components()))
+	_licences.visible = not _licences.visible
+	_buttons["Godot licences"].text = ("Hide" if _licences.visible else "Show") + " Godot licences"
+
+
+func godot_licences_shown() -> bool:
+	return _licences != null and _licences.visible
+
+
 ## The credits' text as shown, for tests (empty until first opened).
 func credits_text() -> String:
 	var parts: PackedStringArray = []
-	for c in _credits_body.get_children():
+	_shown_text(_credits_body, parts)
+	return "\n".join(parts)
+
+
+func _shown_text(node: Node, parts: PackedStringArray) -> void:
+	for c in node.get_children():
+		if c is CanvasItem and not (c as CanvasItem).visible:
+			continue
 		if c is MarkdownView:
 			parts.append((c as MarkdownView).shown_text())
 		elif c is Label:
 			parts.append((c as Label).text)
+		elif c is Button:
+			parts.append((c as Button).text)
 		elif c is RichTextLabel:
 			parts.append((c as RichTextLabel).get_parsed_text())
-	return "\n".join(parts)
+		elif c is VBoxContainer:
+			_shown_text(c, parts)
 
 
 func _show() -> void:
@@ -189,8 +213,20 @@ func _fill_credits() -> void:
 	godot.text = "Made with Godot Engine"
 	godot.add_theme_font_size_override("font_size", 22)
 	_credits_body.add_child(godot)
-	_credits_body.add_child(_plain(Engine.get_license_text()))
-	_credits_body.add_child(_plain(_godot_components()))
+	# Godot's licence and its parts' (long; built when first shown).
+	var toggle := Button.new()
+	toggle.name = "GodotLicences"
+	toggle.text = "Show Godot licences"
+	toggle.focus_mode = Control.FOCUS_NONE
+	toggle.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	toggle.pressed.connect(toggle_godot_licences)
+	_credits_body.add_child(toggle)
+	_buttons["Godot licences"] = toggle
+	_licences = VBoxContainer.new()
+	_licences.name = "Licences"
+	_licences.add_theme_constant_override("separation", 14)
+	_licences.visible = false
+	_credits_body.add_child(_licences)
 
 
 # The parts of Godot made by others, each with its copyright and licence,
