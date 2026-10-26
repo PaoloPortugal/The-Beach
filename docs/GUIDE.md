@@ -286,6 +286,8 @@ while its window is in front, every 10 seconds in the background. To
 see only the game's own sessions, turn off **Show sessions started
 outside the game** in Settings → Game: their islands sink at once and
 are forgotten, and rise again as new islands when you turn it back on.
+They never get the green beam or arrow of a new island: you didn't
+start them.
 
 This needs Claude Code's agent view. With agent view turned off, no
 outside sessions are shown, and the setting is greyed out with "Sessions
@@ -302,7 +304,7 @@ below). Islands are made by the game, so no two look the same.
 When a session starts, its island rises out of the seabed, which takes a few
 seconds; if you started it from the sessions menu, you're taken there
 (the settings' Game tab can turn that off). A green light beam stands
-over a new session's island until
+over a new session's island (not one started outside the game) until
 you've been on it, and while the island is off-screen a green arrow at
 the edge of the screen points to it, with its project's name and how far
 it is. (The beam and arrow are a first version, like the rest of the
