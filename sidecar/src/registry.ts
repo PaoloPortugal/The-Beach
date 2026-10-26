@@ -40,7 +40,7 @@ export class Registry {
   private readonly notices = new Map<string, Notice[]>()
   /** Each program_path provider's latest program (provider.program), for hello. */
   private readonly programs = new Map<string, Program>()
-  /** Provider messages wait while a client.set_program_path is answered (holdProviders). */
+  /** Provider messages wait while any command is answered (holdProviders), so its reply comes first. */
   private providersHeld = 0
   private readonly heldProviderMessages: Outgoing[] = []
   private sink: (msg: Outgoing) => void = () => {}

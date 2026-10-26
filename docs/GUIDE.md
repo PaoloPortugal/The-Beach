@@ -1035,7 +1035,8 @@ there's none. Before your first session it may say "Not looked for
 yet": the game looks when a session starts.
 - **Browse…** opens your system's file picker. Choose the Claude Code
   program itself: on Windows that's `claude.exe` (an npm `claude.cmd`
-  won't do; the picker only shows `.exe` files). The row says
+  won't do; the picker only shows `.exe` files), on a drive of this
+  computer, not a network folder. The row says
   "Checking…" while the game makes sure it's a full path to a program
   that answers as Claude Code 2.1.284 or newer. If it isn't, the reason
   shows in red ("Not changed: …") and the one you had stays.

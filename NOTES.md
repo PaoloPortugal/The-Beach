@@ -705,8 +705,8 @@ Godot connects to `ws://127.0.0.1:<port>/` with `Authorization: Bearer
 **Connecting.** The sidecar sends `hello` (protocol version, providers), one
 `session.snapshot` per live session, then `sync.completed`. Godot refuses a
 protocol version it doesn't know. Each provider in `hello` has
-`provider`, `name`, optional `capabilities` and `notices` (below:
-Provider capabilities and notices, S08) and optional `launch_options`: what a session can be
+`provider`, `name`, optional `capabilities`, `notices` and `program` (below:
+Provider capabilities and notices, S08, S02) and optional `launch_options`: what a session can be
 started or resumed with, lists `model`, `effort` and `mode` of choices
 `{id, label}` (the provider's id and its words) in the provider's order,
 each list optional; Godot offers "Default" before each and shows only
@@ -775,7 +775,8 @@ a config object, and `notices`: its notices so far, one per code.
   `client.set_program_path {provider, path}` sets a path (absolute) or
   clears it (`null`); the provider checks it first (absolute, a file,
   on Windows an `.exe`, answers `--version` with a version it supports)
-  and answers `ok {program}`, then sends `provider.program`; a path
+  and answers `ok {program}`, then sends `provider.program` (unless
+  the answer is the same as the last); a path
   that fails is answered with `invalid_program` (the message says
   which check) and the previous setting stays. A provider without the
   capability answers `not_supported`. The setting is for sessions
@@ -3940,14 +3941,16 @@ capability; C12).** Code: `launch-options.ts`.
 2026-10-26; dev log 2026-10-26-s02-program-path).** For a `claude` the
 usual lookup (Architecture → Platforms → Finding `claude`) can't find,
 or to pick one of several. The commands and events are in Protocol →
-Provider capabilities → `program_path`. Code: `checkClaudePath` and
+Provider capabilities and notices → `program_path`. Code: `checkClaudePath` and
 `findClaude` in `find.ts`, `setProgramPath` and `find()` in `index.ts`,
 `providerProgram` in `sidecar/src/registry.ts`, `--program-path` in
 `sidecar/src/serve.ts`; in Godot `SidecarClient.set_program_path` and
 the Settings row (C10).
 - **The checks**, in order, each with its own message for the player:
-  a full path ("That isn't a full path."), a file ("There's no program
-  at that path."), on Windows an `.exe` (npm's `claude.cmd` needs a
+  a full path without control characters ("That isn't a full path."),
+  on Windows on a drive of this computer (a network path, `\\host\share\…`,
+  would be reached over the network at each start; security review
+  2026-10-26), a file ("There's no program at that path."), on Windows an `.exe` (npm's `claude.cmd` needs a
   shell, so it is never run), then `--version` (an argument array, the
   clean environment, 15 s) answering as Claude Code, at least the
   minimum version.
@@ -3976,7 +3979,13 @@ the Settings row (C10).
   as `serve --program-path <provider>=<path>` (in a fixed order). At
   start a path that fails is kept and reported not found; a provider
   unknown or without the capability is warned about in the log and
-  ignored, so an old setting never stops the sidecar.
+  ignored, so an old setting never stops the sidecar; Godot leaves out
+  a key that isn't a well-formed provider id, which the sidecar's flag
+  parsing would refuse (security review 2026-10-26). The settings
+  file is trusted as the user's own: whoever can edit it already runs
+  as the user. Godot sends one choice at a time (Browse… and Reset are
+  greyed out while one is checked); two sent at once could end with
+  the slower check's path, not the last sent.
 - **The reply first.** Provider messages a command causes
   (`provider.program`) are held until its reply is sent, for every
   command, so the row shows the answer to its own choice before the
@@ -3987,7 +3996,9 @@ the Settings row (C10).
   `unknown_provider`, the reply before `provider.program`, hello's
   `program`, a deleted path failing a launch with why, Reset, the same
   answer not sent twice, a stale look not reported, the serve flags),
-  the core suite (start arguments, saved and cleared, a refusal not
+  a launch after a path is set running that path, control characters
+  and network paths refused before anything runs; the core suite (start
+  arguments, a malformed id left out, saved and cleared, a refusal not
   kept, no sidecar) and the world suite (Settings → Game's row; the
   real sidecar refusing a path that isn't a full one). Live check:
   `tests/live/checklist.txt`.

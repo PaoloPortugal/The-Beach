@@ -23,13 +23,13 @@ sequenceDiagram
     Note over World: the row says "Checking…"
     World->>Sidecar: client.set_program_path {provider: claude, path}
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/find.ts (checkClaudePath), index.ts (setProgramPath)<br/>commands.ts (provider messages held until the reply)
-        Note over Sidecar: a full path? a file? on Windows an .exe?<br/>(a .cmd is never run)
+        Note over Sidecar,Claude: providers/claude/find.ts (checkClaudePath), index.ts (setProgramPath)<br/>registry.ts and commands.ts (provider messages held until the reply)
+        Note over Sidecar: a full path? (on Windows on a drive, not a network path)<br/>a file? on Windows an .exe?<br/>(a .cmd is never run)
         Sidecar->>Claude: --version (argument list, clean environment, 15 s)
         Claude-->>Sidecar: "2.1.300 (Claude Code)"
         alt every check passes, version 2.1.284 or newer
             Sidecar-->>World: ok {program: {path, version, set_by_hand: true}}
-            Sidecar->>World: provider.program (the same, kept for the next hello)
+            Sidecar->>World: provider.program (the same, kept for the next hello#59;<br/>not sent if the answer is the same as the last)
             Note over World: saved in settings.cfg [programs]#59; the row shows it, "set by hand"
         else a check fails
             Sidecar-->>World: error invalid_program (which check, in the player's words)
@@ -39,7 +39,7 @@ sequenceDiagram
     opt Reset
         World->>Sidecar: client.set_program_path {provider: claude, path: null}
         Note over Sidecar: looks for claude as usual at once<br/>(PATH, install folders, on macOS and Linux the login shell last)
-        Sidecar-->>World: ok {program: {path, version, set_by_hand: false}} or {path: null, message}
+        Sidecar-->>World: ok {program: {path, version, set_by_hand: false}} or {path: null, set_by_hand: false, message}
         Sidecar->>World: provider.program
         Note over World: removed from settings.cfg
     end

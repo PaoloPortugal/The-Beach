@@ -21,7 +21,7 @@ branch once S08 had merged, since both touch `main.ts`, `serve.ts`,
   by its own name with Browse and Reset. A path set by hand skips every
   other lookup, the login shell included.
 - *User's approval of the protocol, 2026-10-26* (NOTES.md → Protocol →
-  Provider capabilities → `program_path`): the capability
+  Provider capabilities and notices → `program_path`): the capability
   `program_path {program}`, `program` on the provider's `hello` entry,
   the event `provider.program`, the command `client.set_program_path
   {provider, path | null}` answered `ok {program}`, and the error code
@@ -87,6 +87,21 @@ answers, and a refusal in red, "Not changed: <why>".
 - **Reset to defaults** in Settings leaves a program set by hand alone:
   it is saved by `SidecarClient`, not `Settings`, and has its own
   Reset.
+
+## Security review (2026-10-26)
+
+No blockers. Fixed: a malformed key in the settings file's
+`[programs]` (hand-edited, e.g. `my-tool`) became a `--program-path`
+the sidecar refuses, so it wouldn't start and the Settings row (filled
+from `hello`) couldn't be reached to reset it; Godot now leaves such
+keys out. Also fixed: control characters in a path (an unexpected error
+instead of "That isn't a full path.") and, on Windows, network and
+root-relative paths (`\\host\share\…` would be reached over the
+network at each start); only a drive of this computer is taken. Added
+a test that a launch after a path is set runs that path. Recorded, not
+changed: the settings file is trusted as the user's own, and two
+choices sent at once could end with the slower one (Godot sends one at
+a time). The `.cmd` check only runs on a Windows host.
 
 ## Tests
 

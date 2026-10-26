@@ -55,6 +55,12 @@ test('checks on a path set by hand: full path, a file, .exe on Windows, answerin
 
   assert.deepEqual(await check(exe), { path: exe, version: '2.1.300' })
   await assert.rejects(check('claude.exe'), (e: Error) => e instanceof ClaudeNotFound && /isn't a full path/.test(e.message))
+  const before = v.calls.length
+  await assert.rejects(check(exe + '\u0000x'), /isn't a full path/, 'a control character is refused before anything touches the file')
+  for (const network of ['\\\\host\\share\\claude.exe', '//host/share/claude.exe', '\\claude.exe']) {
+    await assert.rejects(check(network, 'win32'), /on a drive of this computer/, `${network}: never reached`)
+  }
+  assert.equal(v.calls.length, before, 'nothing run for those')
   await assert.rejects(check(path.join(path.dirname(exe), 'missing.exe')), /no program at that path/)
   await assert.rejects(check(path.dirname(exe)), /no program at that path/, 'a folder is not a program')
   await assert.rejects(check(old), new RegExp(`2\\.1\\.1 is too old; version ${MIN_VERSION.replace(/\./g, '\\.')} or newer`))
@@ -134,6 +140,32 @@ test('client.set_program_path: checked, answered with the program, then provider
     assert.deepEqual((await c2.next('provider.program')).program, { path: '/found/claude', version: '2.1.299', set_by_hand: false })
     assert.deepEqual([...c.invalid, ...c2.invalid], [])
     await c2.close()
+  } finally {
+    await c.close()
+    await s.close()
+    await p.shutdown()
+  }
+})
+
+test('a session started after a path is set runs that claude, not the one found', async () => {
+  const exe = file('claude.exe')
+  const v = versions({ [exe]: '2.1.300' })
+  let launch: { command?: string } = {}
+  const p = provider({
+    readVersion: v.read,
+    findClaude: async () => ({ path: process.execPath, version: '2.1.299' }),
+    openTerminal: async (req) => { launch = JSON.parse(fs.readFileSync(req.argv[2]!, 'utf8')); return 'fake' },
+    projectsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'program-path-projects-')),
+  })
+  const s = await testServer([p])
+  const c = await connect(s.port, s.token)
+  try {
+    await c.sync()
+    assert.equal((await c.command({ type: 'client.set_program_path', provider: 'claude', path: exe })).type, 'ok')
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'program-path-proj-'))
+    const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: proj } })
+    assert.equal(r.type, 'ok')
+    assert.equal(launch.command, exe, 'the terminal starts the claude set by hand')
   } finally {
     await c.close()
     await s.close()

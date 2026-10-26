@@ -91,6 +91,8 @@ func _run() -> void:
 	_check(args._serve_args() == ["serve", "--program-path", "claude=C:/Tools/claude.exe", "--program-path", "zeta=/z/zeta"], "S02: each program set by hand given at start, in a fixed order")
 	args.outside_sessions = false
 	_check(args._serve_args() == ["serve", "--no-outside-sessions", "--program-path", "claude=C:/Tools/claude.exe", "--program-path", "zeta=/z/zeta"], "S02: with the outside setting")
+	args.program_paths = {"claude": "C:/Tools/claude.exe", "my-tool": "/x", "Claude": "/y", "": "/z"}
+	_check(args._serve_args() == ["serve", "--no-outside-sessions", "--program-path", "claude=C:/Tools/claude.exe"], "S02: a malformed provider id from an edited settings file is left out, so the sidecar still starts")
 	args.free()
 	# provider.program: kept with its provider, announced, not a session event.
 	changes[0] = 0
