@@ -508,7 +508,7 @@ func _settings(world: Node3D, player: Player) -> void:
 	for t: String in SettingsMenu.TABS:
 		menu.show_tab(t)
 		tabs.append(menu.current_tab())
-	_check(tabs == ["Graphics", "Controls", "Sound", "Game"], "C10: tabs for Graphics, Controls, Sound and Game")
+	_check(tabs == ["Graphics", "Controls", "Sound", "Game", "Providers"], "C10: tabs for Graphics, Controls, Sound, Game and Providers")
 	var sun: DirectionalLight3D = world.get_node("Sun")
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var shadows: OptionButton = menu.control("graphics/shadows")
@@ -560,11 +560,12 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(outside.disabled and not outside.button_pressed and menu.outside_off_text() == "Can't list them: agent view is off.", "S08: the provider's notice: greyed out, shown off, the notice in red beside it")
 	_check(settings.value("game/outside_sessions") == true, "S08: and the saved choice is kept")
 	# S02: a row per provider that runs a program of the user's, kept up with what it found.
-	_check(menu.program_text("fake") == "" and menu._programs.is_empty(), "S02: no row for a provider without program_path")
+	menu.show_tab("Providers")
+	_check(menu.program_text("fake") == "" and menu._programs.is_empty() and menu._no_providers.is_visible_in_tree(), "S02: no row for a provider without program_path, Providers says there's nothing to set")
 	stand_in.providers.append({"provider": "tool", "name": "Tool", "capabilities": {"program_path": {"program": "tool"}}})
 	stand_in.providers_changed.emit()
 	var tool_row: Dictionary = menu._programs.get("tool", {})
-	_check(not tool_row.is_empty() and tool_row["label"].text == "Tool" and tool_row["box"].is_visible_in_tree(), "S02: a row for it in Game, by its name")
+	_check(not tool_row.is_empty() and tool_row["label"].text == "Tool" and tool_row["box"].is_visible_in_tree() and not menu._no_providers.visible, "S02: a row for it in Providers, by its name, instead of the line")
 	_check(menu.program_text("tool") == "Not looked for yet: it's found when a session starts.", "S02: not looked for yet")
 	_check(tool_row["reset"].disabled and not tool_row["browse"].disabled, "S02: Reset greyed out unless set by hand, Browse… there")
 	stand_in.providers[1]["program"] = {"path": "/opt/tool/bin/tool", "version": "2.1.300", "set_by_hand": false}
