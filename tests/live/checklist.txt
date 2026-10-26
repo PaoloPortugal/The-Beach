@@ -64,9 +64,10 @@ B. Choosing it
 C. Kept across a restart
 9. Close the game and start
    it again. Settings →
-   Providers: at once the
-   same path, version and
-   "set by hand"?
+   Providers: the same path,
+   version and "set by hand"
+   (maybe "Looking for it…"
+   for a moment first)?
 
 D. When it stops working
 10. Close the game. Copy
@@ -99,9 +100,9 @@ D. When it stops working
    red?
 14. Close the game and start
    it again: the row says it
-   at once, in red, and Add
-   a session is greyed out
-   from the start?
+   in red as soon as you
+   open it, and Add a
+   session is greyed out?
 15. Copy claude.exe into that
    folder again. Look again:
    "Looking…", then the copy
