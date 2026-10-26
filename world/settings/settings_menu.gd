@@ -369,9 +369,13 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	var box := VBoxContainer.new()
 	box.name = "Program_%s" % id
 	box.custom_minimum_size.x = 300.0
-	# The path and messages are shown as plain text.
+	# The path and messages are shown as plain text. Wrapping labels get a
+	# width of their own: while Game is a hidden tab they have none, would
+	# wrap at every character, and the panel (as tall as its tallest tab)
+	# would grow past the screen.
 	var status := Label.new()
 	status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	status.custom_minimum_size.x = 300.0
 	box.add_child(status)
 	var buttons := HBoxContainer.new()
 	var browse := Button.new()
@@ -388,6 +392,7 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	box.add_child(buttons)
 	var error := Label.new()
 	error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	error.custom_minimum_size.x = 300.0
 	error.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
 	box.add_child(error)
 	_game.add_child(label)

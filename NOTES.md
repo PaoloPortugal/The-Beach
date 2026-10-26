@@ -3194,7 +3194,10 @@ Tested in the world test (`_settings`; Esc in `_pause`, C13): the tabs, each set
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on, the crosshair, the
 outside sessions with and without the notice: S08; the program rows
-with a stand-in sidecar, and the real one refusing a path: S02), every value kept in a
+with a stand-in sidecar, and the real one refusing a path: S02; the
+panel under 600 px tall on every tab: it is as tall as its tallest tab,
+hidden ones included, and a wrapping label needs a width of its own or
+it wraps at every character while its tab is hidden), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
 defaults or clamped, and Reset (the crosshair too). The window mode, vsync and the mouse
 being captured can't be seen headless: the live check's. Screenshots of
