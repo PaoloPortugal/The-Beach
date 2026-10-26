@@ -57,7 +57,7 @@ sequenceDiagram
         Sidecar-->>World: ok
         Sidecar->>Agents: which sessions run? (at once)
         Agents-->>Sidecar: the list
-        Sidecar->>World: session.created, each (islands rise, as new ones)
+        Sidecar->>World: session.created, each (islands rise, as new ones,<br/>with no new-island beacon or arrow, W04)
     end
     opt agent view is off
         Sidecar->>Agents: which sessions run?
