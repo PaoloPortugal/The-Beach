@@ -94,5 +94,5 @@ debug_console={
 [rendering]
 
 renderer/rendering_method="mobile"
-anti_aliasing/quality/use_debanding=true
 driver/depth_prepass/enable=false
+anti_aliasing/quality/use_debanding=true
