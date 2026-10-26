@@ -579,6 +579,16 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and tool_row["status"].modulate != Color.WHITE, "S02: not found: why, in red")
 	menu.choose_program("tool", "/somewhere/else")
 	_check(menu.program_error("tool") == "Not changed: The sidecar isn't running." and stand_in.program_paths == {"tool": "/opt/tool/bin/tool"} and not tool_row["browse"].disabled, "S02: no sidecar: not changed, said why, the setting kept")
+	# The panel is as tall as its tallest tab, hidden ones too: the row's
+	# wrapping text, a message and a refusal shown, mustn't make it taller
+	# than a small screen on any tab.
+	var heights := []
+	for t: String in SettingsMenu.TABS:
+		menu.show_tab(t)
+		await _frames(2)
+		heights.append(menu._panel.size.y)
+	_check(heights.all(func(h: float) -> bool: return h < 600.0), "S02: the settings panel fits a small screen on every tab (heights %s)" % [heights])
+	menu.show_tab("Game")
 	menu.sidecar = root.get_node("Sidecar")
 	stand_in.free()
 	_check(not outside.disabled, "S08: (back to the real sidecar)")

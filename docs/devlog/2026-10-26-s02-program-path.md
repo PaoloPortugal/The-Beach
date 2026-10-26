@@ -88,6 +88,19 @@ answers, and a refusal in red, "Not changed: <why>".
   it is saved by `SidecarClient`, not `Settings`, and has its own
   Reset.
 
+## Found in the live check: a settings menu past the screen
+
+The user found the settings menu too long to use. Measured headless:
+the panel was 2016-4997 px tall on Graphics, Controls and Sound, and
+right only on Game. The tabs keep the panel as tall as the tallest tab,
+hidden ones included (C10, so it doesn't jump), and a hidden tab's
+wrapping labels have no width, so the row's path label wrapped at every
+character. S08's notice label beside it already had a minimum width.
+Fixed by giving the row's two wrapping labels a minimum width (300 px);
+the world test now checks the panel stays under 600 px on every tab,
+with a long message and a refusal shown (it failed with heights up to
+4997 px before the fix).
+
 ## Security review (2026-10-26)
 
 No blockers. Fixed: a malformed key in the settings file's
