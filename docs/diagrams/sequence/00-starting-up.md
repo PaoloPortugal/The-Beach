@@ -44,7 +44,8 @@ Meanwhile the game shows the main menu over the world (C14; S07's
 loading cover before it, now unused), and Play isn't held back for
 the sync. Islands of sessions taken back wait for the first
 `sync.completed`, then come back as they were, from the game's
-`islands.json` (W12, [flow 14](14-reattach-after-restart.md)).
+`islands.json` (W12, [flow 14](14-reattach-after-restart.md)), rising
+behind the menu once each one's ground is made on a worker thread.
 
 A connection without the token, with an `Origin` header (any web page), or
 with the wrong `Host` is refused before it starts. Events whose `seq` a

@@ -1001,6 +1001,20 @@ The water level is y = 0.
   prints its seed; any other value pins it. The seed rolled is kept in
   `island_seed`, which W12 saves so a session taken back after a
   restart gets the same island.
+- *Made off the main thread* (C14, after its live check: islands
+  appearing at start stuttered the menu's camera). Making the ground
+  takes 55-90 ms an island (measured headless, by biome), so a session's
+  island (`build_in_background`, set by `SessionIslands`) makes it on a
+  `WorkerThreadPool` task: `IslandGenerator.make` (the grid, the top, the
+  mesh's arrays, the collision faces) and `prop_spots`, on a generator
+  of its own, writing only to a dictionary of its own, so the island can
+  be freed meanwhile (it waits for the task when freed). `take` then
+  hands the grid and top to the island's generator, and the mesh,
+  collision, props, torches and any waiting zipline go in on the main
+  thread; `built` fires and `is_built` turns true. Before that
+  `height_at` works and `surface_height` falls back to it. Islands made
+  outside `SessionIslands` (W01 and W10 tests) make their ground at once, on
+  the main thread.
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1088,10 +1102,15 @@ session makes its island sink, and the island is then removed.
   just there, no rise, and so will sessions reattached after a restart
   be (user's decision, 2026-10-12, S07: the rise keeps meaning a new
   session; many rising at once each time the game starts would say
-  nothing).
+  nothing). *Changed (user's, 2026-10-26, C14's live check):* they rise
+  too, with no beacon, since the main menu's camera now watches them
+  arrive; popping up looked wrong.
 - **Ending:** the orchestrator and its agents go at once; the empty
   island stays while you're on it, then sinks. Its bridges count as "on
-  it" (built with W06).
+  it" (built with W06). *Except behind the main menu* (user's,
+  2026-10-26, C14's live check): there it sinks at once, and Play puts
+  you on the platform (rejected: Play putting you back on it, then it
+  sinking).
 - **Motion only** for now: no splash, foam or sound.
 - **Finding a new island** (after trying it: the rise was easy to miss,
   and there is to be an option to turn off being taken there, C10's
@@ -1103,13 +1122,16 @@ session makes its island sink, and the island is then removed.
   minimap). Built with W04. Both are **placeholders**, like all UI.
 
 **How it works** (`SessionIslands`; timings and depth my picks).
-- *Rise.* An island for `session.created` starts at y = -34 m (`SUNK_Y`,
+- *Rise.* Every island, `session.created` or a snapshot (since C14),
+  waits out of sight (`BUILDING_Y`, 100 m under the deepest sea floor)
+  while its ground is made on a worker thread (W01), then starts at
+  y = -34 m (`SUNK_Y`,
   4 m under the deepest sea floor, so all of it is under the seabed, W08;
   deeper for an island whose top is higher, W10's `sunk_y`)
   and rises to 0 in 3 s
   (`rise_time`, cubic ease-out), with its orchestrator on it. `is_rising`
-  says so, and `island_risen` fires when it's up (at once for a
-  snapshot). `world.gd` → `teleport` waits for it: it notes the session
+  says so from the start, and `island_risen` fires when it's up.
+  `world.gd` → `teleport` waits for it: it notes the session
   and goes on `island_risen`; a later teleport replaces the wait.
 - *Sink.* On `session.ended` the orchestrator and `IslandAgents` are
   freed (the chat forgets the orchestrator as it leaves the tree) and the
@@ -1118,8 +1140,14 @@ session makes its island sink, and the island is then removed.
   `session_at`), nor on one of its bridges (W06), sinks to the same depth (`sunk_y`) in 4 s (`sink_time`, cubic ease-in) and
   is freed. You leave by swimming away (W08), by going to another
   session or to the platform, or over a bridge (W06). A session ending mid-rise sinks from where
-  it got to (nobody can be on it yet). A sinking island can't be stood on
+  it got to (nobody can be on it yet); one ending before it rose is
+  freed at once. A sinking island can't be stood on
   again: there's no way back to it.
+- *Behind the main menu* (C14): `player_away` (set by `world.gd` while
+  the main menu is open, from its `opened` to its `leaving`) lets a left
+  island sink with the player on it; that sets a flag `take_stranded`
+  reads once, and `world.gd` calls `go_to_platform` on `leaving` if it
+  was set, before the camera eases down, so it eases to the platform.
 - *Its spot.* `SessionClusters.hold` takes the ended session out of its
   cluster but keeps its island's spot until the island is freed
   (`remove` with the hold). A cluster with only held islands isn't listed
@@ -3418,7 +3446,8 @@ Quit quitting. The mouse being captured and the look can't be seen
 headless: the live check's.
 
 ### C14 Main menu
-*Built (2026-10-26; live check pending). Scope: core* (world only: no provider, protocol
+*Built (2026-10-26; live check passed, its three findings fixed, their
+re-check pending). Scope: core* (world only: no provider, protocol
 or sidecar part). A title menu at start, so the game opens on a menu
 instead of straight into the world.
 
@@ -3447,7 +3476,7 @@ by the user; the ID and scope are my pick):*
   title until the real name).
 - **Play at once:** Play is never held back; pressed while the sidecar
   is still starting, the camera eases down straight away and islands
-  still to come rise or appear as they arrive, so S07's "standing from
+  still to come rise as they arrive, so S07's "standing from
   the first frame" doesn't hold for that start (rejected: Play waiting
   for the sync, my recommendation, or greyed until it).
 - **Credits:** `assets/CREDITS.md` as it is, read when opened and drawn
@@ -3465,6 +3494,17 @@ by the user; the ID and scope are my pick):*
   deleting it, my recommendation).
 - **Main menu in the pause menu** next to Quit game (user's, during the
   build).
+
+*After the live check (user's, 2026-10-26; my recommendations taken):*
+- **The stutter** as islands came in at start (the loading cover had
+  hidden it): each island's ground is now made on a worker thread (W01),
+  which also ends the hitch a new island made mid-game (rejected: one
+  island a frame, which only splits the stutter up).
+- **Islands taken back rise** behind the menu, with no beacon, instead
+  of popping up (W04; was S07's "standing from the first frame").
+- **An island whose session ends behind the menu** sinks then, the
+  player on it or not, and Play puts the player on the platform (W04;
+  was: back on it, then it sank).
 
 **How it works.**
 - `MainMenu` (`world/main_menu.gd`, a `CanvasLayer` on layer 2, added
@@ -3491,7 +3531,10 @@ by the user; the ID and scope are my pick):*
   and emits `played`. Never held back for the sidecar.
 - *Main menu* in the pause menu calls `open`: the camera starts at the
   player's view and eases up onto the circle. The player stays where
-  they were, sessions run on; Play brings them back there.
+  they were, sessions run on; Play brings them back there, unless the
+  island they stood on sank meanwhile: then to the platform. `opened`
+  and `leaving` (Play, `close_now`) let `world.gd` set
+  `SessionIslands.player_away` (W04).
 - *Settings* hides the panel (the dim stays) and opens `SettingsMenu`
   with its `back` set to the main menu's; Esc there shows the panel
   again and puts `back` back to the pause menu's.
@@ -3521,9 +3564,19 @@ showing CREDITS.md and "Made with Godot Engine", the toggle showing
 Godot's licence and its parts (FreeType) and hiding them, a link
 opening, Esc and Back; Quit quitting or asking with a session running;
 the circle taking in every island within its limits; Play again
-leaving the player where they were with the session still there. The
+leaving the player where they were with the session still there; an
+island ending under the player behind the menu sinking at once, and
+Play then putting them on the platform, only that once. `_sessions`
+checks a taken-back island waiting out of sight while its ground is
+made, then rising. The
 look, the camera's motion and the mouse can't be seen headless: the
 live check's.
+
+*Live check (2026-10-26, the user, real Claude):* all 15 steps passed.
+Found: a stutter as islands came in at start, islands popping up
+rather than rising, and Play putting the player back on an island
+whose session ended behind the menu, which only then sank. All three
+changed as above; their re-check is in `tests/live/checklist.txt`.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -4707,8 +4760,8 @@ changes). Flows 14 and 15. Dev logs 2026-10-12-live-sessions (the
 research and probes) and 2026-10-13-s07-reattach (the build).
 
 **What it's for.** After the game restarts, the sessions it started are
-still running in their terminals. With S07 their islands are standing
-when the world loads (no rise, W04), their chat holds the conversation
+still running in their terminals. With S07 their islands come back
+as they were (rising behind the main menu since C14, W04), their chat holds the conversation
 so far, and chat, prompts and questions work from the world again. Only
 sessions launched by a version with S07 can come back.
 
@@ -4821,8 +4874,8 @@ its failure, or 30 s (the handshake timeout plus 10 s), so reattached
 islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads. *Replaced by C14 (user's, 2026-10-26):*
 the game opens on the main menu over the world instead, and islands
-taken back appear behind it once synced; Play isn't held back for the
-sync. `LoadingCover` is kept, unused, its tests on stand-ins (user's
+taken back rise behind it once synced (W04, changed after C14's live
+check); Play isn't held back for the sync. `LoadingCover` is kept, unused, its tests on stand-ins (user's
 choice).
 
 **If the old port is taken** (another program got it while the game was
@@ -5075,7 +5128,7 @@ mark's look, the wording and the toggle the user's own):*
   read-only here (my pick).
 - *At start* the first listing is part of the restore, before
   `sync.completed`, so W12 brings outside islands back as they were
-  (standing) instead of dropping them as sessions that didn't come back.
+  (rising, since C14) instead of dropping them as sessions that didn't come back.
 - *Each one* is a `ClaudeSession` read from its transcript as S07's
   read-only sessions are (`transcript-hooks.ts`; the wait for a
   transcript not written yet; `/clear` and `/resume` followed per
@@ -5666,8 +5719,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** C14, a main menu (user's, 2026-10-26), built on
-`c14-main-menu` (dev log 2026-10-26-c14-main-menu); the live check
-and the user's review next.
+`c14-main-menu` (dev log 2026-10-26-c14-main-menu); its live check
+passed, and its three findings are fixed (islands made off the main
+thread, taken-back ones rising, an island ending behind the menu
+sinking with Play going to the platform). Their re-check and the
+user's review next.
 **Merged to `main` (2026-10-26), approved by the user: session
 details** (dev log 2026-10-26-session-start-details): no new-island
 beacon for outside sessions (S08), and a quicker bridge after the
