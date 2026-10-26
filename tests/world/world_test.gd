@@ -559,9 +559,40 @@ func _settings(world: Node3D, player: Player) -> void:
 	stand_in.providers_changed.emit()
 	_check(outside.disabled and not outside.button_pressed and menu.outside_off_text() == "Can't list them: agent view is off.", "S08: the provider's notice: greyed out, shown off, the notice in red beside it")
 	_check(settings.value("game/outside_sessions") == true, "S08: and the saved choice is kept")
+	# S02: a row per provider that runs a program of the user's, kept up with what it found.
+	_check(menu.program_text("fake") == "" and menu._programs.is_empty(), "S02: no row for a provider without program_path")
+	stand_in.providers.append({"provider": "tool", "name": "Tool", "capabilities": {"program_path": {"program": "tool"}}})
+	stand_in.providers_changed.emit()
+	var tool_row: Dictionary = menu._programs.get("tool", {})
+	_check(not tool_row.is_empty() and tool_row["label"].text == "Tool" and tool_row["box"].is_visible_in_tree(), "S02: a row for it in Game, by its name")
+	_check(menu.program_text("tool") == "Not looked for yet: it's found when a session starts.", "S02: not looked for yet")
+	_check(tool_row["reset"].disabled and not tool_row["browse"].disabled, "S02: Reset greyed out unless set by hand, Browse… there")
+	stand_in.providers[1]["program"] = {"path": "/opt/tool/bin/tool", "version": "2.1.300", "set_by_hand": false}
+	stand_in.providers_changed.emit()
+	_check(menu.program_text("tool") == "/opt/tool/bin/tool\nversion 2.1.300" and tool_row["status"].modulate == Color.WHITE, "S02: found: its path and version")
+	stand_in.program_paths = {"tool": "/opt/tool/bin/tool"}
+	stand_in.providers[1]["program"] = {"path": "/opt/tool/bin/tool", "version": "2.1.300", "set_by_hand": true}
+	stand_in.providers_changed.emit()
+	_check(menu.program_text("tool").ends_with("  ·  set by hand") and not tool_row["reset"].disabled, "S02: set by hand: said so, and Reset works")
+	stand_in.providers[1]["program"] = {"path": null, "set_by_hand": true, "message": "The Claude Code set in Settings doesn't work: There's no program at that path. Choose it again, or reset it."}
+	stand_in.providers_changed.emit()
+	_check(menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and tool_row["status"].modulate != Color.WHITE, "S02: not found: why, in red")
+	menu.choose_program("tool", "/somewhere/else")
+	_check(menu.program_error("tool") == "Not changed: The sidecar isn't running." and stand_in.program_paths == {"tool": "/opt/tool/bin/tool"} and not tool_row["browse"].disabled, "S02: no sidecar: not changed, said why, the setting kept")
 	menu.sidecar = root.get_node("Sidecar")
 	stand_in.free()
 	_check(not outside.disabled, "S08: (back to the real sidecar)")
+	await _frames(1)
+	_check(not is_instance_valid(tool_row["box"]), "S02: a provider gone, its row gone")
+	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
+		_check(menu._programs.is_empty(), "S02: the fake provider has no program row")
+	else:
+		# The real sidecar checks a path it's given before anything else.
+		_check(menu._programs.has("claude"), "S02: the real sidecar's Claude Code has a row")
+		menu.choose_program("claude", "claude.exe")
+		_check(menu.program_text("claude") == "Checking…", "S02: Checking… until the sidecar answers")
+		await _until(func() -> bool: return menu.program_error("claude") != "", 10.0)
+		_check(menu.program_error("claude") == "Not changed: That isn't a full path." and menu.program_text("claude") != "Checking…" and not root.get_node("Sidecar").program_paths.has("claude"), "S02: a path that isn't a full one refused by the sidecar, nothing kept")
 	menu.close()
 
 	var saved := Settings.new()
