@@ -84,6 +84,88 @@ func _run() -> void:
 	_check(_events.size() == events_before and sidecar.provider_notice("nope").is_empty(), "S08: not a session event")
 	sidecar.providers_changed.disconnect(count)
 
+	# S02: a program set by hand. Given at start after the outside setting.
+	var args := Recording.new()
+	_check(args._serve_args() == [], "S02: nothing set: the sidecar starts with no arguments")
+	args.program_paths = {"zeta": "/z/zeta", "claude": "C:/Tools/claude.exe"}
+	_check(args._serve_args() == ["serve", "--program-path", "claude=C:/Tools/claude.exe", "--program-path", "zeta=/z/zeta"], "S02: each program set by hand given at start, in a fixed order")
+	args.outside_sessions = false
+	_check(args._serve_args() == ["serve", "--no-outside-sessions", "--program-path", "claude=C:/Tools/claude.exe", "--program-path", "zeta=/z/zeta"], "S02: with the outside setting")
+	args.program_paths = {"claude": "C:/Tools/claude.exe", "my-tool": "/x", "Claude": "/y", "": "/z"}
+	_check(args._serve_args() == ["serve", "--no-outside-sessions", "--program-path", "claude=C:/Tools/claude.exe"], "S02: a malformed provider id from an edited settings file is left out, so the sidecar still starts")
+	args.program_paths = {"claude": "C:/Tools/\" --x.exe", "zeta": "/z/ze\nta", "beta": "/b/be\u007fta"}
+	_check(args._serve_args() == ["serve", "--no-outside-sessions"], "S02: a path with a quote or a control character is left out, so it can't become another argument")
+	args.free()
+	# provider.program: kept with its provider, announced, not a session event.
+	changes[0] = 0
+	sidecar.providers_changed.connect(count)
+	var found := {"path": "/opt/x/prog", "version": "2.1.300", "set_by_hand": false}
+	sidecar._handle(JSON.stringify({"type": "provider.program", "provider": provider_id, "program": found}))
+	_check(changes[0] == 1 and sidecar.provider_program(provider_id) == found and _events.size() == events_before, "S02: provider.program kept and announced, not a session event")
+	_check(sidecar.provider_program("nope").is_empty(), "S02: none for a provider that isn't there")
+	sidecar.providers_changed.disconnect(count)
+	# The setting: refused by the real sidecar's checks (nothing saved), or
+	# accepted (saved in the settings file, given to the next start) and
+	# cleared, on a stand-in that answers ok.
+	if not fake:
+		var refused := {}
+		sidecar.set_program_path("claude", "claude.exe", func(m: Dictionary) -> void: refused.merge(m))
+		await _until(func() -> bool: return not refused.is_empty(), 5.0)
+		_check(refused.get("code") == "invalid_program" and str(refused.get("message")).contains("full path") and sidecar.program_paths.is_empty(), "S02: a path the sidecar refuses is said why, and not kept")
+	var saved_cfg := ConfigFile.new()
+	saved_cfg.load(SidecarClient.settings_file)
+	_check(not saved_cfg.has_section("programs"), "S02: nothing saved for it")
+	var replying := Replying.new()
+	replying.providers = [{"provider": "claude", "name": "Claude Code"}]
+	replying.reply = {"type": "ok", "result": {"program": {"path": "/home/u/bin/claude", "version": "2.1.300", "set_by_hand": true}}}
+	var answered := {}
+	replying.set_program_path("claude", "/home/u/bin/claude", func(m: Dictionary) -> void: answered.merge(m))
+	saved_cfg = ConfigFile.new()
+	saved_cfg.load(SidecarClient.settings_file)
+	_check(answered.get("type") == "ok" and replying.program_paths == {"claude": "/home/u/bin/claude"} and replying.provider_program("claude").get("set_by_hand") == true, "S02: accepted: kept and shown")
+	_check(saved_cfg.get_value("programs", "claude", "") == "/home/u/bin/claude" and saved_cfg.get_value("game", "outside_sessions", true) == false, "S02: saved in the settings file, the others kept")
+	_check(replying.sent == [["client.set_program_path", {"provider": "claude", "path": "/home/u/bin/claude"}]], "S02: sent as client.set_program_path")
+	replying.reply = {"type": "ok", "result": {"program": {"path": "/usr/bin/claude", "version": "2.1.301", "set_by_hand": false}}}
+	replying.set_program_path("claude", "")
+	saved_cfg = ConfigFile.new()
+	saved_cfg.load(SidecarClient.settings_file)
+	_check(replying.sent.back() == ["client.set_program_path", {"provider": "claude", "path": null}] and replying.program_paths.is_empty() and not saved_cfg.has_section_key("programs", "claude"), "S02: cleared: sent as null, forgotten, removed from the file")
+	replying.reply = {"type": "error", "code": "invalid_program", "message": "There's no program at that path."}
+	replying.set_program_path("claude", "/gone/claude")
+	_check(replying.program_paths.is_empty(), "S02: refused: nothing kept")
+	replying.free()
+	var offline := SidecarClient.new()
+	var gave := {}
+	offline.set_program_path("claude", "/x/claude", func(m: Dictionary) -> void: gave.merge(m))
+	_check(gave.get("code") == "disconnected" and offline.program_paths.is_empty(), "S02: no sidecar: said so, nothing kept")
+	# Look again: found or not, the answer kept and shown; nothing saved.
+	var looking := Replying.new()
+	looking.providers = [{"provider": "claude", "name": "Claude Code"}]
+	looking.reply = {"type": "ok", "result": {"program": {"path": null, "set_by_hand": false, "message": "Claude Code wasn't found."}}}
+	var looked := {}
+	looking.find_program("claude", func(m: Dictionary) -> void: looked.merge(m))
+	_check(looking.sent == [["client.find_program", {"provider": "claude"}]] and looked.get("type") == "ok", "S02: Look again sent as client.find_program")
+	_check(looking.provider_program("claude").get("message") == "Claude Code wasn't found." and looking.startable_providers().is_empty(), "S02: not found: kept, and no provider can start a session")
+	looking.reply = {"type": "ok", "result": {"program": {"path": "/usr/bin/claude", "version": "2.1.301", "set_by_hand": false}}}
+	looking.find_program("claude")
+	_check(looking.provider_program("claude").get("path") == "/usr/bin/claude" and looking.startable_providers().size() == 1 and looking.program_paths.is_empty(), "S02: found: kept, it can start one, nothing set by hand")
+	looking.providers.append({"provider": "other", "name": "Other"})
+	looking.providers[0]["program"] = {"path": null, "set_by_hand": false, "message": "gone"}
+	_check(looking.startable_providers().map(func(p: Dictionary) -> String: return p["provider"]) == ["other"], "S02: a provider without program_path can always start one")
+	looking.providers[0]["program"] = {}
+	_check(looking.startable_providers().size() == 2, "S02: one still looking counts")
+	looking.free()
+	var nobody := {}
+	offline.find_program("claude", func(m: Dictionary) -> void: nobody.merge(m))
+	_check(nobody.get("code") == "disconnected", "S02: Look again with no sidecar: said so")
+	offline.free()
+	# The sidecar's own answer to a provider it hasn't, or one without
+	# program_path (nothing runs a real program).
+	var asked := {}
+	sidecar.find_program("fake" if fake else "nobody", func(m: Dictionary) -> void: asked.merge(m))
+	await _until(func() -> bool: return not asked.is_empty(), 5.0)
+	_check(asked.get("code") == ("not_supported" if fake else "unknown_provider"), "S02: client.find_program refused by the sidecar for %s (%s)" % ["the fake provider" if fake else "an unknown provider", asked.get("code")])
+
 	if fake:
 		var project := OS.get_user_data_dir()
 		reply = await _command(sidecar, "session.create", {"provider": "fake", "project": {"path": project}})
@@ -126,6 +208,18 @@ func _run() -> void:
 
 # Records commands instead of sending them, as the real one would while
 # connected.
+## Answers every command at once with [member reply], recording it.
+class Replying extends SidecarClient:
+	var sent: Array = []
+	var reply := {}
+
+	func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
+		sent.append([type, fields])
+		if on_reply.is_valid():
+			on_reply.call(reply)
+		return "r%d" % sent.size()
+
+
 class Recording extends SidecarClient:
 	var sent: Array = []
 

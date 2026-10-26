@@ -50,6 +50,7 @@ async function liveSession(o: { bridge?: boolean; up?: boolean } = {}) {
   await c.sync()
   const r = await c.command({ type: 'session.create', provider: 'claude', project: { path: fs.mkdtempSync(path.join(os.tmpdir(), 'conv-')) } })
   const id = (r.result as { session: string }).session
+  await c.next('provider.program') // the claude found for it (program_path), after the reply
   const arg = (flag: string) => launch.args[launch.args.indexOf(flag) + 1]!
   const nativeId = arg('--session-id')
   const h = JSON.parse(fs.readFileSync(arg('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0]

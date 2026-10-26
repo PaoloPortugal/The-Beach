@@ -56,6 +56,14 @@ export interface Question { question: Id; agent: Id; asked_at?: string; items: Q
 
 export interface Notice { code: string; message: string }
 
+/**
+ * The program a provider with program_path found (hello's program,
+ * provider.program): its path and version, or why there's none. S02.
+ */
+export type Program =
+  | { path: string; version: string; set_by_hand: boolean }
+  | { path: null; set_by_hand: boolean; message: string }
+
 /** One value the user can pick or see: the provider's id and its words for it. */
 export interface Choice { id: string; label: string }
 
@@ -185,6 +193,8 @@ export type Command =
   | { type: 'question.answer'; id: Id; session: Id; question: Id; answers?: string[][]; response?: string }
   | { type: 'client.set_focus'; id: Id; focused: boolean }
   | { type: 'client.set_outside_sessions'; id: Id; enabled: boolean }
+  | { type: 'client.set_program_path'; id: Id; provider: string; path: string | null }
+  | { type: 'client.find_program'; id: Id; provider: string }
 
 export type ExtensionCommand = { type: `ext.${string}`; id?: Id; session?: Id; [key: string]: unknown }
 
@@ -193,7 +203,7 @@ export const COMMAND_TYPES: readonly Command['type'][] = [
   'session.create', 'session.list_stored', 'session.resume', 'session.end',
   'interrupt.request', 'session.get_snapshot', 'session.get_history',
   'message.send', 'permission.respond', 'question.answer', 'plan.answer', 'client.set_focus',
-  'client.set_outside_sessions',
+  'client.set_outside_sessions', 'client.set_program_path', 'client.find_program',
 ]
 
 // Commands that belong to a capability: refused for sessions that don't declare it.
@@ -220,6 +230,7 @@ export type ErrorCode =
   | 'session_starting'   // the session exists but hasn't come up yet
   | 'not_supported'      // capability or extension the session doesn't declare
   | 'invalid_project'    // project path not absolute or not a folder
+  | 'invalid_program'    // client.set_program_path: the path failed a check
   | 'provider_error'     // the provider failed to do it
 
 export const EXTENSION_TYPE = /^ext\.([a-z][a-z0-9_]*)\.[a-z][a-z0-9_.]*$/

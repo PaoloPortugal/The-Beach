@@ -14,6 +14,7 @@ import { Registry } from './registry.ts'
 import { stderrLog, type Log } from './log.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import type { Provider } from './provider.ts'
+import { TEST_SESSIONS_DIR } from './launch/app-data.ts'
 
 /** How long shutdown may take before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 3000
@@ -45,30 +46,93 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
   clearTimeout(timer)
 }
 
-/** How Godot started it: `outsideSessions` false is `serve --no-outside-sessions` (the player's setting, S08). */
-export interface ServeOptions { outsideSessions?: boolean }
+/**
+ * How Godot started it (the player's settings): `outsideSessions` false is
+ * `serve --no-outside-sessions` (S08); `programPaths`, by provider, the
+ * programs set by hand, `--program-path <provider>=<path>` (S02).
+ */
+export interface ServeOptions {
+  outsideSessions?: boolean
+  programPaths?: Record<string, string>
+  /**
+   * False: no look for the providers' programs at start (serve() under a
+   * Godot suite, TEST_SESSIONS_DIR set: a suite never runs the real
+   * program). Default true.
+   */
+  lookAtStart?: boolean
+}
 
-/** `serve`'s arguments (main.ts): only `--no-outside-sessions`; anything else is refused. */
+const PROGRAM_PATH = /^([a-z][a-z0-9_]*)=(.+)$/s
+
+/**
+ * `serve`'s arguments (main.ts): `--no-outside-sessions` and
+ * `--program-path <provider>=<path>`, once per provider; anything else is
+ * refused.
+ */
 export function serveOptions(args: string[]): ServeOptions {
-  const flags = new Set(args)
-  flags.delete('--no-outside-sessions')
-  if (flags.size > 0) throw new Error(`unexpected arguments: ${[...flags].join(' ')}`)
-  return { outsideSessions: !args.includes('--no-outside-sessions') }
+  let outsideSessions = true
+  const programPaths: Record<string, string> = {}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
+    if (arg === '--no-outside-sessions') {
+      outsideSessions = false
+      continue
+    }
+    if (arg === '--program-path') {
+      const m = PROGRAM_PATH.exec(args[++i] ?? '')
+      if (!m) throw new Error('--program-path needs <provider>=<path>')
+      if (m[1]! in programPaths) throw new Error(`--program-path given twice for ${m[1]}`)
+      programPaths[m[1]!] = m[2]!
+      continue
+    }
+    throw new Error(`unexpected arguments: ${arg}`)
+  }
+  return { outsideSessions, ...(Object.keys(programPaths).length > 0 ? { programPaths } : {}) }
+}
+
+/** serve()'s defaults: under a Godot suite (TEST_SESSIONS_DIR set), no look at start. */
+export function serveDefaults(env: NodeJS.ProcessEnv): ServeOptions {
+  return { lookAtStart: !env[TEST_SESSIONS_DIR] }
 }
 
 /**
- * Before listening: the player's setting first, so with outside sessions off
- * none is shown at start and `claude` isn't asked for them; then the restore.
+ * Before listening: the player's settings first, so with outside sessions off
+ * none is shown at start and `claude` isn't asked for them, and a program set
+ * by hand is the one the restore uses (set at once, checked in the
+ * background like any look: a slow or hanging one never holds up the start;
+ * one that fails is kept and reported not found; a provider unknown or
+ * without program_path is skipped, so an old setting never stops the start).
+ * Then the restore.
  */
 export async function prepare(registry: Registry, providers: Provider[], log: Log, o: ServeOptions): Promise<void> {
   if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
+  const setByHand = new Set<string>()
+  for (const [id, file] of Object.entries(o.programPaths ?? {})) {
+    const p = registry.providers.get(id)
+    if (!p?.setProgramPath || !('program_path' in (p.capabilities ?? {}))) {
+      log.warn(`--program-path: no provider ${JSON.stringify(id)} with program_path; ignored`)
+      continue
+    }
+    // Not awaited: the setting takes effect before the first await, and the
+    // restore shares the check that follows.
+    setByHand.add(id)
+    p.setProgramPath(file, true).catch((e) => log.error(`${id}: couldn't use the program set by hand: ${e instanceof Error ? e.message : String(e)}`))
+  }
+  // Every other program_path provider looks at once, in the background, so
+  // the game knows before a session is asked for (hello's program, or
+  // provider.program once it's found); the restore shares that look.
+  if (o.lookAtStart === false) log.info('a test run: programs not looked for at start')
+  for (const p of o.lookAtStart === false ? [] : providers) {
+    if (!p.findProgram || !('program_path' in (p.capabilities ?? {})) || setByHand.has(p.id)) continue
+    p.findProgram().catch((e) => log.error(`${p.id}: couldn't look for its program: ${e instanceof Error ? e.message : String(e)}`))
+  }
   await restoreSessions(registry, providers, log)
 }
 
 export async function serve(providers: Provider[], log: Log = stderrLog, o: ServeOptions = {}): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
-  await prepare(registry, providers, log, o)
+  await prepare(registry, providers, log, { ...serveDefaults(process.env), ...o })
   const server = await startServer({ registry, token, log })
 
   let stopping = false

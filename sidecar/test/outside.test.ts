@@ -79,7 +79,7 @@ test('at start: an outside session is in the first sync, read-only and external,
   const l = listing([{ sessionId: ID(1), pid: 50001, status: 'busy', cwd, kind: 'interactive', startedAt: Date.parse('2026-10-22T09:59:00Z'), name: 'Session #1' }])
   const r = await start({ projectsDir: projects, runningSessions: l.ask })
   try {
-    assert.deepEqual((r.hello.providers as any[])[0].capabilities, { outside_sessions: {} }, 'the provider declares it')
+    assert.deepEqual((r.hello.providers as any[])[0].capabilities, { outside_sessions: {}, program_path: { program: 'claude' } }, 'the provider declares it')
     assert.equal((r.hello.providers as any[])[0].notices, undefined, 'no notices')
     assert.equal(r.snapshots.length, 1)
     const s = r.snapshots[0]!
@@ -457,7 +457,7 @@ test('off from the start (serve --no-outside-sessions): none in the first sync, 
   try {
     const { hello, snapshots } = await c.sync()
     assert.deepEqual(snapshots, [])
-    assert.deepEqual((hello.providers as any[])[0].capabilities, { outside_sessions: {} }, 'still declared: the setting can be turned on')
+    assert.deepEqual((hello.providers as any[])[0].capabilities, { outside_sessions: {}, program_path: { program: 'claude' } }, 'still declared: the setting can be turned on')
     assert.equal(l.calls, 0, 'not asked at the restore')
     await sleep(300)
     assert.equal(l.calls, 0, 'no polls')
