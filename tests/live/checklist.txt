@@ -1,117 +1,84 @@
-LIVE CHECK: S02 Claude Code
-set by hand
+LIVE CHECK: C14 main menu
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
-(no access). Close the game
-between parts when it says.
+(no access).
 
-A. What the game found
-1. Start the game with no
-   session running. Esc →
-   Settings → Providers: a
-   "Claude Code" row with
-   your claude.exe's full
-   path and "version …", no
-   "set by hand" (maybe
-   "Looking for it…" for a
-   moment first)? Browse…,
-   Look again and a
-   greyed-out Reset?
-2. Game tab: turn "Show
-   sessions started outside
-   the game" off. Close the
-   game, start it again:
-   Providers shows it all the
-   same? Turn it back on.
-3. Look again: "Looking…"
-   for a moment, then the
-   same path and version?
-   Does the row read well (a
-   long path wraps, the three
-   buttons fit under it)?
+A. The start
+1. Start the game. It opens
+   on the main menu: "The
+   Beach", Play, Settings,
+   Credits, Quit, in a dark
+   panel, the world dimmed
+   all round? No minimap,
+   crosshair or usage box?
+2. The view circles slowly,
+   high up, the platform and
+   islands in sight? Smooth,
+   no jumps as islands come
+   back?
+3. Tab, E, M, Esc, WASD: does
+   nothing happen?
+4. Click Play: the panel goes
+   at once and the view
+   glides down to your eyes
+   on the platform (about
+   2.5 s), smooth, no jump at
+   the end? Then you can
+   move and look, the mouse
+   captured, the HUD back?
 
-B. Choosing it
-4. Browse…: the Windows file
-   picker opens in the
-   folder of that claude.exe
-   and only shows .exe
-   files?
-5. Pick a program that isn't
-   Claude Code:
-   C:\Windows\System32\
-   whoami.exe. "Checking…",
-   then in red "Not changed:
-   That program didn't answer
-   as Claude Code (claude
-   --version)."? The row
-   above still shows the old
-   one?
-6. Browse… and pick your
-   claude.exe: the red line
-   goes, the row shows its
-   path, version and "· set
-   by hand", Reset no longer
-   greyed?
-7. Start a session (Tab, +)
-   and confirm it in its
-   terminal: it opens as
-   usual? /exit it.
-8. Reset to defaults (bottom
-   left): the row stays "set
-   by hand"?
+B. Back to it
+5. Esc → Main menu: the view
+   rises from where you look
+   up onto the circle? The
+   mouse free?
+6. Play again: back where
+   you stood?
+7. Start a session (Tab, +),
+   wait for its island. Esc
+   → Main menu: does the
+   circle widen to take the
+   island in? Play: the
+   session's still there?
 
-C. Kept across a restart
-9. Close the game and start
-   it again. Settings →
-   Providers: the same path,
-   version and "set by hand"
-   (maybe "Looking for it…"
-   for a moment first)?
+C. Settings and Credits
+8. Settings: the settings
+   panel, the world still
+   dimmed? Change something,
+   Esc: back on the main
+   menu, the change kept?
+9. Play, Esc → Settings, Esc:
+   back to the pause menu
+   (not the main menu)?
+10. Main menu → Credits: a big
+   panel with the asset
+   table, the shaders table,
+   then "Made with Godot
+   Engine" and long licence
+   texts? Does it scroll
+   with the wheel, and read
+   well?
+11. Click the Kenney link: it
+   opens in your browser?
+12. Esc closes the credits;
+   Credits again, Back too?
 
-D. When it stops working
-10. Close the game. Copy
-   claude.exe into a new
-   folder, e.g.
-   C:\Temp\claude-copy\.
-   Start the game, Browse…
-   and pick the copy: shown,
-   "set by hand"?
-11. Delete the copy (or its
-   folder). Start a session:
-   no terminal opens, and the
-   menu says "Couldn't start
-   a session: The
-   Claude Code set in
-   Settings doesn't work:
-   There's no program at
-   that path. Choose it
-   again, or reset it."?
-12. Tab, +: "+ New session…"
-   and "▸ Resume a session…"
-   greyed out, and under them
-   in red the same message
-   and "(Settings →
-   Providers)"? Nothing
-   happens when you click
-   them?
-13. Settings → Providers:
-   the row says the same, in
-   red?
-14. Close the game and start
-   it again: the row says it
-   in red as soon as you
-   open it, and Add a
-   session is greyed out?
-15. Copy claude.exe into that
-   folder again. Look again:
-   "Looking…", then the copy
-   with "set by hand", the
-   red gone? Tab, +: New and
-   Resume back?
-16. Delete the copy again.
-   Reset: the row shows your
-   usual claude.exe, no "set
-   by hand", Reset greyed
-   out? A session starts as
-   usual. /exit it.
+D. Quit and coming back
+13. With a session running:
+   Quit asks first, naming
+   it? Back to the game: the
+   main menu still up? Quit
+   again, and Quit in the
+   dialog: the game closes,
+   the session still running
+   in its terminal?
+14. Start the game again: its
+   island appears standing
+   behind the main menu
+   within a moment? Play,
+   walk to it: chat works?
+15. /exit the session in its
+   terminal. Esc → Main menu
+   → Quit: closes without
+   asking?
