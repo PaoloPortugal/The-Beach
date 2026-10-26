@@ -1614,8 +1614,32 @@ func _sessions(world: Node3D, player: Player) -> void:
 	expected.append("earlier")
 	store.replace_history("h1", long_chat)
 	_check(panel.is_loading() and panel.shown_messages() == expected.slice(expected.size() - panel.shown_messages().size()), "a long chat shows its newest messages first")
-	await _until(func() -> bool: return not panel.is_loading(), 20.0)
+	# C02: the view stays at the end every frame while older rows go in
+	# above, not a frame late (the chat jittered).
+	var bar: VScrollBar = panel.get_node("Layout/Scroll").get_v_scroll_bar()
+	var off_end := [0]
+	for f in 3000:
+		if not panel.is_loading():
+			break
+		await _frames(1)
+		if absf(bar.value - (bar.max_value - bar.page)) > 1.0:
+			off_end[0] += 1
 	_check(panel.shown_messages() == expected, "then all of it, in order")
+	_check(off_end[0] == 0 and bar.max_value > bar.page * 3.0, "C02: the view at the end in every frame while it's built (%d frames off)" % off_end[0])
+	# Scrolled up while it's built: the same distance from the end every frame.
+	store.replace_history("h1", long_chat.duplicate())
+	await _frames(2)
+	bar.value = bar.max_value - bar.page - 300.0
+	var from_end := bar.max_value - bar.value
+	var moved := [0]
+	for f in 3000:
+		if not panel.is_loading():
+			break
+		await _frames(1)
+		if absf(bar.max_value - bar.value - from_end) > 1.0:
+			moved[0] += 1
+	await _frames(ChatPanel.SETTLE_FRAMES + 1)
+	_check(moved[0] == 0 and absf(bar.max_value - bar.value - from_end) <= 1.0 and panel.shown_messages() == expected, "C02: scrolled up, it keeps its distance from the end every frame (%d frames off)" % moved[0])
 	# /clear: the sidecar's history is empty, so the window clears at once.
 	store.apply({"type": "session.updated", "session": "h1", "seq": 23, "native_id": "n3"})
 	store.apply({"type": "session.notice", "session": "h1", "seq": 24, "notice": {"code": "conversation_cleared", "message": "x"}})
