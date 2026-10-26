@@ -61,6 +61,17 @@ launch), so nothing slow on our side or a stuck probe. The last start's
 of the wait, before the screen is drawn, is the terminal, Claude Code
 loading and the user confirming; nothing of ours to shorten.
 
+Considered: switch the world's "Confirm in the terminal" to "Starting…"
+at the first status line. A probe answered whether that line comes
+before the confirm: an interactive `claude` 2.1.310 (haiku, no prompt,
+in this trusted folder, `--strict-mcp-config`) with a status line and a
+channel server that each log a timestamp. Left at the channel dialog
+for 25 s, neither ran. Once the user confirmed, the status line ran
+and the server started 0.5 s later, its handshake done in 0.06 s. So
+the switch would come only 0.5-1.8 s before the island, would need a
+new event in the protocol, and would never happen for a user with a
+status line of their own (ours isn't set then, C08). Not built.
+
 The security review asked for two more things, both done: the relay
 exits 0 even if its own code fails to load, and a test builds the
 bundle and runs its relay, bridge and serve modes (`bundle.test.ts`),
