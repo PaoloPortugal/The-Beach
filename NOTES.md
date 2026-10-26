@@ -5515,15 +5515,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S02, a path to `claude` set by hand (Known issues
-and next steps → A path to `claude` set by hand): built on
-`s02-claude-path` (dev log 2026-10-26-s02-program-path), waiting for
-the user's live check before it merges; since the live check began,
-looked for at start, Look again, and no session start without a
-program (S02 → The program set by hand). **Next, after S02 merges: a
-main menu** (user's, 2026-10-26); no ID, scope or design yet, to be
-decided with the user first.
+**Current focus:** a main menu (user's, 2026-10-26); no ID, scope or
+design yet, to be decided with the user first.
 Subagents stay read-only in the world (Open questions → 4).
+**Merged to `main` (2026-10-26), approved by the user: S02, a path to
+`claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
+Providers shows the Claude Code found, with Browse…, Look again and
+Reset; the sidecar looks for it at every start, in the background, and
+Add a session is greyed out with why while none can start. Live check
+passed with the user (Windows).
 **Merged to `main` (2026-10-26), approved by the user: C13, the pause
 menu** (dev log 2026-10-22-c13-pause-menu): Esc opens a pause menu with
 Resume, Settings and Quit game; nothing pauses. Live check passed with
@@ -5865,7 +5865,8 @@ Settings menu gets one row per provider, by its own name, showing what
 was found, with Browse and Reset. A path set by hand skips every other
 lookup, the login shell included. *Built (2026-10-26) on
 `s02-claude-path`* (protocol shape approved 2026-10-26; S02 → The
-program set by hand), waiting for the user's live check.
+program set by hand); live check passed and merged to `main`
+(2026-10-26).
 
 **Claude Code installed inside WSL** (S02, Platforms; asked by the
 user 2026-10-26, kept out of the path set by hand as too big). On
