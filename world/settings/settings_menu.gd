@@ -2,15 +2,21 @@ class_name SettingsMenu
 extends CanvasLayer
 ## The settings menu (C10): the pause menu's Settings opens it (C13) and
 ## it frees the mouse; Esc goes back to the pause menu ([member back]).
-## Tabs for Graphics, Controls, Sound and Game; every
+## Tabs for Graphics, Controls, Sound, Game and Providers; every
 ## change applies at once and is saved ([Settings]). A PLACEHOLDER, like
 ## all UI for now.
 ##
 ## Game's "Show sessions started outside the game" (S08) is greyed out and
 ## shown off, the saved choice kept, while a provider says it can't list
 ## them (its [code]outside_sessions_off[/code] notice, in red beside it).
+##
+## Providers has a row per provider that runs a program of the user's
+## (S02, [code]program_path[/code]): what it found (path and version, or
+## why not, in red), Browse… to set it by hand, Look again to look for it
+## now, and Reset to find it as usual again. The sidecar checks a path
+## first; one it refuses is said in red and nothing changes.
 
-const TABS := ["Graphics", "Controls", "Sound", "Game"]
+const TABS := ["Graphics", "Controls", "Sound", "Game", "Providers"]
 ## What each choice reads as in the menu.
 const NAMES := {
 	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen",
@@ -50,6 +56,13 @@ var _values := {} # a slider's key → the Label showing its value
 var _sound := CheckButton.new()
 ## Why sessions started outside the game can't be shown, when a provider says so (S08).
 var _outside_off := Label.new()
+## Each program_path provider's row (S02): provider id → {status, error,
+## browse, reset, label, box, busy}.
+var _programs := {}
+var _providers: GridContainer
+## Said while no provider has anything to set.
+var _no_providers := Label.new()
+var _file_dialog: FileDialog
 
 
 func _init() -> void:
@@ -186,6 +199,10 @@ func _build() -> void:
 	_outside_off.visible = false
 	game.add_child(_outside_off)
 	game.add_child(Control.new())
+	_providers = _tabs.get_child(4)
+	_no_providers.text = "Nothing to set for the AI tools in use."
+	_no_providers.modulate = Color(1, 1, 1, 0.6)
+	_providers.add_child(_no_providers)
 
 	var bottom := HBoxContainer.new()
 	layout.add_child(bottom)
@@ -286,6 +303,150 @@ func _refresh() -> void:
 		outside.set_pressed_no_signal(false)
 	_outside_off.text = off.get("message", "")
 	_outside_off.visible = not off.is_empty()
+	_refresh_programs()
+
+
+## Sets [param provider]'s program by hand, or clears it ([param path]
+## empty), as Browse… and Reset do (S02). The row says "Checking…" until
+## the sidecar answers.
+func choose_program(provider: String, path: String) -> void:
+	var row: Dictionary = _programs.get(provider, {})
+	if row.is_empty() or sidecar == null:
+		return
+	row["busy"] = "Checking…"
+	row["error"].text = ""
+	_refresh_programs()
+	sidecar.set_program_path(provider, path, func(reply: Dictionary) -> void:
+		row["busy"] = ""
+		if reply.get("type") != "ok":
+			row["error"].text = "Not changed: %s" % reply.get("message", "")
+		_refresh_programs())
+
+
+## Has [param provider] look for its program again now, as Look again
+## does (S02). The row says "Looking…" until the sidecar answers.
+func look_again(provider: String) -> void:
+	var row: Dictionary = _programs.get(provider, {})
+	if row.is_empty() or sidecar == null:
+		return
+	row["busy"] = "Looking…"
+	row["error"].text = ""
+	_refresh_programs()
+	sidecar.find_program(provider, func(reply: Dictionary) -> void:
+		row["busy"] = ""
+		if reply.get("type") != "ok":
+			row["error"].text = "Couldn't look: %s" % reply.get("message", "")
+		_refresh_programs())
+
+
+## A provider's row as shown, for tests: what was found, and why a choice
+## was refused ("" if none). Empty if it has no row.
+func program_text(provider: String) -> String:
+	return _programs[provider]["status"].text if _programs.has(provider) else ""
+
+
+func program_error(provider: String) -> String:
+	return _programs[provider]["error"].text if _programs.has(provider) else ""
+
+
+# A row per provider that declares program_path, kept up with what it
+# found; rows of providers gone are removed.
+func _refresh_programs() -> void:
+	var listed: Array = sidecar.providers.filter(func(p: Dictionary) -> bool: return p.get("capabilities", {}).has("program_path")) if sidecar else []
+	var ids := listed.map(func(p: Dictionary) -> String: return p.get("provider", ""))
+	for id: String in _programs.keys():
+		if id not in ids:
+			_programs[id]["label"].queue_free()
+			_programs[id]["box"].queue_free()
+			_programs.erase(id)
+	for p: Dictionary in listed:
+		var id: String = p.get("provider", "")
+		if not _programs.has(id):
+			_programs[id] = _program_row(id, str(p.get("name", id)))
+		var row: Dictionary = _programs[id]
+		var program: Dictionary = p.get("program", {})
+		var status: Label = row["status"]
+		var missing := program.has("path") and program["path"] == null
+		var busy: String = row["busy"]
+		if not busy.is_empty():
+			status.text = busy
+		elif program.is_empty():
+			status.text = "Looking for it…"
+		elif missing:
+			status.text = str(program.get("message", ""))
+		else:
+			status.text = "%s\nversion %s%s" % [program.get("path", ""), program.get("version", ""), "  ·  set by hand" if program.get("set_by_hand") else ""]
+		status.modulate = Color(0.95, 0.35, 0.3) if missing and busy.is_empty() else Color.WHITE
+		row["browse"].disabled = not busy.is_empty()
+		row["look"].disabled = not busy.is_empty()
+		row["reset"].disabled = not busy.is_empty() or not sidecar.program_paths.has(id)
+	_no_providers.visible = _programs.is_empty()
+
+
+# One row: the provider's name; what it found, Browse… and Reset, and why a
+# choice was refused.
+func _program_row(id: String, provider_name: String) -> Dictionary:
+	var label := Label.new()
+	label.text = provider_name
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var box := VBoxContainer.new()
+	box.name = "Program_%s" % id
+	box.custom_minimum_size.x = 300.0
+	# The path and messages are shown as plain text. Wrapping labels get a
+	# width of their own: while Providers is a hidden tab they have none, would
+	# wrap at every character, and the panel (as tall as its tallest tab)
+	# would grow past the screen.
+	var status := Label.new()
+	status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	status.custom_minimum_size.x = 300.0
+	box.add_child(status)
+	var buttons := HBoxContainer.new()
+	var browse := Button.new()
+	browse.text = "Browse…"
+	browse.focus_mode = Control.FOCUS_NONE
+	browse.pressed.connect(_browse.bind(id))
+	buttons.add_child(browse)
+	var look := Button.new()
+	look.text = "Look again"
+	look.tooltip_text = "Look for it now, e.g. after installing it"
+	look.focus_mode = Control.FOCUS_NONE
+	look.pressed.connect(look_again.bind(id))
+	buttons.add_child(look)
+	var reset := Button.new()
+	reset.text = "Reset"
+	reset.tooltip_text = "Find it as usual"
+	reset.focus_mode = Control.FOCUS_NONE
+	reset.pressed.connect(func() -> void: choose_program(id, ""))
+	buttons.add_child(reset)
+	box.add_child(buttons)
+	var error := Label.new()
+	error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	error.custom_minimum_size.x = 300.0
+	error.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
+	box.add_child(error)
+	_providers.add_child(label)
+	_providers.add_child(box)
+	return {"status": status, "error": error, "browse": browse, "look": look, "reset": reset, "label": label, "box": box, "busy": ""}
+
+
+# The system's file picker, starting where the current one is.
+func _browse(id: String) -> void:
+	if _file_dialog == null:
+		_file_dialog = FileDialog.new()
+		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_file_dialog.use_native_dialog = true
+		add_child(_file_dialog)
+	for c: Dictionary in _file_dialog.file_selected.get_connections():
+		_file_dialog.file_selected.disconnect(c["callable"])
+	_file_dialog.file_selected.connect(func(path: String) -> void: choose_program(id, path), CONNECT_ONE_SHOT)
+	var program: Variant = sidecar.provider_program(id).get("path") if sidecar else null
+	if program is String:
+		_file_dialog.current_dir = (program as String).get_base_dir()
+	_file_dialog.filters = PackedStringArray(["*.exe ; Programs"]) if OS.get_name() == "Windows" else PackedStringArray()
+	_file_dialog.title = "Choose %s" % _programs[id]["label"].text
+	_file_dialog.popup_centered_ratio(0.6)
 
 
 # A setting the Compatibility renderer can't do: greyed out, shown Off.

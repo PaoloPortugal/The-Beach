@@ -5,7 +5,7 @@
 import crypto from 'node:crypto'
 import {
   checkMessage, EVENT_CAPABILITY, EXTENSION_TYPE,
-  type Choice, type EndReason, type Id, type Notice, type Session, type SessionEvent,
+  type Choice, type EndReason, type Id, type Notice, type Program, type Session, type SessionEvent,
 } from './protocol.ts'
 import type { Provider, ProviderSession, SessionHost, SessionIntro } from './provider.ts'
 import type { Log } from './log.ts'
@@ -38,12 +38,18 @@ export class Registry {
   private readonly sessions = new Map<Id, Entry>()
   /** Each provider's notices (provider.notice), one per code, for hello. */
   private readonly notices = new Map<string, Notice[]>()
+  /** Each program_path provider's latest program (provider.program), for hello. */
+  private readonly programs = new Map<string, Program>()
+  /** Provider messages wait while any command is answered (holdProviders), so its reply comes first. */
+  private providersHeld = 0
+  private readonly heldProviderMessages: Outgoing[] = []
   private sink: (msg: Outgoing) => void = () => {}
   private readonly log: Log
 
   constructor(providers: Provider[], log: Log) {
     this.providers = new Map(providers.map((p) => [p.id, p]))
     this.log = log
+    for (const p of providers) p.watchProgram?.((program) => this.providerProgram(p.id, program))
   }
 
   /** Where events go (the connected Godot client, if any). */
@@ -69,6 +75,40 @@ export class Registry {
     else list.push({ ...notice })
     this.notices.set(provider, list)
     this.sink(msg)
+  }
+
+  /**
+   * What a program_path provider found (S02): kept for hello, and sent if
+   * it differs from the last. Refused (logged) if it fails the schema.
+   */
+  providerProgram(provider: string, program: Program): void {
+    const last = this.programs.get(provider)
+    if (last && JSON.stringify(last) === JSON.stringify(program)) return
+    const msg = { type: 'provider.program', provider, program: { ...program } }
+    const checked = checkMessage(msg)
+    if (!checked.ok) {
+      this.log.warn(`dropped provider.program for ${provider}: fails the schema: ${checked.message}`)
+      return
+    }
+    this.programs.set(provider, { ...program })
+    if (this.providersHeld > 0) this.heldProviderMessages.push(msg)
+    else this.sink(msg)
+  }
+
+  /** A provider's latest program (hello's program), if it has looked. A copy. */
+  providerProgramOf(provider: string): Program | undefined {
+    const p = this.programs.get(provider)
+    return p ? { ...p } : undefined
+  }
+
+  /** Holds provider.program messages until the matching releaseProviders(), so a command's reply comes first. */
+  holdProviders(): void {
+    this.providersHeld++
+  }
+
+  releaseProviders(): void {
+    if (--this.providersHeld > 0) return
+    for (const msg of this.heldProviderMessages.splice(0)) this.sink(msg)
   }
 
   /** A provider's notices so far (hello's notices). Copies. */

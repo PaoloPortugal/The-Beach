@@ -30,6 +30,9 @@ export async function runCommand(
     registry.hold(entry)
     afters.push(() => registry.release(entry))
   }
+  // Provider messages (provider.program) a command causes follow its reply too.
+  registry.holdProviders()
+  afters.push(() => registry.releaseProviders())
   const after = () => { for (const f of afters) f() }
   try {
     const result = await execute(registry, cmd, sendSnapshot, afters)
@@ -134,6 +137,20 @@ async function execute(
     case 'client.set_outside_sessions':
       for (const p of registry.providers.values()) p.setOutsideSessions?.(c.enabled)
       return undefined
+    case 'client.set_program_path': {
+      const provider = findProvider(registry, c.provider)
+      if (!('program_path' in (provider.capabilities ?? {})) || !provider.setProgramPath) {
+        throw new CommandError('not_supported', `provider ${JSON.stringify(provider.id)} does not declare program_path`)
+      }
+      return { program: await provider.setProgramPath(c.path) }
+    }
+    case 'client.find_program': {
+      const provider = findProvider(registry, c.provider)
+      if (!('program_path' in (provider.capabilities ?? {})) || !provider.findProgram) {
+        throw new CommandError('not_supported', `provider ${JSON.stringify(provider.id)} does not declare program_path`)
+      }
+      return { program: await provider.findProgram() }
+    }
   }
 }
 

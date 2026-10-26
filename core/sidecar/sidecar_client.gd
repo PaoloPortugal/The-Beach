@@ -26,8 +26,9 @@ signal synced(providers: Array)
 signal event_received(msg: Dictionary)
 ## The sidecar can't be used. [param reason] is for the player.
 signal failed(reason: String)
-## [member providers] changed: a (re)connect's hello, or a provider notice
-## ([code]provider.notice[/code], e.g. S08's [code]outside_sessions_off[/code]).
+## [member providers] changed: a (re)connect's hello, a provider notice
+## ([code]provider.notice[/code], e.g. S08's [code]outside_sessions_off[/code]),
+## or the program a provider found ([code]provider.program[/code], S02).
 signal providers_changed
 
 enum Status { STOPPED, STARTING, CONNECTING, SYNCING, READY, FAILED }
@@ -40,18 +41,24 @@ const INBOUND_BUFFER := 32 * 1024 * 1024
 const OUTBOUND_BUFFER := 4 * 1024 * 1024
 
 ## Where the player's settings are (C10's file, [Settings]): its
-## [code][game] outside_sessions[/code] is read before the sidecar starts
-## (S08). The suites point it elsewhere ([code]tests/error_watch.gd[/code]).
+## [code][game] outside_sessions[/code] (S08) and [code][programs][/code]
+## (S02) are read before the sidecar starts. The suites point it elsewhere
+## ([code]tests/error_watch.gd[/code]).
 static var settings_file := "user://settings.cfg"
 
 var status: Status = Status.STOPPED
 ## The providers from hello: [code]{provider, name, launch_options,
-## capabilities, notices}[/code], their notices kept up from
-## [code]provider.notice[/code].
+## capabilities, notices, program}[/code], their notices and program kept
+## up from [code]provider.notice[/code] and [code]provider.program[/code].
 var providers: Array = []
 ## Whether sessions started outside the game get islands (S08; the
 ## player's setting, [method set_outside_sessions]).
 var outside_sessions := true
+## The programs set by hand (S02; the player's setting,
+## [method set_program_path]): provider id → absolute path. Saved in the
+## settings file's [code][programs][/code] section, and given to the
+## sidecar at start ([code]serve --program-path[/code]).
+var program_paths := {}
 
 var _pid := -1
 var _stdio: FileAccess
@@ -77,6 +84,11 @@ func _ready() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(settings_file) == OK:
 		outside_sessions = cfg.get_value("game", "outside_sessions", true) != false
+		if cfg.has_section("programs"):
+			for provider: String in cfg.get_section_keys("programs"):
+				var p: Variant = cfg.get_value("programs", provider)
+				if p is String and not (p as String).is_empty():
+					program_paths[provider] = p
 	start()
 
 
@@ -111,6 +123,79 @@ func set_outside_sessions(on: bool) -> void:
 		return
 	outside_sessions = on
 	send_command("client.set_outside_sessions", {"enabled": on})
+
+
+## Sets a provider's program by hand ([param path] absolute), or clears it
+## (empty: found as usual) (S02). The sidecar checks it first: refused,
+## the setting stays. Accepted, it's saved and used from then on.
+## [param on_reply] gets the reply ([code]ok[/code] with
+## [code]{program}[/code], or [code]error[/code]: [code]invalid_program[/code]
+## says why, [code]disconnected[/code] if the sidecar isn't there).
+func set_program_path(provider: String, path: String, on_reply := Callable()) -> void:
+	var done := func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok":
+			_program_set(provider, path, reply.get("result", {}).get("program", {}))
+		if on_reply.is_valid():
+			on_reply.call(reply)
+	if send_command("client.set_program_path", {"provider": provider, "path": path if not path.is_empty() else null}, done) == "":
+		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
+
+
+## Has a provider look for its program again now (S02's Look again; the
+## one set by hand, if any, is checked again). [param on_reply] gets the
+## reply ([code]ok[/code] with [code]{program}[/code], found or not, or
+## [code]error[/code]; [code]disconnected[/code] if the sidecar isn't
+## there). What it found is kept and shown.
+func find_program(provider: String, on_reply := Callable()) -> void:
+	var done := func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok":
+			_set_program(provider, reply.get("result", {}).get("program", {}))
+		if on_reply.is_valid():
+			on_reply.call(reply)
+	if send_command("client.find_program", {"provider": provider}, done) == "":
+		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
+
+
+## The providers that can start a session now (S02): all but those whose
+## program wasn't found. One still looking counts: it may yet be found.
+func startable_providers() -> Array:
+	return providers.filter(func(p: Dictionary) -> bool:
+		var program: Dictionary = p.get("program", {})
+		return not (program.has("path") and program["path"] == null))
+
+
+## What a provider found for its program (S02): [code]{path, version,
+## set_by_hand}[/code], [code]{path: null, set_by_hand, message}[/code], or
+## empty if it hasn't looked yet.
+func provider_program(provider: String) -> Dictionary:
+	for p: Dictionary in providers:
+		if p.get("provider") == provider:
+			return p.get("program", {})
+	return {}
+
+
+# Accepted: kept, saved with the player's other settings, and shown.
+func _program_set(provider: String, path: String, program: Dictionary) -> void:
+	if path.is_empty():
+		program_paths.erase(provider)
+	else:
+		program_paths[provider] = path
+	var cfg := ConfigFile.new()
+	cfg.load(settings_file) # keep the other settings
+	if path.is_empty():
+		if cfg.has_section_key("programs", provider):
+			cfg.erase_section_key("programs", provider)
+	else:
+		cfg.set_value("programs", provider, path)
+	cfg.save(settings_file)
+	_set_program(provider, program)
+
+
+func _set_program(provider: String, program: Dictionary) -> void:
+	for p: Dictionary in providers:
+		if p.get("provider") == provider:
+			p["program"] = program
+	providers_changed.emit()
 
 
 ## A provider notice of that code from any provider (hello's, or a
@@ -229,9 +314,21 @@ func _sidecar_command() -> Array:
 
 
 # The server mode's arguments: the player's outside-sessions setting (S08),
-# so none shows at start when it's off.
+# so none shows at start when it's off, and the programs set by hand (S02).
+# Only well-formed provider ids, and paths without a quote or a control
+# character (Windows' command line could split one into another argument):
+# the sidecar refuses a malformed flag and won't start, and a hand-edited
+# settings file mustn't lock the game out.
 func _serve_args() -> Array:
-	return [] if outside_sessions else ["serve", "--no-outside-sessions"]
+	var args := [] if outside_sessions else ["--no-outside-sessions"]
+	var id_pattern := RegEx.create_from_string("^[a-z][a-z0-9_]*$")
+	var bad_path := RegEx.create_from_string("[\"\\x00-\\x1f\\x7f]")
+	var ids := program_paths.keys().filter(func(id: Variant) -> bool:
+		return id is String and id_pattern.search(id) != null and bad_path.search(str(program_paths[id])) == null)
+	ids.sort()
+	for provider: String in ids:
+		args.append_array(["--program-path", "%s=%s" % [provider, program_paths[provider]]])
+	return [] if args.is_empty() else ["serve"] + args
 
 
 # ---- pipes (threads) ----
@@ -369,6 +466,9 @@ func _handle(text: String) -> void:
 					notices.append(notice)
 					p["notices"] = notices
 			providers_changed.emit()
+			return
+		"provider.program":
+			_set_program(str(msg.get("provider", "")), msg.get("program", {}))
 			return
 		"ok", "error":
 			var id = msg.get("id")
