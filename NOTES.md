@@ -113,6 +113,7 @@ v1 slice.
 | C11 | Crosshair                                 | built (UI placeholder) | C11 | `world/crosshair.gd`, `world/interactable.gd`, `world/world.gd` |
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
+| C14 | Main menu                                 | planned | —             | `world/` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -3411,6 +3412,31 @@ with no session, asking with one, Back to the game leaving it open, and
 Quit quitting. The mouse being captured and the look can't be seen
 headless: the live check's.
 
+### C14 Main menu
+*Planned (2026-10-26). Scope: core* (world only: no provider, protocol
+or sidecar part). A title menu at start, so the game opens on a menu
+instead of straight into the world.
+
+*Decided (user's, 2026-10-26; my recommendations taken, Credits added
+by the user; the ID and scope are my pick):*
+- **Over the live world:** shown at start over the world as it loads,
+  in place of the loading cover (S07); the sidecar starts and islands
+  rise behind it, so Play is instant (rejected: a separate title scene
+  before the world loads, a wait after Play and a second backdrop; a
+  hub menu opened in the world).
+- **Backdrop:** a camera circling the islands slowly; on Play it eases
+  down to the player (rejected: the player's view blurred; a fixed
+  shot).
+- **First version:** Play, Settings (C10, reused as the pause menu
+  does), Credits (from `assets/CREDITS.md`) and Quit (rejected for
+  now: New session / Resume on the menu itself).
+- **Back to it:** the pause menu (C13) gains "Main menu"; sessions keep
+  running, nothing is lost.
+
+Still to decide while building, with the user: the look (UI
+placeholder until then), what Play does while the sidecar is still
+starting, and how Credits shows the file.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -5515,8 +5541,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** a main menu (user's, 2026-10-26); no ID, scope or
-design yet, to be decided with the user first.
+**Current focus:** C14, a main menu (user's, 2026-10-26): its shape
+decided with the user (C14 → Decided), on `c14-main-menu`; not built
+yet.
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: S02, a path to
 `claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
