@@ -2409,9 +2409,12 @@ all of it, so markup in a message shows as written (tested with an injected
   the end if you were already at the bottom. At most the last 200
   messages are shown (the store keeps up to 2000). Laying out a chat
   builds the newest messages first, for up to 8 ms, then the older ones
-  the same way once per frame, each above the rest; the view stays at
-  the end, or keeps its distance from the end if you scrolled up
-  (rendering Markdown costs tens of milliseconds per long message, C03). Status: "Working…",
+  the same way once per frame, each above the rest (rendering Markdown
+  costs tens of milliseconds per long message, C03). Until they and
+  their wrapped text have settled (4 frames after the last), the view
+  keeps to the end, or to its distance from the end if you scrolled up,
+  in the same frame the rows grow (the scroll bar's `changed` signal),
+  so it doesn't jitter; dev log 2026-10-26-c02-chat-jitter. Status: "Working…",
   "Waiting for a permission / an answer / you to approve the plan: …
   above or in the terminal" (the card above is C05, C07), "Waiting for
   you to sign in, in the terminal." (S06), after an error what stopped
@@ -2492,7 +2495,8 @@ How it's built:
   links are coloured but can't be clicked.
 - **History is built lazily** (C02): about 80 ms per typical reply and
   0.7 s for a 25 KB one, mostly RichTextLabel and CodeEdit layout, so a
-  long chat is built newest first, a few messages per frame.
+  long chat is built newest first, a few messages per frame, the view
+  keeping its place meanwhile.
 
 Gaps, from the spike: setext headings, indented (4-space) code blocks,
 HTML, reference links, footnotes, table column alignment. Tested by
@@ -5026,7 +5030,8 @@ with E (looking at its post) and back down, moving off a landing put on its cabl
 the ride, and sinking (W10), the new-island beacon and edge arrow
 (W04), the bubble streaming and rendering Markdown, the teleport, the chat
 panel (Markdown, a link's confirmation, the tool-call log, a long chat
-built newest first),
+built newest first, the view at the end, or at its distance from the
+end once scrolled up, in every frame while it's built),
 a refused send, the C05 card for a permission and a subagent's two-item
 question, the mode in the header, a plan message and the plan card's
 choices and commands through a recording stand-in for the sidecar (C06,
