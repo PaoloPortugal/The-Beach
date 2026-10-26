@@ -45,23 +45,62 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
   clearTimeout(timer)
 }
 
-/** How Godot started it: `outsideSessions` false is `serve --no-outside-sessions` (the player's setting, S08). */
-export interface ServeOptions { outsideSessions?: boolean }
+/**
+ * How Godot started it (the player's settings): `outsideSessions` false is
+ * `serve --no-outside-sessions` (S08); `programPaths`, by provider, the
+ * programs set by hand, `--program-path <provider>=<path>` (S02).
+ */
+export interface ServeOptions { outsideSessions?: boolean; programPaths?: Record<string, string> }
 
-/** `serve`'s arguments (main.ts): only `--no-outside-sessions`; anything else is refused. */
+const PROGRAM_PATH = /^([a-z][a-z0-9_]*)=(.+)$/s
+
+/**
+ * `serve`'s arguments (main.ts): `--no-outside-sessions` and
+ * `--program-path <provider>=<path>`, once per provider; anything else is
+ * refused.
+ */
 export function serveOptions(args: string[]): ServeOptions {
-  const flags = new Set(args)
-  flags.delete('--no-outside-sessions')
-  if (flags.size > 0) throw new Error(`unexpected arguments: ${[...flags].join(' ')}`)
-  return { outsideSessions: !args.includes('--no-outside-sessions') }
+  let outsideSessions = true
+  const programPaths: Record<string, string> = {}
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
+    if (arg === '--no-outside-sessions') {
+      outsideSessions = false
+      continue
+    }
+    if (arg === '--program-path') {
+      const m = PROGRAM_PATH.exec(args[++i] ?? '')
+      if (!m) throw new Error('--program-path needs <provider>=<path>')
+      if (m[1]! in programPaths) throw new Error(`--program-path given twice for ${m[1]}`)
+      programPaths[m[1]!] = m[2]!
+      continue
+    }
+    throw new Error(`unexpected arguments: ${arg}`)
+  }
+  return { outsideSessions, ...(Object.keys(programPaths).length > 0 ? { programPaths } : {}) }
 }
 
 /**
- * Before listening: the player's setting first, so with outside sessions off
- * none is shown at start and `claude` isn't asked for them; then the restore.
+ * Before listening: the player's settings first, so with outside sessions off
+ * none is shown at start and `claude` isn't asked for them, and a program set
+ * by hand is the one the restore uses (checked: one that fails is kept and
+ * reported not found; a provider unknown or without program_path is skipped,
+ * so an old setting never stops the start). Then the restore.
  */
 export async function prepare(registry: Registry, providers: Provider[], log: Log, o: ServeOptions): Promise<void> {
   if (o.outsideSessions === false) for (const p of providers) p.setOutsideSessions?.(false)
+  for (const [id, file] of Object.entries(o.programPaths ?? {})) {
+    const p = registry.providers.get(id)
+    if (!p?.setProgramPath || !('program_path' in (p.capabilities ?? {}))) {
+      log.warn(`--program-path: no provider ${JSON.stringify(id)} with program_path; ignored`)
+      continue
+    }
+    try {
+      await p.setProgramPath(file, true)
+    } catch (e) {
+      log.error(`${id}: couldn't use the program set by hand: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
   await restoreSessions(registry, providers, log)
 }
 

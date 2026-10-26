@@ -759,7 +759,31 @@ a config object, and `notices`: its notices so far, one per code.
   sent on every change and after a sync if unfocused; until told, the
   sidecar takes it as focused. Providers may check on things less
   often in the background (S08's poll).
-- Both `client.*` commands are answered `ok` with no result.
+- `client.set_focus` and `client.set_outside_sessions` are answered `ok` with no result.
+- **`program_path`** `{program}` (S02, user's approval 2026-10-26): the
+  provider runs a program of the user's (`program`: its name, e.g.
+  `claude`), which can be pointed at by hand. What it found is
+  `program`: `{path, version, set_by_hand}` when found, `{path: null,
+  set_by_hand, message}` when not (`message` for the player: not
+  installed, too old, or why the path set by hand doesn't work). The
+  event `provider.program {provider, program}` sends it each time the
+  provider looks (when it first needs the program, or at start when it
+  already asks it something; after a path is set or cleared; again if a
+  look gives another answer), and the latest is `program` in that
+  provider's entry in the next `hello` (absent until it has looked).
+  `client.set_program_path {provider, path}` sets a path (absolute) or
+  clears it (`null`); the provider checks it first (absolute, a file,
+  on Windows an `.exe`, answers `--version` with a version it supports)
+  and answers `ok {program}`, then sends `provider.program`; a path
+  that fails is answered with `invalid_program` (the message says
+  which check) and the previous setting stays. A provider without the
+  capability answers `not_supported`. The setting is for sessions
+  started or resumed after it; running ones keep their program. **A
+  path set by hand is the only one used:** if it stops working, the
+  program is reported not found (with why), never another one found
+  instead. The sidecar starts with paths set by `serve --program-path
+  <provider>=<path>` (once per provider), checked the same way; one
+  that fails is reported as not found, the start goes on.
 
 **Project.** A session's `project` has `path` (absolute) and `name` (the
 folder's name unless given). On sessions the sidecar adds `repo`: the git
@@ -790,7 +814,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice`, `session.notice_cleared` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`, optional `option`) |
-| `provider.notice` | `client.set_focus`, `client.set_outside_sessions` |
+| `provider.notice`, `provider.program` | `client.set_focus`, `client.set_outside_sessions`, `client.set_program_path` |
 | `tool.started`, `tool.finished` | |
 | `permission.requested`, `permission.resolved` | |
 
@@ -5670,7 +5694,30 @@ command sets or clears a path, which the sidecar checks (absolute, a
 file, answers `--version`); a serve flag applies it at start. The
 Settings menu gets one row per provider, by its own name, showing what
 was found, with Browse and Reset. A path set by hand skips every other
-lookup, the login shell included.
+lookup, the login shell included. Being built on `s02-claude-path`
+(protocol shape approved 2026-10-26).
+
+**Claude Code installed inside WSL** (S02, Platforms; asked by the
+user 2026-10-26, kept out of the path set by hand as too big). On
+Windows only a native `claude.exe` is used, and the not-found message
+says to install the Windows version, not inside WSL. Running one inside
+WSL from the Windows sidecar is a platform of its own, at least S07's
+size:
+- *Launching:* every start, `--version` included, through `wsl.exe -d
+  <distro> -- claude …`, in the terminal too.
+- *Paths:* every path translated both ways (`C:\…` ↔ `/mnt/c/…`): the
+  project folder, the run folder, the MCP config and settings file.
+- *Hooks and the bridge:* Claude Code would call the hook server on
+  Windows' `localhost` from inside WSL2, which its default NAT
+  networking doesn't reach (only mirrored networking does); the channel
+  bridge would be our Windows executable started from Linux.
+- *Transcripts:* in the distro's `~/.claude`, readable from Windows only
+  through `\\wsl.localhost\…` (S04, S07's reattach, S08).
+- *Security:* each crossing needs its own review and tests.
+Even only detecting it (to say "installed inside WSL") means running
+`wsl.exe` or reading `\\wsl.localhost\…`, which starts the WSL virtual
+machine and a distro: not something to do unasked (Principles), so at
+most behind a button.
 
 ### Milestones
 

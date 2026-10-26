@@ -2,7 +2,7 @@
 // protocol's generic vocabulary (NOTES.md -> Multi-provider rules). The core
 // never names a specific tool; providers never touch the WebSocket.
 import type {
-  Agent, Choice, EndReason, ErrorCode, ExtensionCommand, History, Id, Launch, LaunchOptions, Notice, Project,
+  Agent, Choice, EndReason, ErrorCode, ExtensionCommand, History, Id, Launch, LaunchOptions, Notice, Program, Project,
   SessionEvent, StoredSession,
 } from './protocol.ts'
 
@@ -119,6 +119,19 @@ export interface Provider {
    * once, the ones found announced as session.created.
    */
   setOutsideSessions?(on: boolean): void
+  /**
+   * program_path (S02): where to report the program found, each time the
+   * provider looks (provider.program). Called once, by the registry.
+   */
+  watchProgram?(report: (program: Program) => void): void
+  /**
+   * program_path: the program set by hand, or null to find it as usual.
+   * Checks it first and throws CommandError invalid_program, keeping the
+   * old setting, unless `evenIfInvalid` (serve --program-path at start: the
+   * path is kept and reported not found). Resolves with what's found now,
+   * also reported.
+   */
+  setProgramPath?(path: string | null, evenIfInvalid?: boolean): Promise<Program>
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
 }
