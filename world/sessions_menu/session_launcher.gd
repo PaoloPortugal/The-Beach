@@ -77,9 +77,18 @@ func create(path: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.R
 	if sidecar.providers.is_empty():
 		_say("Not connected to the sidecar yet.")
 		return
-	# Only one provider exists for now; choosing one is for S03 proper.
-	var provider: String = sidecar.providers[0]["provider"]
+	var provider: String = new_session_provider().get("provider", "")
 	_start("session.create", _with_launch({"provider": provider, "project": {"path": path}}, launch), "Couldn't start a session: %s", cluster, biome)
+
+
+## The provider a new session uses: the first that can start one (S02:
+## not one whose program wasn't found), else the first. Choosing one is
+## for S03 proper. Empty with no sidecar.
+func new_session_provider() -> Dictionary:
+	var startable := sidecar.startable_providers()
+	if not startable.is_empty():
+		return startable[0]
+	return sidecar.providers[0] if not sidecar.providers.is_empty() else {}
 
 
 ## Asks to resume the stored session [param native_id] of [param provider],

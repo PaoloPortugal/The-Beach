@@ -1,6 +1,6 @@
 # S02: Claude Code set by hand
 
-Features: S02, C10, Protocol (Architecture → Platforms → Finding `claude`)
+Features: S02, C10, S03, Protocol (Architecture → Platforms → Finding `claude`)
 
 ## Where it came from
 
@@ -114,6 +114,47 @@ running sessions runs `claude` and so finds it; the live checklist's
 first step says so. The world test opens Providers for the rows and
 checks the line.
 
+## Looked for at start, Look again, no session without a program (user's, live check)
+
+The user asked why a session can be started when Claude Code isn't
+found: the game should know before. Decided with the user (my
+recommendations, approved 2026-10-26):
+- **The sidecar looks at every start**, in the background, whatever
+  the outside-sessions toggle says. Asked to weigh how efficient that
+  is, I timed five looks on the user's machine with the sidecar's own
+  code: 8-14 ms for the file checks, 95-113 ms for `claude --version`,
+  about 0.1 s in all. The sidecar remembers what it found while it
+  runs, so S08's 5 s poll doesn't rerun `--version`; on macOS and Linux
+  the login shell can add up to 10 s once per run, in the background.
+- **What's found is not saved**, only a path chosen by hand (already
+  saved in `[programs]` and given at start). A saved find would go
+  stale when Claude Code updates or moves and save at most 0.1 s.
+- **Starting is greyed out only when no provider can start a session**
+  (the user's refinement: today that's Claude alone). New and Resume
+  in Add a session, with each provider's message in red and where to
+  choose it.
+- **Look again**, a new command `client.find_program {provider}`
+  answered `ok {program}`, found or not, then `provider.program` if it
+  changed. The user asked whether Browse still adds anything if the
+  look always finds it; it doesn't always (an install outside the
+  usual places, two installs, a failed login shell), and without it a
+  failed look leaves no way out from inside the game, so it stays.
+
+Choices made while building (told to the user):
+- **Looks share**: one that comes while another runs for the same
+  setting gets its answer, so the look at start, the restore and the
+  first poll run `--version` once. One that has ended isn't reused, so
+  a launch still finds it afresh. Look again doesn't share and asks the
+  login shell again, since the player may have just installed it.
+- **No look at start under a Godot suite** (`SIDECAR_TEST_SESSIONS_DIR`
+  set): the real-sidecar suites would otherwise run the real `claude
+  --version`, and on macOS and Linux CI the runner's login shell.
+- The row says "Looking for it…" until the first answer instead of "Not
+  looked for yet", and "Looking…" during Look again; with no sidecar,
+  "Couldn't look: <why>".
+- A new session uses the first provider that can start one; the ring's
+  ➕ still opens the panel, which says why it can't.
+
 ## Security review (2026-10-26)
 
 No blockers. Fixed: a malformed key in the settings file's
@@ -139,19 +180,28 @@ a time). The `.cmd` check only runs on a Windows host.
   failing a launch with why and reported not found; Reset; the same
   answer not sent twice; a stale look not reported; the serve flags
   (parsing, applied before the restore, a failing path kept, unknown
-  providers ignored). `outside.test.ts` and `conversations.test.ts`
-  follow the new capability and event.
+  providers ignored); the look at start (in the background, none under
+  a suite, none twice with a path set); looks shared, a fresh one not;
+  `client.find_program` (not found then found, the same answer not
+  sent again, a path set by hand checked again when gone and back,
+  `not_supported`, `unknown_provider`, `invalid_message`).
+  `outside.test.ts` and `conversations.test.ts` follow the new
+  capability and event.
 - `tests/core/sidecar_client_test.gd`: the start arguments, sorted and
   after `--no-outside-sessions`; `provider.program` kept and announced;
   a refusal from the real sidecar ("That isn't a full path.") not
   kept or saved; accepted, saved with the other settings kept; cleared
-  as `null` and removed from the file; no sidecar.
+  as `null` and removed from the file; no sidecar; `find_program` sent
+  and its answer kept, which providers can start a session, the real
+  sidecar refusing `client.find_program` for an unknown provider (the
+  fake one: `not_supported`).
 - `tests/world/world_test.gd` (`_settings`): through a stand-in
   sidecar, in the Providers tab: no row without the capability (the
   "Nothing to set" line instead), a row by the provider's
-  name, not looked for yet, found, set by hand with Reset enabled, not
-  found in red, a refusal with no sidecar, the row gone with its
-  provider; with the real sidecar, its Claude Code row, "Checking…",
-  and the refusal of a path that isn't a full one; with the fake
-  provider, no row.
+  name, still looking, Look again there, found, set by hand with Reset
+  enabled, not found in red, a refusal and Look again with no sidecar,
+  the row gone with its provider; with the real sidecar, its Claude
+  Code row, "Checking…", and the refusal of a path that isn't a full
+  one; with the fake provider, no row. And (W07's part) Add a session
+  greyed out with why, set by hand or not, and back once found.
 - Live check: `tests/live/checklist.txt` (the user's).

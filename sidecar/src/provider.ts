@@ -132,6 +132,13 @@ export interface Provider {
    * also reported.
    */
   setProgramPath?(path: string | null, evenIfInvalid?: boolean): Promise<Program>
+  /**
+   * program_path: looks for the program now, afresh (the one set by hand,
+   * if any, is checked again): at start, and on client.find_program.
+   * Resolves with what's found, also reported; one not found is an answer,
+   * not an error.
+   */
+  findProgram?(): Promise<Program>
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
 }

@@ -44,6 +44,7 @@
     { "$ref": "#/$defs/client.set_focus" },
     { "$ref": "#/$defs/client.set_outside_sessions" },
     { "$ref": "#/$defs/client.set_program_path" },
+    { "$ref": "#/$defs/client.find_program" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -473,7 +474,7 @@
               "name": { "type": "string" },
               "launch_options": { "$ref": "#/$defs/launch_options" },
               "capabilities": {
-                "description": "Capabilities of the provider itself (not of one session), keyed by name, each with its own config object. outside_sessions: sessions started outside the app get islands, as read_only sessions with origin external. program_path {program}: the provider runs a program of the user's (program: its name), which can be set by hand (client.set_program_path); what it found is the program field and provider.program.",
+                "description": "Capabilities of the provider itself (not of one session), keyed by name, each with its own config object. outside_sessions: sessions started outside the app get islands, as read_only sessions with origin external. program_path {program}: the provider runs a program of the user's (program: its name), which can be set by hand (client.set_program_path) or looked for again (client.find_program); what it found is the program field and provider.program.",
                 "type": "object",
                 "additionalProperties": { "type": "object" }
               },
@@ -586,7 +587,7 @@
     },
 
     "provider.program": {
-      "description": "Sidecar -> Godot. The program a provider with program_path found (or not), sent each time it looks: when it first needs it, after client.set_program_path, or when a look gives another answer. The latest is hello's program on the next connection.",
+      "description": "Sidecar -> Godot. The program a provider with program_path found (or not), sent when a look gives another answer than the last: the look at start, one when it needs the program, after client.set_program_path or client.find_program. The latest is hello's program on the next connection.",
       "type": "object",
       "required": ["type", "provider", "program"],
       "properties": {
@@ -914,6 +915,17 @@
         "id": { "$ref": "#/$defs/id" },
         "provider": { "$ref": "#/$defs/provider_id" },
         "path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 }
+      },
+      "additionalProperties": false
+    },
+    "client.find_program": {
+      "description": "Godot -> sidecar. Has the provider look for its program again now (program_path capability; the player's Look again), afresh: the one set by hand, if any, is checked again, and nothing else is tried. The sidecar also looks once at start. One not found is an answer, not an error. Reply result: {\"program\": program}; provider.program follows if the answer changed.",
+      "type": "object",
+      "required": ["type", "id", "provider"],
+      "properties": {
+        "type": { "const": "client.find_program" },
+        "id": { "$ref": "#/$defs/id" },
+        "provider": { "$ref": "#/$defs/provider_id" }
       },
       "additionalProperties": false
     },

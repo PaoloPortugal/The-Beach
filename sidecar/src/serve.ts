@@ -14,6 +14,7 @@ import { Registry } from './registry.ts'
 import { stderrLog, type Log } from './log.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import type { Provider } from './provider.ts'
+import { TEST_SESSIONS_DIR } from './launch/app-data.ts'
 
 /** How long shutdown may take before the process exits anyway. */
 const SHUTDOWN_GRACE_MS = 3000
@@ -50,7 +51,16 @@ export async function restoreSessions(registry: Registry, providers: Provider[],
  * `serve --no-outside-sessions` (S08); `programPaths`, by provider, the
  * programs set by hand, `--program-path <provider>=<path>` (S02).
  */
-export interface ServeOptions { outsideSessions?: boolean; programPaths?: Record<string, string> }
+export interface ServeOptions {
+  outsideSessions?: boolean
+  programPaths?: Record<string, string>
+  /**
+   * False: no look for the providers' programs at start (serve() under a
+   * Godot suite, TEST_SESSIONS_DIR set: a suite never runs the real
+   * program). Default true.
+   */
+  lookAtStart?: boolean
+}
 
 const PROGRAM_PATH = /^([a-z][a-z0-9_]*)=(.+)$/s
 
@@ -101,13 +111,21 @@ export async function prepare(registry: Registry, providers: Provider[], log: Lo
       log.error(`${id}: couldn't use the program set by hand: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
+  // Every other program_path provider looks at once, in the background, so
+  // the game knows before a session is asked for (hello's program, or
+  // provider.program once it's found); the restore shares that look.
+  if (o.lookAtStart === false) log.info('a test run: programs not looked for at start')
+  for (const p of o.lookAtStart === false ? [] : providers) {
+    if (!p.findProgram || !('program_path' in (p.capabilities ?? {})) || registry.providerProgramOf(p.id)) continue
+    p.findProgram().catch((e) => log.error(`${p.id}: couldn't look for its program: ${e instanceof Error ? e.message : String(e)}`))
+  }
   await restoreSessions(registry, providers, log)
 }
 
 export async function serve(providers: Provider[], log: Log = stderrLog, o: ServeOptions = {}): Promise<void> {
   const token = crypto.randomBytes(32).toString('hex')
   const registry = new Registry(providers, log)
-  await prepare(registry, providers, log, o)
+  await prepare(registry, providers, log, { lookAtStart: !process.env[TEST_SESSIONS_DIR], ...o })
   const server = await startServer({ registry, token, log })
 
   let stopping = false

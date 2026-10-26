@@ -17,7 +17,7 @@ import { sessionsDir, TEST_SESSIONS_DIR } from '../../launch/app-data.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
-import { checkClaudePath, ClaudeNotFound, findClaude, type FoundClaude, type ReadVersion } from './find.ts'
+import { checkClaudePath, ClaudeNotFound, findClaude, forgetLoginShellPath, type FoundClaude, type ReadVersion } from './find.ts'
 import { runningSessions, type AgentEntry, type Running } from './running.ts'
 import { BRIDGE_SERVER_NAME, writeBridgeFile } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
@@ -142,6 +142,8 @@ export class ClaudeProvider implements Provider {
   private reportProgram: ((program: Program) => void) | null = null
   /** Bumped by setProgramPath, so a find() begun before it doesn't report the old setting's answer. */
   private programRun = 0
+  /** The find() under way, shared by the looks that come while it runs (the one at start, a launch, a listing). */
+  private finding: { run: number; found: Promise<FoundClaude> } | null = null
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
   /** Read-only sessions (S07, S08) by their `claude`'s process id, asked about together. */
@@ -213,10 +215,20 @@ export class ClaudeProvider implements Provider {
     return program
   }
 
-  /** Looks for `claude` now (reported), never throwing for one not found. */
-  private async look(): Promise<Program> {
+  /**
+   * Looks for `claude` afresh (S02: at start, and the player's "Look
+   * again"), the login shell asked again too: the player may have just
+   * installed it.
+   */
+  async findProgram(): Promise<Program> {
+    forgetLoginShellPath()
+    return this.look(true)
+  }
+
+  /** Looks for `claude` now (reported), never throwing for one not found; `fresh`: not sharing a look under way. */
+  private async look(fresh = false): Promise<Program> {
     try {
-      const found = await this.find()
+      const found = await this.find(fresh)
       return { path: found.path, version: found.version, set_by_hand: this.handPath !== undefined }
     } catch (e) {
       if (e instanceof CommandError) return { path: null, set_by_hand: this.handPath !== undefined, message: e.message }
@@ -843,10 +855,25 @@ export class ClaudeProvider implements Provider {
     return file
   }
 
-  /** Finds `claude` (the one set by hand, if any) and reports what it gave (provider.program). */
-  private async find(): Promise<FoundClaude> {
-    const byHand = this.handPath !== undefined
+  /**
+   * Finds `claude` (the one set by hand, if any) and reports what it gave
+   * (provider.program). A look under way for the same setting is shared,
+   * unless `fresh`, so the one at start, a launch and a listing don't each
+   * run `--version`.
+   */
+  private find(fresh = false): Promise<FoundClaude> {
     const run = this.programRun
+    if (!fresh && this.finding?.run === run) return this.finding.found
+    const found = this.findNow(run)
+    const finding = { run, found }
+    this.finding = finding
+    const done = () => { if (this.finding === finding) this.finding = null }
+    found.then(done, done)
+    return found
+  }
+
+  private async findNow(run: number): Promise<FoundClaude> {
+    const byHand = this.handPath !== undefined
     try {
       const found = this.opts.findClaude && !byHand ? await this.opts.findClaude() : await findClaude({
         env: process.env,

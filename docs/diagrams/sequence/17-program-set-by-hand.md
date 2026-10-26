@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S02, C10). NOTES.md → S02 → The program set by hand, Protocol → Provider capabilities and notices → `program_path`, C10, Architecture → Platforms → Finding `claude`.
+> **Status:** Built (S02, C10, S03). NOTES.md → S02 → The program set by hand, Protocol → Provider capabilities and notices → `program_path`, C10, Architecture → Platforms → Finding `claude`.
 
 ```mermaid
 sequenceDiagram
@@ -18,12 +18,31 @@ sequenceDiagram
         participant Claude as claude (the chosen file)
     end
 
+    opt the game starts (nothing set by hand)
+        World->>Sidecar: start it with serve
+        Note over Sidecar: ready at once#59; looks for claude in the background<br/>(PATH, install folders, on macOS and Linux the login shell last)<br/>none under a test suite
+        Sidecar->>Claude: --version
+        Sidecar->>World: provider.program {path, version, set_by_hand: false} or {path: null, message}
+        Note over World: until then the row says "Looking for it…"
+    end
     Note over World: Settings → Providers: a row per provider with program_path#59;<br/>its program from hello or provider.program (path and version, or why not)
+    opt no provider's program found
+        Note over World: sessions menu: "+ New session…" and "▸ Resume a session…" greyed out,<br/>the message in red and "Or choose it yourself in Settings → Providers."
+    end
+    opt Look again
+        User->>World: Look again
+        Note over World: the row says "Looking…"
+        World->>Sidecar: client.find_program {provider: claude}
+        Note over Sidecar: looks afresh (the login shell asked again)#59;<br/>set by hand: only that file is checked again
+        Sidecar-->>World: ok {program} (found or not)
+        Sidecar->>World: provider.program (only if the answer changed)
+        Note over World: the row shows it#59; the sessions menu greys out or back in
+    end
     User->>World: Browse… and pick a file (the system's picker)
     Note over World: the row says "Checking…"
     World->>Sidecar: client.set_program_path {provider: claude, path}
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/find.ts (checkClaudePath), index.ts (setProgramPath)<br/>registry.ts and commands.ts (provider messages held until the reply)
+        Note over Sidecar,Claude: providers/claude/find.ts (checkClaudePath), index.ts (setProgramPath, findProgram)<br/>serve.ts (the look at start), registry.ts and commands.ts (provider messages held until the reply)
         Note over Sidecar: a full path? (on Windows on a drive, not a network path)<br/>a file? on Windows an .exe?<br/>(a .cmd is never run)
         Sidecar->>Claude: --version (argument list, clean environment, 15 s)
         Claude-->>Sidecar: "2.1.300 (Claude Code)"
@@ -56,12 +75,12 @@ sequenceDiagram
     end
 ```
 
-**When the sidecar looks.** Each time it needs `claude` (a launch or
-resume, asking which sessions run for the stored list, S07's restore and
-S08's poll) and right after a path is set or cleared. With nothing set,
-nothing at start runs `claude` unless the sidecar already asks it
-something then (outside sessions on, sessions to take back), so the row
-may say "Not looked for yet" until the first session starts.
+**When the sidecar looks.** At start, in the background; each time it
+needs `claude` (a launch or resume, asking which sessions run for the
+stored list, S07's restore and S08's poll); right after a path is set
+or cleared; and on Look again. Looks that come while one runs share
+its answer, so `--version` runs once at start. What it finds is not
+saved, only a path set by hand.
 
 **Sessions already running** keep the `claude` they were started with;
 the choice is for sessions started or resumed after it.

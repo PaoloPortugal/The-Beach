@@ -136,7 +136,33 @@ func _run() -> void:
 	var gave := {}
 	offline.set_program_path("claude", "/x/claude", func(m: Dictionary) -> void: gave.merge(m))
 	_check(gave.get("code") == "disconnected" and offline.program_paths.is_empty(), "S02: no sidecar: said so, nothing kept")
+	# Look again: found or not, the answer kept and shown; nothing saved.
+	var looking := Replying.new()
+	looking.providers = [{"provider": "claude", "name": "Claude Code"}]
+	looking.reply = {"type": "ok", "result": {"program": {"path": null, "set_by_hand": false, "message": "Claude Code wasn't found."}}}
+	var looked := {}
+	looking.find_program("claude", func(m: Dictionary) -> void: looked.merge(m))
+	_check(looking.sent == [["client.find_program", {"provider": "claude"}]] and looked.get("type") == "ok", "S02: Look again sent as client.find_program")
+	_check(looking.provider_program("claude").get("message") == "Claude Code wasn't found." and looking.startable_providers().is_empty(), "S02: not found: kept, and no provider can start a session")
+	looking.reply = {"type": "ok", "result": {"program": {"path": "/usr/bin/claude", "version": "2.1.301", "set_by_hand": false}}}
+	looking.find_program("claude")
+	_check(looking.provider_program("claude").get("path") == "/usr/bin/claude" and looking.startable_providers().size() == 1 and looking.program_paths.is_empty(), "S02: found: kept, it can start one, nothing set by hand")
+	looking.providers.append({"provider": "other", "name": "Other"})
+	looking.providers[0]["program"] = {"path": null, "set_by_hand": false, "message": "gone"}
+	_check(looking.startable_providers().map(func(p: Dictionary) -> String: return p["provider"]) == ["other"], "S02: a provider without program_path can always start one")
+	looking.providers[0]["program"] = {}
+	_check(looking.startable_providers().size() == 2, "S02: one still looking counts")
+	looking.free()
+	var nobody := {}
+	offline.find_program("claude", func(m: Dictionary) -> void: nobody.merge(m))
+	_check(nobody.get("code") == "disconnected", "S02: Look again with no sidecar: said so")
 	offline.free()
+	# The sidecar's own answer to a provider it hasn't, or one without
+	# program_path (nothing runs a real program).
+	var asked := {}
+	sidecar.find_program("fake" if fake else "nobody", func(m: Dictionary) -> void: asked.merge(m))
+	await _until(func() -> bool: return not asked.is_empty(), 5.0)
+	_check(asked.get("code") == ("not_supported" if fake else "unknown_provider"), "S02: client.find_program refused by the sidecar for %s (%s)" % ["the fake provider" if fake else "an unknown provider", asked.get("code")])
 
 	if fake:
 		var project := OS.get_user_data_dir()

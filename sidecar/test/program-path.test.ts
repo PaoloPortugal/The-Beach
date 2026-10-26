@@ -98,7 +98,7 @@ test('client.set_program_path: checked, answered with the program, then provider
     const { hello } = await c.sync()
     const entry = (hello.providers as Msg[]).find((x) => x.provider === 'claude')!
     assert.deepEqual((entry.capabilities as Record<string, unknown>).program_path, { program: 'claude' })
-    assert.equal(entry.program, undefined, 'not looked for yet: nothing asked claude at start')
+    assert.equal(entry.program, undefined, 'not looked for yet: testServer runs no prepare(), so no look at start')
 
     const ok = await c.command({ type: 'client.set_program_path', provider: 'claude', path: exe })
     assert.equal(ok.type, 'ok')
@@ -234,4 +234,119 @@ test('serve --program-path: parsed; applied before the restore; one that fails i
     assert.ok(log.lines.some((l) => /warn --program-path: no provider "plain" with program_path; ignored/.test(l)))
     assert.ok(log.lines.some((l) => /warn --program-path: no provider "nobody" with program_path; ignored/.test(l)))
   } finally { await p.shutdown() }
+})
+
+test('at start every program_path provider looks, in the background; one set by hand isn\'t looked for twice', async () => {
+  let calls = 0
+  let release: () => void = () => {}
+  const p = provider({
+    findClaude: async () => {
+      calls++
+      await new Promise<void>((r) => { release = r })
+      return { path: '/found/claude', version: '2.1.299' }
+    },
+  })
+  const log = new RecordingLog()
+  const registry = new Registry([p, new FakeProvider({ id: 'plain' })], log)
+  const sent: Msg[] = []
+  registry.setSink((m) => sent.push(m as Msg))
+  try {
+    await prepare(registry, [p], log, { outsideSessions: false })
+    assert.equal(calls, 1, 'looking, and prepare() didn\'t wait for it')
+    assert.equal(registry.providerProgramOf('claude'), undefined, 'not found yet: hello has no program')
+    release()
+    await new Promise((r) => setTimeout(r, 20))
+    assert.deepEqual(registry.providerProgramOf('claude'), { path: '/found/claude', version: '2.1.299', set_by_hand: false })
+    assert.deepEqual(sent.map((m) => [m.type, m.provider]), [['provider.program', 'claude']], 'provider.program once found')
+    assert.equal(registry.providerProgramOf('plain'), undefined)
+  } finally { await p.shutdown() }
+
+  const exe = file('claude.exe')
+  const v = versions({ [exe]: '2.1.300' })
+  const byHand = provider({ readVersion: v.read, findClaude: async () => { throw new Error('nothing else is looked for') } })
+  const r2 = new Registry([byHand], log)
+  try {
+    await prepare(r2, [byHand], log, { outsideSessions: false, programPaths: { claude: exe } })
+    assert.deepEqual(r2.providerProgramOf('claude'), { path: exe, version: '2.1.300', set_by_hand: true })
+    assert.deepEqual(v.calls, [exe], 'checked once: setting it was the look')
+  } finally { await byHand.shutdown() }
+
+  // Under a Godot suite (serve() with TEST_SESSIONS_DIR): no look at all.
+  let looked = false
+  const quiet = provider({ findClaude: async () => { looked = true; return { path: '/found/claude', version: '2.1.299' } } })
+  const r3 = new Registry([quiet], log)
+  try {
+    await prepare(r3, [quiet], log, { outsideSessions: false, lookAtStart: false })
+    await new Promise((r) => setTimeout(r, 20))
+    assert.equal(looked, false)
+    assert.equal(r3.providerProgramOf('claude'), undefined)
+    assert.ok(log.lines.some((l) => /a test run: programs not looked for at start/.test(l)))
+  } finally { await quiet.shutdown() }
+})
+
+test('looks that come while one runs share it (one --version); a fresh look doesn\'t', async () => {
+  let calls = 0
+  const p = provider({ findClaude: async () => { calls++; await new Promise((r) => setTimeout(r, 20)); return { path: '/found/claude', version: '2.1.299' } } })
+  const find = (fresh?: boolean) => (p as unknown as { find(fresh?: boolean): Promise<unknown> }).find(fresh)
+  try {
+    const [a, b] = await Promise.all([find(), find()])
+    assert.equal(calls, 1, 'shared')
+    assert.deepEqual(a, b)
+    await find()
+    assert.equal(calls, 2, 'one that ended isn\'t reused: a later launch looks afresh')
+    await Promise.all([find(), find(true)])
+    assert.equal(calls, 4, 'fresh: its own look')
+  } finally { await p.shutdown() }
+})
+
+test('client.find_program: looks again now, answered with the program; provider.program only when it changed; the one set by hand checked again', async () => {
+  const exe = file('claude.exe')
+  const v = versions({ [exe]: '2.1.300' })
+  let installed = false
+  const p = provider({
+    readVersion: v.read,
+    findClaude: async () => {
+      if (!installed) throw new ClaudeNotFound('Claude Code wasn\'t found.')
+      return { path: '/found/claude', version: '2.1.299' }
+    },
+  })
+  const s = await testServer([p, new FakeProvider({ id: 'plain' })])
+  const c = await connect(s.port, s.token)
+  try {
+    await c.sync()
+    const none = await c.command({ type: 'client.find_program', provider: 'claude' })
+    assert.equal(none.type, 'ok', 'not found is an answer')
+    assert.deepEqual(none.result, { program: { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.' } })
+    assert.deepEqual((await c.next('provider.program')).program, { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.' })
+
+    installed = true
+    const found = await c.command({ type: 'client.find_program', provider: 'claude' })
+    assert.deepEqual(found.result, { program: { path: '/found/claude', version: '2.1.299', set_by_hand: false } })
+    assert.deepEqual((await c.next('provider.program')).program, { path: '/found/claude', version: '2.1.299', set_by_hand: false })
+    const same = await c.command({ type: 'client.find_program', provider: 'claude' })
+    assert.deepEqual(same.result, found.result, 'the same answer in the reply')
+    assert.deepEqual((await c.quiet()).filter((m) => m.type === 'provider.program'), [], 'but no provider.program again')
+
+    // Set by hand: only that one is checked again, gone or back.
+    assert.equal((await c.command({ type: 'client.set_program_path', provider: 'claude', path: exe })).type, 'ok')
+    await c.next('provider.program')
+    const moved = exe + '.moved'
+    fs.renameSync(exe, moved)
+    const gone = await c.command({ type: 'client.find_program', provider: 'claude' })
+    assert.equal(gone.type, 'ok')
+    assert.match((gone.result as { program: { message: string } }).program.message, /set in Settings doesn't work: There's no program at that path/)
+    assert.equal((gone.result as { program: Program }).program.path, null, 'not the one found as usual')
+    fs.renameSync(moved, exe)
+    const back = await c.command({ type: 'client.find_program', provider: 'claude' })
+    assert.deepEqual(back.result, { program: { path: exe, version: '2.1.300', set_by_hand: true } })
+
+    assert.equal((await c.command({ type: 'client.find_program', provider: 'plain' })).code, 'not_supported')
+    assert.equal((await c.command({ type: 'client.find_program', provider: 'nobody' })).code, 'unknown_provider')
+    assert.equal((await c.command({ type: 'client.find_program' })).code, 'invalid_message')
+    assert.deepEqual(c.invalid, [])
+  } finally {
+    await c.close()
+    await s.close()
+    await p.shutdown()
+  }
 })

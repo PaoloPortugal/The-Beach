@@ -566,8 +566,8 @@ func _settings(world: Node3D, player: Player) -> void:
 	stand_in.providers_changed.emit()
 	var tool_row: Dictionary = menu._programs.get("tool", {})
 	_check(not tool_row.is_empty() and tool_row["label"].text == "Tool" and tool_row["box"].is_visible_in_tree() and not menu._no_providers.visible, "S02: a row for it in Providers, by its name, instead of the line")
-	_check(menu.program_text("tool") == "Not looked for yet: it's found when a session starts.", "S02: not looked for yet")
-	_check(tool_row["reset"].disabled and not tool_row["browse"].disabled, "S02: Reset greyed out unless set by hand, Browse… there")
+	_check(menu.program_text("tool") == "Looking for it…", "S02: not found yet: looking (the sidecar looks at start)")
+	_check(tool_row["reset"].disabled and not tool_row["browse"].disabled and not tool_row["look"].disabled and tool_row["look"].text == "Look again", "S02: Reset greyed out unless set by hand, Browse… and Look again there")
 	stand_in.providers[1]["program"] = {"path": "/opt/tool/bin/tool", "version": "2.1.300", "set_by_hand": false}
 	stand_in.providers_changed.emit()
 	_check(menu.program_text("tool") == "/opt/tool/bin/tool\nversion 2.1.300" and tool_row["status"].modulate == Color.WHITE, "S02: found: its path and version")
@@ -580,6 +580,8 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and tool_row["status"].modulate != Color.WHITE, "S02: not found: why, in red")
 	menu.choose_program("tool", "/somewhere/else")
 	_check(menu.program_error("tool") == "Not changed: The sidecar isn't running." and stand_in.program_paths == {"tool": "/opt/tool/bin/tool"} and not tool_row["browse"].disabled, "S02: no sidecar: not changed, said why, the setting kept")
+	menu.look_again("tool")
+	_check(menu.program_error("tool") == "Couldn't look: The sidecar isn't running." and menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and not tool_row["look"].disabled, "S02: Look again with no sidecar: said why, the row as it was")
 	# The panel is as tall as its tallest tab, hidden ones too: the row's
 	# wrapping text, a message and a refusal shown, mustn't make it taller
 	# than a small screen on any tab.
@@ -1172,6 +1174,25 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _open_create(menu)
 	_check(menu.panel_open() and not menu.ring_open() and not player.controls_enabled and menu.page() == SessionsMenu.Page.ADD and menu.entries() == ["+ New session…", "▸ Resume a session…"] and menu.pickers_visible(), "W07: a click on the + opens the create panel: New or Resume, with the cluster and biome")
 	_check(menu.listings_asked == 0, "S04: and the sidecar isn't asked for the stored sessions yet")
+	# S02: no provider can start a session (its program wasn't found): both
+	# greyed out, why in red under them, until it's found again.
+	var sc: SidecarClient = menu.sidecar
+	var had_program: Variant = sc.providers[0].get("program")
+	sc.providers[0]["program"] = {"path": null, "set_by_hand": false, "message": "Claude Code wasn't found."}
+	sc.providers_changed.emit()
+	await _frames(1)
+	_check(menu.entry_disabled("+ New session") and menu.entry_disabled("▸ Resume a session") and menu.entries() == ["+ New session…", "▸ Resume a session…", "Claude Code wasn't found. Or choose it yourself in Settings → Providers."], "S02: no program found: New and Resume greyed out, why and where to choose it (%s)" % [menu.entries()])
+	sc.providers[0]["program"] = {"path": null, "set_by_hand": true, "message": "The Claude Code set in Settings doesn't work: There's no program at that path. Choose it again, or reset it."}
+	sc.providers_changed.emit()
+	await _frames(1)
+	_check(menu.entries().back() == "The Claude Code set in Settings doesn't work: There's no program at that path. Choose it again, or reset it. (Settings → Providers)", "S02: one set by hand that doesn't work: said so")
+	if had_program == null:
+		sc.providers[0].erase("program")
+	else:
+		sc.providers[0]["program"] = had_program
+	sc.providers_changed.emit()
+	await _frames(1)
+	_check(not menu.entry_disabled("+ New session") and not menu.entry_disabled("▸ Resume a session") and menu.entries() == ["+ New session…", "▸ Resume a session…"], "S02: found again (or still looking): both back")
 	_check(not menu.waiting_for_picker() and not menu.launcher.busy() and menu.notice_text() == "", "W07: the click on + only opens the panel: no picker, no start, no notice")
 	var kinds: Array[String] = ["Random"]
 	for k: int in Biome.NAMES:

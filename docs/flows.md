@@ -70,7 +70,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01, W12 |
 | 15 | [A session back with its hook port taken (read-only)](diagrams/sequence/15-read-only-mode.md) | S07 |
 | 16 | [Sessions started outside the game (read-only)](diagrams/sequence/16-outside-sessions.md) | S08, C10, W12 |
-| 17 | [Choosing Claude Code by hand](diagrams/sequence/17-program-set-by-hand.md) | S02, C10 |
+| 17 | [Choosing Claude Code by hand](diagrams/sequence/17-program-set-by-hand.md) | S02, C10, S03 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the

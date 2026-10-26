@@ -144,6 +144,13 @@ async function execute(
       }
       return { program: await provider.setProgramPath(c.path) }
     }
+    case 'client.find_program': {
+      const provider = findProvider(registry, c.provider)
+      if (!('program_path' in (provider.capabilities ?? {})) || !provider.findProgram) {
+        throw new CommandError('not_supported', `provider ${JSON.stringify(provider.id)} does not declare program_path`)
+      }
+      return { program: await provider.findProgram() }
+    }
   }
 }
 
