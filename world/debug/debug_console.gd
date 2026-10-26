@@ -98,7 +98,7 @@ func _process(delta: float) -> void:
 
 
 # _input, not _unhandled_input, so the T that opens it isn't typed in,
-# and Esc closes it without also opening the settings menu (C10).
+# and Esc closes it without also opening the pause menu (C13).
 func _input(event: InputEvent) -> void:
 	if is_open():
 		if event.is_action_pressed("ui_cancel"):
