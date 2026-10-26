@@ -122,6 +122,12 @@ Then **Model**, **Effort** and **Mode** say what Claude Code starts
 with; each is **Default** every time the panel opens (see Model, effort
 and mode at launch below).
 
+If the game couldn't find Claude Code, **+ New session…** and **▸
+Resume a session…** are greyed out, and under them it says why in red
+and where to fix it (**Settings → Providers**; see Choosing Claude Code
+yourself, in Claude Code sessions (S02)). They come back as soon as it's
+found.
+
 - **+ New session…** opens your system's own folder picker (File
   Explorer on Windows, the usual open panel on macOS and Linux) to
   choose the project folder you want to work in. Cancelling it takes you
@@ -947,7 +953,8 @@ puts everything back.
   off; your choice is kept for when it's back on.
 - **Providers:** settings for the AI tools the game runs. **Claude
   Code**: which Claude Code the game runs, with **Browse…** to choose it
-  yourself and **Reset** to let the game find it again (see Choosing
+  yourself, **Look again** to look for it now and **Reset** to let the
+  game find it again (see Choosing
   Claude Code yourself, in Claude Code sessions (S02)). Reset to
   defaults leaves this one alone. While no tool has anything to set, the
   tab says so.
@@ -1018,12 +1025,17 @@ terminal for that.
 2.1.284 or newer), signed in with your own account. The game never sees
 your login and never changes Claude Code.
 
-**If Claude Code isn't found.** The game looks where the installers put
-Claude Code. On macOS and Linux, if you installed it with npm under a
+**If Claude Code isn't found.** The game looks for Claude Code as soon
+as it starts, in the background, and again each time you start or
+resume a session, so an update or a move is noticed. It looks where the
+installers put Claude Code. If it isn't found, you can't start or resume
+a session (see Starting or resuming a session) until it is: install it
+and press **Look again**, or choose it yourself (below). On macOS and Linux, if you installed it with npm under a
 Node version manager (nvm, fnm, Volta, asdf, mise), a game started from
 the Dock or an app menu can't see it at first. The game then asks your
 shell, the way a terminal starts it, which folders it searches, and
-looks there too, once each time the game runs. This takes a moment and
+looks there too, once each time the game runs (and again when you press
+Look again). This takes a moment and
 runs your shell's startup files without showing you a window: nothing
 can answer a question they ask, and if they take more than 10 seconds
 the game gives up and says Claude Code wasn't found. On Windows this
@@ -1033,10 +1045,8 @@ isn't needed.
 or finds a different one from the one you want, choose it in **Settings
 → Providers → Claude Code**. The row shows which one the game uses (where it
 is and its version, and "set by hand" if you chose it), or in red why
-there's none. With **Show sessions started outside the game** off,
-it may say "Not looked for yet" before your first session: the game
-then looks when a session starts. (On, the game already looks when it
-starts, to list those sessions.)
+there's none. Right after the game starts it may say "Looking for it…"
+for a moment.
 - **Browse…** opens your system's file picker. Choose the Claude Code
   program itself: on Windows that's `claude.exe` (an npm `claude.cmd`
   won't do; the picker only shows `.exe` files), on a drive of this
@@ -1044,8 +1054,14 @@ starts, to list those sessions.)
   "Checking…" while the game makes sure it's a full path to a program
   that answers as Claude Code 2.1.284 or newer. If it isn't, the reason
   shows in red ("Not changed: …") and the one you had stays.
+- **Look again** looks for Claude Code now, for example after you've
+  installed it while the game runs; the row says "Looking…" until it
+  knows. If you chose one yourself, it checks that one again (say, after
+  putting it back) and looks nowhere else.
 - **Reset** forgets your choice and lets the game find Claude Code as
   usual again, at once. It's greyed out while nothing is chosen.
+- Only your choice is remembered: what the game finds by itself is
+  looked for again each time, so it never sticks to an old copy.
 - Your choice is remembered and used for every session you start or
   resume from then on; sessions already running keep theirs. It's the
   **only** one the game uses: if you move, delete or downgrade it, the

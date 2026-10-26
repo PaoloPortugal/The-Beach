@@ -12,9 +12,9 @@ extends CanvasLayer
 ##
 ## Providers has a row per provider that runs a program of the user's
 ## (S02, [code]program_path[/code]): what it found (path and version, or
-## why not, in red), Browse… to set it by hand and Reset to find it as
-## usual again. The sidecar checks a path first; one it refuses is said in
-## red and nothing changes.
+## why not, in red), Browse… to set it by hand, Look again to look for it
+## now, and Reset to find it as usual again. The sidecar checks a path
+## first; one it refuses is said in red and nothing changes.
 
 const TABS := ["Graphics", "Controls", "Sound", "Game", "Providers"]
 ## What each choice reads as in the menu.
@@ -313,13 +313,29 @@ func choose_program(provider: String, path: String) -> void:
 	var row: Dictionary = _programs.get(provider, {})
 	if row.is_empty() or sidecar == null:
 		return
-	row["busy"] = true
+	row["busy"] = "Checking…"
 	row["error"].text = ""
 	_refresh_programs()
 	sidecar.set_program_path(provider, path, func(reply: Dictionary) -> void:
-		row["busy"] = false
+		row["busy"] = ""
 		if reply.get("type") != "ok":
 			row["error"].text = "Not changed: %s" % reply.get("message", "")
+		_refresh_programs())
+
+
+## Has [param provider] look for its program again now, as Look again
+## does (S02). The row says "Looking…" until the sidecar answers.
+func look_again(provider: String) -> void:
+	var row: Dictionary = _programs.get(provider, {})
+	if row.is_empty() or sidecar == null:
+		return
+	row["busy"] = "Looking…"
+	row["error"].text = ""
+	_refresh_programs()
+	sidecar.find_program(provider, func(reply: Dictionary) -> void:
+		row["busy"] = ""
+		if reply.get("type") != "ok":
+			row["error"].text = "Couldn't look: %s" % reply.get("message", "")
 		_refresh_programs())
 
 
@@ -351,17 +367,19 @@ func _refresh_programs() -> void:
 		var program: Dictionary = p.get("program", {})
 		var status: Label = row["status"]
 		var missing := program.has("path") and program["path"] == null
-		if row["busy"]:
-			status.text = "Checking…"
+		var busy: String = row["busy"]
+		if not busy.is_empty():
+			status.text = busy
 		elif program.is_empty():
-			status.text = "Not looked for yet: it's found when a session starts."
+			status.text = "Looking for it…"
 		elif missing:
 			status.text = str(program.get("message", ""))
 		else:
 			status.text = "%s\nversion %s%s" % [program.get("path", ""), program.get("version", ""), "  ·  set by hand" if program.get("set_by_hand") else ""]
-		status.modulate = Color(0.95, 0.35, 0.3) if missing and not row["busy"] else Color.WHITE
-		row["browse"].disabled = row["busy"]
-		row["reset"].disabled = row["busy"] or not sidecar.program_paths.has(id)
+		status.modulate = Color(0.95, 0.35, 0.3) if missing and busy.is_empty() else Color.WHITE
+		row["browse"].disabled = not busy.is_empty()
+		row["look"].disabled = not busy.is_empty()
+		row["reset"].disabled = not busy.is_empty() or not sidecar.program_paths.has(id)
 	_no_providers.visible = _programs.is_empty()
 
 
@@ -389,6 +407,12 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	browse.focus_mode = Control.FOCUS_NONE
 	browse.pressed.connect(_browse.bind(id))
 	buttons.add_child(browse)
+	var look := Button.new()
+	look.text = "Look again"
+	look.tooltip_text = "Look for it now, e.g. after installing it"
+	look.focus_mode = Control.FOCUS_NONE
+	look.pressed.connect(look_again.bind(id))
+	buttons.add_child(look)
 	var reset := Button.new()
 	reset.text = "Reset"
 	reset.tooltip_text = "Find it as usual"
@@ -403,7 +427,7 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	box.add_child(error)
 	_providers.add_child(label)
 	_providers.add_child(box)
-	return {"status": status, "error": error, "browse": browse, "reset": reset, "label": label, "box": box, "busy": false}
+	return {"status": status, "error": error, "browse": browse, "look": look, "reset": reset, "label": label, "box": box, "busy": ""}
 
 
 # The system's file picker, starting where the current one is.

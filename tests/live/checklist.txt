@@ -11,26 +11,25 @@ A. What the game found
    session running. Esc →
    Settings → Providers: a
    "Claude Code" row with
-   Browse… and a greyed-out
-   Reset? With "Show
+   your claude.exe's full
+   path and "version …", no
+   "set by hand" (maybe
+   "Looking for it…" for a
+   moment first)? Browse…,
+   Look again and a
+   greyed-out Reset?
+2. Game tab: turn "Show
    sessions started outside
-   the game" on (Game tab,
-   the default) it already
-   shows the claude.exe it
-   found, as in 2; with it
-   off it says "Not looked
-   for yet: it's found when
-   a session starts."
-2. Start a session (Tab, +)
-   and confirm it in its
-   terminal. Back in
-   Settings → Providers: the
-   row shows your claude.exe's
-   full path and "version
-   …", no "set by hand"?
-3. Does the row read well
-   (a long path wraps, the
-   buttons under it)?
+   the game" off. Close the
+   game, start it again:
+   Providers shows it all the
+   same? Turn it back on.
+3. Look again: "Looking…"
+   for a moment, then the
+   same path and version?
+   Does the row read well (a
+   long path wraps, the three
+   buttons fit under it)?
 
 B. Choosing it
 4. Browse…: the Windows file
@@ -54,9 +53,10 @@ B. Choosing it
    path, version and "· set
    by hand", Reset no longer
    greyed?
-7. Start another session: it
-   opens in the terminal as
-   usual? /exit both.
+7. Start a session (Tab, +)
+   and confirm it in its
+   terminal: it opens as
+   usual? /exit it.
 8. Reset to defaults (bottom
    left): the row stays "set
    by hand"?
@@ -64,9 +64,9 @@ B. Choosing it
 C. Kept across a restart
 9. Close the game and start
    it again. Settings →
-   Providers: at once the same path,
-   version and "set by hand"
-   (no "Not looked for yet")?
+   Providers: at once the
+   same path, version and
+   "set by hand"?
 
 D. When it stops working
 10. Close the game. Copy
@@ -86,16 +86,31 @@ D. When it stops working
    There's no program at
    that path. Choose it
    again, or reset it."?
-12. Settings → Providers:
-   the row says the same, in red?
-13. Close the game and start
+12. Tab, +: "+ New session…"
+   and "▸ Resume a session…"
+   greyed out, and under them
+   in red the same message
+   and "(Settings →
+   Providers)"? Nothing
+   happens when you click
+   them?
+13. Settings → Providers:
+   the row says the same, in
+   red?
+14. Close the game and start
    it again: the row says it
-   again, in red, and still
-   no other Claude Code is
-   used when you start a
-   session?
-14. Reset: the row shows your
-   usual claude.exe again, no
-   "set by hand", Reset
-   greyed out? A session
-   starts as usual. /exit it.
+   at once, in red, and Add
+   a session is greyed out
+   from the start?
+15. Copy claude.exe into that
+   folder again. Look again:
+   "Looking…", then the copy
+   with "set by hand", the
+   red gone? Tab, +: New and
+   Resume back?
+16. Delete the copy again.
+   Reset: the row shows your
+   usual claude.exe, no "set
+   by hand", Reset greyed
+   out? A session starts as
+   usual. /exit it.

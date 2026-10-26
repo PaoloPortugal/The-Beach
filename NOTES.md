@@ -432,7 +432,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
   once per run:** the answer, even an empty one, is kept, because
   finding `claude` is retried (each launch, and each look at the
   running sessions until it is found) and the user's startup files
-  must not run each time.
+  must not run each time. Only the player's Look again (S02 → The
+  program set by hand) asks it again: they may have just installed it.
   Of what it prints, only absolute folders between the marks, without
   control characters, are kept, and they are used only to look up
   `claude` (the first on that PATH, as the terminal would pick), which
@@ -767,11 +768,17 @@ a config object, and `notices`: its notices so far, one per code.
   `program`: `{path, version, set_by_hand}` when found, `{path: null,
   set_by_hand, message}` when not (`message` for the player: not
   installed, too old, or why the path set by hand doesn't work). The
-  event `provider.program {provider, program}` sends it each time the
-  provider looks (when it first needs the program, or at start when it
-  already asks it something; after a path is set or cleared; again if a
-  look gives another answer), and the latest is `program` in that
-  provider's entry in the next `hello` (absent until it has looked).
+  event `provider.program {provider, program}` sends it when a look
+  gives another answer than the last (the look at start, in the
+  background; one when the provider needs the program; after a path is
+  set or cleared, or `client.find_program`), and the latest is
+  `program` in that provider's entry in the next `hello` (absent until
+  it has looked).
+  `client.find_program {provider}` has it look again now (the player's
+  Look again), afresh: a path set by hand is checked again and nothing
+  else is tried. It answers `ok {program}`, found or not (not found is
+  an answer, not an error), then `provider.program` if the answer
+  changed; `not_supported` without the capability.
   `client.set_program_path {provider, path}` sets a path (absolute) or
   clears it (`null`); the provider checks it first (absolute, a file,
   on Windows an `.exe`, answers `--version` with a version it supports)
@@ -816,7 +823,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
 | `session.snapshot`, `session.created`, `session.updated`, `session.ended`, `session.notice`, `session.notice_cleared` | `session.end`, `session.get_snapshot`, `session.get_history` |
 | `agent.spawned`, `agent.state_changed` | `message.send` |
 | `message.started`, `message.delta`, `message.completed` | `permission.respond` (`allow` / `deny`, optional `note`, optional `option`) |
-| `provider.notice`, `provider.program` | `client.set_focus`, `client.set_outside_sessions`, `client.set_program_path` |
+| `provider.notice`, `provider.program` | `client.set_focus`, `client.set_outside_sessions`, `client.set_program_path`, `client.find_program` |
 | `tool.started`, `tool.finished` | |
 | `permission.requested`, `permission.resolved` | |
 
@@ -3176,15 +3183,18 @@ later SMAA default):*
   that runs a program of the user's* (S02 → The program set by hand; a
   provider with the `program_path` capability, by its own name: "Claude
   Code"): what it found (the path, "version …", and "· set by hand" when
-  it is), or why not, in red; "Not looked for yet: it's found when a
-  session starts." before the provider has looked (with outside
-  sessions on, listing them at start already finds it). **Browse…**
-  opens the system's file picker (native, `*.exe` only on Windows,
-  starting in the found program's folder) and **Reset** ("Find it as
-  usual", greyed out unless set by hand) clears it; both go through
+  it is), or why not, in red; "Looking for it…" before the provider has
+  answered (it looks at start). **Browse…** opens the system's file
+  picker (native, `*.exe` only on Windows, starting in the found
+  program's folder) and **Reset** ("Find it as usual", greyed out
+  unless set by hand) clears it; both go through
   `SidecarClient.set_program_path`, the row says "Checking…" until the
   sidecar answers, and a refusal is shown in red under it, "Not changed:
-  <why>", with nothing changed. Saved by `SidecarClient`, not `Settings`
+  <why>", with nothing changed. **Look again** (between them; "Look for
+  it now, e.g. after installing it") goes through
+  `SidecarClient.find_program`: "Looking…" until the answer, which the
+  row then shows, found or not; no sidecar is "Couldn't look: <why>"
+  under it. Saved by `SidecarClient`, not `Settings`
   (S02 → Setting it). Rows come and go with the providers (it follows
   `SidecarClient.providers_changed`); while there are none, the tab
   says "Nothing to set for the AI tools in use."
@@ -3200,8 +3210,9 @@ Tested in the world test (`_settings`; Esc in `_pause`, C13): the tabs, each set
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on, the crosshair, the
 outside sessions with and without the notice: S08; the program rows
-in the Providers tab with a stand-in sidecar, the "Nothing to set" line
-while no provider has a row, and the real one refusing a path: S02; the
+in the Providers tab with a stand-in sidecar (Look again with no
+sidecar too), the "Nothing to set" line while no provider has a row,
+and the real one refusing a path: S02; the
 panel under 600 px tall on every tab: it is as tall as its tallest tab,
 hidden ones included, and a wrapping label needs a width of its own or
 it wraps at every character while its tab is hidden), every value kept in a
@@ -3952,10 +3963,12 @@ capability; C12).** Code: `launch-options.ts`.
 usual lookup (Architecture → Platforms → Finding `claude`) can't find,
 or to pick one of several. The commands and events are in Protocol →
 Provider capabilities and notices → `program_path`. Code: `checkClaudePath` and
-`findClaude` in `find.ts`, `setProgramPath` and `find()` in `index.ts`,
-`providerProgram` in `sidecar/src/registry.ts`, `--program-path` in
-`sidecar/src/serve.ts`; in Godot `SidecarClient.set_program_path` and
-the Settings row (C10, its Providers tab).
+`findClaude` in `find.ts`, `setProgramPath`, `findProgram` and `find()`
+in `index.ts`, `providerProgram` in `sidecar/src/registry.ts`,
+`--program-path` and the look at start in `sidecar/src/serve.ts`; in
+Godot `SidecarClient.set_program_path`, `find_program` and
+`startable_providers`, the Settings row (C10, its Providers tab) and
+the sessions menu's Add a session (S03).
 - **The checks**, in order, each with its own message for the player:
   a full path without control characters ("That isn't a full path."),
   on Windows on a drive of this computer (a network path, `\\host\share\…`,
@@ -3970,16 +3983,41 @@ the Settings row (C10, its Providers tab).
   found, "The Claude Code set in Settings doesn't work: <why> Choose it
   again, or reset it.", and the launch fails with that message. Never
   another `claude` instead: the user chose this one.
-- **When it looks.** Whenever the provider needs `claude` (a launch or
-  resume; asking which sessions run, for the stored list, S07's restore
-  and S08's poll, until one is found) and
-  right after a path is set or cleared; each look is reported, the same
-  answer only once. A look begun before a change doesn't report its
-  answer (a counter). With no path set, `claude` is looked for at start
-  only when the sidecar already asks it something then (outside
-  sessions on, sessions to take back), so the row may say "Not looked
-  for yet" until the first session starts; the suites never run the
-  real `claude` this way. A path set at start is checked at once.
+- **When it looks** (user's, 2026-10-26, at the live check: the game
+  should know before a session is asked for). **At start**, always, in
+  the background (the ready line doesn't wait): with no path set,
+  `serve` has each `program_path` provider look (`findProgram`); a path
+  set at start is checked at once instead, which is that look. Then
+  whenever the provider needs `claude` (a launch or resume; asking which
+  sessions run, for the stored list, S07's restore and S08's poll, until
+  one is found), right after a path is set or cleared, and on the
+  player's **Look again** (`client.find_program`). Each look is
+  reported, the same answer only once. A look begun before a change
+  doesn't report its answer (a counter). **Looks share:** one that
+  comes while another runs for the same setting gets its answer (the
+  look at start, the restore and the first poll run `--version` once);
+  one that has ended isn't reused, so a launch still finds `claude`
+  afresh. Look again doesn't share, and asks the login shell again
+  (Platforms → Finding `claude`). What's found is not saved: only a
+  path set by hand is (user's, 2026-10-26: a saved find goes stale when
+  Claude Code updates or moves, and a look costs about 0.1 s, measured
+  on Windows: 8-14 ms for the file checks, 95-113 ms for `--version`;
+  the login shell, macOS and Linux only, up to 10 s, in the
+  background). Under a Godot suite (`SIDECAR_TEST_SESSIONS_DIR` set)
+  there is no look at start (`lookAtStart`), so the suites never run
+  the real `claude`.
+- **Starting a session needs a program** (user's, 2026-10-26). In the
+  sessions menu's Add a session, "+ New session…" and "▸ Resume a
+  session…" are greyed out while **no provider can start one**: every
+  provider's program was looked for and not found (a provider without
+  `program_path`, or one still looking, can). Under them, in red, each
+  provider's message, then "Or choose it yourself in Settings →
+  Providers." ("(Settings → Providers)" after a path set by hand, whose
+  message already says what to do). On Resume a session, a stored
+  session whose provider can't start is greyed out. A new session uses
+  the first provider that can start one (`SessionLauncher.new_session_provider`).
+  The menu follows `SidecarClient.providers_changed`. The ring's ➕
+  still opens the panel, which says why.
 - **Setting it.** A path that fails is refused (`invalid_program`) and
   the previous one stays; one that passes is used for sessions started
   or resumed after it, running ones keep theirs. Reset (`path: null`)
@@ -3993,8 +4031,8 @@ the Settings row (C10, its Providers tab).
   a key that isn't a well-formed provider id, which the sidecar's flag
   parsing would refuse (security review 2026-10-26). The settings
   file is trusted as the user's own: whoever can edit it already runs
-  as the user. Godot sends one choice at a time (Browse… and Reset are
-  greyed out while one is checked); two sent at once could end with
+  as the user. Godot sends one choice at a time (Browse…, Look again
+  and Reset are greyed out while one is checked); two sent at once could end with
   the slower check's path, not the last sent.
 - **The reply first.** Provider messages a command causes
   (`provider.program`) are held until its reply is sent, for every
@@ -4007,10 +4045,17 @@ the Settings row (C10, its Providers tab).
   `program`, a deleted path failing a launch with why, Reset, the same
   answer not sent twice, a stale look not reported, the serve flags),
   a launch after a path is set running that path, control characters
-  and network paths refused before anything runs; the core suite (start
-  arguments, a malformed id left out, saved and cleared, a refusal not
-  kept, no sidecar) and the world suite (Settings → Providers' row; the
-  real sidecar refusing a path that isn't a full one). Live check:
+  and network paths refused before anything runs, the look at start (in
+  the background, none under a suite, none twice with a path set),
+  looks shared but not a fresh one, `client.find_program` (not found
+  and found, the same answer not sent again, a path set by hand checked
+  again, gone and back, refusals); the core suite (start arguments, a
+  malformed id left out, saved and cleared, a refusal not kept, no
+  sidecar, `find_program` sent and its answer kept, which providers can
+  start, the real sidecar refusing `client.find_program` for an unknown
+  provider or the fake one) and the world suite (Settings → Providers'
+  row with Look again; the real sidecar refusing a path that isn't a
+  full one; Add a session greyed out with why, and back). Live check:
   `tests/live/checklist.txt`.
 
 **Stopping (`interrupt` capability, `immediate: false`).** A stop answers
@@ -4131,6 +4176,9 @@ First a "New session" post on the spawn platform (M1); since 2026-10-01 the
 one menu, opened from anywhere, to start a session (S03), resume a stored
 one (S04) and go to a running one (W07). Rejected: keeping the post and
 giving it the menu, or a second post for resuming. The post is removed.
+Since 2026-10-26 its New and Resume are greyed out, with why, while no
+provider can start a session (S02 → The program set by hand → Starting
+a session needs a program).
 Since 2026-10-12 the menu is the **sessions ring** (W07, the user's
 design): holding Tab shows the running sessions to go to, and the ➕ in
 its middle opens the **create panel**, which is what's left of the
@@ -5224,10 +5272,11 @@ its report to its caller, which bobs, gone within 1.8 s, resumed
 mid-throw, an error lingering), walking up to chat (A01,
 C01, C02, C05), the settings menu (C10; S08's toggle and S02's program
 rows in Providers through a stand-in sidecar: none without the
-capability and the "Nothing to set" line, not
-looked for yet, found, set by hand with Reset, not found in red, a
-refusal with no sidecar; without the fake, the real sidecar refusing a
-path that isn't a full one), and the crosshair (C11: looking away, E doing nothing,
+capability and the "Nothing to set" line, still looking, Look again
+there, found, set by hand with Reset, not found in red, a refusal and
+Look again with no sidecar; without the fake, the real sidecar refusing
+a path that isn't a full one; and S02's Add a session greyed out, with
+why, while no provider can start one), and the crosshair (C11: looking away, E doing nothing,
 looking at it growing with its hint, a wall, out of reach, the ring
 off, without the controls). With `--sidecar-dev-fake` it also starts a session
 (its island rising before you're taken there, W04)
@@ -5457,7 +5506,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** S02, a path to `claude` set by hand (Known issues
 and next steps → A path to `claude` set by hand): built on
 `s02-claude-path` (dev log 2026-10-26-s02-program-path), waiting for
-the user's live check before it merges.
+the user's live check before it merges; since the live check began,
+looked for at start, Look again, and no session start without a
+program (S02 → The program set by hand). **Next, after S02 merges: a
+main menu** (user's, 2026-10-26); no ID, scope or design yet, to be
+decided with the user first.
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: C13, the pause
 menu** (dev log 2026-10-22-c13-pause-menu): Esc opens a pause menu with

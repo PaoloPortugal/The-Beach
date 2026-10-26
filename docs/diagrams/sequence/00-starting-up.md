@@ -16,7 +16,7 @@ sequenceDiagram
     rect rgba(255,193,7,0.18)
         Note over World,Sidecar: sidecar/src/serve.ts (handshake), server.ts (the checks)<br/>Godot: core/sidecar/sidecar_client.gd
         World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr#59;<br/>serve --no-outside-sessions if the player turned them off, S08#59;<br/>--program-path provider=path for each program set by hand, S02)
-        Sidecar->>Sidecar: check each program set by hand (S02, flow 17)<br/>take back sessions still running (S07, flow 14)<br/>and find those started outside the game (S08, flow 16)
+        Sidecar->>Sidecar: check each program set by hand, or start looking for it<br/>in the background (S02, flow 17)<br/>take back sessions still running (S07, flow 14)<br/>and find those started outside the game (S08, flow 16)
         Sidecar->>Sidecar: new random token, listen on 127.0.0.1 (free port)
         Sidecar->>World: stdout: one line {ready, protocol, port, token}
         World->>Sidecar: WebSocket connect, Authorization: Bearer token

@@ -141,6 +141,29 @@ func set_program_path(provider: String, path: String, on_reply := Callable()) ->
 		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
 
 
+## Has a provider look for its program again now (S02's Look again; the
+## one set by hand, if any, is checked again). [param on_reply] gets the
+## reply ([code]ok[/code] with [code]{program}[/code], found or not, or
+## [code]error[/code]; [code]disconnected[/code] if the sidecar isn't
+## there). What it found is kept and shown.
+func find_program(provider: String, on_reply := Callable()) -> void:
+	var done := func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok":
+			_set_program(provider, reply.get("result", {}).get("program", {}))
+		if on_reply.is_valid():
+			on_reply.call(reply)
+	if send_command("client.find_program", {"provider": provider}, done) == "":
+		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
+
+
+## The providers that can start a session now (S02): all but those whose
+## program wasn't found. One still looking counts: it may yet be found.
+func startable_providers() -> Array:
+	return providers.filter(func(p: Dictionary) -> bool:
+		var program: Dictionary = p.get("program", {})
+		return not (program.has("path") and program["path"] == null))
+
+
 ## What a provider found for its program (S02): [code]{path, version,
 ## set_by_hand}[/code], [code]{path: null, set_by_hand, message}[/code], or
 ## empty if it hasn't looked yet.

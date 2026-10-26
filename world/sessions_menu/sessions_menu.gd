@@ -193,6 +193,10 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient, p_clusters: SessionC
 			_refresh_hint()
 			if _open:
 				_fill())
+	# A program found or lost (S02) greys starting out or back in.
+	sidecar.providers_changed.connect(func() -> void:
+		if _open and not _waiting:
+			_fill())
 	_refresh_hint()
 
 
@@ -384,6 +388,14 @@ func cluster_choice() -> String:
 	return str(_cluster.get_item_metadata(_cluster.selected)) if _cluster.selected >= 0 else SessionClusters.AUTOMATIC
 
 
+## Whether the entry whose text begins with [param text] is greyed out.
+func entry_disabled(text: String) -> bool:
+	for child in _list.get_children():
+		if child is Button and not child.is_queued_for_deletion() and child.text.begins_with(text):
+			return child.disabled
+	return false
+
+
 ## Presses the entry whose text begins with [param text].
 func choose(text: String) -> void:
 	for child in _list.get_children():
@@ -509,8 +521,18 @@ func _fill() -> void:
 		child.queue_free()
 	match _page:
 		Page.ADD:
-			_add_button("+ New session…", _pick_folder)
-			_add_button("▸ Resume a session…", func() -> void: _show(Page.RESUME))
+			var new_session := _add_button("+ New session…", _pick_folder)
+			var resume := _add_button("▸ Resume a session…", func() -> void: _show(Page.RESUME))
+			var why := cannot_start()
+			new_session.disabled = not why.is_empty()
+			resume.disabled = not why.is_empty()
+			if not why.is_empty():
+				var label := Label.new()
+				label.name = "CannotStart"
+				label.text = why
+				label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				label.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
+				_list.add_child(label)
 			if not launcher.pending.is_empty():
 				_add_button("✕ Stop waiting for the session starting", func() -> void:
 					launcher.stop_waiting()
@@ -530,12 +552,14 @@ func _fill_stored() -> void:
 		if not query.is_empty() and not label.to_lower().contains(query):
 			continue
 		shown += 1
-		_add_button(label, func() -> void:
+		var button := _add_button(label, func() -> void:
 			var cluster := cluster_choice()
 			var biome := biome_choice()
 			var launch := launch_choice() if st["provider"] == _launch_provider else {}
 			close()
 			launcher.resume(st["provider"], st["native_id"], cluster, biome, launch))
+		# Its provider's program wasn't found (S02): it can't start.
+		button.disabled = sidecar.startable_providers().all(func(p: Dictionary) -> bool: return p.get("provider") != st["provider"])
 	if shown == 0:
 		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
 
@@ -597,13 +621,15 @@ func _set_waiting(on: bool) -> void:
 
 ## The launch selectors (C12): Default, then the provider's list in its
 ## order and words; a list it doesn't offer is left empty and hidden. New
-## sessions use the first provider, as [method SessionLauncher.create] does.
+## sessions use [method SessionLauncher.new_session_provider], as
+## [method SessionLauncher.create] does.
 func _fill_launch() -> void:
 	var offered: Dictionary = {}
 	_launch_provider = ""
-	if sidecar != null and not sidecar.providers.is_empty():
-		_launch_provider = sidecar.providers[0]["provider"]
-		offered = sidecar.providers[0].get("launch_options", {})
+	var provider: Dictionary = launcher.new_session_provider() if sidecar != null else {}
+	if not provider.is_empty():
+		_launch_provider = provider["provider"]
+		offered = provider.get("launch_options", {})
 	for key: String in LAUNCH_KEYS:
 		var option: OptionButton = _launch[key]
 		option.clear()
@@ -645,7 +671,7 @@ func _add_heading(text: String) -> void:
 	_list.add_child(label)
 
 
-func _add_button(text: String, on_press: Callable) -> void:
+func _add_button(text: String, on_press: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -653,6 +679,21 @@ func _add_button(text: String, on_press: Callable) -> void:
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(on_press)
 	_list.add_child(button)
+	return button
+
+
+## Why no session can start, or "" if one can (S02): every provider's
+## program wasn't found. Each says why, and where to choose it. "" with
+## no sidecar: Add a session says so on its own.
+func cannot_start() -> String:
+	if sidecar == null or sidecar.providers.is_empty() or not sidecar.startable_providers().is_empty():
+		return ""
+	var lines: Array[String] = []
+	for p: Dictionary in sidecar.providers:
+		var program: Dictionary = p.get("program", {})
+		var where := "(Settings → Providers)" if program.get("set_by_hand", false) else "Or choose it yourself in Settings → Providers."
+		lines.append("%s %s" % [program.get("message", ""), where])
+	return "\n".join(lines)
 
 
 func _refresh_hint() -> void:
