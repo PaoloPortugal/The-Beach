@@ -9,22 +9,23 @@ between parts when it says.
 A. What the game found
 1. Start the game with no
    session running. Esc →
-   Settings → Game: a
-   "Claude Code" row under
-   the toggles, saying "Not
-   looked for yet: it's
-   found when a session
-   starts.", Browse… and a
-   greyed-out Reset? (With
-   "Show sessions started
-   outside the game" on, it
-   may already show what it
-   found, as in 2.)
+   Settings → Providers: a
+   "Claude Code" row with
+   Browse… and a greyed-out
+   Reset? With "Show
+   sessions started outside
+   the game" on (Game tab,
+   the default) it already
+   shows the claude.exe it
+   found, as in 2; with it
+   off it says "Not looked
+   for yet: it's found when
+   a session starts."
 2. Start a session (Tab, +)
    and confirm it in its
    terminal. Back in
-   Settings → Game: the row
-   shows your claude.exe's
+   Settings → Providers: the
+   row shows your claude.exe's
    full path and "version
    …", no "set by hand"?
 3. Does the row read well
@@ -62,8 +63,8 @@ B. Choosing it
 
 C. Kept across a restart
 9. Close the game and start
-   it again. Settings → Game:
-   at once the same path,
+   it again. Settings →
+   Providers: at once the same path,
    version and "set by hand"
    (no "Not looked for yet")?
 
@@ -85,8 +86,8 @@ D. When it stops working
    There's no program at
    that path. Choose it
    again, or reset it."?
-12. Settings → Game: the row
-   says the same, in red?
+12. Settings → Providers:
+   the row says the same, in red?
 13. Close the game and start
    it again: the row says it
    again, in red, and still
