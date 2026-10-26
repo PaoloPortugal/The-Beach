@@ -15,6 +15,7 @@
     { "$ref": "#/$defs/session.notice_cleared" },
     { "$ref": "#/$defs/session.updated" },
     { "$ref": "#/$defs/provider.notice" },
+    { "$ref": "#/$defs/provider.program" },
     { "$ref": "#/$defs/agent.spawned" },
     { "$ref": "#/$defs/agent.state_changed" },
     { "$ref": "#/$defs/message.started" },
@@ -42,6 +43,7 @@
     { "$ref": "#/$defs/plan.answer" },
     { "$ref": "#/$defs/client.set_focus" },
     { "$ref": "#/$defs/client.set_outside_sessions" },
+    { "$ref": "#/$defs/client.set_program_path" },
     { "$ref": "#/$defs/extension" }
   ],
   "$defs": {
@@ -360,6 +362,31 @@
       "additionalProperties": false
     },
 
+    "program": {
+      "description": "The program a provider with program_path found (hello's program, provider.program). Found: path and version. Not found: path null and message, for the player (not installed, too old, or why the path set by hand doesn't work). set_by_hand: the player set the path (client.set_program_path, serve --program-path); then it is the only one tried.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["path", "version", "set_by_hand"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "set_by_hand": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["path", "set_by_hand", "message"],
+          "properties": {
+            "path": { "type": "null" },
+            "set_by_hand": { "type": "boolean" },
+            "message": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "notice": {
       "description": "Something the user should know about a session that isn't an agent's state, e.g. a setting that limits what the world can show.",
       "type": "object",
@@ -446,7 +473,7 @@
               "name": { "type": "string" },
               "launch_options": { "$ref": "#/$defs/launch_options" },
               "capabilities": {
-                "description": "Capabilities of the provider itself (not of one session), keyed by name, each with its own config object. outside_sessions: sessions started outside the app get islands, as read_only sessions with origin external.",
+                "description": "Capabilities of the provider itself (not of one session), keyed by name, each with its own config object. outside_sessions: sessions started outside the app get islands, as read_only sessions with origin external. program_path {program}: the provider runs a program of the user's (program: its name), which can be set by hand (client.set_program_path); what it found is the program field and provider.program.",
                 "type": "object",
                 "additionalProperties": { "type": "object" }
               },
@@ -454,7 +481,8 @@
                 "description": "The provider's notices so far (provider.notice), one per code.",
                 "type": "array",
                 "items": { "$ref": "#/$defs/notice" }
-              }
+              },
+              "program": { "$ref": "#/$defs/program" }
             },
             "additionalProperties": false
           }
@@ -488,7 +516,7 @@
         "type": { "const": "error" },
         "id": { "$ref": "#/$defs/id" },
         "code": {
-          "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared, or the session doesn't allow it, e.g. read_only), invalid_project (path not absolute or not a folder), provider_error (the provider failed; details stay in the sidecar's log).",
+          "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared, or the session doesn't allow it, e.g. read_only), invalid_project (path not absolute or not a folder), invalid_program (client.set_program_path: the path failed a check; the message says which), provider_error (the provider failed; details stay in the sidecar's log).",
           "type": "string"
         },
         "message": { "description": "Human-readable.", "type": "string" }
@@ -553,6 +581,18 @@
         "type": { "const": "provider.notice" },
         "provider": { "$ref": "#/$defs/provider_id" },
         "notice": { "$ref": "#/$defs/notice" }
+      },
+      "additionalProperties": false
+    },
+
+    "provider.program": {
+      "description": "Sidecar -> Godot. The program a provider with program_path found (or not), sent each time it looks: when it first needs it, after client.set_program_path, or when a look gives another answer. The latest is hello's program on the next connection.",
+      "type": "object",
+      "required": ["type", "provider", "program"],
+      "properties": {
+        "type": { "const": "provider.program" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "program": { "$ref": "#/$defs/program" }
       },
       "additionalProperties": false
     },
@@ -862,6 +902,18 @@
         "type": { "const": "client.set_outside_sessions" },
         "id": { "$ref": "#/$defs/id" },
         "enabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "client.set_program_path": {
+      "description": "Godot -> sidecar. Sets the provider's program by hand (program_path capability; the player's setting), or clears it (null: found as usual). Checked first: absolute, a file, on Windows an .exe, answers --version with a version the provider supports; a path that fails gets error invalid_program and the previous setting stays. A path set by hand is the only one used, even once it stops working. For sessions started or resumed afterwards. The sidecar starts with serve --program-path <provider>=<path>. Reply result: {\"program\": program}; provider.program follows.",
+      "type": "object",
+      "required": ["type", "id", "provider", "path"],
+      "properties": {
+        "type": { "const": "client.set_program_path" },
+        "id": { "$ref": "#/$defs/id" },
+        "provider": { "$ref": "#/$defs/provider_id" },
+        "path": { "type": ["string", "null"], "minLength": 1, "maxLength": 4096 }
       },
       "additionalProperties": false
     },

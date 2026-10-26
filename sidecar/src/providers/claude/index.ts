@@ -6,7 +6,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Adopt, Provider, ProviderSession, SessionHost } from '../../provider.ts'
 import { CommandError } from '../../provider.ts'
-import type { History, Launch as LaunchChoice, Notice, Project, StoredSession } from '../../protocol.ts'
+import type { History, Launch as LaunchChoice, Notice, Program, Project, StoredSession } from '../../protocol.ts'
 import { LAUNCH_OPTIONS, launchArgs } from './launch-options.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
 import { openTerminal, TerminalError } from '../../launch/terminal.ts'
@@ -17,7 +17,7 @@ import { sessionsDir, TEST_SESSIONS_DIR } from '../../launch/app-data.ts'
 import type { Log } from '../../log.ts'
 import { stderrLog } from '../../log.ts'
 import { CLAUDE_SESSION_MARKER_PREFIXES, CLAUDE_SESSION_MARKERS } from './env.ts'
-import { ClaudeNotFound, findClaude, type FoundClaude } from './find.ts'
+import { checkClaudePath, ClaudeNotFound, findClaude, type FoundClaude, type ReadVersion } from './find.ts'
 import { runningSessions, type AgentEntry, type Running } from './running.ts'
 import { BRIDGE_SERVER_NAME, writeBridgeFile } from './bridge.ts'
 import { BridgeServer } from './bridge-server.ts'
@@ -83,14 +83,16 @@ export interface ClaudeOptions {
   log?: Log
   /** How to start this sidecar in another mode; tests and dev tools override it. */
   selfCommand?: (mode: string, ...args: string[]) => string[]
-  /** A claude executable chosen by hand (a user setting, later). */
+  /** A claude executable set by hand at start (setProgramPath sets it later). */
   claudePath?: string
   /** A terminal id to try first (a user setting, later). */
   terminal?: string
   /** For tests: replaces opening a real terminal. */
   openTerminal?: typeof openTerminal
-  /** For tests: replaces finding claude. */
+  /** For tests: replaces finding claude when none is set by hand. */
   findClaude?: () => Promise<FoundClaude>
+  /** For tests: replaces running `claude --version` (finding, and checking a path set by hand). */
+  readVersion?: ReadVersion
   /** For tests: a shorter startup timeout. */
   startupTimeoutMs?: number
   /** For tests: Claude Code's projects folder (stored sessions). */
@@ -124,8 +126,8 @@ export class ClaudeProvider implements Provider {
   readonly id = 'claude'
   readonly name = 'Claude Code'
   readonly launchOptions = LAUNCH_OPTIONS
-  /** Sessions started outside the game get read-only islands (S08). */
-  readonly capabilities = { outside_sessions: {} }
+  /** Sessions started outside the game get read-only islands (S08); `claude` can be set by hand (S02). */
+  readonly capabilities = { outside_sessions: {}, program_path: { program: 'claude' } }
   private readonly opts: ClaudeOptions
   private readonly log: Log
   /** Sessions running now, by Claude's session id: not listed, not resumed twice. */
@@ -134,6 +136,12 @@ export class ClaudeProvider implements Provider {
   private readonly stored = new StoredCache()
   /** The `claude` the last find() gave, for asking which sessions run (running()). */
   private foundPath: string | undefined
+  /** The `claude` set by hand (program_path): the only one tried. */
+  private handPath: string | undefined
+  /** Where what find() gives goes (provider.program). */
+  private reportProgram: ((program: Program) => void) | null = null
+  /** Bumped by setProgramPath, so a find() begun before it doesn't report the old setting's answer. */
+  private programRun = 0
   private bridges: BridgeServer | null = null
   private hooks: HookServer | null = null
   /** Read-only sessions (S07, S08) by their `claude`'s process id, asked about together. */
@@ -169,6 +177,55 @@ export class ClaudeProvider implements Provider {
   constructor(opts: ClaudeOptions = {}) {
     this.opts = opts
     this.log = opts.log ?? stderrLog
+    this.handPath = opts.claudePath
+  }
+
+  watchProgram(report: (program: Program) => void): void {
+    this.reportProgram = report
+  }
+
+  /**
+   * Sets `claude` by hand, or clears it (null), for sessions started from
+   * now on (S02). A path is checked first (checkClaudePath); one that fails
+   * is refused (invalid_program) and the old setting stays, unless
+   * `evenIfInvalid` (the start's setting): then it's kept, reported not
+   * found. Cleared, `claude` is looked for as usual at once.
+   */
+  async setProgramPath(file: string | null, evenIfInvalid = false): Promise<Program> {
+    if (file === null || evenIfInvalid) {
+      this.handPath = file ?? undefined
+      this.foundPath = undefined
+      this.programRun++
+      return this.look()
+    }
+    let found: FoundClaude
+    try {
+      found = await checkClaudePath(file, { cleanEnv: this.cleanEnv(), ...(this.opts.readVersion ? { readVersion: this.opts.readVersion } : {}) })
+    } catch (e) {
+      if (e instanceof ClaudeNotFound) throw new CommandError('invalid_program', e.message)
+      throw e
+    }
+    this.handPath = file
+    this.foundPath = found.path
+    this.programRun++
+    const program = { path: found.path, version: found.version, set_by_hand: true }
+    this.reportProgram?.(program)
+    return program
+  }
+
+  /** Looks for `claude` now (reported), never throwing for one not found. */
+  private async look(): Promise<Program> {
+    try {
+      const found = await this.find()
+      return { path: found.path, version: found.version, set_by_hand: this.handPath !== undefined }
+    } catch (e) {
+      if (e instanceof CommandError) return { path: null, set_by_hand: this.handPath !== undefined, message: e.message }
+      throw e
+    }
+  }
+
+  private cleanEnv(): Record<string, string> {
+    return cleanEnv(process.env, ClaudeProvider.UNSET_ENV)
   }
 
   /** Variables removed from every launched process's environment. */
@@ -786,17 +843,30 @@ export class ClaudeProvider implements Provider {
     return file
   }
 
+  /** Finds `claude` (the one set by hand, if any) and reports what it gave (provider.program). */
   private async find(): Promise<FoundClaude> {
+    const byHand = this.handPath !== undefined
+    const run = this.programRun
     try {
-      const found = this.opts.findClaude ? await this.opts.findClaude() : await findClaude({
+      const found = this.opts.findClaude && !byHand ? await this.opts.findClaude() : await findClaude({
         env: process.env,
-        cleanEnv: cleanEnv(process.env, ClaudeProvider.UNSET_ENV),
-        ...(this.opts.claudePath ? { override: this.opts.claudePath } : {}),
+        cleanEnv: this.cleanEnv(),
+        ...(byHand ? { override: this.handPath } : {}),
+        ...(this.opts.readVersion ? { readVersion: this.opts.readVersion } : {}),
       })
-      this.foundPath = found.path
+      if (run === this.programRun) {
+        this.foundPath = found.path
+        this.reportProgram?.({ path: found.path, version: found.version, set_by_hand: byHand })
+      }
       return found
     } catch (e) {
-      if (e instanceof ClaudeNotFound) throw new CommandError('provider_error', e.message)
+      if (e instanceof ClaudeNotFound) {
+        if (run === this.programRun) {
+          this.foundPath = undefined
+          this.reportProgram?.({ path: null, set_by_hand: byHand, message: e.message })
+        }
+        throw new CommandError('provider_error', e.message)
+      }
       throw e
     }
   }

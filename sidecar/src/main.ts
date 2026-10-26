@@ -14,7 +14,8 @@ import { runRelay } from './launch/relay.ts'
 async function main(argv: string[]) {
   const [mode, ...rest] = argv
   if (mode === undefined || mode === 'serve') {
-    // --no-outside-sessions: the player turned off sessions started outside the game (S08).
+    // --no-outside-sessions: the player turned off sessions started outside
+    // the game (S08); --program-path <provider>=<path>: a program set by hand (S02).
     await serve(builtInProviders(), undefined, serveOptions(rest))
     return
   }

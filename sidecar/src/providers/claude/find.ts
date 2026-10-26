@@ -85,7 +85,7 @@ export function versionAtLeast(v: string, min: string): boolean {
 }
 
 /** Runs `<path> --version` with an argument array and a clean environment. */
-function readVersion(file: string, env: Record<string, string>): Promise<string | null> {
+export function readVersion(file: string, env: Record<string, string>): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(file, ['--version'], { env, timeout: 15000, windowsHide: true, shell: false }, (err, stdout) => {
       resolve(err ? null : parseVersion(stdout))
@@ -181,6 +181,36 @@ export function readLoginShellPath(o: {
   })
 }
 
+export type ReadVersion = (file: string, env: Record<string, string>) => Promise<string | null>
+
+function tooOldMessage(version: string): string {
+  return `Claude Code ${version} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`
+}
+
+/**
+ * Checks a `claude` the user points at by hand (S02, client.set_program_path):
+ * a full path, a file, on Windows an .exe (npm's claude.cmd wrapper needs a
+ * shell), and answering `--version` with MIN_VERSION or newer. Throws
+ * ClaudeNotFound saying which check failed.
+ */
+export async function checkClaudePath(file: string, o: {
+  cleanEnv: Record<string, string>
+  platform?: NodeJS.Platform
+  readVersion?: ReadVersion
+}): Promise<FoundClaude> {
+  const platform = o.platform ?? process.platform
+  const paths = platform === 'win32' ? path.win32 : path.posix
+  if (!paths.isAbsolute(file)) throw new ClaudeNotFound('That isn\'t a full path.')
+  if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) throw new ClaudeNotFound('There\'s no program at that path.')
+  if (platform === 'win32' && paths.extname(file).toLowerCase() !== '.exe') {
+    throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.')
+  }
+  const version = await (o.readVersion ?? readVersion)(file, o.cleanEnv)
+  if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).')
+  if (!versionAtLeast(version, MIN_VERSION)) throw new ClaudeNotFound(tooOldMessage(version))
+  return { path: file, version }
+}
+
 /** The login shell's answer, asked at most once per run: it runs the user's startup files. */
 let loginShellAnswer: Promise<string[]> | undefined
 
@@ -191,8 +221,9 @@ export function forgetLoginShellPath(): void {
 
 /**
  * Finds a working claude of at least MIN_VERSION. `override` is a path the
- * user set by hand. If none of the candidates works on macOS or Linux, asks
- * the login shell for its PATH, last (NOTES.md -> Architecture -> Platforms).
+ * user set by hand: the only one tried (checkClaudePath), even once it stops
+ * working. Else, if none of the candidates works on macOS or Linux, asks the
+ * login shell for its PATH, last (NOTES.md -> Architecture -> Platforms).
  * Throws ClaudeNotFound with a message for the player.
  */
 export async function findClaude(opts: {
@@ -203,14 +234,25 @@ export async function findClaude(opts: {
   home?: string
   /** For tests: the login shell's PATH folders. */
   loginShellPath?: () => Promise<string[]>
+  /** For tests: replaces running `--version`. */
+  readVersion?: ReadVersion
 }): Promise<FoundClaude> {
   const platform = opts.platform ?? process.platform
   const home = opts.home ?? os.homedir()
-  const list = opts.override ? [opts.override] : candidates(platform, opts.env, home)
+  const versionOf = opts.readVersion ?? readVersion
+  if (opts.override !== undefined) {
+    try {
+      return await checkClaudePath(opts.override, { cleanEnv: opts.cleanEnv, platform, readVersion: versionOf })
+    } catch (e) {
+      if (!(e instanceof ClaudeNotFound)) throw e
+      throw new ClaudeNotFound(`The Claude Code set in Settings doesn't work: ${e.message} Choose it again, or reset it.`)
+    }
+  }
+  const list = candidates(platform, opts.env, home)
   let tooOld: string | null = null
   const check = async (file: string): Promise<FoundClaude | null> => {
     if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return null
-    const version = await readVersion(file, opts.cleanEnv)
+    const version = await versionOf(file, opts.cleanEnv)
     if (!version) return null
     if (!versionAtLeast(version, MIN_VERSION)) { tooOld = version; return null }
     return { path: file, version }
@@ -219,7 +261,7 @@ export async function findClaude(opts: {
     const found = await check(file)
     if (found) return found
   }
-  if (!opts.override && platform !== 'win32') {
+  if (platform !== 'win32') {
     // Asked once per run, even when it found nothing: finding claude is
     // retried (a session list, a poll), the user's startup files are not.
     if (opts.loginShellPath) loginShellAnswer ??= opts.loginShellPath()
@@ -236,7 +278,7 @@ export async function findClaude(opts: {
     }
   }
   if (tooOld) {
-    throw new ClaudeNotFound(`Claude Code ${tooOld} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`)
+    throw new ClaudeNotFound(tooOldMessage(tooOld))
   }
   throw new ClaudeNotFound(platform === 'win32'
     ? 'Claude Code for Windows wasn\'t found. Install it from code.claude.com (the Windows version, not inside WSL) and sign in once in a terminal.'
