@@ -577,6 +577,35 @@ func _main_menu(world: Node3D, player: Player) -> void:
 	world.store.apply({"type": "session.ended", "session": "m1", "seq": 2, "reason": "exited"})
 	await _settle()
 
+	# Standing on an island whose session ends behind the menu: it sinks
+	# there and then, and Play puts the player on the platform (user's).
+	var session_islands: SessionIslands = world.get_node("SessionIslands")
+	world.store.apply({"type": "session.snapshot", "session": _snapshot("m2")})
+	await _islands_up(session_islands)
+	world.teleport("m2")
+	await _frames(2)
+	var m2 := session_islands.island("m2")
+	_check(session_islands.session_at(player.global_position) == "m2", "C14: (the player on m2's island)")
+	pause.open()
+	pause.button("Main menu").pressed.emit()
+	await _frames(1)
+	world.store.apply({"type": "session.ended", "session": "m2", "seq": 2, "reason": "exited"})
+	await _settle()
+	_check(is_instance_valid(m2) and m2.position.y < 0.0 and m2 in session_islands.left_islands(), "C14: an ended session's island sinks while the main menu's up, the player on it or not")
+	var m2_ref: WeakRef = weakref(m2)
+	await _until(func() -> bool: return m2_ref.get_ref() == null, session_islands.sink_time + 2.0)
+	menu.button("Play").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), MenuCamera.EASE_TIME + 2.0)
+	_check(not is_instance_valid(m2) and player.global_position.distance_to(player.spawn_point) < 1.0 and player.controls_enabled, "C14: and Play puts the player on the platform")
+	pause.open()
+	pause.button("Main menu").pressed.emit()
+	await _frames(1)
+	player.global_position += Vector3(1.0, 0.0, 0.0)
+	where = player.global_position
+	menu.button("Play").pressed.emit()
+	await _until(func() -> bool: return not menu.is_open(), MenuCamera.EASE_TIME + 2.0)
+	_check(player.global_position.distance_to(where) < 1.0, "C14: only that once")
+
 
 # C10: the settings menu, each setting applied, saved and reset.
 func _settings(world: Node3D, player: Player) -> void:
@@ -706,7 +735,7 @@ func _settings(world: Node3D, player: Player) -> void:
 	# Being taken to a session you started, off and on.
 	var store: SessionStore = world.store
 	store.apply({"type": "session.snapshot", "session": _snapshot("s10")})
-	await _frames(2)
+	await _islands_up(world.get_node("SessionIslands"))
 	var at := player.global_position
 	sessions.launcher.session_started.emit("s10")
 	await _frames(2)
@@ -1629,8 +1658,11 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var at := player.global_position
 	store.apply({"type": "session.snapshot", "session": _snapshot("h1")})
 	store.apply({"type": "session.snapshot", "session": _snapshot("h2")})
-	await _frames(2)
 	var island := islands.island("h1")
+	_check(island != null and not island.is_built() and island.position.y == SessionIslands.BUILDING_Y and islands.is_rising("h1"), "C14: its ground is made on a worker thread, the island out of sight meanwhile")
+	await _until(func() -> bool: return island.is_built(), 5.0)
+	_check(island.is_built() and island.position.y < -1.0 and islands.is_rising("h1"), "C14: then a session already running's island rises too")
+	await _islands_up(islands)
 	var orchestrator := islands.orchestrator("h1")
 	_check(island != null and islands.island("h2") != null, "an island per session")
 	_check(island.global_position.distance_to(islands.island("h2").global_position) > 90.0, "islands apart from each other")
@@ -1642,7 +1674,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.session_id == "h1", "its orchestrator belongs to the session")
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
-	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is just there, not rising")
+	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is up")
 	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	var bridges := islands.bridges
 	var r1 := SessionIslands.region(island)
@@ -1925,7 +1957,8 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return island_ref.get_ref() == null, 6.0)
 	_check(island_ref.get_ref() == null, "and goes")
 	store.apply({"type": "session.snapshot", "session": _snapshot("h5")})
-	_check(islands.island("h5").global_position.is_equal_approx(SessionClusters.cluster_position(0)), "its spot is free again")
+	var h5_at := islands.island("h5").global_position
+	_check(Vector2(h5_at.x, h5_at.z).is_equal_approx(Vector2(SessionClusters.cluster_position(0).x, SessionClusters.cluster_position(0).z)), "its spot is free again")
 	# A session that ends as its island rises: back down at once (you're not
 	# on it).
 	store.apply({"type": "session.created", "session": _snapshot("h6")})
@@ -2663,7 +2696,7 @@ func _agents(world: Node3D) -> void:
 	snap["agents"].append(_agent("old", "main", "done"))
 	snap["agents"].append(_agent("s0", "main", "working"))
 	store.apply({"type": "session.snapshot", "session": snap})
-	await _frames(2)
+	await _islands_up(islands)
 	_check(store.activity("h4") == "working", "activity: working")
 	var agents := islands.agents("h4")
 	var island := islands.island("h4")
@@ -3207,6 +3240,12 @@ func _frames(n: int) -> void:
 func _settle() -> void:
 	for i in 2:
 		await process_frame
+
+
+# Every island's ground made and the island up (C14: those taken back
+# rise too).
+func _islands_up(islands: SessionIslands, timeout_s := 10.0) -> void:
+	await _until(islands.all_up, timeout_s)
 
 
 func _until(cond: Callable, timeout_s: float) -> void:

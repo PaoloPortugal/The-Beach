@@ -27,37 +27,102 @@ var zipline_valley := 0
 ## for the first [method set_landings], so it starts clear of its bridges
 ## and clears no props under a valley it then leaves.
 var zipline_waits := false
+## Set before it enters the tree (SessionIslands does, C14): its ground
+## is made on a worker thread, so a new island doesn't stall the game for
+## the 50-90 ms it takes. Until [signal built] it has its [member
+## generator] ([method height_at] works) but no ground, collision, props
+## or torches.
+var build_in_background := false
+
+## Its ground is in ([member build_in_background]).
+signal built
 
 var _landings: Array[Vector3] = []
+var _landed := false # set_landings has been called
+var _task := -1 # its WorkerThreadPool task while it's being made
+var _made := {} # what the task made: written there, read once it's done
 
 
 func _ready() -> void:
+	set_process(false)
 	if island_seed == 0:
 		island_seed = randi_range(1, 2147483647) # kept: W12 saves it
 	print("Island seed: %d (%s)" % [island_seed, Biome.NAMES[biome]])
 	generator = IslandGenerator.new(island_seed, biome)
-	var built := generator.build()
+	if not build_in_background:
+		_finish(_make(island_seed, biome, {}))
+		return
+	# The task has a generator of its own and writes only to _made, so the
+	# island can be freed while it runs.
+	var made := _made
+	var s := island_seed
+	var b := biome
+	_task = WorkerThreadPool.add_task(func() -> void: Island._make(s, b, made), false, "Island %d" % s)
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if _task < 0 or not WorkerThreadPool.is_task_completed(_task):
+		return
+	WorkerThreadPool.wait_for_task_completion(_task)
+	_task = -1
+	set_process(false)
+	_finish(_made)
+	built.emit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+
+
+## Whether its ground is in (always, unless [member build_in_background]).
+func is_built() -> bool:
+	return generator != null and _task < 0
+
+
+# The slow part, on any thread: [param into] gets the ground and the
+# props' spots.
+static func _make(s: int, b: int, into: Dictionary) -> Dictionary:
+	var g := IslandGenerator.new(s, b)
+	into.merge(g.make())
+	into["spots"] = g.prop_spots()
+	return into
+
+
+func _finish(made: Dictionary) -> void:
+	generator.take(made)
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, made["arrays"])
 
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.vertex_color_is_srgb = true  # the palette is written in sRGB
 	material.roughness = 1.0
 	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.mesh = built["mesh"]
+	mesh_instance.mesh = mesh
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 
 	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(built["faces"])
+	shape.set_faces(made["faces"])
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	add_child(collision)
 	props.name = "Props"
 	add_child(props)
-	props.setup(generator.prop_spots())
+	props.setup(made["spots"])
 	_add_torches()
 	if not zipline_waits:
 		_add_zipline()
+	# The read-only mark stood on height_at till now; landings that came
+	# first place the zipline now.
+	if _landed:
+		set_landings(_landings)
+	else:
+		var flag := get_node_or_null("ReadOnlyFlag") as ReadOnlyFlag
+		if flag:
+			flag.place(self)
 
 
 func height_at(x: float, z: float) -> float:
@@ -85,11 +150,13 @@ func zipline() -> Zipline:
 ## 2026-10-12).
 func set_landings(landings: Array[Vector3]) -> void:
 	_landings = landings
+	_landed = true
 	# The read-only mark (S08) keeps clear of them.
 	var flag := get_node_or_null("ReadOnlyFlag") as ReadOnlyFlag
 	if flag:
 		flag.place(self)
-	if not generator.profile.get("zipline", false):
+	# Not built yet: its ground comes in with them.
+	if not generator.profile.get("zipline", false) or not is_built():
 		return
 	if zipline_waits:
 		zipline_waits = false
