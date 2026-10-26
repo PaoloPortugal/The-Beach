@@ -32,6 +32,9 @@ const FONT_SIZE := 18
 ## Rendering Markdown costs tens of milliseconds per message (C03), so the
 ## newest are built first and the rest a few per frame, above them.
 const BUILD_BUDGET_USEC := 8000
+## Frames the view keeps its place after the last row is built, while
+## wrapped text settles its height.
+const SETTLE_FRAMES := 4
 
 ## Our own text for the notices we know; others show the sidecar's message.
 const NOTICE_TEXT := {
@@ -80,6 +83,13 @@ var _rebuild_queued := false
 var _to_build: Array[String] = []
 ## Bumped on each layout so a stale build stops.
 var _build_run := 0
+## While a chat is being laid out, the view keeps to the end, or to its
+## distance from the end once scrolled up, in the same frame the rows
+## grow: rows built above it and text settling its height don't move it.
+enum Keep { NONE, END, FROM_END }
+var _keep := Keep.NONE
+var _from_end := 0.0
+var _keeping := false # the scroll is being set by _keep_place
 var _link_dialog: ConfirmationDialog
 var _link_url := ""
 var _send_error := ""
@@ -120,6 +130,11 @@ func _ready() -> void:
 	_read_only_hint.visible = false
 	$Layout.add_child(_read_only_hint)
 	_input.gui_input.connect(_on_input_key)
+	var bar := _scroll.get_v_scroll_bar()
+	bar.changed.connect(_keep_place)
+	bar.value_changed.connect(func(_v: float) -> void:
+		if _keep != Keep.NONE and not _keeping:
+			_note_place())
 	# Links in messages are untrusted: never open one without the user
 	# seeing the full address and confirming.
 	_link_dialog = ConfirmationDialog.new()
@@ -428,10 +443,9 @@ func _rebuild() -> void:
 	if all.size() <= MAX_SHOWN:
 		_folds[""] = top
 	_build_run += 1
+	_keep = Keep.END
 	_build_some()
-	_scroll_to_end()
-	if not _to_build.is_empty():
-		_build_rest(_build_run)
+	_build_rest(_build_run)
 
 
 ## Builds queued messages, newest first, each above the ones built so far,
@@ -448,24 +462,40 @@ func _build_some() -> void:
 
 
 ## Builds the rest a few per frame. Rows appear above what's on screen, so
-## the view keeps its place: at the end if it was there, else by the
-## distance from the end.
+## the view keeps its place ([member _keep]) until they and their text
+## have settled.
 func _build_rest(run: int) -> void:
 	while not _to_build.is_empty():
-		var bar := _scroll.get_v_scroll_bar()
-		var from_end := bar.max_value - bar.value
-		var at_end := _at_end()
 		await get_tree().process_frame
 		if run != _build_run:
 			return
 		_build_some()
+	for i in SETTLE_FRAMES:
 		await get_tree().process_frame
 		if run != _build_run:
 			return
-		if at_end:
-			_scroll.scroll_vertical = int(bar.max_value)
-		else:
-			_scroll.scroll_vertical = int(bar.max_value - from_end)
+	_keep = Keep.NONE
+
+
+# The scroll range changed (rows added, or a height settled): back to the
+# end, or to the same distance from it, before the frame is drawn.
+func _keep_place() -> void:
+	if _keep == Keep.NONE:
+		return
+	var bar := _scroll.get_v_scroll_bar()
+	_keeping = true
+	_scroll.scroll_vertical = int(bar.max_value if _keep == Keep.END else bar.max_value - _from_end)
+	_keeping = false
+
+
+# Scrolled while a chat is being laid out: keep to where it is now.
+func _note_place() -> void:
+	var bar := _scroll.get_v_scroll_bar()
+	if _at_end():
+		_keep = Keep.END
+	else:
+		_keep = Keep.FROM_END
+		_from_end = bar.max_value - bar.value
 
 
 func _clear() -> void:
@@ -476,6 +506,7 @@ func _clear() -> void:
 	_tree = {}
 	_to_build.clear()
 	_build_run += 1
+	_keep = Keep.NONE
 	for child in _messages.get_children():
 		child.free()
 
