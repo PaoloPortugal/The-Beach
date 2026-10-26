@@ -3446,8 +3446,7 @@ Quit quitting. The mouse being captured and the look can't be seen
 headless: the live check's.
 
 ### C14 Main menu
-*Built (2026-10-26; live check passed, its three findings fixed, their
-re-check pending). Scope: core* (world only: no provider, protocol
+*Built (2026-10-26; live check and its re-check passed). Scope: core* (world only: no provider, protocol
 or sidecar part). A title menu at start, so the game opens on a menu
 instead of straight into the world.
 
@@ -3576,7 +3575,11 @@ live check's.
 Found: a stutter as islands came in at start, islands popping up
 rather than rising, and Play putting the player back on an island
 whose session ended behind the menu, which only then sank. All three
-changed as above; their re-check is in `tests/live/checklist.txt`.
+changed as above. *Re-check (2026-10-26, the user):* all 8 steps
+passed. Still not quite as smooth as the user would like as islands
+come in, which they put down to their hardware; what is left on the
+main thread (the collision shape, props, the mesh upload, a few ms an
+island) could be measured if it comes up again.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -5718,12 +5721,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C14, a main menu (user's, 2026-10-26), built on
-`c14-main-menu` (dev log 2026-10-26-c14-main-menu); its live check
-passed, and its three findings are fixed (islands made off the main
-thread, taken-back ones rising, an island ending behind the menu
-sinking with Play going to the platform). Their re-check and the
-user's review next.
+**Current focus:** none set; the user picks what's next. Later
+(user's): a player-facing credits file for C14's Credits, and
+`assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-26), approved by the user: C14, a main
+menu** (dev log 2026-10-26-c14-main-menu): the game opens on Play,
+Settings, Credits and Quit over the live world, a camera circling the
+islands; the pause menu's Main menu brings it back. After its live
+check: islands made off the main thread, taken-back ones rising, and
+an island ending behind the menu sinking, Play going to the platform.
 **Merged to `main` (2026-10-26), approved by the user: session
 details** (dev log 2026-10-26-session-start-details): no new-island
 beacon for outside sessions (S08), and a quicker bridge after the
