@@ -1,10 +1,10 @@
 // Sidecar entry point: picks the mode of the one executable (NOTES.md ->
 // Architecture -> Platforms). The server mode's contract is in serve.ts.
-import { serve, serveOptions } from './serve.ts'
+//
+// Each mode loads only its own code: the bridge and the relay start once
+// per session and per hook, and from source the whole sidecar takes about
+// a second to load (0.24 s for the bridge alone).
 import { stderrLog } from './log.ts'
-import { bridgeModes, builtInProviders } from './providers/index.ts'
-import { runLauncher } from './launch/launcher.ts'
-import { runRelay } from './launch/relay.ts'
 
 // Modes of the one executable: the server (default); `launch`, which a
 // terminal runs to start a session's program; `bridge <provider>`, which
@@ -16,10 +16,13 @@ async function main(argv: string[]) {
   if (mode === undefined || mode === 'serve') {
     // --no-outside-sessions: the player turned off sessions started outside
     // the game (S08); --program-path <provider>=<path>: a program set by hand (S02).
+    const { serve, serveOptions } = await import('./serve.ts')
+    const { builtInProviders } = await import('./providers/index.ts')
     await serve(builtInProviders(), undefined, serveOptions(rest))
     return
   }
   if (mode === 'launch') {
+    const { runLauncher } = await import('./launch/launcher.ts')
     process.exitCode = await runLauncher(rest)
     return
   }
@@ -27,12 +30,20 @@ async function main(argv: string[]) {
     // A command hook or status line: forwards its input to the server.
     // Always exit 0, at once (stdin may still be open after a timeout), and
     // print nothing: a failure here must never block the provider's CLI,
-    // and a status line's stdout is shown in its terminal.
-    await runRelay(rest, process.stdin, (m) => process.stderr.write(`[${mode}] ${m}\n`))
+    // and a status line's stdout is shown in its terminal. Even if its own
+    // code fails to load.
+    const log = (m: string) => process.stderr.write(`[${mode}] ${m}\n`)
+    try {
+      const { runRelay } = await import('./launch/relay.ts')
+      await runRelay(rest, process.stdin, log)
+    } catch (e) {
+      log(e instanceof Error ? e.message : String(e))
+    }
     process.exit(0)
   }
   if (mode === 'bridge') {
     // A provider's channel bridge, started by that provider's CLI.
+    const { bridgeModes } = await import('./providers/bridges.ts')
     const run = bridgeModes[rest[0] ?? '']
     if (!run || rest.length !== 1) throw new Error('bridge mode needs a provider name')
     await run()

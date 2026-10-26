@@ -5,7 +5,8 @@ extends Node3D
 ## cluster (W05, [SessionClusters]). A new session's island rises out of
 ## the sea (W04); one already running when the world connects is simply
 ## there. Until the player has been on a new session's island, a beacon
-## stands over it (and [NewIslandPointers] points to it). When a session
+## stands over it (and [NewIslandPointers] points to it); not over one
+## started outside the game (S08). When a session
 ## ends its orchestrator and agents go at once; the empty island stays
 ## while the player is on it (or on one of its bridges), then sinks and is
 ## freed. Bridges (W06, [BridgeNetwork]) join a cluster's islands and the
@@ -323,14 +324,16 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 		_bridge(id)
 		island_risen.emit(id)
 		return
-	# Rises with the island, from its middle.
-	var beacon := AttentionBeacon.new()
-	beacon.name = "NewBeacon"
-	beacon.colour = NEW_COLOUR
-	beacon.position = o.position
-	i.add_child(beacon)
-	beacon.set_on(true)
-	_unvisited[id] = beacon
+	# Rises with the island, from its middle. Not for one started outside
+	# the game (S08): the player didn't ask for it, so it isn't news.
+	if not _outside.has(id):
+		var beacon := AttentionBeacon.new()
+		beacon.name = "NewBeacon"
+		beacon.colour = NEW_COLOUR
+		beacon.position = o.position
+		i.add_child(beacon)
+		beacon.set_on(true)
+		_unvisited[id] = beacon
 	# Bound to the island, so it stops if the island goes.
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", 0.0, rise_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
