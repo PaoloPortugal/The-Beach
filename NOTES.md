@@ -5546,11 +5546,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** a main menu (user's, 2026-10-26); no ID, scope or
 design yet, to be decided with the user first.
-On `session-start-details` first (user's, 2026-10-26): no new-island
-beacon for outside sessions (S08), and the wait after confirming a
-start in the terminal (S02 → Starting up), measured live: the bridge
-is up 1.8 s after Claude Code's screen (dev log
-2026-10-26-session-start-details). Waiting for the user's review.
+**Merged to `main` (2026-10-26), approved by the user: session
+details** (dev log 2026-10-26-session-start-details): no new-island
+beacon for outside sessions (S08), and a quicker bridge after the
+confirm in the terminal (S02 → Starting up; measured live, the bridge
+is up 1.8 s after Claude Code's screen).
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: S02, a path to
 `claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
