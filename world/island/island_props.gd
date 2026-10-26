@@ -55,16 +55,24 @@ func setup(p_spots: Array[Dictionary]) -> void:
 ## Takes away the props within [param radius] metres (across the ground)
 ## of the segment from [param a] to [param b] (local).
 func clear_near(a: Vector3, b: Vector3, radius: float) -> void:
-	var kept: Array[Dictionary] = []
-	var p := Vector2(a.x, a.z)
-	var q := Vector2(b.x, b.z)
-	for s in spots:
-		var at := Vector2(s["position"].x, s["position"].z)
-		if Geometry2D.get_closest_point_to_segment(at, p, q).distance_to(at) >= radius:
-			kept.append(s)
+	var kept := without_near(spots, a, b, radius)
 	if kept.size() != spots.size():
 		spots = kept
 		_rebuild()
+
+
+## [param p_spots] less those within [param radius] metres (across the
+## ground) of the segment from [param a] to [param b]: to clear spots
+## before [method setup], with no rebuild.
+static func without_near(p_spots: Array[Dictionary], a: Vector3, b: Vector3, radius: float) -> Array[Dictionary]:
+	var kept: Array[Dictionary] = []
+	var p := Vector2(a.x, a.z)
+	var q := Vector2(b.x, b.z)
+	for s in p_spots:
+		var at := Vector2(s["position"].x, s["position"].z)
+		if Geometry2D.get_closest_point_to_segment(at, p, q).distance_to(at) >= radius:
+			kept.append(s)
+	return kept
 
 
 ## Whether a prop stands within [param radius] metres of [param at]
