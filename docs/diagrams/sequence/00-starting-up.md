@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S01, S07, S08). NOTES.md → S01, S07, S08, Protocol and Architecture → Security rules.
+> **Status:** Built (S01, S07, S08, S02). NOTES.md → S01, S07, S08, S02 → The program set by hand, Protocol and Architecture → Security rules.
 
 ```mermaid
 sequenceDiagram
@@ -15,14 +15,14 @@ sequenceDiagram
 
     rect rgba(255,193,7,0.18)
         Note over World,Sidecar: sidecar/src/serve.ts (handshake), server.ts (the checks)<br/>Godot: core/sidecar/sidecar_client.gd
-        World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr#59;<br/>serve --no-outside-sessions if the player turned them off, S08)
-        Sidecar->>Sidecar: take back sessions still running (S07, flow 14)<br/>and find those started outside the game (S08, flow 16)
+        World->>Sidecar: start it (argument list, pipe for stdin/stdout/stderr#59;<br/>serve --no-outside-sessions if the player turned them off, S08#59;<br/>--program-path provider=path for each program set by hand, S02)
+        Sidecar->>Sidecar: check each program set by hand (S02, flow 17)<br/>take back sessions still running (S07, flow 14)<br/>and find those started outside the game (S08, flow 16)
         Sidecar->>Sidecar: new random token, listen on 127.0.0.1 (free port)
         Sidecar->>World: stdout: one line {ready, protocol, port, token}
         World->>Sidecar: WebSocket connect, Authorization: Bearer token
         Sidecar-->>World: accepted (no Origin, right Host and token)
     end
-    Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12,<br/>its own capabilities and notices, S08)
+    Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12,<br/>its own capabilities and notices, S08,<br/>and the program it found, once it has looked, S02)
     loop each live session
         Sidecar->>World: session.snapshot
     end

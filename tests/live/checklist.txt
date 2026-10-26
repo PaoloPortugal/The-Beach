@@ -1,75 +1,100 @@
-LIVE CHECK: C13 pause menu
+LIVE CHECK: S02 Claude Code
+set by hand
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
-(no access).
+(no access). Close the game
+between parts when it says.
 
-A. Opening and closing
+A. What the game found
 1. Start the game with no
-   session running. Press
-   Esc: the screen dims, a
-   "Paused" panel in the
-   middle with Resume,
-   Settings and Quit game,
-   "Esc to resume" under
-   them, and the mouse free?
-2. Does the look read well
-   (the dim, the panel, the
-   buttons), in daylight and
-   at night?
-3. While it's open: WASD,
-   jump and the mouse don't
-   move you or the camera,
-   but the waves, the sky
-   and the weather carry on?
-4. Esc: it closes, the mouse
-   captured again, you move
-   and look as before?
-5. Esc, then Resume: the
-   same as 4?
+   session running. Esc →
+   Settings → Game: a
+   "Claude Code" row under
+   the toggles, saying "Not
+   looked for yet: it's
+   found when a session
+   starts.", Browse… and a
+   greyed-out Reset? (With
+   "Show sessions started
+   outside the game" on, it
+   may already show what it
+   found, as in 2.)
+2. Start a session (Tab, +)
+   and confirm it in its
+   terminal. Back in
+   Settings → Game: the row
+   shows your claude.exe's
+   full path and "version
+   …", no "set by hand"?
+3. Does the row read well
+   (a long path wraps, the
+   buttons under it)?
 
-B. Esc goes to what's open
-6. Start a session from the
-   sessions menu (Tab) and
-   open its chat, then Esc:
-   only the chat closes, no
-   pause menu?
-7. The same with the
-   sessions menu (Tab), the
-   create panel and the big
-   map (M): Esc closes only
-   that?
+B. Choosing it
+4. Browse…: the Windows file
+   picker opens in the
+   folder of that claude.exe
+   and only shows .exe
+   files?
+5. Pick a program that isn't
+   Claude Code:
+   C:\Windows\System32\
+   whoami.exe. "Checking…",
+   then in red "Not changed:
+   That program didn't answer
+   as Claude Code (claude
+   --version)."? The row
+   above still shows the old
+   one?
+6. Browse… and pick your
+   claude.exe: the red line
+   goes, the row shows its
+   path, version and "· set
+   by hand", Reset no longer
+   greyed?
+7. Start another session: it
+   opens in the terminal as
+   usual? /exit both.
+8. Reset to defaults (bottom
+   left): the row stays "set
+   by hand"?
 
-C. Settings
-8. Esc → Settings: the panel
-   goes, the settings open,
-   the screen still dimmed,
-   "Esc to go back" at the
-   bottom?
-9. Change a setting (e.g.
-   field of view): it applies
-   at once, behind the dim?
-10. Esc: back to the pause
-   menu, mouse still free?
-   Esc again: the game, the
-   mouse captured?
+C. Kept across a restart
+9. Close the game and start
+   it again. Settings → Game:
+   at once the same path,
+   version and "set by hand"
+   (no "Not looked for yet")?
 
-D. Quit game
-11. With that session
-   running, Esc → Quit game:
-   the quit warning asks
-   first?
-12. Back to the game: the
-   pause menu still open,
-   the mouse free? Esc: the
-   game.
-13. Esc → Quit game → Quit:
-   the game closes, the
-   session still running in
-   its terminal?
-14. Start the game again:
-   its island is back. /exit
-   the session. Esc →
-   Quit game with nothing
-   running: it closes at
-   once, no warning?
+D. When it stops working
+10. Close the game. Copy
+   claude.exe into a new
+   folder, e.g.
+   C:\Temp\claude-copy\.
+   Start the game, Browse…
+   and pick the copy: shown,
+   "set by hand"?
+11. Delete the copy (or its
+   folder). Start a session:
+   no terminal opens, and the
+   menu says "Couldn't start
+   a session: The
+   Claude Code set in
+   Settings doesn't work:
+   There's no program at
+   that path. Choose it
+   again, or reset it."?
+12. Settings → Game: the row
+   says the same, in red?
+13. Close the game and start
+   it again: the row says it
+   again, in red, and still
+   no other Claude Code is
+   used when you start a
+   session?
+14. Reset: the row shows your
+   usual claude.exe again, no
+   "set by hand", Reset
+   greyed out? A session
+   starts as usual. /exit it.

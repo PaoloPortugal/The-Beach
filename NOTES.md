@@ -114,7 +114,7 @@ v1 slice.
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
-| S02 | Claude provider (v1)                      | built   | S02           | `sidecar/src/providers/claude/`, `sidecar/src/launch/` |
+| S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `sidecar/src/providers/claude/running.ts`, `world/sessions_menu/` |
 | S05 | End session                               | quit warning built | S05 | `world/quit_guard.gd` |
@@ -408,8 +408,9 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Finding `claude`.** Apps started from the macOS Dock or a Linux menu
   don't get the user's shell PATH. Look in PATH, then the documented
   install locations (native installer `~/.local/bin`, Homebrew, WinGet,
-  apt/dnf, npm global), with a setting to point at it by hand (not built
-  yet: Known issues and next steps → A path to `claude` set by hand), and a clear
+  apt/dnf, npm global), with a setting to point at it by hand (Settings →
+  Game; S02 → The program set by hand: when set, the only `claude`
+  used), and a clear
   message when it isn't found. On Windows, start `claude.exe` directly: an
   npm `claude.cmd` wrapper needs a shell, so find the real executable
   behind it instead.
@@ -3080,7 +3081,8 @@ later SMAA default):*
   sensitivity, field of view. *Sound:* the waiting chime (moved from the
   sessions menu). *Game:* being taken to a new session's island on/off;
   the crosshair on/off (C11, 2026-10-12); sessions started outside the
-  game on/off (S08, 2026-10-22). Key rebinding later (rejected: graphics only; everything including
+  game on/off (S08, 2026-10-22); the program each provider runs, set by
+  hand (S02, 2026-10-26). Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
   (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA); **MSAA
@@ -3164,9 +3166,23 @@ later SMAA default):*
     is greyed out and shown off, with the notice in red beside it, and
     the saved choice is kept (user's, 2026-10-22). The menu follows
     `SidecarClient.providers_changed`.
+  - *A row per provider that runs a program of the user's* (S02 → The
+    program set by hand; a provider with the `program_path` capability,
+    by its own name: "Claude Code"): what it found (the path, "version
+    …", and "· set by hand" when it is), or why not, in red; "Not looked
+    for yet: it's found when a session starts." before the provider has
+    looked. **Browse…** opens the system's file picker (native, `*.exe`
+    only on Windows, starting in the found program's folder) and
+    **Reset** ("Find it as usual", greyed out unless set by hand) clears
+    it; both go through `SidecarClient.set_program_path`, the row says
+    "Checking…" until the sidecar answers, and a refusal is shown in red
+    under it, "Not changed: <why>", with nothing changed. Saved by
+    `SidecarClient`, not `Settings` (S02 → Setting it). Rows come and go
+    with the providers.
 - *Sound:* A05's chime toggle, moved here from the sessions menu; it
   still sets `Attention.sound_on`, saved where it was.
-- Reset to defaults sets every setting back, the chime on too.
+- Reset to defaults sets every setting back, the chime on too; a
+  program set by hand stays (its own Reset).
 
 Since C13 (2026-10-22) Esc opens the pause menu, and its Settings opens
 this menu; Esc here goes back to the pause menu (`SettingsMenu.back`,
@@ -3176,7 +3192,8 @@ to go back". The menu no longer opens on Esc itself.
 Tested in the world test (`_settings`; Esc in `_pause`, C13): the tabs, each setting applied
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on, the crosshair, the
-outside sessions with and without the notice: S08), every value kept in a
+outside sessions with and without the notice: S08; the program rows
+with a stand-in sidecar, and the real one refusing a path: S02), every value kept in a
 new `Settings`, the chime in the same file, a broken file's values as
 defaults or clamped, and Reset (the crosshair too). The window mode, vsync and the mouse
 being captured can't be seen headless: the live check's. Screenshots of
@@ -3454,7 +3471,8 @@ next to the game come with the first export.
 ### S02 Claude provider
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
 `interrupt`, `permission_modes`, `plans`, `usage` and `model_info`
-capabilities, no extension yet). Code:
+capabilities, the provider itself `program_path` (and S08's
+`outside_sessions`), no extension yet). Code:
 `sidecar/src/providers/claude/` (`index.ts` launches `claude`, which
 `find.ts` finds: Architecture → Platforms → Finding `claude`;
 `session.ts` runs one session, `hooks.ts` and `hook-server.ts`,
@@ -3464,7 +3482,7 @@ and the generic
 `sidecar/src/launch/`. Diagrams: `docs/flows.md` (index). Dev logs:
 2026-09-29-claude-cli-spike, -windows-terminals,
 -s02-relay-questions-stop, 2026-10-01-agent-view-clear,
-2026-10-22-login-shell-path. The only place
+2026-10-22-login-shell-path, 2026-10-26-s02-program-path. The only place
 Claude-specific names may appear. It drives the user's own installed
 `claude` (minimum 2.1.284), signed in with their own account; our code
 never reads, stores or passes on Claude credentials, and never modifies
@@ -3917,6 +3935,62 @@ capability; C12).** Code: `launch-options.ts`.
 - **Minimum version:** probed on 2.1.296 only. Whether 2.1.284 (our
   minimum) accepts `PostModelSwitch` in `--settings`, `--effort` and
   `xhigh` is unchecked (Watch items).
+
+**The program set by hand (`program_path` capability; user's approval
+2026-10-26; dev log 2026-10-26-s02-program-path).** For a `claude` the
+usual lookup (Architecture → Platforms → Finding `claude`) can't find,
+or to pick one of several. The commands and events are in Protocol →
+Provider capabilities → `program_path`. Code: `checkClaudePath` and
+`findClaude` in `find.ts`, `setProgramPath` and `find()` in `index.ts`,
+`providerProgram` in `sidecar/src/registry.ts`, `--program-path` in
+`sidecar/src/serve.ts`; in Godot `SidecarClient.set_program_path` and
+the Settings row (C10).
+- **The checks**, in order, each with its own message for the player:
+  a full path ("That isn't a full path."), a file ("There's no program
+  at that path."), on Windows an `.exe` (npm's `claude.cmd` needs a
+  shell, so it is never run), then `--version` (an argument array, the
+  clean environment, 15 s) answering as Claude Code, at least the
+  minimum version.
+- **The only one used.** Set, it is all `findClaude` tries: no PATH,
+  install locations or login shell. If it stops working (moved,
+  deleted, too old after a downgrade), the next look reports it not
+  found, "The Claude Code set in Settings doesn't work: <why> Choose it
+  again, or reset it.", and the launch fails with that message. Never
+  another `claude` instead: the user chose this one.
+- **When it looks.** Whenever the provider needs `claude` (a launch or
+  resume; asking which sessions run, for the stored list, S07's restore
+  and S08's poll, until one is found) and
+  right after a path is set or cleared; each look is reported, the same
+  answer only once. A look begun before a change doesn't report its
+  answer (a counter). With no path set, `claude` is looked for at start
+  only when the sidecar already asks it something then (outside
+  sessions on, sessions to take back), so the row may say "Not looked
+  for yet" until the first session starts; the suites never run the
+  real `claude` this way. A path set at start is checked at once.
+- **Setting it.** A path that fails is refused (`invalid_program`) and
+  the previous one stays; one that passes is used for sessions started
+  or resumed after it, running ones keep theirs. Reset (`path: null`)
+  looks for it as usual at once. The setting is Godot's: the settings
+  file's `[programs]` section, `<provider> = "<path>"` beside C10's
+  settings, saved only once the sidecar accepts it, and given at start
+  as `serve --program-path <provider>=<path>` (in a fixed order). At
+  start a path that fails is kept and reported not found; a provider
+  unknown or without the capability is warned about in the log and
+  ignored, so an old setting never stops the sidecar.
+- **The reply first.** Provider messages a command causes
+  (`provider.program`) are held until its reply is sent, for every
+  command, so the row shows the answer to its own choice before the
+  event.
+- Tested: `sidecar/test/program-path.test.ts` (each check, a `.cmd`
+  never run, the path set by hand the only one tried and the login
+  shell not asked, refusals keeping the setting, `not_supported` and
+  `unknown_provider`, the reply before `provider.program`, hello's
+  `program`, a deleted path failing a launch with why, Reset, the same
+  answer not sent twice, a stale look not reported, the serve flags),
+  the core suite (start arguments, saved and cleared, a refusal not
+  kept, no sidecar) and the world suite (Settings → Game's row; the
+  real sidecar refusing a path that isn't a full one). Live check:
+  `tests/live/checklist.txt`.
 
 **Stopping (`interrupt` capability, `immediate: false`).** A stop answers
 the next `PreToolUse` of each agent busy when it was asked with
@@ -5043,7 +5117,9 @@ wipe the user's remembered islands (`clusters_test.gd` checks it).
 And it points `SidecarClient.settings_file` at
 `user://test-sidecar-settings.cfg` with `[game] outside_sessions`
 off, so a suite's sidecar never shows the user's own running sessions
-(S08; the sidecar client test checks it).
+(S08; the sidecar client test checks it), and never gets the user's
+own program set by hand (S02's `[programs]`): with none set and
+outside sessions off, nothing at start runs the real `claude`.
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
@@ -5125,7 +5201,11 @@ you: its orchestrator goes and the chat closes), the subagents (A02,
 A03, A04: placement and slots, their state signs, a done one throwing
 its report to its caller, which bobs, gone within 1.8 s, resumed
 mid-throw, an error lingering), walking up to chat (A01,
-C01, C02, C05), and the crosshair (C11: looking away, E doing nothing,
+C01, C02, C05), the settings menu (C10; S08's toggle and S02's program
+rows through a stand-in sidecar: none without the capability, not
+looked for yet, found, set by hand with Reset, not found in red, a
+refusal with no sidecar; without the fake, the real sidecar refusing a
+path that isn't a full one), and the crosshair (C11: looking away, E doing nothing,
 looking at it growing with its hint, a wall, out of reach, the ring
 off, without the controls). With `--sidecar-dev-fake` it also starts a session
 (its island rising before you're taken there, W04)
@@ -5353,7 +5433,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** S02, a path to `claude` set by hand (Known issues
-and next steps → A path to `claude` set by hand), next.
+and next steps → A path to `claude` set by hand): built on
+`s02-claude-path` (dev log 2026-10-26-s02-program-path), waiting for
+the user's live check before it merges.
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: C13, the pause
 menu** (dev log 2026-10-22-c13-pause-menu): Esc opens a pause menu with
@@ -5694,8 +5776,9 @@ command sets or clears a path, which the sidecar checks (absolute, a
 file, answers `--version`); a serve flag applies it at start. The
 Settings menu gets one row per provider, by its own name, showing what
 was found, with Browse and Reset. A path set by hand skips every other
-lookup, the login shell included. Being built on `s02-claude-path`
-(protocol shape approved 2026-10-26).
+lookup, the login shell included. *Built (2026-10-26) on
+`s02-claude-path`* (protocol shape approved 2026-10-26; S02 → The
+program set by hand), waiting for the user's live check.
 
 **Claude Code installed inside WSL** (S02, Platforms; asked by the
 user 2026-10-26, kept out of the path set by hand as too big). On

@@ -23,6 +23,7 @@ sequenceDiagram
     World->>Sidecar: session.create (launch: model, effort, mode picked)
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Claude: providers/claude/index.ts (launch), launch-options.ts (C12 flags)<br/>launch/terminal.ts and launcher.ts (argument list only)
+        Sidecar->>Sidecar: find claude (the one set by hand only, if any: flow 17)#59;<br/>not found: error provider_error, why
         Sidecar->>Sidecar: new session ID and tokens,<br/>per-session hook settings
         Sidecar->>Claude: open the user's terminal with our launcher,<br/>which starts claude (settings, channel,<br/>session ID, clean environment,<br/>--model / --effort / --permission-mode if picked)
         Sidecar-->>World: ok { session }
