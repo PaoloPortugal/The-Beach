@@ -23,7 +23,7 @@ sequenceDiagram
     User->>Claude: starts a session outside the game
     rect rgba(255,193,7,0.18)
         Note over Sidecar,Log: providers/claude/index.ts (restore, poll, outsideFrom)<br/>providers/claude/running.ts (parseAgents, agentViewOff)<br/>providers/claude/store.ts (findTranscript)
-        Note over Sidecar: at start (part of the restore, before sync.completed, so W12<br/>brings its island back standing), then the shared poll:<br/>every 5 s with the game focused, 10 s in the background
+        Note over Sidecar: at start (part of the restore, before sync.completed, so W12<br/>brings its island back as it was), then the shared poll:<br/>every 5 s with the game focused, 10 s in the background
         Sidecar->>Agents: which sessions run?
         Agents-->>Sidecar: each: sessionId, pid, status, cwd, kind, startedAt, name
         Note over Sidecar: left out: the game's own (its run folders' pids, its session ids),<br/>no live pid, no cwd or a folder that isn't there
