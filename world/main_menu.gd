@@ -18,6 +18,10 @@ const CREDITS_FILE := "res://assets/CREDITS.md"
 
 ## Emitted once the camera is back with the player and the controls too.
 signal played
+## Emitted when it opens, and on Play (or [method close_now]) before the
+## camera heads for the player, who may be moved then.
+signal opened
+signal leaving
 
 var player: Player
 var settings_menu: SettingsMenu
@@ -82,6 +86,7 @@ func play() -> void:
 		return
 	_dim.visible = false
 	_panel.visible = false
+	leaving.emit()
 	camera.descend()
 
 
@@ -93,6 +98,7 @@ func close_now() -> void:
 	_dim.visible = false
 	_panel.visible = false
 	_credits.visible = false
+	leaving.emit()
 	camera.stop()
 	_on_arrived()
 
@@ -174,6 +180,7 @@ func _show() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	for h in hud:
 		h.visible = false
+	opened.emit()
 
 
 func _on_arrived() -> void:

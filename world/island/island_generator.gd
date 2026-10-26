@@ -78,7 +78,7 @@ var wobble := 0.45
 ## The rise per metre up from the beach, and the shoulder's width (W10).
 var slope := SLOPE
 var shoulder := SHOULDER
-## The highest point of the last [method build], metres.
+## The highest point of the last [method build] (or [method take]), metres.
 var top := 0.0
 
 var _shore_noise := FastNoiseLite.new()
@@ -370,17 +370,28 @@ func _scatter(kinds: Array, density: float, seed_offset: int, sink: float, groun
 
 
 ## Returns {"mesh": ArrayMesh, "faces": PackedVector3Array}; the faces are
-## for a ConcavePolygonShape3D. The seabed is coarse (see [constant
-## COARSE]); fine cells beside a coarse block have their vertices on the
-## shared edge moved onto it, so there are no cracks.
+## for a ConcavePolygonShape3D. [method make] then [method take].
 func build() -> Dictionary:
+	var made := make()
+	take(made)
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, made["arrays"])
+	return {"mesh": mesh, "faces": made["faces"]}
+
+
+## The slow part of [method build], changing nothing here, so it can run on
+## a worker thread (on a generator of its own: Island does): the ground's
+## grid, its top, the mesh's arrays and the collision faces. The seabed is
+## coarse (see [constant COARSE]); fine cells beside a coarse block have
+## their vertices on the shared edge moved onto it, so there are no cracks.
+func make() -> Dictionary:
 	var extent := radius * 1.45 * skirt_end
 	# A whole number of coarse blocks across.
 	var n := int(ceil(2.0 * extent / cell / COARSE)) * COARSE
 	extent = n * cell / 2.0
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _seed
-	top = -INF
+	var high := -INF
 	var grid: Array[PackedVector3Array] = []
 	for i in n + 1:
 		var row := PackedVector3Array()
@@ -392,7 +403,7 @@ func build() -> Dictionary:
 				x += rng.randf_range(-0.3, 0.3) * cell
 				z += rng.randf_range(-0.3, 0.3) * cell
 			row.append(Vector3(x, height_at(x, z), z))
-			top = maxf(top, row[-1].y)
+			high = maxf(high, row[-1].y)
 		grid.append(row)
 
 	var blocks := n / COARSE
@@ -425,9 +436,6 @@ func build() -> Dictionary:
 						var je: int = j0 + (COARSE if side[1] > 0 else 0)
 						grid[i0 + k][je] = grid[i0][je].lerp(grid[i0 + COARSE][je], t)
 
-	_grid = grid
-	_coarse = coarse
-	_extent = extent
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var faces := PackedVector3Array()
@@ -439,7 +447,16 @@ func build() -> Dictionary:
 			for i in range(bi * COARSE, (bi + 1) * COARSE):
 				for j in range(bj * COARSE, (bj + 1) * COARSE):
 					_add_cell(st, faces, grid, i, j, 1, i + j)
-	return {"mesh": st.commit(), "faces": faces}
+	return {"grid": grid, "coarse": coarse, "extent": extent, "top": high, "arrays": st.commit_to_arrays(), "faces": faces}
+
+
+## Takes in what [method make] made (its grid and top), for [method
+## surface_height] and [member top].
+func take(made: Dictionary) -> void:
+	_grid = made["grid"]
+	_coarse = made["coarse"]
+	_extent = made["extent"]
+	top = made["top"]
 
 
 # Whether every vertex of the block at (i0, j0) is deep enough to be coarse.

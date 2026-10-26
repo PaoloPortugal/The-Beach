@@ -191,6 +191,13 @@ func _setup_settings() -> void:
 	main_menu.setup(_player, settings_menu, quit_guard, menu_camera)
 	main_menu.hud = [usage_limits, pointers]
 	pause_menu.main_menu_chosen.connect(main_menu.open)
+	# An ended session's island sinks while the menu's up, the player on it
+	# or not; Play then puts them on the platform (user's, C14 live check).
+	main_menu.opened.connect(func() -> void: _islands.player_away = true)
+	main_menu.leaving.connect(func() -> void:
+		_islands.player_away = false
+		if _islands.take_stranded():
+			go_to_platform())
 	settings_menu.sidecar = Sidecar
 	apply_settings()
 

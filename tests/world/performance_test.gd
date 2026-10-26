@@ -129,10 +129,15 @@ func _draw_distance() -> void:
 	await _settle()
 	var world: Node3D = demo.world
 	var islands: SessionIslands = world.get_node("SessionIslands")
+	# Made off the main thread, then risen (C14).
+	var deadline := Time.get_ticks_msec() + 30000
+	while not islands.all_up() and Time.get_ticks_msec() < deadline:
+		await process_frame
 	var fog: float = (world.get_node("WorldEnvironment") as WorldEnvironment).environment.fog_depth_end
 	_check(fog > 0.0 and islands.draw_distance == fog, "draw distance: the fog's end (%d m)" % fog)
 	_check(_limited(islands, fog), "islands, orchestrators, markers and far bridges end at the fog plus their size")
-	var island_mesh: MeshInstance3D = islands.island("d01").get_child(0)
+	# Its ground comes after the orchestrator (made off the main thread, C14).
+	var island_mesh: MeshInstance3D = islands.island("d01").get_children().filter(func(c: Node) -> bool: return c is MeshInstance3D)[0]
 	_check(island_mesh.visibility_range_end > fog + 90.0, "an island counts its seabed's reach (%.0f m)" % island_mesh.visibility_range_end)
 	var kept := _own_ranges(islands)
 	_check(kept, "bridges' near versions and bubbles keep their own; beacons have none")
