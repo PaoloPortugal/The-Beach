@@ -8,7 +8,8 @@ extends Node3D
 ## shows the cluster you're in, and M opens a map of the world (W06).
 ## The plan's usage limits are in the bottom-right corner (C08). The day
 ## turns to night and back, and the weather changes (W09). Esc opens the
-## settings menu (C10), whose settings this applies. The crosshair picks
+## pause menu (C13), which opens the settings menu (C10), whose settings
+## this applies, and quits through the quit guard. The crosshair picks
 ## what E acts on (C11). The world shows once the sidecar has taken back
 ## the sessions still running from before a restart (S07).
 
@@ -38,7 +39,9 @@ var lightning_bolt := LightningBolt.new()
 ## The game's settings (C10), saved between runs; tests point its path
 ## elsewhere before the world is added.
 var settings := Settings.new()
-## Esc, with nothing else open (C10).
+## Esc, with nothing else open (C13): Resume, Settings and Quit game.
+var pause_menu := PauseMenu.new()
+## The pause menu's Settings (C10).
 var settings_menu := SettingsMenu.new()
 ## The crosshair, and what E acts on (C11).
 var crosshair := Crosshair.new()
@@ -174,8 +177,12 @@ func _setup_settings() -> void:
 	settings_menu.shadows_available = not compatibility
 	# Nor is there screen-space anti-aliasing there (Godot's docs).
 	settings_menu.screen_space_aa_available = not compatibility
+	# Before the settings menu, so its dim is drawn under that panel too.
+	pause_menu.name = "PauseMenu"
+	add_child(pause_menu)
 	add_child(settings_menu)
 	settings_menu.setup(settings, _player, attention)
+	pause_menu.setup(_player, settings_menu, quit_guard)
 	settings_menu.sidecar = Sidecar
 	apply_settings()
 

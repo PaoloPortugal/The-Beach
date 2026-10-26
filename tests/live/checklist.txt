@@ -1,84 +1,75 @@
-LIVE CHECK: S08 outside sessions
+LIVE CHECK: C13 pause menu
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-A. Shown, read-only
-1. Before starting the game:
-   run claude in a plain
-   terminal in repo A and say
-   hi. Open a Code session in
-   the Claude desktop app (or
-   VS Code) in repo B.
-2. Start the game: both
-   islands already standing,
-   each in its repo's
-   cluster, with a tall grey
-   flag near the edge?
-3. Does the flag read well
-   from the platform, from
-   the sea and from close up?
-4. The minimap and the big
-   map (M): a little grey
-   flag on both outside
-   islands?
-5. Walk up to the terminal
-   one: the chat so far, the
-   notice "This session was
-   started outside the game
-   ...", and "Read-only: use
-   its own window." where
-   you'd type?
-6. Chat in that terminal: the
-   message, reply and tool
-   calls show in the world
-   within a few seconds?
-7. Ask it for something that
-   needs a permission: the
-   island shows waiting?
-   Answer in the terminal.
-8. Start a session from the
-   world: no flag on it (nor
-   on the maps), chat
-   works as usual?
-9. Run claude -p "hi" in a
-   terminal: no island ever
-   rises for it?
-10. Run a new claude in a
-   terminal (repo A): its
-   island rises within ~10 s?
-11. /exit it: its island
-   sinks within ~10 s?
+A. Opening and closing
+1. Start the game with no
+   session running. Press
+   Esc: the screen dims, a
+   "Paused" panel in the
+   middle with Resume,
+   Settings and Quit game,
+   "Esc to resume" under
+   them, and the mouse free?
+2. Does the look read well
+   (the dim, the panel, the
+   buttons), in daylight and
+   at night?
+3. While it's open: WASD,
+   jump and the mouse don't
+   move you or the camera,
+   but the waves, the sky
+   and the weather carry on?
+4. Esc: it closes, the mouse
+   captured again, you move
+   and look as before?
+5. Esc, then Resume: the
+   same as 4?
 
-B. The setting
-12. Esc → Game: turn off
-   "Show sessions started
-   outside the game": the
-   outside islands sink?
-13. Quit and start again: no
-   outside islands?
-14. Turn it on: they rise
-   within ~5 s, as new
-   islands?
-15. Quit and start again: the
-   outside islands standing,
-   as they were?
+B. Esc goes to what's open
+6. Start a session from the
+   sessions menu (Tab) and
+   open its chat, then Esc:
+   only the chat closes, no
+   pause menu?
+7. The same with the
+   sessions menu (Tab), the
+   create panel and the big
+   map (M): Esc closes only
+   that?
 
-C. Agent view off
-16. Quit. In PowerShell:
-   $env:CLAUDE_CODE_DISABLE_
-   AGENT_VIEW="1"; then start
-   the game from there.
-17. No outside islands, no
-   notice on screen?
-18. Esc → Game: the toggle
-   greyed out and off, with
-   "Sessions started outside
-   the game can't be shown:
-   agent view is off in
-   Claude Code." in red?
-19. Quit, start it normally
-   (new window): the toggle
-   back as you left it in B?
-20. /exit every session.
+C. Settings
+8. Esc → Settings: the panel
+   goes, the settings open,
+   the screen still dimmed,
+   "Esc to go back" at the
+   bottom?
+9. Change a setting (e.g.
+   field of view): it applies
+   at once, behind the dim?
+10. Esc: back to the pause
+   menu, mouse still free?
+   Esc again: the game, the
+   mouse captured?
+
+D. Quit game
+11. With that session
+   running, Esc → Quit game:
+   the quit warning asks
+   first?
+12. Back to the game: the
+   pause menu still open,
+   the mouse free? Esc: the
+   game.
+13. Esc → Quit game → Quit:
+   the game closes, the
+   session still running in
+   its terminal?
+14. Start the game again:
+   its island is back. /exit
+   the session. Esc →
+   Quit game with nothing
+   running: it closes at
+   once, no warning?
