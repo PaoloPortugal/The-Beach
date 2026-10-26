@@ -3434,9 +3434,24 @@ by the user; the ID and scope are my pick):*
 - **Back to it:** the pause menu (C13) gains "Main menu"; sessions keep
   running, nothing is lost.
 
-Still to decide while building, with the user: the look (UI
-placeholder until then), what Play does while the sidecar is still
-starting, and how Credits shows the file.
+*Decided before building (user's, 2026-10-26):*
+- **Look:** the pause menu's panel (C13), centred, the world dimmed
+  all round; a placeholder like all UI (rejected: a column on the left
+  over a gradient, my recommendation; a bar along the bottom).
+- **Title:** "The Beach" as plain text above the buttons, from one
+  constant, listed in Conventions → Renaming the project (rejected: no
+  title until the real name).
+- **Play at once:** Play is never held back; pressed while the sidecar
+  is still starting, the camera eases down straight away and islands
+  still to come rise or appear as they arrive, so S07's "standing from
+  the first frame" doesn't hold for that start (rejected: Play waiting
+  for the sync, my recommendation, or greyed until it).
+- **Credits:** `assets/CREDITS.md` as it is, read when opened and drawn
+  with the chat's Markdown renderer (C03) in a scrolling panel with
+  Back, then "Made with Godot Engine" with the engine's own copyright
+  and licence text (its MIT licence needs the notice in shipped
+  builds). The file joins the export filter once exports exist
+  (rejected: a separate player-facing credits text; the file alone).
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
