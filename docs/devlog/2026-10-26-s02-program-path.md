@@ -62,7 +62,7 @@ a path that fails is kept and reported not found; the start goes on.
 file's `[programs]` section and goes into `serve --program-path` (in a
 fixed order). `set_program_path` sends the command and saves only on
 `ok` (the file's other sections kept); `provider_program` reads what a
-provider found. `SettingsMenu` adds a row in Game per provider with
+provider found. `SettingsMenu` adds a row in Game (Providers since: below) per provider with
 the capability: the status text, Browse… (the system's native picker,
 `*.exe` only on Windows, starting in the found program's folder),
 Reset (greyed out unless set by hand), "Checking…" while the sidecar
@@ -101,6 +101,19 @@ the world test now checks the panel stays under 600 px on every tab,
 with a long message and a refusal shown (it failed with heights up to
 4997 px before the fix).
 
+## Moved to a Providers tab (user's, live check)
+
+The user asked for the program rows in a tab of their own. Settings
+now has a fifth tab, Providers, with a row per provider that has the
+`program_path` capability, and "Nothing to set for the AI tools in
+use." while none has one. "Show sessions started outside the game"
+stays in Game (my pick: it decides which islands the world shows, not
+which program a provider runs). Found while checking: with that toggle
+on, "Not looked for yet" doesn't show at start, because listing the
+running sessions runs `claude` and so finds it; the live checklist's
+first step says so. The world test opens Providers for the rows and
+checks the line.
+
 ## Security review (2026-10-26)
 
 No blockers. Fixed: a malformed key in the settings file's
@@ -134,7 +147,8 @@ a time). The `.cmd` check only runs on a Windows host.
   kept or saved; accepted, saved with the other settings kept; cleared
   as `null` and removed from the file; no sidecar.
 - `tests/world/world_test.gd` (`_settings`): through a stand-in
-  sidecar, no row without the capability, a row by the provider's
+  sidecar, in the Providers tab: no row without the capability (the
+  "Nothing to set" line instead), a row by the provider's
   name, not looked for yet, found, set by hand with Reset enabled, not
   found in red, a refusal with no sidecar, the row gone with its
   provider; with the real sidecar, its Claude Code row, "Checking…",

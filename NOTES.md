@@ -409,7 +409,7 @@ the same `~/.claude` layout. What differs, and how we handle it:
   don't get the user's shell PATH. Look in PATH, then the documented
   install locations (native installer `~/.local/bin`, Homebrew, WinGet,
   apt/dnf, npm global), with a setting to point at it by hand (Settings →
-  Game; S02 → The program set by hand: when set, the only `claude`
+  Providers; S02 → The program set by hand: when set, the only `claude`
   used), and a clear
   message when it isn't found. On Windows, start `claude.exe` directly: an
   npm `claude.cmd` wrapper needs a shell, so find the real executable
@@ -3082,8 +3082,8 @@ later SMAA default):*
   sensitivity, field of view. *Sound:* the waiting chime (moved from the
   sessions menu). *Game:* being taken to a new session's island on/off;
   the crosshair on/off (C11, 2026-10-12); sessions started outside the
-  game on/off (S08, 2026-10-22); the program each provider runs, set by
-  hand (S02, 2026-10-26). Key rebinding later (rejected: graphics only; everything including
+  game on/off (S08, 2026-10-22). *Providers:* the program each provider
+  runs, set by hand (S02, 2026-10-26). Key rebinding later (rejected: graphics only; everything including
   rebinding now, the biggest piece by far).
 - **Anti-aliasing** (asked for after the first build, same day): MSAA
   (Off, 2×, 4×, 8×) and a screen-space filter (Off, FXAA, SMAA); **MSAA
@@ -3101,7 +3101,10 @@ later SMAA default):*
   later with a closer look at the render scale).
 - **Tabs:** Graphics, Controls, Sound, Game in one panel, a placeholder
   look like the sessions menu (rejected: one scrolling list, crowded
-  later).
+  later). Providers added (user's, 2026-10-26, at S02's live check):
+  the program rows there instead of in Game; S08's outside-sessions
+  toggle stays in Game (my pick: it's about which islands the world
+  shows, not a provider's program).
 - **Changes apply at once and are saved** to `user://settings.cfg`, with
   "Reset to defaults" (rejected: an Apply button, safer for window mode
   but slower for everything else).
@@ -3167,21 +3170,24 @@ later SMAA default):*
     is greyed out and shown off, with the notice in red beside it, and
     the saved choice is kept (user's, 2026-10-22). The menu follows
     `SidecarClient.providers_changed`.
-  - *A row per provider that runs a program of the user's* (S02 → The
-    program set by hand; a provider with the `program_path` capability,
-    by its own name: "Claude Code"): what it found (the path, "version
-    …", and "· set by hand" when it is), or why not, in red; "Not looked
-    for yet: it's found when a session starts." before the provider has
-    looked. **Browse…** opens the system's file picker (native, `*.exe`
-    only on Windows, starting in the found program's folder) and
-    **Reset** ("Find it as usual", greyed out unless set by hand) clears
-    it; both go through `SidecarClient.set_program_path`, the row says
-    "Checking…" until the sidecar answers, and a refusal is shown in red
-    under it, "Not changed: <why>", with nothing changed. Saved by
-    `SidecarClient`, not `Settings` (S02 → Setting it). Rows come and go
-    with the providers.
 - *Sound:* A05's chime toggle, moved here from the sessions menu; it
   still sets `Attention.sound_on`, saved where it was.
+- *Providers* (since 2026-10-26; in Game before): *a row per provider
+  that runs a program of the user's* (S02 → The program set by hand; a
+  provider with the `program_path` capability, by its own name: "Claude
+  Code"): what it found (the path, "version …", and "· set by hand" when
+  it is), or why not, in red; "Not looked for yet: it's found when a
+  session starts." before the provider has looked (with outside
+  sessions on, listing them at start already finds it). **Browse…**
+  opens the system's file picker (native, `*.exe` only on Windows,
+  starting in the found program's folder) and **Reset** ("Find it as
+  usual", greyed out unless set by hand) clears it; both go through
+  `SidecarClient.set_program_path`, the row says "Checking…" until the
+  sidecar answers, and a refusal is shown in red under it, "Not changed:
+  <why>", with nothing changed. Saved by `SidecarClient`, not `Settings`
+  (S02 → Setting it). Rows come and go with the providers (it follows
+  `SidecarClient.providers_changed`); while there are none, the tab
+  says "Nothing to set for the AI tools in use."
 - Reset to defaults sets every setting back, the chime on too; a
   program set by hand stays (its own Reset).
 
@@ -3194,7 +3200,8 @@ Tested in the world test (`_settings`; Esc in `_pause`, C13): the tabs, each set
 (shadows, MSAA, screen-space anti-aliasing, FPS cap, render scale, lightning, sensitivity, field of view,
 the chime, the trip to a new island off and on, the crosshair, the
 outside sessions with and without the notice: S08; the program rows
-with a stand-in sidecar, and the real one refusing a path: S02; the
+in the Providers tab with a stand-in sidecar, the "Nothing to set" line
+while no provider has a row, and the real one refusing a path: S02; the
 panel under 600 px tall on every tab: it is as tall as its tallest tab,
 hidden ones included, and a wrapping label needs a width of its own or
 it wraps at every character while its tab is hidden), every value kept in a
@@ -3948,7 +3955,7 @@ Provider capabilities and notices → `program_path`. Code: `checkClaudePath` an
 `findClaude` in `find.ts`, `setProgramPath` and `find()` in `index.ts`,
 `providerProgram` in `sidecar/src/registry.ts`, `--program-path` in
 `sidecar/src/serve.ts`; in Godot `SidecarClient.set_program_path` and
-the Settings row (C10).
+the Settings row (C10, its Providers tab).
 - **The checks**, in order, each with its own message for the player:
   a full path without control characters ("That isn't a full path."),
   on Windows on a drive of this computer (a network path, `\\host\share\…`,
@@ -4002,7 +4009,7 @@ the Settings row (C10).
   a launch after a path is set running that path, control characters
   and network paths refused before anything runs; the core suite (start
   arguments, a malformed id left out, saved and cleared, a refusal not
-  kept, no sidecar) and the world suite (Settings → Game's row; the
+  kept, no sidecar) and the world suite (Settings → Providers' row; the
   real sidecar refusing a path that isn't a full one). Live check:
   `tests/live/checklist.txt`.
 
@@ -5216,7 +5223,8 @@ A03, A04: placement and slots, their state signs, a done one throwing
 its report to its caller, which bobs, gone within 1.8 s, resumed
 mid-throw, an error lingering), walking up to chat (A01,
 C01, C02, C05), the settings menu (C10; S08's toggle and S02's program
-rows through a stand-in sidecar: none without the capability, not
+rows in Providers through a stand-in sidecar: none without the
+capability and the "Nothing to set" line, not
 looked for yet, found, set by hand with Reset, not found in red, a
 refusal with no sidecar; without the fake, the real sidecar refusing a
 path that isn't a full one), and the crosshair (C11: looking away, E doing nothing,
@@ -5781,7 +5789,7 @@ batches; the partial message is completed), and "No" on a dialog.
 **Next:** see Current focus.
 
 **A path to `claude` set by hand** (S02, Platforms → Finding `claude`;
-promised there, not built). *Decided (user's, 2026-10-22):* its own
+promised there). *Decided (user's, 2026-10-22):* its own
 branch, started from `main` once S08 has merged (both touch
 `main.ts`, `serve.ts`, `sidecar_client.gd` and the settings menu).
 Scope: capability, a generic "program path": `hello` says which

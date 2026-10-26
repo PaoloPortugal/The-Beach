@@ -944,11 +944,13 @@ puts everything back.
   started outside the game** (on by default): off, only the game's own
   sessions have islands (see Sessions started outside the game (S08)).
   Greyed out, with the reason in red, when Claude Code's agent view is
-  off; your choice is kept for when it's back on. And **Claude Code**:
-  which Claude Code the game runs, with **Browse…** to choose it
+  off; your choice is kept for when it's back on.
+- **Providers:** settings for the AI tools the game runs. **Claude
+  Code**: which Claude Code the game runs, with **Browse…** to choose it
   yourself and **Reset** to let the game find it again (see Choosing
   Claude Code yourself, in Claude Code sessions (S02)). Reset to
-  defaults leaves this one alone.
+  defaults leaves this one alone. While no tool has anything to set, the
+  tab says so.
 
 ## Debug commands (C09)
 
@@ -1029,10 +1031,12 @@ isn't needed.
 
 **Choosing Claude Code yourself.** If the game can't find Claude Code,
 or finds a different one from the one you want, choose it in **Settings
-→ Game → Claude Code**. The row shows which one the game uses (where it
+→ Providers → Claude Code**. The row shows which one the game uses (where it
 is and its version, and "set by hand" if you chose it), or in red why
-there's none. Before your first session it may say "Not looked for
-yet": the game looks when a session starts.
+there's none. With **Show sessions started outside the game** off,
+it may say "Not looked for yet" before your first session: the game
+then looks when a session starts. (On, the game already looks when it
+starts, to list those sessions.)
 - **Browse…** opens your system's file picker. Choose the Claude Code
   program itself: on Windows that's `claude.exe` (an npm `claude.cmd`
   won't do; the picker only shows `.exe` files), on a drive of this

@@ -18,7 +18,7 @@ sequenceDiagram
         participant Claude as claude (the chosen file)
     end
 
-    Note over World: Settings → Game: a row per provider with program_path#59;<br/>its program from hello or provider.program (path and version, or why not)
+    Note over World: Settings → Providers: a row per provider with program_path#59;<br/>its program from hello or provider.program (path and version, or why not)
     User->>World: Browse… and pick a file (the system's picker)
     Note over World: the row says "Checking…"
     World->>Sidecar: client.set_program_path {provider: claude, path}
