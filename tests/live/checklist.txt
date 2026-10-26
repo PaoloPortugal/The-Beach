@@ -1,88 +1,38 @@
-LIVE CHECK: C14 main menu
+RE-CHECK: C14 fixes
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-A. The start
-1. Start the game. It opens
-   on the main menu: "The
-   Beach", Play, Settings,
-   Credits, Quit, in a dark
-   panel, the world dimmed
-   all round? No minimap,
-   crosshair or usage box?
-2. The view circles slowly,
-   high up, the platform and
-   islands in sight? Smooth,
-   no jumps as islands come
-   back?
-3. Tab, E, M, Esc, WASD: does
-   nothing happen?
-4. Click Play: the panel goes
-   at once and the view
-   glides down to your eyes
-   on the platform (about
-   2.5 s), smooth, no jump at
-   the end? Then you can
-   move and look, the mouse
-   captured, the HUD back?
+A. Islands at start
+1. Start a session (Tab, +),
+   wait for its island. Quit,
+   Quit in the dialog (the
+   session keeps running).
+2. Start the game again. Its
+   island rises out of the
+   sea behind the menu, no
+   green beam? The circling
+   view smooth, no stutter
+   as it comes in?
+3. Play, Tab, + again: a new
+   island rises, the game
+   smooth while it comes?
 
-B. Back to it
-5. Esc → Main menu: the view
-   rises from where you look
-   up onto the circle? The
-   mouse free?
-6. Play again: back where
-   you stood?
-7. Start a session (Tab, +),
-   wait for its island. Esc
-   → Main menu: does the
-   circle widen to take the
-   island in? Play: the
-   session's still there?
-
-C. Settings and Credits
-8. Settings: the settings
-   panel, the world still
-   dimmed? Change something,
-   Esc: back on the main
-   menu, the change kept?
-9. Play, Esc → Settings, Esc:
-   back to the pause menu
-   (not the main menu)?
-10. Main menu → Credits: a big
-   panel with the asset
-   table, the shaders table,
-   then "Made with Godot
-   Engine" and a "Show Godot
-   licences" button, no
-   licence text yet? Click
-   it: long licence texts,
-   the button now "Hide…";
-   again hides them? Does it
-   scroll with the wheel,
-   and read well?
-11. Click the Kenney link: it
-   opens in your browser?
-12. Esc closes the credits;
-   Credits again, Back too?
-
-D. Quit and coming back
-13. With a session running:
-   Quit asks first, naming
-   it? Back to the game: the
-   main menu still up? Quit
-   again, and Quit in the
-   dialog: the game closes,
-   the session still running
-   in its terminal?
-14. Start the game again: its
-   island appears standing
-   behind the main menu
-   within a moment? Play,
-   walk to it: chat works?
-15. /exit the session in its
-   terminal. Esc → Main menu
-   → Quit: closes without
-   asking?
+B. Ending behind the menu
+4. Walk onto one of the two
+   islands. Esc -> Main menu.
+5. /exit that session in its
+   terminal. Its island sinks
+   behind the menu straight
+   away?
+6. Play: the view glides down
+   to you on the platform,
+   not to where the island
+   was?
+7. Esc -> Main menu, Play
+   again: you stay where you
+   are?
+8. /exit the other session.
+   Esc -> Main menu -> Quit:
+   closes without asking?

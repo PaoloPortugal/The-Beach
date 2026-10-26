@@ -54,12 +54,14 @@ without the sun's shadows.
 
 The game opens on the main menu, titled "The Beach" (a working name).
 Behind it the world is already there, dimmed, and the view circles
-slowly high above the islands; sessions come back and islands appear
-while you're on it.
+slowly high above the islands; sessions come back and their islands
+rise while you're on it.
 
 - **Play** takes you in: the view glides down to your character, and
   you can move once it's there. You never wait for anything first; an
-  island still coming back may appear a moment later.
+  island still coming back may rise a moment later. If the island you
+  stood on sank while you were on the menu (its session ended), Play
+  puts you on the platform.
 - **Settings** opens the settings (see Settings (C10)). Esc there takes
   you back to the main menu.
 - **Credits** shows who made what: every asset with its source and
@@ -224,8 +226,8 @@ that from outside.
 ## Sessions coming back after a restart (S07)
 
 Sessions the game started come back when you start it again, as long
-as they're still running in their terminals: their islands are already
-appear behind the main menu within a moment, while the game looks for
+as they're still running in their terminals: their islands rise
+behind the main menu within a moment, while the game looks for
 them (C14), their chat holds the conversation so far, and
 chatting, answering prompts and questions work from the world again.
 Whatever happened while the game was closed (a reply, `/clear`,
@@ -335,12 +337,17 @@ over a new session's island (not one started outside the game) until
 you've been on it, and while the island is off-screen a green arrow at
 the edge of the screen points to it, with its project's name and how far
 it is. (The beam and arrow are a first version, like the rest of the
-game's screens for now.) Sessions that were already running when the
-game connected are simply there. When a session ends, its orchestrator and subagents
+game's screens for now.) Islands of sessions that were already running
+when the game connected rise too (behind the main menu, if it is up),
+with no beam.
+When a session ends, its orchestrator and subagents
 disappear at once. If you're standing on its island, or on
 one of its bridges, the empty island stays until you leave it (walk
 away over a bridge, swim away, or go to another session or the
-platform); then it sinks back into the seabed and is gone. Islands of the same project sit
+platform); then it sinks back into the seabed and is gone. If you're
+on the main menu when it ends, or open the menu while you're standing
+on an island whose session has ended, it sinks straight away, and Play
+puts you on the platform. Islands of the same project sit
 together in a cluster (below), and bridges join them to each other and,
 for the 8 clusters nearest it, to the platform (W06); the sessions ring (hold Tab) takes you straight to
 any of them. The ocean has gentle waves and fades into haze at the

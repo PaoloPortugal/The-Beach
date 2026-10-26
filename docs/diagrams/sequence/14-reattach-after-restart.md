@@ -40,7 +40,7 @@ sequenceDiagram
         World->>World: bridge each to its nearest (W06), in that order
         World->>World: rewrite islands.json: entries of sessions that didn't come back dropped<br/>(outside sessions' too, also one that stopped being listed last game, S08)
     end
-    Note over World: Its island appears standing (no rise),<br/>behind the main menu or, after an early Play, in the world.
+    Note over World: Its ground is made on a worker thread, then it rises<br/>(no new-island beacon, C14), behind the main menu<br/>or, after an early Play, in the world.
     World->>Sidecar: session.get_history
     Sidecar-->>World: ok (the conversation so far)
     loop every 2 s while not connected

@@ -53,7 +53,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 
 | # | Flow | Features |
 |---|------|----------|
-| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07, S08, S02 |
+| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07, S08, S02, C14 |
 | 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03, C12 |
 | 2 | [A chat turn](diagrams/sequence/02-chat-turn.md) | S02, C02 |
 | 3 | [A permission prompt](diagrams/sequence/03-permission-prompt.md) | S02, C05 |
@@ -67,7 +67,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
 | 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02, C12 |
 | 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02 |
-| 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01, W12 |
+| 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01, W12, C14, W04 |
 | 15 | [A session back with its hook port taken (read-only)](diagrams/sequence/15-read-only-mode.md) | S07 |
 | 16 | [Sessions started outside the game (read-only)](diagrams/sequence/16-outside-sessions.md) | S08, C10, W12 |
 | 17 | [Choosing Claude Code by hand](diagrams/sequence/17-program-set-by-hand.md) | S02, C10, S03 |
