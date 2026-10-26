@@ -3579,6 +3579,11 @@ quicker bridge (2026-10-26, Windows, 2.1.309): first status line at
 about 1.8 s after drawing its screen, in line with `claude -p`; most of
 the wait is before that (the terminal opening, Claude Code loading, the
 user's time at the dialog), which is Claude Code's and the user's.
+A probe (2.1.310, a status line and a channel server that log) showed
+Claude Code runs neither while the channel dialog is up, and both
+within 0.6 s of the confirm. So the world can't say "confirmed" much
+sooner than the island comes; a "starting" notice on the first status
+line was considered and not built (2026-10-26).
 
 **Talking to the session: the channel bridge.** A channel is an MCP server
 Claude Code starts as a subprocess; ours is the sidecar executable in
