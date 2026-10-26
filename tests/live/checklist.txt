@@ -55,10 +55,14 @@ C. Settings and Credits
    panel with the asset
    table, the shaders table,
    then "Made with Godot
-   Engine" and long licence
-   texts? Does it scroll
-   with the wheel, and read
-   well?
+   Engine" and a "Show Godot
+   licences" button, no
+   licence text yet? Click
+   it: long licence texts,
+   the button now "Hide…";
+   again hides them? Does it
+   scroll with the wheel,
+   and read well?
 11. Click the Kenney link: it
    opens in your browser?
 12. Esc closes the credits;

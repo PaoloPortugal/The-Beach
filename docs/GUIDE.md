@@ -64,8 +64,9 @@ while you're on it.
   you back to the main menu.
 - **Credits** shows who made what: every asset with its source and
   licence (including which visuals were written in code by Claude),
-  then Godot Engine's licence and the licences of the parts Godot
-  includes. Scroll to read it; links open in your browser. **Back** or
+  and that the game is made with Godot Engine. **Show Godot licences**
+  under that shows Godot's licence and those of the parts every Godot
+  game includes. Scroll to read it; links open in your browser. **Back** or
   Esc returns to the menu.
 - **Quit** closes the game, asking first if sessions are still running
   (see Quitting the game (S05)).
