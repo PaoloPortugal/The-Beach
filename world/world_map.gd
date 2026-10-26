@@ -3,7 +3,7 @@ extends CanvasLayer
 ## W06: the big map (user's, 2026-10-07). M opens it over the whole
 ## window, north-up, centred on you at the minimap's scale; drag it or use
 ## WASD and the arrow keys to look around, the wheel zooms. It shows every
-## island (far clusters' too), bridge, the platform, you, each cluster's name
+## island (far clusters' too), bridge, read-only mark (S08), the platform, you, each cluster's name
 ## and, zoomed in, each session's title and state. Clicking a session's
 ## island takes you there, and so does clicking the platform (W08). The world doesn't pause; you just don't move,
 ## and the mouse is free. M or Esc closes it. Placeholder UI, like all UI.
@@ -32,6 +32,8 @@ const CLICK_SLOP := 6.0
 const MIN_HIT := 8.0
 ## Half the spawn platform's width, metres (world.gd).
 const PLATFORM_HALF := 6.0
+## The read-only mark's tallest, zoomed in, pixels (S08).
+const FLAG_MAX := 20.0
 const SEA := Color(0.06, 0.16, 0.24, 0.96)
 const HOVER := Color(1, 1, 1, 0.9)
 const NAME_COLOUR := Color(1, 1, 1)
@@ -64,6 +66,8 @@ var _dragged := false
 var _hover := ""
 # The labels drawn this frame, so a later one doesn't overlap them.
 var _labels: Array[Rect2] = []
+# The islands drawn with the read-only mark last frame, for tests.
+var _marked: Array[Island] = []
 
 
 func _init() -> void:
@@ -127,6 +131,11 @@ func to_world(at: Vector2) -> Vector2:
 
 func map_rect() -> Rect2:
 	return _map.get_rect()
+
+
+## The islands drawn with the read-only mark last frame (for tests).
+func marked() -> Array[Island]:
+	return _marked
 
 
 ## The furthest it zooms out: until every island fits, and at least to
@@ -263,6 +272,10 @@ func _draw_map() -> void:
 	for b in islands.bridges.all_bridges():
 		if is_instance_valid(b):
 			_map.draw_line(to_map(b.from), to_map(b.to), Minimap.BRIDGE, maxf(2.4 * zoom, 1.5))
+	_marked.clear()
+	for i in shown:
+		if Minimap.draw_read_only(_map, i, to_map, clampf(Minimap.FLAG_HEIGHT * zoom, Minimap.FLAG_HEIGHT, FLAG_MAX)):
+			_marked.append(i)
 	if not _hover.is_empty() and islands.island(_hover):
 		var line := Minimap.shoreline(islands.island(_hover), to_map)
 		line.append(line[0])

@@ -85,12 +85,40 @@ func zipline() -> Zipline:
 ## 2026-10-12).
 func set_landings(landings: Array[Vector3]) -> void:
 	_landings = landings
+	# The read-only mark (S08) keeps clear of them.
+	var flag := get_node_or_null("ReadOnlyFlag") as ReadOnlyFlag
+	if flag:
+		flag.place(self)
+	if not generator.profile.get("zipline", false):
+		return
 	if zipline_waits:
 		zipline_waits = false
 		zipline_valley = generator.zipline_valley(landings, 0)
 		_add_zipline()
 		return
 	_place_zipline()
+
+
+## Where its bridges land now, local (W06).
+func landings() -> Array[Vector3]:
+	return _landings
+
+
+## Shows or hides the read-only mark (S08).
+func set_read_only(on: bool) -> void:
+	var flag := get_node_or_null("ReadOnlyFlag") as ReadOnlyFlag
+	if on and flag == null:
+		flag = ReadOnlyFlag.new()
+		add_child(flag)
+		flag.place(self)
+	elif not on and flag:
+		remove_child(flag)
+		flag.queue_free()
+
+
+## Whether it has the read-only mark (S08).
+func read_only() -> bool:
+	return has_node("ReadOnlyFlag")
 
 
 ## The night lights on it (W09).

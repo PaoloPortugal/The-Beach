@@ -1,7 +1,7 @@
 class_name Minimap
 extends CanvasLayer
 ## W06: a small map of the cluster you're in or nearest to (its islands,
-## bridges, the platform when in view, and you), north-up, in the top
+## bridges, read-only marks (S08), the platform when in view, and you), north-up, in the top
 ## left. Always on, except while [member hidden_when] says so (the chat,
 ## the sessions menu or the big map is open). Placeholder UI, like all UI.
 ## Its drawing helpers are shared with the big map ([WorldMap]).
@@ -16,6 +16,9 @@ const LAND := Color(0.94, 0.85, 0.63)
 const EMPTY_LAND := Color(0.6, 0.56, 0.47)
 const BRIDGE := Color(0.55, 0.4, 0.26)
 const YOU := Color(1, 1, 1)
+## The read-only mark's height in pixels, and its dark edge (S08).
+const FLAG_HEIGHT := 10.0
+const FLAG_OUTLINE := Color(0, 0, 0, 0.7)
 ## How far an island's region reaches, as a share of its generator's
 ## radius (as for its bridges: SessionIslands).
 const REACH := 1.45
@@ -33,6 +36,8 @@ var _shown := ""
 var _area := Rect2()
 # The islands drawn: the cluster's.
 var _drawn: Array[Island] = []
+# Those drawn with the read-only mark last time, for tests.
+var _marked: Array[Island] = []
 
 
 func _init() -> void:
@@ -62,6 +67,11 @@ func to_map(point: Vector3) -> Vector2:
 
 func map_rect() -> Rect2:
 	return _map.get_rect()
+
+
+## The islands drawn with the read-only mark last time (for tests).
+func marked() -> Array[Island]:
+	return _marked
 
 
 ## The square of the world (x, z) the minimap fits: the islands of the
@@ -102,6 +112,10 @@ func _draw_map() -> void:
 	for b in islands.bridges.bridges_in(_shown):
 		if is_instance_valid(b):
 			_map.draw_line(to_map(b.from), to_map(b.to), BRIDGE, 3.0)
+	_marked.clear()
+	for i in _drawn:
+		if draw_read_only(_map, i, to_map, FLAG_HEIGHT):
+			_marked.append(i)
 	draw_you(_map, player, to_map)
 	_map.draw_rect(Rect2(Vector2.ZERO, _map.size), Color(1, 1, 1, 0.5), false, 1.0)
 
@@ -139,6 +153,26 @@ static func land_colour(i: Island) -> Color:
 
 static func draw_island(canvas: CanvasItem, i: Island, to_map: Callable, colour: Color) -> void:
 	canvas.draw_colored_polygon(shoreline(i, to_map), colour)
+
+
+## The read-only mark (S08): a little grey flag where the island's stands,
+## [param height] pixels tall, pennant to the right. False (nothing drawn)
+## when the island has none. A PLACEHOLDER drawn from lines, like the
+## flag itself, until real art (the user's, 2026-10-23).
+static func draw_read_only(canvas: CanvasItem, i: Island, to_map: Callable, height: float) -> bool:
+	var flag := i.get_node_or_null("ReadOnlyFlag") as Node3D
+	if flag == null:
+		return false
+	var foot: Vector2 = to_map.call(flag.global_position)
+	var top := foot - Vector2(0.0, height)
+	var pennant := PackedVector2Array([top, top + Vector2(height * 0.6, height * 0.2), top + Vector2(0.0, height * 0.45)])
+	var outline := pennant.duplicate()
+	outline.append(top)
+	canvas.draw_line(foot, top, FLAG_OUTLINE, 3.5)
+	canvas.draw_polyline(outline, FLAG_OUTLINE, 2.5)
+	canvas.draw_line(foot, top, ReadOnlyFlag.POLE, 1.5)
+	canvas.draw_colored_polygon(pennant, ReadOnlyFlag.PENNANT)
+	return true
 
 
 ## You: an arrow pointing where you face (-z is ahead).

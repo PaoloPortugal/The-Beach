@@ -24,6 +24,9 @@ const PLAN_BORDER := Color(0.45, 0.55, 0.7)
 const DIM := Color(0.6, 0.64, 0.7)
 ## What a read-only session shows instead of the message box (S07; the user's choice, 2026-10-19).
 const READ_ONLY_TEXT := "Read-only: use its terminal."
+## And a session started outside the game (S08), which may be in an app or
+## an IDE rather than a terminal (the user's choice, 2026-10-22).
+const OUTSIDE_READ_ONLY_TEXT := "Read-only: use its own window."
 const FONT_SIZE := 18
 ## Time spent building older messages per frame when a chat is laid out.
 ## Rendering Markdown costs tens of milliseconds per message (C03), so the
@@ -39,6 +42,8 @@ const NOTICE_TEXT := {
 	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
 	# S07: deliberately general (user's wording), so it never goes out of date.
 	"reattached_read_only": "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control.",
+	# S08 (user's wording, 2026-10-22).
+	"outside_read_only": "This session was started outside the game, so it's read-only here. Use its own window to chat with it.",
 }
 
 ## Notices about the session switching conversations.
@@ -636,10 +641,11 @@ func _refresh_header() -> void:
 	_model.visible = not _model.text.is_empty()
 	_compose.visible = not _read_only()
 	_read_only_hint.visible = _read_only()
+	_read_only_hint.text = OUTSIDE_READ_ONLY_TEXT if s.get("origin") == "external" else READ_ONLY_TEXT
 	_refresh_usage()
 
 
-# A session the world only watches (S07): no message box.
+# A session the world only watches (S07, S08): no message box.
 func _read_only() -> bool:
 	return store.session(session_id).get("read_only", false) == true
 
