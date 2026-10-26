@@ -3456,6 +3456,11 @@ by the user; the ID and scope are my pick):*
   and licence text (its MIT licence needs the notice in shipped
   builds). The file joins the export filter once exports exist
   (rejected: a separate player-facing credits text; the file alone).
+  *Changed (user's, 2026-10-26, after seeing it):* Godot's licences sit
+  behind a **Show Godot licences** toggle on the same page, under "Made
+  with Godot Engine", since their long list read as things the project
+  had added. A player-facing credits file is likely later; CREDITS.md
+  does for now.
 - **S07's loading cover kept, unused** (user's, 2026-10-26; rejected:
   deleting it, my recommendation).
 - **Main menu in the pause menu** next to Quit game (user's, during the
@@ -3493,10 +3498,12 @@ by the user; the ID and scope are my pick):*
 - *Credits* replaces the panel with a bigger one (70 % by 84 % of the
   screen) holding a scroll of: `res://assets/CREDITS.md`, read on first
   opening and drawn by `MarkdownView` (C03; its http(s) links open in
-  the browser, the file being ours); "Made with Godot Engine" and
-  `Engine.get_license_text()`; then Godot's third-party parts with
+  the browser, the file being ours); "Made with Godot Engine" and a
+  **Show Godot licences** toggle ("Hide…" while shown) for
+  `Engine.get_license_text()`, then Godot's third-party parts with
   their copyright lines and licences (`Engine.get_copyright_info`) and
-  those licences' texts (`get_license_info`), as plain text. Back or
+  those licences' texts (`get_license_info`), as plain text, built the
+  first time it's shown. Back or
   Esc returns to the menu. If the file can't be read it says so.
 - *Quit* calls `QuitGuard.request_quit` (S05): it asks first while
   sessions run; "Back to the game" there leaves the menu up.
@@ -3510,7 +3517,8 @@ it; Play hiding it at once and easing down, then the player's camera,
 the controls and the HUD back; the pause menu's Main menu opening it
 from the player's view and easing up onto the circle; Settings and Esc
 back, the settings' `back` restored to the pause menu's; Credits
-showing CREDITS.md, Godot's licence and its parts (FreeType), a link
+showing CREDITS.md and "Made with Godot Engine", the toggle showing
+Godot's licence and its parts (FreeType) and hiding them, a link
 opening, Esc and Back; Quit quitting or asking with a session running;
 the circle taking in every island within its limits; Play again
 leaving the player where they were with the session still there. The
