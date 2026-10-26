@@ -315,12 +315,16 @@ func _sidecar_command() -> Array:
 
 # The server mode's arguments: the player's outside-sessions setting (S08),
 # so none shows at start when it's off, and the programs set by hand (S02).
-# Only well-formed provider ids: the sidecar refuses a malformed flag and
-# won't start, and a hand-edited settings file mustn't lock the game out.
+# Only well-formed provider ids, and paths without a quote or a control
+# character (Windows' command line could split one into another argument):
+# the sidecar refuses a malformed flag and won't start, and a hand-edited
+# settings file mustn't lock the game out.
 func _serve_args() -> Array:
 	var args := [] if outside_sessions else ["--no-outside-sessions"]
 	var id_pattern := RegEx.create_from_string("^[a-z][a-z0-9_]*$")
-	var ids := program_paths.keys().filter(func(id: Variant) -> bool: return id is String and id_pattern.search(id) != null)
+	var bad_path := RegEx.create_from_string("[\"\\x00-\\x1f\\x7f]")
+	var ids := program_paths.keys().filter(func(id: Variant) -> bool:
+		return id is String and id_pattern.search(id) != null and bad_path.search(str(program_paths[id])) == null)
 	ids.sort()
 	for provider: String in ids:
 		args.append_array(["--program-path", "%s=%s" % [provider, program_paths[provider]]])

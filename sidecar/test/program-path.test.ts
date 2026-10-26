@@ -10,7 +10,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { checkClaudePath, ClaudeNotFound, findClaude, MIN_VERSION } from '../src/providers/claude/find.ts'
 import { ClaudeProvider, type ClaudeOptions } from '../src/providers/claude/index.ts'
-import { prepare, serveOptions } from '../src/serve.ts'
+import { prepare, serveDefaults, serveOptions } from '../src/serve.ts'
+import { TEST_SESSIONS_DIR } from '../src/launch/app-data.ts'
 import { Registry } from '../src/registry.ts'
 import type { Program } from '../src/protocol.ts'
 import { FakeProvider } from './fake-provider.ts'
@@ -32,6 +33,12 @@ function versions(answers: Record<string, string | null>) {
     read: async (f: string) => { v.calls.push(f); return answers[f] ?? null },
   }
   return v
+}
+
+/** Waits until `ready()` holds (a look in the background), at most a second. */
+async function until(ready: () => unknown): Promise<void> {
+  for (let i = 0; i < 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 10))
+  assert.ok(ready(), 'in time')
 }
 
 /** A Claude provider that runs nothing real: no terminal, no `claude agents`, outside sessions off. */
@@ -207,7 +214,7 @@ test('the same answer again is not sent again; a lookup begun before a new setti
   } finally { await p.shutdown() }
 })
 
-test('serve --program-path: parsed; applied before the restore; one that fails is kept and reported, the start goes on', async () => {
+test('serve --program-path: parsed; set before the restore, checked in the background; one that fails is kept and reported, the start goes on', async () => {
   assert.deepEqual(serveOptions(['--program-path', 'claude=C:\\Tools\\claude.exe']), {
     outsideSessions: true, programPaths: { claude: 'C:\\Tools\\claude.exe' },
   })
@@ -227,6 +234,7 @@ test('serve --program-path: parsed; applied before the restore; one that fails i
   const registry = new Registry([p, new FakeProvider({ id: 'plain' })], log)
   try {
     await prepare(registry, [p], log, serveOptions(['--no-outside-sessions', '--program-path', `claude=${gone}`, '--program-path', 'plain=/x', '--program-path', 'nobody=/y']))
+    await until(() => registry.providerProgramOf('claude'))
     const program = registry.providerProgramOf('claude')!
     assert.equal(program.path, null)
     assert.equal(program.set_by_hand, true)
@@ -267,6 +275,7 @@ test('at start every program_path provider looks, in the background; one set by 
   const r2 = new Registry([byHand], log)
   try {
     await prepare(r2, [byHand], log, { outsideSessions: false, programPaths: { claude: exe } })
+    await until(() => r2.providerProgramOf('claude'))
     assert.deepEqual(r2.providerProgramOf('claude'), { path: exe, version: '2.1.300', set_by_hand: true })
     assert.deepEqual(v.calls, [exe], 'checked once: setting it was the look')
   } finally { await byHand.shutdown() }
@@ -282,6 +291,69 @@ test('at start every program_path provider looks, in the background; one set by 
     assert.equal(r3.providerProgramOf('claude'), undefined)
     assert.ok(log.lines.some((l) => /a test run: programs not looked for at start/.test(l)))
   } finally { await quiet.shutdown() }
+
+  // serve() turns the look off only under a Godot suite.
+  assert.deepEqual(serveDefaults({}), { lookAtStart: true })
+  assert.deepEqual(serveDefaults({ [TEST_SESSIONS_DIR]: '/tmp/sessions' }), { lookAtStart: false })
+})
+
+test('a program set by hand that hangs doesn\'t hold up the start; it\'s the one tried meanwhile', async () => {
+  const exe = file('claude.exe')
+  let asked = 0
+  const p = provider({
+    readVersion: () => { asked++; return new Promise<string | null>(() => {}) },
+    findClaude: async () => { throw new Error('nothing else is looked for') },
+  })
+  const log = new RecordingLog()
+  const registry = new Registry([p], log)
+  try {
+    const began = Date.now()
+    await prepare(registry, [p], log, { outsideSessions: false, programPaths: { claude: exe } })
+    assert.ok(Date.now() - began < 1000, 'ready without waiting for --version')
+    assert.equal(asked, 1, 'checked, in the background')
+    assert.equal(registry.providerProgramOf('claude'), undefined, 'no answer yet: the row says it\'s looking')
+    assert.equal((p as unknown as { handPath?: string }).handPath, exe, 'already the only one tried')
+  } finally { await p.shutdown() }
+})
+
+test('Look again outranks a look begun before it: the older one\'s answer isn\'t reported', async () => {
+  let release: () => void = () => {}
+  let calls = 0
+  const p = provider({
+    findClaude: async () => {
+      if (++calls === 1) {
+        await new Promise<void>((r) => { release = r })
+        throw new ClaudeNotFound('Claude Code wasn\'t found.')
+      }
+      return { path: '/found/claude', version: '2.1.299' }
+    },
+  })
+  const reported: Program[] = []
+  p.watchProgram((program) => reported.push(program))
+  try {
+    const older = (p as unknown as { find(): Promise<unknown> }).find().catch(() => {})
+    await new Promise((r) => setTimeout(r, 20))
+    assert.deepEqual(await p.findProgram(), { path: '/found/claude', version: '2.1.299', set_by_hand: false })
+    release()
+    await older
+    assert.deepEqual(reported, [{ path: '/found/claude', version: '2.1.299', set_by_hand: false }], 'the older "not found" never reaches the game')
+  } finally { await p.shutdown() }
+})
+
+test('the login shell is asked again only on Look again, not on a launch or listing', async () => {
+  let forgot = 0
+  const p = provider({
+    forgetLoginShell: () => { forgot++ },
+    findClaude: async () => ({ path: '/found/claude', version: '2.1.299' }),
+  })
+  const find = () => (p as unknown as { find(): Promise<unknown> }).find()
+  try {
+    await find()
+    await find()
+    assert.equal(forgot, 0, 'a launch or listing keeps the answer of this run')
+    await p.findProgram()
+    assert.equal(forgot, 1, 'Look again asks it again')
+  } finally { await p.shutdown() }
 })
 
 test('looks that come while one runs share it (one --version); a fresh look doesn\'t', async () => {

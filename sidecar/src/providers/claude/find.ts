@@ -207,7 +207,7 @@ export async function checkClaudePath(file: string, o: {
   if (platform === 'win32' && !/^[A-Za-z]:[\\/]/.test(file)) {
     throw new ClaudeNotFound('Choose a file on a drive of this computer (like C:\\...), not a network path.')
   }
-  if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) throw new ClaudeNotFound('There\'s no program at that path.')
+  if (!isFile(file)) throw new ClaudeNotFound('There\'s no program at that path.')
   if (platform === 'win32' && paths.extname(file).toLowerCase() !== '.exe') {
     throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.')
   }
@@ -215,6 +215,15 @@ export async function checkClaudePath(file: string, o: {
   if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).')
   if (!versionAtLeast(version, MIN_VERSION)) throw new ClaudeNotFound(tooOldMessage(version))
   return { path: file, version }
+}
+
+/** A file there; false for any error (no access, a part not a folder), not only none. */
+function isFile(file: string): boolean {
+  try {
+    return fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false
+  } catch {
+    return false
+  }
 }
 
 /** The login shell's answer, asked at most once per run: it runs the user's startup files. */
@@ -257,7 +266,7 @@ export async function findClaude(opts: {
   const list = candidates(platform, opts.env, home)
   let tooOld: string | null = null
   const check = async (file: string): Promise<FoundClaude | null> => {
-    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return null
+    if (!isFile(file)) return null
     const version = await versionOf(file, opts.cleanEnv)
     if (!version) return null
     if (!versionAtLeast(version, MIN_VERSION)) { tooOld = version; return null }

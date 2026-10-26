@@ -780,7 +780,8 @@ a config object, and `notices`: its notices so far, one per code.
   an answer, not an error), then `provider.program` if the answer
   changed; `not_supported` without the capability.
   `client.set_program_path {provider, path}` sets a path (absolute) or
-  clears it (`null`); the provider checks it first (absolute, a file,
+  clears it (`null`); the provider checks it first (absolute, without
+  control characters, on Windows on a drive of this computer, a file,
   on Windows an `.exe`, answers `--version` with a version it supports)
   and answers `ok {program}`, then sends `provider.program` (unless
   the answer is the same as the last); a path
@@ -3179,7 +3180,7 @@ later SMAA default):*
     `SidecarClient.providers_changed`.
 - *Sound:* A05's chime toggle, moved here from the sessions menu; it
   still sets `Attention.sound_on`, saved where it was.
-- *Providers* (since 2026-10-26; in Game before): *a row per provider
+- *Providers* (since 2026-10-26): *a row per provider
   that runs a program of the user's* (S02 → The program set by hand; a
   provider with the `program_path` capability, by its own name: "Claude
   Code"): what it found (the path, "version …", and "· set by hand" when
@@ -3973,7 +3974,9 @@ the sessions menu's Add a session (S03).
   a full path without control characters ("That isn't a full path."),
   on Windows on a drive of this computer (a network path, `\\host\share\…`,
   would be reached over the network at each start; security review
-  2026-10-26), a file ("There's no program at that path."), on Windows an `.exe` (npm's `claude.cmd` needs a
+  2026-10-26; a mapped network drive or a `subst` drive passes, the
+  player's own choice, and a slow one can't hold up the start, since
+  every look is in the background), a file ("There's no program at that path."), on Windows an `.exe` (npm's `claude.cmd` needs a
   shell, so it is never run), then `--version` (an argument array, the
   clean environment, 15 s) answering as Claude Code, at least the
   minimum version.
@@ -3987,13 +3990,18 @@ the sessions menu's Add a session (S03).
   should know before a session is asked for). **At start**, always, in
   the background (the ready line doesn't wait): with no path set,
   `serve` has each `program_path` provider look (`findProgram`); a path
-  set at start is checked at once instead, which is that look. Then
+  set at start is checked at once instead, which is that look (also in
+  the background: the setting holds at once, so the restore uses it and
+  shares the check, and one that hangs never stops the game from
+  starting; security review 2026-10-26). Then
   whenever the provider needs `claude` (a launch or resume; asking which
   sessions run, for the stored list, S07's restore and S08's poll, until
   one is found), right after a path is set or cleared, and on the
   player's **Look again** (`client.find_program`). Each look is
-  reported, the same answer only once. A look begun before a change
-  doesn't report its answer (a counter). **Looks share:** one that
+  reported, the same answer only once. A look begun before a change,
+  or before a Look again, doesn't report its answer (a counter: an
+  older "not found" can't grey out Add a session after Look again
+  found it; security review 2026-10-26). **Looks share:** one that
   comes while another runs for the same setting gets its answer (the
   look at start, the restore and the first poll run `--version` once);
   one that has ended isn't reused, so a launch still finds `claude`
@@ -4046,11 +4054,15 @@ the sessions menu's Add a session (S03).
   answer not sent twice, a stale look not reported, the serve flags),
   a launch after a path is set running that path, control characters
   and network paths refused before anything runs, the look at start (in
-  the background, none under a suite, none twice with a path set),
+  the background, none under a suite, `serve` turning it off only
+  there, none twice with a path set, a path set at start that hangs
+  not holding up the start), Look again outranking a look begun before
+  it, the login shell asked again only on Look again,
   looks shared but not a fresh one, `client.find_program` (not found
   and found, the same answer not sent again, a path set by hand checked
   again, gone and back, refusals); the core suite (start arguments, a
-  malformed id left out, saved and cleared, a refusal not kept, no
+  malformed id or a path with a quote or a control character left out,
+  saved and cleared, a refusal not kept, no
   sidecar, `find_program` sent and its answer kept, which providers can
   start, the real sidecar refusing `client.find_program` for an unknown
   provider or the fake one) and the world suite (Settings → Providers'
