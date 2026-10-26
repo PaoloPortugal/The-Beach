@@ -189,7 +189,8 @@ function tooOldMessage(version: string): string {
 
 /**
  * Checks a `claude` the user points at by hand (S02, client.set_program_path):
- * a full path, a file, on Windows an .exe (npm's claude.cmd wrapper needs a
+ * a full path without control characters, on Windows on a drive (not a
+ * network path), a file, on Windows an .exe (npm's claude.cmd wrapper needs a
  * shell), and answering `--version` with MIN_VERSION or newer. Throws
  * ClaudeNotFound saying which check failed.
  */
@@ -200,7 +201,12 @@ export async function checkClaudePath(file: string, o: {
 }): Promise<FoundClaude> {
   const platform = o.platform ?? process.platform
   const paths = platform === 'win32' ? path.win32 : path.posix
-  if (!paths.isAbsolute(file)) throw new ClaudeNotFound('That isn\'t a full path.')
+  if (!paths.isAbsolute(file) || /[\u0000-\u001f\u007f]/.test(file)) throw new ClaudeNotFound('That isn\'t a full path.')
+  // Only a drive of this computer: a network path (\\host\share) would be
+  // reached over the network at each start, and \claude.exe depends on the drive.
+  if (platform === 'win32' && !/^[A-Za-z]:[\\/]/.test(file)) {
+    throw new ClaudeNotFound('Choose a file on a drive of this computer (like C:\\...), not a network path.')
+  }
   if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) throw new ClaudeNotFound('There\'s no program at that path.')
   if (platform === 'win32' && paths.extname(file).toLowerCase() !== '.exe') {
     throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.')
