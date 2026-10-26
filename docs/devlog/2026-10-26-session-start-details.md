@@ -52,6 +52,15 @@ do about it waits for that. (First tried with SessionStart; docs-sync
 caught that our hook's matcher, `^(clear|resume)$`, leaves out a
 launch, so it would never have logged for a New session.)
 
+The user's live New session start on this branch (Windows, 2.1.309):
+"first status line 8770 ms after launch", "came up 10598 ms after
+launch". The 1.8 s between them is Claude Code starting its MCP servers
+plus our bridge's 0.24 s, about what `claude -p` showed (2.2-2.8 s from
+launch), so nothing slow on our side or a stuck probe. The last start's
+15.2 s against this one's 10.6 s is mostly time at the dialog. The rest
+of the wait, before the screen is drawn, is the terminal, Claude Code
+loading and the user confirming; nothing of ours to shorten.
+
 The security review asked for two more things, both done: the relay
 exits 0 even if its own code fails to load, and a test builds the
 bundle and runs its relay, bridge and serve modes (`bundle.test.ts`),

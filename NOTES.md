@@ -3570,12 +3570,15 @@ saying "confirm" for a while after it was confirmed; one start came up
 with the project's other servers or without, and the handshake takes
 under 0.1 s; our bridge took about 1 s to load from source, now 0.24 s
 (`providers/bridges.ts`, loaded alone; S01 → Process). Godot makes the
-island as soon as `session.created` comes. The rest isn't known yet:
-the log now says when the first status line arrives ("first status
-line N ms after launch", once Claude Code draws its screen; not
-SessionStart, which our matcher leaves out for a launch) next to "came
-up N ms after launch", to tell at the next live start how long Claude
-Code takes to start the bridge after the confirm.
+island as soon as `session.created` comes. The log says when the first
+status line arrives ("first status line N ms after launch", once Claude
+Code draws its screen; not SessionStart, which our matcher leaves out
+for a launch) next to "came up N ms after launch". Live start with the
+quicker bridge (2026-10-26, Windows, 2.1.309): first status line at
+8.8 s, came up at 10.6 s. So Claude Code starts and connects the bridge
+about 1.8 s after drawing its screen, in line with `claude -p`; most of
+the wait is before that (the terminal opening, Claude Code loading, the
+user's time at the dialog), which is Claude Code's and the user's.
 
 **Talking to the session: the channel bridge.** A channel is an MCP server
 Claude Code starts as a subprocess; ours is the sidecar executable in
@@ -5540,8 +5543,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 design yet, to be decided with the user first.
 On `session-start-details` first (user's, 2026-10-26): no new-island
 beacon for outside sessions (S08), and the wait after confirming a
-start in the terminal (S02 → Starting up), measured at the next live
-start (dev log 2026-10-26-session-start-details).
+start in the terminal (S02 → Starting up), measured live: the bridge
+is up 1.8 s after Claude Code's screen (dev log
+2026-10-26-session-start-details). Waiting for the user's review.
 Subagents stay read-only in the world (Open questions → 4).
 **Merged to `main` (2026-10-26), approved by the user: S02, a path to
 `claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
