@@ -587,7 +587,8 @@ usage limit, the service busy or failing, a reply too long, ...), the
 line says so and what to do. When it waits on a permission, a question or a plan, a
 card above that line lets you answer it (see below). Only the latest 200
 messages are shown at once. A long chat appears newest first, and the
-older messages fill in above it over a moment.
+older messages fill in above it over a moment while the view stays
+put.
 
 ## Formatting in the chat (C03)
 
