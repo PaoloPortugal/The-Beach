@@ -5554,6 +5554,10 @@ agents work, dropped the moment one needs you. Dev logs
     bobber on land.
   - *Hold the click to reel in slowly*, letting go to stop. (It was: a
     click while waiting reels in at once.)
+    *Changed (user's, 2026-10-27, on review):* reeling doesn't lift
+    the bobber; it drags it nearer through the water or over the
+    ground, so on the water you can bring back a throw that went too
+    far and let it rest there.
   - *You can move a bit while the line is out*, instead of walking off
     reeling in.
   - *The windows felt too tight:* the bite's window is longer. The
@@ -5641,11 +5645,17 @@ user's). Fish models to replace the shadows.
   the rod's tip, the line pulls it back. It pays out up to 30 m
   (`max_line`, a variable for the tests) as you walk; past it the
   bobber is dragged, and a dragged bobber scares off the fish on the
-  line. Resting, it has 0.6 m of slack (`SLACK`). Holding the click
-  shortens it 4 m/s (`REEL_SPEED`): the bobber is dragged back over the
-  water or rolls over land, and it's back once within 1.5 m of the tip
-  (`BACK`). A taut bobber moving less than 5 cm in 0.5 s while reeled
-  is snagged and hops up 2.5 m/s and toward you. Let go in the water
+  line. Resting, it has 0.6 m of slack (`SLACK`). The line pulls
+  level, toward the point under the tip, so it never lifts the bobber
+  (since 2026-10-27). Holding the click shortens it 4 m/s
+  (`REEL_SPEED`), never below the drop from the tip: the bobber is
+  dragged back through the water or rolls over land, and it's back
+  once within 1.5 m of the tip, seen from above (`BACK`). A taut bobber
+  coming less than 5 cm nearer (seen from above) in 0.5 s while reeled
+  is snagged: on land it hops up 2.5 m/s and toward you; in the water
+  (against the platform's side, a bridge's end or a steep shore) the
+  line lifts it out toward the rod from then on (`_lifting`, until you
+  let go). Let go in the water
   and it rests where it slows below 0.6 m/s, and the wait starts there.
   More than 10 m past the line's longest (a jump across the world) it
   reels in.
@@ -5728,8 +5738,10 @@ resting in the water within `max_line`; a tap sideways off the longest
 bridge's side, mid-span, over its rails into the water; the bobber on
 the waves; the card and New; a
 second catch not New, the biggest kept; a nibble clicked scares it off
-and reels; letting go stops reeling, and it rests and waits again; a
-missed bite; holding reels it all the way in; a few steps keep the line
+and reels; reeling drags it nearer through the water, never more than
+0.15 m above it; letting go stops reeling, and it rests and waits again; a
+missed bite; holding reels it all the way in, lifted out at the
+platform's side; a few steps keep the line
 out, past the longest it's dragged and the fish swims off; switching
 tool and losing the controls reel in; no cast while swimming; the file
 saved. The look, the feel, rolling and snags, and the timings can't be
@@ -6446,7 +6458,8 @@ check found it fine as a placeholder; round 2 (a real bobber on the
 line, hold to reel in, casting onto land, a longer and clearer bite)
 is built on the same branch, with the user's review changes (W06's
 rails solid at 1 m, so you can jump over them; the throw capped at
-the line's longest), waiting for the user's live check. Next round: the fight. Then the user's species list. D02 Bug
+the line's longest; reeling drags the bobber level instead of lifting
+it), waiting for the user's live check. Next round: the fight. Then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
@@ -7115,9 +7128,10 @@ Ideas weighed and turned down. Each says what would reopen it.
   timing) if a start feels rough on another machine, before
   optimizing.
 - **`bridges_test`'s "no bridge over another island's land"** (W06;
-  failed once in six runs, 2026-10-27, not since). Likely a random
-  layout case that `main` has too; unproven. If it fails again, keep
-  the layout's seed and look.
+  failed once in six runs, 2026-10-27; again later that day on
+  Windows, 9 points, passing on two re-runs; the log was overwritten
+  before its seeds were kept). Likely a random layout case that `main`
+  has too; unproven. If it fails again, keep the layout's seed and look.
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
   not yet seen in a game session). The Claude desktop app pauses a
   flagged chat ("Session paused", with retry or switch model); how
