@@ -49,8 +49,9 @@ const MIN_DEPTH := 0.3
 const SLACK := 0.6
 const REEL_SPEED := 4.0
 const BACK := 1.5
-## Reeling, a taut bobber moving less than SNAG_MOVE metres in SNAG_TIME
-## seconds is snagged, and hops up at HOP m/s.
+## Reeling, a taut bobber coming less than SNAG_MOVE metres nearer (seen
+## from above) in SNAG_TIME seconds is snagged: on land it hops up at HOP m/s, in the
+## water the line lifts it out.
 const SNAG_TIME := 0.5
 const SNAG_MOVE := 0.05
 const HOP := 2.5
@@ -143,7 +144,8 @@ var _species := {}
 var _where := {} # the bobber's water and biome
 var _release := false # cast on the next physics frame
 var _snag_timer := 0.0
-var _snag_from := Vector3.ZERO
+var _snag_reach := INF # how far across, from the tip, the snag check started
+var _lifting := false # snagged in the water while reeling: the line lifts it
 var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
 var _splash_age := INF
@@ -368,30 +370,38 @@ func _move_bobber(delta: float) -> void:
 		else:
 			line_length = maxf(line_length, dist)
 		return
+	# The line pulls level, so it drags the bobber over the water or the
+	# ground; only one snagged in the water (the platform's side, a steep
+	# shore) is lifted out toward the rod.
+	var flat := Vector3(tip.x - at.x, 0.0, tip.z - at.z)
 	if reeling:
 		if state == State.CASTING:
 			state = State.OUT
-		line_length = maxf(minf(line_length, dist) - REEL_SPEED * delta, 0.0)
-		if dist < BACK:
+		# No shorter than the drop from the tip, where a level pull ends.
+		line_length = maxf(minf(line_length, dist) - REEL_SPEED * delta, maxf(tip.y - at.y, 0.0))
+		if flat.length() < BACK:
 			_end()
 			return
-	elif dist > line_length:
-		# A throw pays out no further than the line's longest, less the
-		# slack it settles with, so it's held there and drops, never
-		# landing past it (dragged at once).
-		line_length = minf(dist, max_line - SLACK if state == State.CASTING else max_line)
+	else:
+		_lifting = false
+		if dist > line_length:
+			# A throw pays out no further than the line's longest, less the
+			# slack it settles with, so it's held there and drops, never
+			# landing past it (dragged at once).
+			line_length = minf(dist, max_line - SLACK if state == State.CASTING else max_line)
 	var v := _bobber.linear_velocity
-	var to_tip := (tip - at) / maxf(dist, 0.001)
+	var water := ocean.height_at(at.x, at.z)
+	var under := clampf((water + BOBBER_RADIUS - at.y) / (2.0 * BOBBER_RADIUS), 0.0, 1.0)
+	var to_tip := (tip - at) / maxf(dist, 0.001) if _lifting else flat / maxf(flat.length(), 0.001)
 	if dist > line_length:
 		var away := v.dot(to_tip)
 		if away < 0.0:
 			v -= to_tip * away
 		v += to_tip * (dist - line_length) * 8.0
-		_unsnag(at, to_tip, delta)
+		_unsnag(flat.length(), to_tip, under > 0.0, delta)
 	else:
 		_snag_timer = 0.0
-	var water := ocean.height_at(at.x, at.z)
-	var under := clampf((water + BOBBER_RADIUS - at.y) / (2.0 * BOBBER_RADIUS), 0.0, 1.0)
+		_snag_reach = INF
 	if under > 0.0:
 		v.y += under * 2.2 * 9.8 * delta
 		v -= v * minf(under * 4.0 * delta, 1.0)
@@ -406,20 +416,25 @@ func _move_bobber(delta: float) -> void:
 		_settle_in_water()
 
 
-# Reeling a taut bobber that has stopped (an edge, a step): it hops up
-# and over.
-func _unsnag(at: Vector3, to_tip: Vector3, delta: float) -> void:
-	if not reeling:
+# Reeling a taut bobber that has stopped (an edge, a step): on land it
+# hops up and over; in the water the line lifts it out from then on.
+func _unsnag(reach: float, to_tip: Vector3, wet: bool, delta: float) -> void:
+	if not reeling or _lifting:
 		_snag_timer = 0.0
+		_snag_reach = INF
 		return
-	if at.distance_to(_snag_from) > SNAG_MOVE:
-		_snag_from = at
+	if reach < _snag_reach - SNAG_MOVE:
+		_snag_reach = reach
 		_snag_timer = 0.0
 		return
 	_snag_timer += delta
 	if _snag_timer >= SNAG_TIME:
 		_snag_timer = 0.0
-		_bobber.linear_velocity = Vector3(to_tip.x, 0.0, to_tip.z) + Vector3.UP * HOP
+		_snag_reach = reach
+		if wet:
+			_lifting = true
+		else:
+			_bobber.linear_velocity = to_tip + Vector3.UP * HOP
 
 
 # The bobber rests in the water: a shadow near it comes soon, else wait.
@@ -457,7 +472,7 @@ func _to_out() -> void:
 	state = State.OUT
 	_bobber.freeze = false
 	_bobber.linear_velocity = Vector3.ZERO
-	_snag_from = _bobber.global_position
+	_snag_reach = INF
 	_snag_timer = 0.0
 
 

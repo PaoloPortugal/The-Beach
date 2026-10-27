@@ -3465,6 +3465,15 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_mouse_left(true)
 	await _settle()
 	_check(fishing.state == Fishing.State.OUT and fishing.reeling and hud.said() == "Too soon: it swam off" and caught.size() == 3, "D01: a click on a nibble scares it off, and reels")
+	# Reeling drags it level through the water, never lifting it out.
+	var level := func() -> float: return Vector2(fishing._bobber.global_position.x - player.global_position.x, fishing._bobber.global_position.z - player.global_position.z).length()
+	var from: float = level.call()
+	var above := -INF
+	for k in 30:
+		await _frames(1)
+		var b := fishing._bobber.global_position
+		above = maxf(above, b.y - fishing.ocean.height_at(b.x, b.z))
+	_check(above < 0.15 and level.call() < from - 1.0, "D01: reeling drags it through the water, not up (%.2f m above it at most, %.1f m to %.1f m)" % [above, from, level.call()])
 	# Let go: it stops, and rests in the water again, where the wait starts.
 	_mouse_left(false)
 	await _settle()
@@ -3481,7 +3490,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_mouse_left(true)
 	await _until(func() -> bool: return fishing.state == Fishing.State.IDLE, 10.0)
 	_mouse_left(false)
-	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and caught.size() == 3, "D01: holding the click while waiting reels it all the way in")
+	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and caught.size() == 3, "D01: holding the click while waiting reels it all the way in, lifted out at the platform's side (%s at %s)" % [Fishing.State.keys()[fishing.state], fishing._bobber.global_position])
 	await _settle()
 
 	# Walking: the line pays out, up to its longest; past it the bobber
