@@ -1,7 +1,8 @@
 extends SceneTree
 ## Headless test for W06's bridges: a bridge's shape (clearance, ramps,
-## any slope), walking across one and not getting past its rails (real
-## physics), the bridge tree (each region to its nearest, patching a cut
+## any slope), walking across one, not walking through its rails but
+## jumping over them, and the rails off the ground layer (real physics),
+## the bridge tree (each region to its nearest, patching a cut
 ## without moving other bridges, a hubless group), and the layout demo's
 ## 64 sessions: every near cluster joined to the platform, every far one
 ## joined within but not to it, no bridge over another island's land or
@@ -73,16 +74,16 @@ func _background() -> void:
 	later.free()
 
 
-# Each segment's near and far vertex counts, then the collision's faces.
+# Each segment's near and far vertex counts, then the deck's and the
+# rails' collision faces.
 func _built_shape(bridge: Bridge) -> Array:
 	var out := []
 	for segment in bridge.get_children():
 		if segment is Node3D and segment.has_node("Near"):
 			out.append((segment.get_node("Near") as MeshInstance3D).mesh.get_faces().size())
 			out.append((segment.get_node("Far") as MeshInstance3D).mesh.get_faces().size())
-	for c in bridge.get_children():
-		if c is CollisionShape3D:
-			out.append(((c as CollisionShape3D).shape as ConcavePolygonShape3D).get_faces())
+	for c in bridge.find_children("*", "CollisionShape3D", true, false):
+		out.append(((c as CollisionShape3D).shape as ConcavePolygonShape3D).get_faces())
 	return out
 
 
@@ -146,18 +147,30 @@ func _walk() -> void:
 	await _frames(10)
 	_check(player.is_on_floor() and absf(player.global_position.y - bridge.deck_y(22.0 + Bridge.OVERRUN)) < 0.3, "standing in the middle, on its deck (%.2f m, deck %.2f m, floor %s)" % [player.global_position.y, bridge.deck_y(22.0 + Bridge.OVERRUN), player.is_on_floor()])
 	_check(bridge.carries(player.global_position), "the bridge knows you're on it")
+	# The rails: layer 1 only, so they stop you but not D01's bobber
+	# (which hits the ground layer only); the deck is on both.
+	var rails := bridge.get_node("Rails") as StaticBody3D
+	_check(rails.collision_layer == 1 and bridge.get_collision_layer_value(1) and bridge.get_collision_layer_value(Fishing.GROUND_LAYER), "rails: on layer 1 only, the deck also on the ground layer")
+	var space := player.get_world_3d().direct_space_state
+	var deck := bridge.deck_y(22.0 + Bridge.OVERRUN)
+	var across := PhysicsRayQueryParameters3D.create(Vector3(0, deck + 0.5, -32.0), Vector3(5.0, deck + 0.5, -32.0))
+	var wall: Dictionary = space.intersect_ray(across)
+	across.collision_mask = 1 << (Fishing.GROUND_LAYER - 1)
+	_check(wall.get("collider") == rails and space.intersect_ray(across).is_empty(), "rails: a ray across hits them on layer 1, nothing on the ground layer")
 	for action in ["move_left", "move_right"]:
 		player.global_position = Vector3(0, 1.4, -32.0)
 		await _frames(5)
 		Input.action_press(action)
 		Input.action_press("sprint")
+		await _frames(60)
+		_check(absf(player.global_position.x) < Bridge.WIDTH / 2.0 and player.is_on_floor(), "rails: no walking off (%s)" % action)
 		for k in 6:
 			_press("jump")
 			await _frames(15)
 		Input.action_release(action)
 		Input.action_release("sprint")
 		await _frames(30)
-		_check(absf(player.global_position.x) < Bridge.WIDTH / 2.0 and player.global_position.y > 0.5, "rails: no running or jumping off (%s)" % action)
+		_check(absf(player.global_position.x) > Bridge.WIDTH / 2.0 + 0.5 and player.global_position.y < deck, "rails: a jump takes you over them, off the bridge (%s at %s)" % [action, player.global_position])
 	scene.free()
 
 
