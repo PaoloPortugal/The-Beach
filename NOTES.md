@@ -3852,7 +3852,11 @@ text (species, hints, menus) and adding a language both scale. Dev log
 settings (fallback `en`, the translation list), C10's Language row,
 the tests, auto-translate off on content; (2) the menus; (3) the drawn
 HUDs; (4) the chat panel's chrome; (5) D01's text once D01 is merged
-(species names, the catch card's wording); (6) codes for the sidecar's
+(the species names in `FishSpecies.SPECIES` under `"fish"`; the catch
+card's line, today "You caught a/an {species}!" with the article
+picked in code, its "{n} cm" and "New"; and the HUD's lines "Can't
+cast onto land", "Too soon: it swam off" and "It got away", all in
+`world/fishing/`); (6) codes for the sidecar's
 free-form messages; (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
@@ -6334,8 +6338,7 @@ branch `d01-fishing` (placeholder species and look), waiting for the
 user's live check and review; then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
-Multi-language support is being designed in a session of its own. Later
-(user's): a player-facing credits file for C14's Credits, and
+Later (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: C16's design**
 (dev log 2026-10-27-c16-localisation-design): Godot's translations
