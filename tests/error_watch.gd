@@ -20,6 +20,7 @@ extends Logger
 ## It also gives the suites their own remembered islands' file (W12), and
 ## their own settings for the sidecar, with sessions started outside the
 ## game off (S08): a suite never shows the user's own running sessions.
+## And their own catches (D01), starting with none.
 
 ## Read by the sidecar (sidecar/src/launch/app-data.ts).
 const TEST_SESSIONS_ENV := "SIDECAR_TEST_SESSIONS_DIR"
@@ -40,6 +41,8 @@ func _init(tree: SceneTree) -> void:
 	# Nor the user's remembered islands (W12): each suite starts with none.
 	IslandMemory.file = "user://test-islands.json"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
+	CatchLog.file = "user://test-catches.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(CatchLog.file))
 	SidecarClient.settings_file = "user://test-sidecar-settings.cfg"
 	var cfg := ConfigFile.new()
 	cfg.set_value("game", "outside_sessions", false)

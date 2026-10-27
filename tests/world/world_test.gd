@@ -11,7 +11,7 @@ extends SceneTree
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
 ## attention cue (A05); the day and night and the weather (W09); the
-## debug commands (C09).
+## debug commands (C09); fishing and its catches (D01).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -24,6 +24,8 @@ var _failed := false
 ## What the world asked the sidecar for sessions started outside the game (S08).
 var _outside_sent: Array[bool] = []
 var _errors := ErrorWatch.new(self)
+## The world's fishing, for _cast (D01).
+var _rod_user: Fishing
 
 
 func _initialize() -> void:
@@ -35,6 +37,8 @@ func _run() -> void:
 	await _biomes()
 	_jump_assist()
 	_placement()
+	_fish_species()
+	_catch_log()
 	await _scene()
 	if not _failed and _errors.ok():
 		print("PASS world_test")
@@ -1758,6 +1762,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
 	await _crosshair(world, player, orchestrator)
 	await _hotbar(world, player)
+	await _fishing(world, player, island)
 	# The sidecar doesn't have h1, so fetching its history fails.
 	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
 	_check(not chat._history.has("h1"), "a failed history fetch is forgotten")
@@ -3254,6 +3259,243 @@ func _hotbar(world: Node3D, player: Player) -> void:
 	_key(KEY_1)
 	await _settle()
 	_check(hotbar.held_tool() == "hands", "C15: 1 puts it away")
+
+
+# D01: what bites where and when, by the species table's conditions.
+func _fish_species() -> void:
+	var here := {"water": "shallows", "biome": Biome.Kind.BEACH, "hour": 10.0, "weather": "clear"}
+	_check(FishSpecies.pick(here, 0.5)["id"] == "shallows_fish", "D01: the shallows' placeholder bites in the shallows")
+	here["water"] = "drop_off"
+	_check(FishSpecies.pick(here, 0.5)["id"] == "drop_off_fish", "D01: the drop-off's at the drop-off")
+	here["water"] = "open_sea"
+	here["biome"] = -1
+	_check(FishSpecies.pick(here, 0.99)["id"] == "open_sea_fish", "D01: the open sea's out at sea, away from islands")
+	_check(FishSpecies.water_at(1.0) == "shallows" and FishSpecies.water_at(6.0) == "drop_off" and FishSpecies.water_at(20.0) == "open_sea", "D01: the water's kind by its depth")
+	var table := [
+		{"id": "night", "name": "N", "water": ["shallows"], "biomes": [], "hours": [20.0, 4.0], "weather": [], "size": [10, 20], "weight": 1.0},
+		{"id": "forest_rain", "name": "F", "water": ["shallows"], "biomes": [Biome.Kind.FOREST], "hours": [], "weather": ["rain", "storm"], "size": [10, 20], "weight": 3.0},
+		{"id": "any", "name": "A", "water": ["shallows", "drop_off"], "biomes": [], "hours": [], "weather": [], "size": [10, 20], "weight": 1.0},
+	]
+	var ids := func(c: Dictionary) -> Array: return FishSpecies.matching(c, table).map(func(sp: Dictionary) -> String: return sp["id"])
+	_check(ids.call({"water": "shallows", "biome": Biome.Kind.BEACH, "hour": 12.0, "weather": "clear"}) == ["any"], "D01: by day on a beach in the sun, only what lives anywhere")
+	_check(ids.call({"water": "shallows", "biome": Biome.Kind.BEACH, "hour": 23.0, "weather": "clear"}) == ["night", "any"] and ids.call({"water": "shallows", "biome": -1, "hour": 2.0, "weather": "clear"}) == ["night", "any"], "D01: a night fish at night, past midnight too")
+	_check(ids.call({"water": "shallows", "biome": Biome.Kind.FOREST, "hour": 12.0, "weather": "rain"}) == ["forest_rain", "any"], "D01: a forest fish by a forest island in the rain")
+	_check(ids.call({"water": "shallows", "biome": Biome.Kind.FOREST, "hour": 12.0, "weather": "windy"}) == ["any"] and ids.call({"water": "shallows", "biome": -1, "hour": 12.0, "weather": "rain"}) == ["any"], "D01: not in other weather, nor away from its biome")
+	_check(ids.call({"water": "open_sea", "biome": -1, "hour": 12.0, "weather": "clear"}) == [] and FishSpecies.pick({"water": "open_sea", "biome": -1, "hour": 12.0, "weather": "clear"}, 0.5, table).is_empty(), "D01: nothing where nothing lives")
+	var rain := {"water": "shallows", "biome": Biome.Kind.FOREST, "hour": 12.0, "weather": "rain"}
+	_check(FishSpecies.pick(rain, 0.7, table)["id"] == "forest_rain" and FishSpecies.pick(rain, 0.8, table)["id"] == "any", "D01: picked by weight among those that match")
+	var sp: Dictionary = FishSpecies.SPECIES[0]
+	_check(FishSpecies.size_for(sp, 0.0) == sp["size"][0] and FishSpecies.size_for(sp, 1.0) == sp["size"][1] and FishSpecies.size_for(sp, 0.5) < (sp["size"][0] + sp["size"][1]) / 2.0, "D01: sizes within the species' range, big ones rarer")
+	var unique := {}
+	for s: Dictionary in FishSpecies.SPECIES:
+		unique[s["id"]] = true
+	_check(unique.size() == FishSpecies.SPECIES.size(), "D01: every species' id is its own")
+
+
+# D01: the catches kept for the collection (D03): saved, read back, and a
+# damaged file kept aside rather than written over.
+func _catch_log() -> void:
+	var was := CatchLog.file
+	CatchLog.file = "user://test-catch-log.json"
+	for f in [CatchLog.file, CatchLog.file + ".bad"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var catches := CatchLog.new()
+	catches.load_file()
+	_check(catches.caught().is_empty(), "D01: no catches at first")
+	var first := catches.record("a", 30, "Beach", "shallows")
+	var again := catches.record("a", 25, "Forest", "drop_off")
+	catches.record("a", 41, "", "open_sea")
+	catches.flush()
+	var e := catches.entry("a")
+	_check(first and not again and e["count"] == 3 and e["biggest_cm"] == 41, "D01: a species' count and its biggest")
+	_check(e["first"]["biome"] == "Beach" and e["first"]["water"] == "shallows" and e["first"]["at"] is String and e["first"]["at"].length() >= 16, "D01: and its first catch, when and where")
+	var back := CatchLog.new()
+	back.load_file()
+	_check(back.caught().size() == 1 and back.caught()[0] == "a" and back.entry("a") == e, "D01: read back as saved")
+	var f := FileAccess.open(CatchLog.file, FileAccess.WRITE)
+	f.store_string("{\"version\": 1, \"species\": {\"a\": {\"count\": \"lots\"}}}")
+	f.close()
+	back.load_file()
+	_check(back.caught().is_empty() and FileAccess.file_exists(CatchLog.file + ".bad"), "D01: a damaged file is kept as .bad and the log starts empty")
+	for p in [CatchLog.file, CatchLog.file + ".bad"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	CatchLog.file = was
+
+
+# D01: fishing with the rod, by real clicks: the water and the biome
+# under the bobber, shadows in the shallows and aiming at one, a catch
+# recorded and saved, scaring a fish off, missing a bite, reeling in,
+# leaving, and no cast onto land, while swimming or without the rod.
+func _fishing(world: Node3D, player: Player, island: Island) -> void:
+	var fishing: Fishing = world.fishing
+	_rod_user = fishing
+	var hud := fishing.hud
+	var was := player.global_position
+	var turned := player.rotation.y
+	var pitch := (player.get_node("Head") as Node3D).rotation.x
+	var caught := []
+	fishing.caught.connect(func(id: String, size: int, first: bool) -> void: caught.append([id, size, first]))
+	fishing.wait = Vector2(0.2, 0.3)
+	fishing.aimed_wait = Vector2(0.1, 0.1)
+	fishing.approach_time = 0.3
+	fishing.nibbles = Vector2i(1, 1)
+	fishing.nibble_gap = Vector2(0.3, 0.3)
+	fishing.bite_window = 2.0
+
+	# Without the rod a click does nothing.
+	_mouse_left(true)
+	await _settle()
+	_mouse_left(false)
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE and not fishing._rod.visible, "D01: no rod in hand: a click does nothing")
+	_key(KEY_2)
+	await _settle()
+	_check(fishing._rod.visible, "D01: 2 takes the rod, seen in your hand")
+
+	# On the shore of h1's island, facing away from its bridges.
+	var c := island.global_position
+	var away := Vector3.ZERO
+	var best := -INF
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	for k in 16:
+		var d := Vector3.FORWARD.rotated(Vector3.UP, TAU * k / 16.0)
+		var room := INF
+		for other in [Vector3.ZERO, islands.island("h2").global_position]:
+			room = minf(room, d.angle_to((other - c) * Vector3(1, 0, 1)))
+		if room > best:
+			best = room
+			away = d
+	var shore := island.generator.shore_radius(away.x, away.z)
+	_check(fishing.depth_at(c) < 0.0 and fishing.depth_at(c + away * shore * 1.1) > 0.3 and FishSpecies.water_at(fishing.depth_at(c + away * shore * 1.1)) == "shallows", "D01: land under an island, the shallows on its shelf")
+	_check(fishing.biome_at(c + away * shore * 1.1) == island.generator.biome and fishing.biome_at(Vector3.ZERO) == -1, "D01: the biome of the island nearest, none at the platform")
+	var stand := c + away * shore * 0.93
+	player.global_position = Vector3(stand.x, c.y + island.generator.surface_height(away.x * shore * 0.93, away.z * shore * 0.93) + 0.2, stand.z)
+	player.velocity = Vector3.ZERO
+	await _frames(10)
+	_face(player, player.global_position + away * 10.0 + Vector3.DOWN)
+	await _until(func() -> bool: return fishing._shadows.size() >= 2, 15.0)
+	var in_shallows := not fishing._shadows.is_empty()
+	for s in fishing._shadows:
+		var depth := fishing.depth_at(s.global_position)
+		in_shallows = in_shallows and depth >= Fishing.SHADOW_DEPTH.x and depth < Fishing.SHADOW_DEPTH.y and s.global_position.y < 0.0
+	_check(in_shallows, "D01: fish shadows wander in the shallows round you, under the water (%d)" % fishing._shadows.size())
+	# A shadow where the bobber lands comes at once, though the wait is long.
+	fishing.wait = Vector2(60.0, 60.0)
+	var landing := player.global_position + away * Fishing.MIN_CAST
+	var aimed := fishing._add_shadow(Vector3(landing.x, 0.0, landing.z) + away * 0.5)
+	await _cast(0.0)
+	_check(fishing.state == Fishing.State.WAITING and fishing._fish == aimed, "D01: cast near a shadow, it's the one on the line")
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_check(fishing.state == Fishing.State.BITE, "D01: it comes, nibbles and bites")
+	fishing.wait = Vector2(0.2, 0.3)
+	_mouse_left(true)
+	_mouse_left(false)
+	await _settle()
+	var shallows: Dictionary = fishing.catches.entry("shallows_fish")
+	_check(caught.size() == 1 and caught[0][0] == "shallows_fish" and caught[0][2] and fishing.state == Fishing.State.IDLE and not fishing._bobber.visible, "D01: a click on the bite catches it, and the bobber comes back")
+	_check(not shallows.is_empty() and shallows["count"] == 1 and shallows["first"]["water"] == "shallows" and shallows["first"]["biome"] == Biome.NAMES[island.generator.biome], "D01: recorded with its biome and water (%s)" % [shallows.get("first")])
+
+	# From the platform, away from h1: the drop-off.
+	world.go_to_platform()
+	await _frames(20)
+	var out := (Vector3.ZERO - c) * Vector3(1, 0, 1)
+	out = out.normalized()
+	# Toward the platform's middle: a short cast lands on the deck.
+	_face(player, Vector3(0, 1.6, -10))
+	await _cast(0.0)
+	_check(fishing.state == Fishing.State.IDLE and hud.said() == "Can't cast onto land" and not fishing._bobber.visible, "D01: no cast onto land (\"%s\")" % hud.said())
+	_face(player, player.global_position + out * 30.0)
+	await _cast(1.0)
+	var flew := Vector2(fishing.target.x - player.global_position.x, fishing.target.z - player.global_position.z).length()
+	_check(fishing.state == Fishing.State.WAITING and fishing._bobber.visible and absf(flew - Fishing.MAX_CAST) < 0.5 and fishing._where["water"] == "drop_off", "D01: a full charge casts %.1f m where you look, into the drop-off" % flew)
+	_check(absf(fishing._bobber.global_position.y - fishing.ocean.height_at(fishing.target.x, fishing.target.z)) < 0.01, "D01: the bobber floats on the waves")
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_mouse_left(true)
+	_mouse_left(false)
+	await _settle()
+	var drop: Dictionary = fishing.catches.entry("drop_off_fish")
+	_check(caught.size() == 2 and caught[1][2] and drop["count"] == 1 and drop["first"]["biome"] == "" and hud.card_text() == "You caught a Drop-off fish! %d cm · New" % caught[1][1], "D01: the card: \"%s\"" % hud.card_text())
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_mouse_left(true)
+	_mouse_left(false)
+	await _settle()
+	drop = fishing.catches.entry("drop_off_fish")
+	_check(drop["count"] == 2 and drop["biggest_cm"] == maxi(caught[1][1], caught[2][1]) and not caught[2][2] and not hud.card_text().ends_with("New"), "D01: a second catch counts, keeps the biggest, not New")
+
+	# A click on a nibble scares it off; a missed bite leaves the bobber out.
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.NIBBLE, 5.0)
+	_mouse_left(true)
+	_mouse_left(false)
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE and hud.said() == "Too soon: it swam off" and caught.size() == 3, "D01: a click on a nibble scares it off")
+	fishing.bite_window = 0.1
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	fishing.wait = Vector2(60.0, 60.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.WAITING, 2.0)
+	_check(fishing.state == Fishing.State.WAITING and hud.said() == "It got away" and caught.size() == 3, "D01: a missed bite: it gets away, the bobber stays out")
+	_mouse_left(true)
+	_mouse_left(false)
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE and caught.size() == 3, "D01: a click while waiting reels in")
+
+	# Leaving reels in: another tool, the controls gone (the chat, a
+	# menu), walking off.
+	await _cast(0.5)
+	_key(KEY_1)
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and not fishing._rod.visible, "D01: switching tool reels in")
+	_key(KEY_2)
+	await _cast(0.5)
+	player.controls_enabled = false
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE, "D01: losing the controls (a chat, a menu) reels in")
+	player.controls_enabled = true
+	await _cast(0.5)
+	player.global_position += out.cross(Vector3.UP) * (Fishing.LEAVE_DISTANCE + 0.5)
+	await _settle()
+	_check(fishing.state == Fishing.State.IDLE, "D01: walking off reels in")
+
+	# Not while swimming.
+	player.global_position = out * 30.0 + Vector3(0, -3, 0)
+	await _until(func() -> bool: return player.swimming, 3.0)
+	_mouse_left(true)
+	await _settle()
+	_check(player.swimming and fishing.state == Fishing.State.IDLE, "D01: no casting while swimming")
+	_mouse_left(false)
+
+	fishing.catches.flush()
+	var saved: Variant = JSON.parse_string(FileAccess.get_file_as_string(CatchLog.file))
+	_check(saved is Dictionary and saved["species"]["drop_off_fish"]["count"] == 2 and saved["species"]["shallows_fish"]["count"] == 1, "D01: the catches are saved in user://")
+	_key(KEY_1)
+	world.go_to_platform()
+	player.global_position = was
+	player.velocity = Vector3.ZERO
+	player.rotation.y = turned
+	(player.get_node("Head") as Node3D).rotation.x = pitch
+	await _frames(5)
+
+
+# Holds the left button, with the rod in [member _rod_user]'s hand, for a charge of [param charge] (0 a tap, 1 full)
+# and lets go, then waits for the bobber to land (or not to be cast).
+func _cast(charge: float) -> void:
+	var fishing := _rod_user
+	_mouse_left(true)
+	await _settle()
+	if charge > 0.0:
+		await _until(func() -> bool: return fishing.charge >= charge, 3.0)
+	_mouse_left(false)
+	await _until(func() -> bool: return fishing.state != Fishing.State.CHARGING and fishing.state != Fishing.State.CASTING, 3.0)
+
+
+# The left mouse button, down or up.
+func _mouse_left(pressed: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	Input.parse_input_event(event)
 
 
 # A press and release of the key at [param physical] (the US layout's place).
