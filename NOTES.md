@@ -1367,6 +1367,11 @@ and the real layout (user's, 2026-10-02; W07).
   first; tilting with the island).
 - **Rails** you can't walk through, so you don't fall in the sea (since
   W08 you'd have to swim to a beach: no climbing back on).
+  *Changed (user's, 2026-10-27, D01 round 2 review; "meant to for a
+  while"):* the rails are solid only at their own 1 m height, so you
+  still can't walk off but can jump over them into the sea (rejected
+  since: invisible walls 2.2 m high, higher than a jump). D01's
+  bobber flies over them.
 - **Minimap now:** a small map of the cluster (islands, bridges, you;
   read-only marks since S08).
   Placeholder UI, like all UI. A square in the top left (the top right
@@ -1447,8 +1452,11 @@ and the real layout (user's, 2026-10-02; W07).
   most 4 m apart on both sides, from 0.5 m into the sea floor (W08's
   `Seabed.height_at` under each post, `POST_SINK`) to rails 1 m up, with
   a mid rail. The rails start 1 m from each end. Collision: the deck as
-  one strip, and on both sides a wall 2.2 m high (higher than a jump) so
-  you can't run or jump off. Flat-shaded, vertex colours like the islands.
+  one strip (layers 1 and 3, "ground": Conventions → Physics layers),
+  and on both sides a wall up to the top rail, 1 m (`RAIL_HEIGHT`),
+  in a `StaticBody3D` child of its own, `Rails`, on layer 1 only: you
+  can't walk off but can jump over (a jump is about 1.5 m), and D01's
+  bobber flies over. Flat-shaded, vertex colours like the islands.
 - *Far version* (user's decision, 2026-10-07; Architecture →
   Performance). A bridge is drawn in segments: its deck's run, overrun
   included, cut evenly into pieces of at most 24 m (`SEGMENT`,
@@ -1460,7 +1468,8 @@ and the real layout (user's, 2026-10-02; W07).
   triangles. Both use a 4 m margin, so a segment swaps at 74 m going away
   and at 66 m coming back, never flickering. Only what each version is
   made of is the placeholder; the segments stay when bridges become art.
-  The collision is unchanged (one shape for the whole bridge). Far
+  The collision is unchanged (one shape for the whole deck, one for
+  its rails). Far
   versions are hidden past the fog, like the islands.
 - *Made off the main thread* (W01's smoothing, 2026-10-27: about 0.5 ms
   a metre, 51 ms for a 102 m bridge). Sessions' bridges
@@ -1541,7 +1550,10 @@ and the real layout (user's, 2026-10-02; W07).
   full one (`CROWD`, 311: near 52, 45, 40, 38, 33, 25, 8 and 3, far 26,
   20, 14, 5 and 2), too slow for every push (user's, 2026-10-09). The
   demo itself opens the full crowd with `-- --crowd`, to look at or to
-  measure performance with.
+  measure performance with. It also checks the rails (2026-10-27): the
+  deck on layers 1 and 3, `Rails` on 1 only, a ray across the deck
+  stopped at the rail but not on the ground layer, a player sprinting at
+  it stays on the deck, and jumping takes it over, off the bridge.
 
 *Known limits.* A far cluster (a 9th or later) has no bridge to the
 platform: it's reached by teleport only (user's, 2026-10-09). Growth
@@ -1811,12 +1823,14 @@ chosen as offered):*
   sprinting up breaches (straight up, or steeper than about 50°); plain
   Space or W toward the sky still floats. At the 6 m/s sprint the feet
   reach about 0.8 m above the water: under the platform's 1 m deck (tried
-  from every gap and angle, never lands on it), and the bridges' rails
-  are 2.2 m walls; only their last metre on an island's beach is open,
-  and that beach is a way out anyway. Swimming into ground that
-  slopes up (facing up more than 0.35) rides up it, and touching such
-  ground with the feet less than 1.2 m under ends swimming: that's how you
-  walk out up a beach. The platform's and bridges' sides are walls.
+  from every gap and angle, never lands on it), and under a bridge's
+  deck, 1.2 m up away from its ends (since 2026-10-27 its rails are no
+  longer 2.2 m walls, W06, but the deck alone is out of reach); near its
+  ends the deck meets an island's beach, a way out anyway. Swimming into
+  ground that slopes up (facing up more than 0.35) rides up it, and
+  touching such ground with the feet less than 1.2 m under ends
+  swimming: that's how you walk out up a beach. The platform's sides
+  are walls, and a bridge's deck stops you from below.
 - *The way back* (`world.gd` → `go_to_platform`, which also drops a
   teleport waiting for an island to rise): the sessions ring's ⌂
   (hold Tab, point at the top, let go; W07), and a click on the platform

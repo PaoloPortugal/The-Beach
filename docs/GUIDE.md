@@ -442,8 +442,9 @@ cluster's bridges make a single path between its islands: each new
 island gets a bridge to the nearest one. A bridge appears a moment
 after its island has risen and goes as soon as the island starts sinking. If that
 leaves part of a cluster cut off, a new bridge joins it back on; the
-other bridges stay where they are. The bridges have rails, and you can't
-run or jump off them. Seen from about 70 m away, a bridge is drawn more
+other bridges stay where they are. The bridges have rails, so you can't
+walk off them, but you can jump over a rail into the sea (and swim to a
+beach to get out). Seen from about 70 m away, a bridge is drawn more
 simply, with a smooth deck and one rail a side instead of every plank;
 up close it has all its planks again.
 
@@ -544,8 +545,8 @@ After a jump far out to sea, the floor fills in around you over a second
 or so, nearest first; the far part is hidden by the haze anyway.
 
 You get out of the water by swimming to a beach and walking up it. You
-can't climb or leap onto the platform or a bridge's railed sides from the
-water. To get back to
+can't climb or leap onto the platform or a bridge from the water: their
+decks are too high. To get back to
 the platform from anywhere, hold Tab, point at the house at the top of
 the sessions ring and let go, or click the platform on the big map (M).
 
