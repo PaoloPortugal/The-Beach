@@ -3376,7 +3376,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _until(func() -> bool: return fishing._shadows.size() >= 2, 15.0)
 	var in_shallows := not fishing._shadows.is_empty()
 	for s in fishing._shadows:
-		var depth := fishing.depth_at(s.global_position)
+		var depth := fishing.depth_at(s.home) # where it came from: it wanders up to 2 m off
 		in_shallows = in_shallows and depth >= Fishing.SHADOW_DEPTH.x and depth < Fishing.SHADOW_DEPTH.y and s.global_position.y < 0.0
 	_check(in_shallows, "D01: fish shadows wander in the shallows round you, under the water (%d)" % fishing._shadows.size())
 	# A shadow where the bobber lands comes at once, though the wait is long.
