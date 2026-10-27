@@ -1,33 +1,50 @@
-LIVE CHECK: C15 hotbar
+LIVE CHECK: D01 fishing
   godot --path . -- --checklist
   (add --sidecar-dev-fake if
   you like: no Claude needed)
 PgDn/PgUp scroll this.
 
-1. Play. No hotbar at the
-   bottom until you switch?
-2. Press 2: a row of two
-   squares, bottom centre,
-   "2 Rod" outlined in white?
-   Readable on sand, sea and
-   sky?
-3. Wait: it fades out after
-   a moment?
-4. Wheel down, wheel up: it
-   steps round Hands / Rod
-   both ways, showing again?
-5. Press 9: nothing changes.
-   Press 1: back to Hands.
-6. Open the chat (E on an
+1. Play. Press 2: the rod
+   shows bottom right? How
+   does it look?
+2. Hold left click, let go:
+   a meter fills under the
+   crosshair? A fuller
+   charge casts further?
+3. Aim at an island and at
+   the platform's deck:
+   no cast, "Can't cast
+   onto land"?
+4. The bobber rides the
+   waves? The line from the
+   rod's tip looks right?
+5. By an island: shadows
+   in the shallows? A cast
+   near one brings it?
+6. Nibbles visible (the
+   bobber dips), then the
+   bite (it goes under)?
+7. Click on a nibble: "Too
+   soon: it swam off"?
+8. Click on the bite: the
+   card, with New? A second
+   of that species: no New?
+9. Miss a bite: "It got
+   away", and another comes?
+10. Click while waiting: it
+   reels in?
+11. Cast, then each of:
+   walk off, press 1, open
+   the chat (E on an
    orchestrator), the map
-   (M), the ring (hold Tab),
-   Esc: the hotbar hidden,
-   and 1/2/wheel do nothing?
-   The map still zooms and
-   the chat still scrolls
-   with the wheel?
-7. Back in the game: the
-   wheel switches tools, not
-   this list?
-8. The size and the fade
-   timing feel right?
+   (M), jump in and swim:
+   each reels in?
+12. The timings, the
+   distances and the bite
+   window feel right?
+13. Restart with
+   -- --checklist --hour 22
+   --weather rain: the
+   bobber, line, shadows,
+   meter and card readable
+   at night and in rain?
