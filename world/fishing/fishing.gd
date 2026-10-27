@@ -110,7 +110,8 @@ var nibbles := Vector2i(1, 3)
 var nibble_gap := Vector2(0.7, 1.5)
 var bite_window := 1.5
 ## The longest the line pays out, metres, as you walk; past it the
-## bobber is dragged. A variable so the tests can shorten it.
+## bobber is dragged. A throw goes no further than this less [constant
+## SLACK]. A variable so the tests can shorten it.
 var max_line := 30.0
 
 var player: Player
@@ -375,7 +376,10 @@ func _move_bobber(delta: float) -> void:
 			_end()
 			return
 	elif dist > line_length:
-		line_length = minf(dist, max_line if state != State.CASTING else INF)
+		# A throw pays out no further than the line's longest, less the
+		# slack it settles with, so it's held there and drops, never
+		# landing past it (dragged at once).
+		line_length = minf(dist, max_line - SLACK if state == State.CASTING else max_line)
 	var v := _bobber.linear_velocity
 	var to_tip := (tip - at) / maxf(dist, 0.001)
 	if dist > line_length:
@@ -420,12 +424,17 @@ func _unsnag(at: Vector3, to_tip: Vector3, delta: float) -> void:
 
 # The bobber rests in the water: a shadow near it comes soon, else wait.
 func _settle_in_water() -> void:
+	var tip := _tip.global_position
 	var at := _bobber.global_position
+	# Held at the throw's longest, the line's pull lets it stretch a
+	# little past: back to it.
+	if tip.distance_to(at) > max_line - SLACK:
+		at = tip + (at - tip).normalized() * (max_line - SLACK)
 	target = Vector3(at.x, Player.WATER_Y, at.z)
 	_where = {"water": FishSpecies.water_at(depth_at(at)), "biome": biome_at(at)}
 	_bobber.freeze = true
 	_bobber.global_rotation = Vector3.ZERO
-	line_length = minf(_tip.global_position.distance_to(at) + SLACK, max_line)
+	line_length = minf(tip.distance_to(at) + SLACK, max_line)
 	_dip = 0.0
 	state = State.WAITING
 	_fish = null
