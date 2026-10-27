@@ -1006,7 +1006,8 @@ The water level is y = 0.
   water keeps its 2 m detail; W08) is two triangles, 8 m across. Where a
   2 m cell meets such a block, its vertices on the shared edge move onto
   that edge, so there are no cracks. Under half the triangles of the 2 m
-  grid everywhere. The collision uses the same faces; `height_at`
+  grid everywhere. The collision uses the same faces (on layers 1 and 3,
+  Conventions → Physics layers); `height_at`
   (placing agents, the orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. The seed rolled is kept in
@@ -1101,6 +1102,9 @@ horizon is seamless (since W09 that colour follows the hour and the
 weather). Since W08 the water is see-through, tinted by depth (see W08);
 since W09 wind makes the waves faster and a little higher, and rain
 draws rings on the water (see W09). Plain enough for the Compatibility renderer.
+Since D01, `Ocean.height_at` (`world/ocean/ocean.gd`) works out the
+same waves in GDScript, for the bobber: change it and `ocean.gdshader`'s
+waves together.
 
 ### W03 Player movement
 *Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
@@ -1136,6 +1140,7 @@ platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
 and player together. The **spawn platform** (`world/platform/`, user's
 direction, 2026-09-30) is a 12 m wooden square at the world's centre, its
 deck 1 m above the water; the player starts on it, 3 m from its centre.
+Its collision is on layers 1 and 3 (Conventions → Physics layers).
 (Its "New session" post was removed for the sessions menu, S03.)
 `world.gd` creates the `SessionStore` and connects the parts: the islands
 hear of a new session first, so its island exists when the menu's
@@ -1774,7 +1779,8 @@ chosen as offered):*
   Features narrower than about 12 m wouldn't show on the 4 m grid.
   Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
-  with matching collision, from the camera out to 420 m (past the fog)
+  with matching collision (layers 1 and 3, Conventions → Physics
+  layers), from the camera out to 420 m (past the fog)
   and dropped past 548 m. Chunks are made on a worker thread, nearest
   first, 6 to a task and one task at a time (`BATCH`; a chunk's heights,
   mesh arrays and collision faces, about 2 ms each), and the main thread
@@ -5607,8 +5613,9 @@ user's). Fish models to replace the shadows.
 - *The bobber* (a placeholder, `assets/CREDITS.md`): a `RigidBody3D`,
   a sphere 7 cm in radius, 50 g, bouncy (0.3) and rolling. It collides with the
   **"ground" layer** only (layer 3, named in `project.godot`), which
-  `Island`, `Bridge`, the sea floor's chunks and the platform are also
-  on; everything stays on layer 1 as before, so the player, the
+  `Island`, `Bridge`'s deck (not its rails), the sea floor's chunks and
+  the platform are also on (Conventions → Physics layers); everything
+  stays on layer 1 as before, so the player, the
   crosshair's line of sight (C11) and every ray are unchanged, and
   props, agents and the player don't stop the bobber. Rejected: moving
   props and agents to a layer of their own (the crosshair would then
@@ -5909,6 +5916,15 @@ zipline; the tests.
   `assets/CREDITS.md` → Shaders and code-generated visuals saying so
   (user's, 2026-10-08: some people may count them as AI art, though the
   user doesn't).
+- **Physics layers** (since D01, 2026-10-27). Everything that collides
+  is on layer 1, and every ray, the player and the crosshair (C11) use
+  it. Ground you can stand on is also on layer 3, "ground" (named in
+  `project.godot`), which D01's bobber alone collides with: an island
+  (W01), a bridge's deck (W06), the sea floor (W08) and the spawn
+  platform. A bridge's rails are on layer 1 only, so the bobber flies
+  over them; so are props and agents. Anything new you can stand on,
+  such as the hub or D04's courses, must be on layer 3 too, or the
+  bobber falls through it.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
