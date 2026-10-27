@@ -1,33 +1,89 @@
-LIVE CHECK: C15 hotbar
+LIVE CHECK: D01 fishing,
+round 2
   godot --path . -- --checklist
   (add --sidecar-dev-fake if
   you like: no Claude needed)
 PgDn/PgUp scroll this.
 
-1. Play. No hotbar at the
-   bottom until you switch?
-2. Press 2: a row of two
-   squares, bottom centre,
-   "2 Rod" outlined in white?
-   Readable on sand, sea and
-   sky?
-3. Wait: it fades out after
-   a moment?
-4. Wheel down, wheel up: it
-   steps round Hands / Rod
-   both ways, showing again?
-5. Press 9: nothing changes.
-   Press 1: back to Hands.
-6. Open the chat (E on an
-   orchestrator), the map
-   (M), the ring (hold Tab),
-   Esc: the hotbar hidden,
-   and 1/2/wheel do nothing?
-   The map still zooms and
-   the chat still scrolls
-   with the wheel?
-7. Back in the game: the
-   wheel switches tools, not
-   this list?
-8. The size and the fade
-   timing feel right?
+1. Play. Press 2: the rod
+   bottom right? Settings →
+   Field of view at 60 and
+   110: still in place?
+2. Hold left click, let go:
+   the meter fills, and the
+   bobber is thrown: a fuller
+   charge further, aiming up
+   further still? A full
+   charge aimed high drops
+   at about 29 m, never
+   dragged back to you?
+3. The bobber floats and
+   bobs on the waves? The
+   line sags when slack and
+   goes straight when tight?
+4. Throw it onto an island,
+   a bridge and the
+   platform's deck: it lands
+   and rolls, no message,
+   and nothing ever comes?
+   From mid-span, tap a
+   short throw sideways off
+   a bridge: it flies over
+   the rail into the water?
+5. Hold left click: it reels
+   in slowly, rolling back
+   over land; let go: it
+   stops? Trees, rocks and
+   steps don't get it stuck?
+6. Reel part way in the
+   water: it's dragged
+   through it, never lifted
+   out? Let go: it rests,
+   and a fish comes there?
+   Reeled to the platform
+   or a bridge's end from
+   the water: lifted out?
+7. By an island: shadows in
+   the shallows? A cast near
+   one brings it?
+8. Nibbles visible, then the
+   bite: the plunge, the
+   splash ring and the "!"
+   clear enough to know it's
+   time to click?
+9. Click on a nibble: "Too
+   soon: it swam off"?
+10. Click on the bite: the
+   card, with New? A second
+   of that species: no New?
+11. Miss a bite: "It got
+   away", another comes? The
+   1.5 s window feels right?
+12. With the line out, walk
+   about: it stays out?
+   Walk far (30 m): the
+   bobber drags after you?
+13. Cast, then each of:
+   press 1, open the chat
+   (E on an orchestrator),
+   the map (M), jump in and
+   swim, ride a zipline:
+   each reels in?
+14. Reeling speed, the
+   throw's distances and the
+   bobber's bounce feel
+   right?
+15. Restart with
+   -- --checklist --hour 22
+   --weather rain: the
+   bobber, line, splash,
+   "!", meter and card
+   readable at night and in
+   rain?
+16. On a bridge: walk and
+   sprint at a rail: it
+   stops you? Jump over it:
+   into the sea, and you
+   can't get back on from
+   the water (swim to a
+   beach)?
