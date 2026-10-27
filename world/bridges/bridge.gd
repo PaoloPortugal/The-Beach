@@ -30,8 +30,6 @@ const STEPS_FROM := 0.2
 const POST_SPACING := 4.0
 const RAIL_HEIGHT := 1.0
 const RAIL_INSET := 1.0
-## The rails' collision is taller than they are, so you can't jump over.
-const WALL_HEIGHT := 2.2
 ## How far the posts reach into the sea floor (W08's [Seabed]).
 const POST_SINK := 0.5
 ## How far the deck runs on past each end, into the ground.
@@ -128,7 +126,8 @@ static func _make(b: Bridge, into: Dictionary) -> Dictionary:
 		far.append(b._far_mesh(b.length(), bounds[k], bounds[k + 1]))
 	into["near"] = b._near_meshes(b.length(), bounds)
 	into["far"] = far
-	into["faces"] = b._collision_faces(b.length())
+	into["faces"] = b._deck_faces(b.length())
+	into["rail_faces"] = b._rail_faces(b.length())
 	return into
 
 
@@ -156,11 +155,22 @@ func _add(made: Dictionary) -> void:
 		far.visibility_range_begin_margin = NEAR_MARGIN
 		segment.add_child(far)
 	var shape := ConcavePolygonShape3D.new()
-	shape.backface_collision = true # the rail walls work from both sides
+	shape.backface_collision = true # from above and below alike
 	shape.set_faces(made["faces"])
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	add_child(collision)
+	# The rails, a body of their own on layer 1 only: not ground, so
+	# D01's bobber flies over them.
+	var rails := StaticBody3D.new()
+	rails.name = "Rails"
+	var rail_shape := ConcavePolygonShape3D.new()
+	rail_shape.backface_collision = true # from both sides
+	rail_shape.set_faces(made["rail_faces"])
+	var rail_collision := CollisionShape3D.new()
+	rail_collision.shape = rail_shape
+	rails.add_child(rail_collision)
+	add_child(rails)
 	_built = true
 
 
@@ -326,9 +336,8 @@ func _far_mesh(length: float, s0: float, s1: float) -> Array:
 	return st.commit_to_arrays()
 
 
-# The deck's collision as one strip sampled every metre, and on both sides
-# a wall 2.2 m high you can't get past.
-func _collision_faces(length: float) -> PackedVector3Array:
+# The deck's collision as one strip sampled every metre.
+func _deck_faces(length: float) -> PackedVector3Array:
 	var faces := PackedVector3Array()
 	var y := _deck_y_local(length)
 	var half := WIDTH / 2.0
@@ -339,6 +348,15 @@ func _collision_faces(length: float) -> PackedVector3Array:
 		var ya: float = y.call(a)
 		var yb: float = y.call(b)
 		_quad_faces(faces, Vector3(-half, ya, -a), Vector3(half, ya, -a), Vector3(half, yb, -b), Vector3(-half, yb, -b))
+	return faces
+
+
+# The rails' collision: on both sides a wall from the deck up to the top
+# rail, which you can't walk through but can jump over.
+func _rail_faces(length: float) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	var y := _deck_y_local(length)
+	var half := WIDTH / 2.0
 	var posts := _posts(length)
 	for side in [-1.0, 1.0]:
 		var x: float = side * (half + 0.08)
@@ -352,7 +370,7 @@ func _collision_faces(length: float) -> PackedVector3Array:
 				var b := at + (nxt - at) * (j + 1) / m
 				var ya: float = y.call(a)
 				var yb: float = y.call(b)
-				_quad_faces(faces, Vector3(x, ya, -a), Vector3(x, ya + WALL_HEIGHT, -a), Vector3(x, yb + WALL_HEIGHT, -b), Vector3(x, yb, -b))
+				_quad_faces(faces, Vector3(x, ya, -a), Vector3(x, ya + RAIL_HEIGHT, -a), Vector3(x, yb + RAIL_HEIGHT, -b), Vector3(x, yb, -b))
 	return faces
 
 
