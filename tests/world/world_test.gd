@@ -2133,8 +2133,14 @@ func _read_only_marks(world: Node3D, panel: ChatPanel) -> void:
 	await _frames(2)
 	for id: String in ["o1", "o2"]:
 		var i := islands.island(id)
+		_check(i.read_only() and i.has_node("ReadOnlyFlag"), "S08: the read-only mark on %s's island" % id)
+	# Where it stands only once the ground is in: mid-build, surface_height
+	# already reads the new ground but the flag is re-placed only in the
+	# last step, out of sight (S08 dev log, 2026-10-27).
+	await _until(func() -> bool: return islands.island("o1").is_built() and islands.island("o2").is_built(), 10.0)
+	for id: String in ["o1", "o2"]:
+		var i := islands.island(id)
 		var flag := i.get_node_or_null("ReadOnlyFlag") as Node3D
-		_check(i.read_only() and flag != null, "S08: the read-only mark on %s's island" % id)
 		if flag:
 			var r := Vector2(flag.position.x, flag.position.z).length()
 			_check(r > 3.0 and absf(flag.position.y - i.generator.surface_height(flag.position.x, flag.position.z)) < 0.01, "S08: %s's flag stands on its island, near the edge (r %.1f)" % [id, r])
