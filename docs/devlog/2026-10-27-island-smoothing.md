@@ -1,6 +1,6 @@
 # Island smoothing
 
-Features: W01, W06, W12
+Features: W01, W06, W08, W12
 
 ## Where it came from
 
@@ -107,3 +107,59 @@ step, bridges up to 51 ms. The warm-up itself costs about 60 ms in one
 frame while the world loads behind the menu (the orchestrator's
 shaders and the bubble's text): one hitch there instead of one per
 first-of-its-kind island.
+
+## The start (2026-10-27, after the user's try)
+
+The user found it "a big improvement" but the game still rough for its
+first few seconds, then smooth. `time_world.gd --start` (frames from the
+very first, six sessions taken back by one sync at frame 30) showed a
+first frame of about 280 ms, frames 2-30 at 25-33 ms before any island
+existed, about 20 ms to frame 90 or so, then a median of about 11 ms,
+and the sync's frame at 51 ms.
+
+The suspicion was Godot 4.7 compiling pipelines in the background
+(ubershaders until the specialized ones are ready). Throwaway probes
+(a copy of `time_world`, never committed) ruled that out and found
+three causes instead:
+
+- **Not shader compiles.** `RenderingServer.get_rendering_info`'s
+  pipeline counters: 18 surface pipelines, 2 canvas and 4
+  specializations all in the first frame, then only 3 small
+  specializations in 600 frames.
+- **The seabed (W08), on the main thread.** Splitting each frame into
+  physics, process and rendering showed the game's own `_process`
+  taking 21-30 ms for exactly frames 2-29, then about 1 ms; with the
+  seabed's processing off it was 1 ms from the start. About 180 chunks
+  are missing at start and it made 6 a frame at about 4 ms each, on the
+  main thread; a teleport out to sea did the same. Now a worker makes
+  them (heights, mesh arrays, collision faces; a probe checked the
+  result is identical to the old SurfaceTool chunk, vertex for vertex),
+  6 to a task, one task at a time, and the main thread adds at most 2
+  a frame (about 1 ms each). User's choice over making fewer a frame
+  on the main thread (4-8 ms frames, but the floor about 3 s to fill)
+  or leaving it.
+- **The sync, all at once.** `SessionIslands._on_synced` placed every
+  taken-back island in one loop (about 9 ms each). They're now queued
+  and placed one a frame in the same saved order (user's OK: they rise
+  about a frame apart, which can't be seen, as their rises already
+  start when each one's ground is done). A session started meanwhile
+  joins the back of the queue so the saved order and spots hold; one
+  that ends before its turn never comes; `is_rising` and `all_up`
+  count the queued ones, and `teleport` waits for one.
+- **The GPU clocking up, the machine's.** The world's GPU time was
+  15-20 ms for the first seconds and 7-9 ms after, with no window,
+  resolution or scale change, and switching parts off one at a time
+  (ocean, seabed, platform, clouds, rain, menu, shadows, sky, fog)
+  showed every part about twice as costly early: none was the cause. A
+  fixed full-screen shader with nothing of the game's ran at 7.3 ms a
+  frame for about 4.5 s, then at 2.8 ms: the developer's AMD integrated
+  GPU taking seconds of load to clock up. Not ours to fix; a discrete
+  GPU or another power plan will differ. Loading the GPU before the
+  world (4 s of a heavy shader) didn't remove it either, so a longer
+  warm-up wouldn't help.
+
+Measured after (a window, `--start`, two runs): frames 2-30 about
+16 ms, the sync's frame 17 ms, the later median 10.8-12.3 ms; left are
+the first frame (270-290 ms, the world loading) and one 30-47 ms frame
+a few frames in, spent drawing (probably the warm-up's first draw).
+The default mode: median 10.4 ms, worst 22.1 ms, no spikes.

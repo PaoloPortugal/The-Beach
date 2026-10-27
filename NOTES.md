@@ -1041,6 +1041,22 @@ The water level is y = 0.
   median 9.7 ms, the worst frame 21 ms, none over 2.5 times the median;
   before, the first island's frame was 75 ms and a biome's first props
   16-100 ms.
+  *A game's start* (user's report, 2026-10-27: rough for the first few
+  seconds; `time_world.gd --start`). Three causes, measured: the
+  seabed's chunks made on the main thread (W08, now on a worker:
+  frames 2-30 went from 25-33 ms to about 16); the sync placing every
+  taken-back island in one frame (about 9 ms each, a 51 ms frame for
+  six; now one a frame, in their saved order, W12: about 17 ms); and
+  the GPU clocking up. That last is the machine's, not the game's: a
+  fixed full-screen load with nothing of the game's runs at 7.3 ms a
+  frame for about 4.5 s, then at 2.8 ms (the developer's AMD integrated
+  GPU), and the world's GPU time falls from 15-20 ms to 7-9 ms the same
+  way, every part of it alike. Not shader compiles: Godot's counters
+  show every pipeline made in the first frame and only 3 small
+  specializations after. Left: the world's first frame (about 280 ms:
+  everything's `_ready`, then the first draw and its pipelines) and one
+  30-45 ms frame a few frames in, spent drawing (probably the warm-up's
+  first draw; not pinned down).
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1736,7 +1752,14 @@ chosen as offered):*
   Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
   with matching collision, from the camera out to 420 m (past the fog)
-  and dropped past 548 m; at most 6 chunks a frame, nearest first. Flat
+  and dropped past 548 m. Chunks are made on a worker thread, nearest
+  first, 6 to a task and one task at a time (`BATCH`; a chunk's heights,
+  mesh arrays and collision faces, about 2 ms each), and the main thread
+  adds at most 2 a frame (`ADDS_PER_FRAME`, about 1 ms each); one made
+  for a spot the camera has since left far behind is dropped. Before
+  (W01 → Smoothing, 2026-10-27) they were made on the main thread, 6 a
+  frame at about 4 ms each: the game's first half second, and any
+  teleport out to sea, ran at 25-30 ms frames. Flat
   shaded, no shadows cast. Coloured by depth (`colour`): sand to -10 m,
   blending to a greyer mid colour at -19 m and to the deep colour at
   -28 m.
@@ -2133,7 +2156,9 @@ a random biome and seed, in whatever order the snapshots arrived.
   wedges too (rejected: every island and cluster keeping its exact
   spot, holes left for new sessions to fill).
 - **Bridges are rebuilt**, not saved: the islands are added in their
-  saved order, each bridged to its nearest (W06), which is usually the
+  saved order, one a frame (W01 → Smoothing; a session started
+  meanwhile waits behind them, one ended first never comes), each
+  bridged to its nearest (W06), which is usually the
   same tree (rejected: saving each bridge's ends; a tree patched after
   a sinking can come back different).
 - Only for sessions that come back (S07) or are found running again
@@ -5782,9 +5807,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** island smoothing (branch `island-smoothing`, W01,
-W06, W12; dev log 2026-10-27-island-smoothing): islands' main-thread
+W06, W08, W12; dev log 2026-10-27-island-smoothing): islands' main-thread
 work a step a frame, first-time costs paid by a warm-up behind the main
-menu, bridges and the island memory's writes off the main thread.
+menu, bridges, the island memory's writes and the seabed's chunks off
+the main thread, a sync's islands placed one a frame.
 Built and measured; its live check (`tests/live/checklist.txt`) and the
 user's approval are next. Later
 (user's): a player-facing credits file for C14's Credits, and

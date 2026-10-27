@@ -536,6 +536,8 @@ darker and greyer the deeper it goes. Each island sits on its own
 shallow shelf, which drops away steeply to the sea floor and darkens with
 it, so the two match where they meet. A new session's island rises out of the seabed, and an ended
 one sinks back into it, and you can watch both through the water.
+After a jump far out to sea, the floor fills in around you over a second
+or so, nearest first; the far part is hidden by the haze anyway.
 
 You get out of the water by swimming to a beach and walking up it. You
 can't climb or leap onto the platform or a bridge's railed sides from the

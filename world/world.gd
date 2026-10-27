@@ -266,9 +266,9 @@ func go_to_platform() -> void:
 ## map (W06).
 func teleport(session_id: String) -> void:
 	_teleport_when_risen = ""
-	if _islands.island(session_id) == null:
+	if _islands.island(session_id) == null and not _islands.is_rising(session_id):
 		return
-	if _islands.is_rising(session_id):
+	if _islands.is_rising(session_id): # or still to be placed
 		_teleport_when_risen = session_id
 		return
 	_player.global_position = _islands.arrival_point(session_id)
