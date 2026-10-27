@@ -8,13 +8,13 @@ the design and links here. Nothing here is built yet. Update it when one
 of these is decided or done, and reread it before a release.
 
 - **Anthropic's terms (public release).** *Plan (user's, 2026-10-02):*
-  free and open source (MIT) on GitHub, **paid on Steam** (Principles).
+  free and open source (MIT) on GitHub, **paid on Steam** (NOTES.md → Principles).
   Per Claude Code's legal and compliance docs (rechecked 2026-10-02):
   third parties may not offer claude.ai login, route requests through
   Free/Pro/Max credentials, or collect, store or intermediate Claude
   credentials; this doesn't prevent a user signing in to the
   **unmodified** Claude Code binary with their own subscription. Hence the
-  CLI route (S02): each user installs and signs in to Claude Code
+  CLI route (NOTES.md → S02): each user installs and signs in to Claude Code
   themselves; we never bundle, modify or authenticate it. What this means
   for the paid release:
   - *Commercial Terms:* "preinstalling or running Claude Code in your
@@ -43,7 +43,8 @@ of these is decided or done, and reread it before a release.
     the right one) go by email through the contact-sales form, which the
     legal page names for "questions about permitted authentication
     methods". The channel-flag question (Channels are a research
-    preview, NOTES.md → Watch items) goes as a public issue on anthropics/claude-code,
+    preview, in NOTES.md → Watch items) goes as a public issue on
+    anthropics/claude-code,
     where the channels docs ask for feedback; no terms questions there.
     Other contacts found: support@anthropic.com (account help, not
     rulings), marketing@anthropic.com (permission to use their names or
@@ -53,10 +54,10 @@ of these is decided or done, and reread it before a release.
   runs Claude Code, but may not use the Claude Code or Anthropic names or
   logos in its own name or logo, or suggest Anthropic built or endorses it.
   Other use of their logos needs written permission. This affects the "logo
-  model" agents (A01, A02) in a public release, and the Steam store page:
+  model" agents (NOTES.md → A01, A02) in a public release, and the Steam store page:
   "Requires Claude Code" in plain text is fine; the name, capsule art,
   logo and trailer must not use their names or logos. The agents get
-  the user's own custom models instead (open question 7, 2026-10-12).
+  the user's own custom models instead (NOTES.md → Open questions → 7, 2026-10-12).
 - **Code signing (public release).** macOS blocks apps that aren't signed
   and notarized (Gatekeeper), which needs an Apple Developer account (99
   USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
@@ -65,13 +66,13 @@ of these is decided or done, and reread it before a release.
   The sidecar is a Node binary with our script injected, which breaks
   Node's own signature (Windows: "signature seems corrupted"; macOS: won't
   run until re-signed, which needs a Mac). Release builds should strip it
-  and sign with ours (S01).
+  and sign with ours (NOTES.md → S01).
 - **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
   on Steam while the source stays free on GitHub (depots per OS, updates
   through SteamPipe; the bundled sidecar ships as ordinary game files).
-  Anthropic's side of a paid release is under Anthropic's terms and
-  NOTES.md → Watch items → Channels are a research preview (Anthropic's
-  terms is above). Things to check before
+  Anthropic's side of a paid release is under Anthropic's terms (above)
+  and NOTES.md → Watch items → Channels are a research preview. Things
+  to check before
   relying on it:
   - *Third-party account:* the store page must say "Requires 3rd-Party
     Account": Claude Code with the player's own plan or API key. Saying
