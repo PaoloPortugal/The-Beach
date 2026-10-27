@@ -5703,7 +5703,12 @@ user's). Fish models to replace the shadows.
   tilting back as you charge and up as you reel; the bobber a red ball
   with a white top, upright while it rests, turning as it rolls; the
   line a 1-pixel strip from the rod's tip, straight when taut, sagging
-  with its slack; the splash a flat white ring. Nothing casts shadows.
+  with its slack (`line_points`, 12 pieces); each point between its
+  ends is kept 3 cm above the ground layer (`LINE_LIFT`), found by a ray
+  from where it would be taut down to where it sags, so it lies on land
+  or a deck instead of going through, and a deck above it doesn't lift
+  it. A taut line through a crest isn't caught (the user's live check,
+  2026-10-27; a placeholder like the rod); the splash a flat white ring. Nothing casts shadows.
 - *On screen* (`FishingHud`, `world/fishing/fishing_hud.gd`, drawn in
   code like the hotbar; hidden without the controls): the meter (64 by
   6 px, 26 px under the middle) while charging; a gold "!" just under

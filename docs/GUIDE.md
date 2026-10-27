@@ -622,7 +622,8 @@ line runs out and the bobber drops. You can't cast while swimming.
 the waves. On land (an island, a bridge's deck, the platform) it lands
 and rolls; it's harmless there, but no fish comes to it. Trees, rocks,
 plants and people don't get in its way, only the ground does. The line
-sags when it's slack and runs straight when it's pulled tight.
+sags when it's slack and runs straight when it's pulled tight; slack
+over land, it lies on the ground rather than through it.
 
 **Reeling in.** Hold the left mouse button while the bobber is out to
 reel it in slowly; let go to stop. Reeling drags the bobber toward you
