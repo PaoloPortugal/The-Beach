@@ -492,6 +492,7 @@ You see the world through your character's eyes.
 | Chat: look at the orchestrator from close by | E (Esc closes the chat) |
 | Ride a mountain's zipline: look at its post from close by | E |
 | Take a tool from the hotbar (C15) | 1, 2, … or the mouse wheel |
+| Fish, with the rod in hand (D01) | hold left click, let go to cast; left click on the bite |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -619,7 +620,7 @@ from the rod's tip.
 
 **Fish shadows.** In the clear shallows round the islands you'll see
 dark fish shapes wandering just under the surface. Cast near one and
-that fish comes to your bobber within a second or so.
+that fish starts toward your bobber within a second or so.
 
 **The bite.** Otherwise wait: after a few seconds (4 to 12) a fish
 comes. Its shadow swims up to the bobber and nibbles once or a few
@@ -636,7 +637,7 @@ another tool, opening the chat, a menu, the sessions ring or the map,
 swimming, or riding a zipline reels in. The only thing you lose is the
 fish on the line: there's no bait, streak or record to lose.
 
-**A catch** shows a card near the top of the screen with the fish and
+**A catch** shows a card high on the screen with the fish and
 its size, for example "You caught a Drop-off fish!" and "34 cm", marked
 **New** the first time you catch that species.
 
@@ -650,7 +651,7 @@ on what your agents are doing.
 
 Every catch is kept (each species, how many, the biggest and the first)
 for the collection that comes later. The rod, the bobber, the shadows,
-the meter and the card are placeholders, and it's all silent for now.
+the meter and the card are placeholders.
 
 ## Talking to the orchestrator (C01)
 
