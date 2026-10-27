@@ -5376,12 +5376,21 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
 - *Use button* (decided with D02): left click uses the tool in hand,
   so it casts the rod; E keeps meaning "act on what the crosshair is
   on" (C11).
-- *Loop:* cast, wait for a bite, hook it, then a fight with active
-  reeling: a catch bar like Stardew Valley's. You keep a bar over a fish
-  that darts up and down until a progress meter fills; how hard it
-  fights depends on the species. It was chosen as the most engaging,
-  over cast-and-bite (one press on the real bite: Animal Crossing's and
-  code-town's) and set lines (rods planted and collected later).
+- *Loop:* cast, wait for a bite, hook it. ~~Then a fight with a catch
+  bar like Stardew Valley's~~: dropped (user's, 2026-10-27), as too
+  unoriginal (Stardew Valley's and Webfishing's are the ones the user
+  knows). *For now a fish is caught by hooking it on the real bite*
+  (cast-and-bite): a shadow comes, nibbles, then bites, with a short
+  window; a click in the window catches it, a click on a nibble scares
+  it off. Rejected earlier: set lines (rods planted and collected
+  later).
+- *Casting* (user's, 2026-10-27): hold left click to charge the
+  distance (a small meter fills), release to cast where you look. Left
+  click while waiting reels in, losing nothing. No casting while
+  swimming or onto land.
+- *Species* (user's, 2026-10-27): the user supplies the real list.
+  Until then three placeholders, one each for the shallows, the
+  drop-off and the open sea, in one small table that's easy to edit.
 - *Where:* from any water's edge: a shore, a bridge deck, the platform.
 - *What bites* depends on the world: the biome (W10), the water
   (shallows, the shelf's drop-off, open sea between islands, from W08's
@@ -5393,24 +5402,22 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
 - *Agents:* fishing does not depend on them. The catch depends only on
   the world, never on what agents are doing (rarer fish while agents
   work would reward spending the user's tokens to fish).
-- *Leaving mid-fight:* walking off, opening a chat or reeling in lets
-  that fish go. Nothing else is lost (no bait, no streak, no record), so
-  leaving costs only the fish on the line. Losing the fight costs the
-  same.
-- *A05 during a fight:* your eyes are on the catch bar, so when an agent
-  starts waiting during a fight, A05's count pulses once and sits next to
-  the bar while the fight lasts. No sound in the game (as in A05), and
-  nothing is paused or answered for you. Beacons are unchanged.
-- *The collection:* every catch goes into the shared collection, a
-  feature of its own with bug catching (Deferred ideas → Downtime). What
-  it records (sizes, firsts), rewards and the museum are decided there.
+- *Leaving* (walking off, opening a chat, switching tool) or reeling
+  in lets the fish on the line go. Nothing else is lost (no bait, no
+  streak, no record), so leaving costs only the fish on the line.
+- *A05 during a fight:* moot while there is no fight (user's,
+  2026-10-27). It was: A05's count pulses once and sits next to the
+  catch bar while the fight lasts. Decide again if a fight returns.
+- *The collection* (D03): every catch is recorded now with what D03
+  needs: each species caught, its first catch (when and where), how
+  many, and its biggest fish's size, kept in `user://` (user's,
+  2026-10-27). D03's field guide, which shows them, comes later.
 
-*Open (before building):* casting (hold left click to aim, release to
-cast?); the species list, how many there are and each one's fight; what
-happens to a fish once caught (kept, released, recorded only); the
-placeholder look (simple shapes for the rod, line, bobber and shadows;
-no art assets unless asked for a placeholder); where the catches are
-saved (`user://`); the tests.
+*Open:* a fight of our own, later (user's, 2026-10-27), not a catch bar
+like the games above; a candidate is in-world line tension (the rod
+bends and the line strains, read from the world rather than a bar).
+The real species list (the user's). Fish models to replace the
+shadows.
 
 ### D02 Bug catching
 *Designed (user's, 2026-10-27); not built. Scope: core (world only):*
@@ -6639,7 +6646,7 @@ the user's vision first; others using the MIT code afterwards is fine.
     the moment an agent needs you (A05 is the interrupt) without losing
     progress, never punish you for leaving, and leave the agents in view.
     Confirmed for fishing (D01) with one exception, the user's: leaving
-    mid-fight loses the fish on the line, and nothing else.
+    with a fish on the line loses that fish, and nothing else.
     A parkour timer must pause or be optional. (Settled by D04: leaving
     ends the run with nothing lost, so the timer needs no pause.)
   - *Open:* how between-island courses are laid out next to the bridge
