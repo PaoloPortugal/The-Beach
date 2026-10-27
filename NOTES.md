@@ -472,7 +472,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Watching files.** Follow transcripts by polling their size, not with
   OS file-watch events, which behave differently on each platform.
 - **Fonts.** Don't rely on system fonts being present; ship the fonts the
-  UI needs (the Markdown spike's monospace list is a stand-in). Which
+  UI needs (the chat's monospace list, `MONO_FONTS` in
+  `chat/markdown/markdown_view.gd`, is a stand-in). Which
   fonts is open: most good monospace fonts are under the OFL, not CC0, so
   ask before adding one. The UI font for other scripts is decided:
   Noto Sans (OFL), with a fallback per script, once the first
@@ -528,7 +529,7 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher, a hook relay (S02) and a status line relay (C08). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
-| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
+| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`), dev log and release plans (`release.md`). |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. None left: `claude-cli/` (Node, for S02) deleted 2026-10-22, `markdown/` (Godot, for C03) 2026-10-27; both in git history. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
@@ -5990,8 +5991,8 @@ zipline; the tests.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
-  session logs, tokens or machine-specific paths; spike logs and run files
-  are git-ignored for that reason. Commit author emails are the user's
+  session logs, tokens or machine-specific paths (logs and run files are
+  kept out of git for that reason). Commit author emails are the user's
   normal address, public by choice (dev log 2026-09-29-privacy-check).
 - **License.** The project is MIT (`LICENSE`). Third-party parts keep their
   own licenses: `addons/godot_ai/` (MIT, its own `LICENSE`) and the assets in
