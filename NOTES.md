@@ -5965,6 +5965,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 catching are designed; next to design: the collection. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: D02's design**
+(dev log 2026-10-27-d02-bug-catching-design): stalk and swing with the
+net, crouch to sneak under a noise meter, left click uses the held
+tool. Not built.
 **Merged to `main` (2026-10-27), approved by the user: C15, the hotbar,
 and D01's design** (dev logs 2026-10-27-c15-hotbar and
 2026-10-27-d01-fishing-design): 1 Hands and 2 Rod, picked with the
