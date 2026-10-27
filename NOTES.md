@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing is designed (D01); the rest
-is not yet (see Known issues and next steps → Deferred ideas).
+what the public release waits for. Fishing (D01) and bug catching (D02)
+are designed; the rest is not yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -125,6 +125,7 @@ slice.
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
 | D01 | Fishing                                   | designed | —            | — |
+| D02 | Bug catching                              | designed | —            | — |
 
 ## When a feature lands
 
@@ -5349,6 +5350,9 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
 *Decided (user's, 2026-10-27):*
 - *Needs the hotbar first* (C15): the rod is a tool you hold, picked on
   the hotbar.
+- *Use button* (decided with D02): left click uses the tool in hand,
+  so it casts the rod; E keeps meaning "act on what the crosshair is
+  on" (C11).
 - *Loop:* cast, wait for a bite, hook it, then a fight with active
   reeling: a catch bar like Stardew Valley's. You keep a bar over a fish
   that darts up and down until a progress meter fills; how hard it
@@ -5378,12 +5382,61 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
   feature of its own with bug catching (Deferred ideas → Downtime). What
   it records (sizes, firsts), rewards and the museum are decided there.
 
-*Open (before building):* casting controls (hold to aim, release to
+*Open (before building):* casting (hold left click to aim, release to
 cast?); the species list, how many there are and each one's fight; what
 happens to a fish once caught (kept, released, recorded only); the
 placeholder look (simple shapes for the rod, line, bobber and shadows;
 no art assets unless asked for a placeholder); where the catches are
 saved (`user://`); the tests.
+
+### D02 Bug catching
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):*
+no provider, protocol or sidecar part. The second downtime activity,
+on land where fishing (D01) is on the water. Dev log
+2026-10-27-d02-bug-catching-design.
+
+*Decided (user's, 2026-10-27; my recommendations unless noted):*
+- *The net* is the hotbar's slot 3 (C15). Left click swings it (the
+  use button for every tool, decided here for D01 too).
+- *Loop: stalk and swing.* Bugs sit on props or flit near them, and
+  you can see them. You walk up and swing when one is in reach; a
+  flying one needs aim and timing. About 10-30 s a catch. While you
+  hold the net, the crosshair says "Catch" on a bug in reach, as it
+  says "Talk" on an orchestrator (C11). It was chosen over a hit
+  followed by a timing minigame (the same game as fishing twice) and
+  a chase as the main loop (longer, harder to tune). Its contrast
+  with fishing: there you watch a bar, here you watch the world.
+- *Bugs notice you:* sprinting or landing a jump nearby scares them
+  off, and crouching (W11) lets you creep up. A few rare bugs flee in
+  a short chase when startled (sprint, jump and slide after them),
+  which is parkour practice.
+- *A noise meter* (the user's, like Breath of the Wild's) shows how
+  much noise you make. It shows only while you hold the net, in the
+  bottom-right corner like BotW's (the user's pick, over above the
+  hotbar or round the crosshair), above C08's usage limits. It rises
+  with your noise (still, crouched, walking, sprinting, landing) and
+  shows when a bug nearby would hear you.
+- *The weather covers your noise* (like BotW's ambient sound): the
+  meter shows the world's noise as a floor, and W09's wind and rain
+  raise it, so your steps count for less. That goes with fewer bugs
+  out in the rain.
+- *What's out* depends on the world: the biome and its props (W10:
+  trees, pines, palms, bushes, tropical plants, rocks, cacti, dry
+  shrubs, the shore's shells and starfish), the time of day (some only
+  at night, round the torches, W09) and the weather (most hide in the
+  rain). Never on what agents are doing (as D01).
+- *A miss* means the bug flies off and nothing else is lost (as D01).
+- *The look:* placeholder shapes until there are bug models (the
+  user's or CC0); then the models replace them.
+- *Catches* go into the shared collection (Deferred ideas → Downtime),
+  as fish do.
+
+*Open (before building):* the species list, how many, and where and
+when each lives; the net's reach and swing timing; how loud each
+movement is and how far bugs hear; how a startled rare bug's chase
+runs; the meter's look; whether bugs live on the platform (no props
+today) and on read-only islands (S08); what happens to bugs when
+their island sinks (W04); the tests.
 
 ## Conventions
 
@@ -5908,10 +5961,14 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing is designed;
-next to design: bug catching and the collection. Later
+**Current focus:** the downtime activities. D01 Fishing and D02 Bug
+catching are designed; next to design: the collection. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: D02's design**
+(dev log 2026-10-27-d02-bug-catching-design): stalk and swing with the
+net, crouch to sneak under a noise meter, left click uses the held
+tool. Not built.
 **Merged to `main` (2026-10-27), approved by the user: C15, the hotbar,
 and D01's design** (dev logs 2026-10-27-c15-hotbar and
 2026-10-27-d01-fishing-design): 1 Hands and 2 Rod, picked with the
@@ -6415,8 +6472,9 @@ the user's vision first; others using the MIT code afterwards is fine.
   what the public release waits for; Codex and OpenCode can come after
   the commercial release.
   - *Fishing and bug catching* are the two main ways to pass the time.
-    Fishing is designed as D01 (2026-10-27); its tools are picked on a
-    hotbar (C15, user's: rod now, bug net later).
+    Fishing is designed as D01 and bug catching as D02 (2026-10-27);
+    their tools are picked on the hotbar (C15: the rod built, the bug
+    net to come with D02).
     What you find could depend on the biome (W10), the weather and the
     time of day (W09), and fish on the sea and seabed (W02, W08), which
     gives a reason to visit other islands.
