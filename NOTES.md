@@ -3703,6 +3703,8 @@ empty hands and hidden at the start; 2 takes the rod and shows it; 9
 does nothing; the wheel goes round both ways; it fades out; nothing
 without the controls; 1 puts the rod away. The look can't be judged
 headless: the live check has it.
+*Live check passed (2026-10-27)* with the user on Windows ("looks
+good"). macOS and Linux unchecked.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -5906,12 +5908,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing is designed
-(2026-10-27); C15, a hotbar for its tools, is built on `c15-hotbar`
-(with D01's design) and waits for the user's live check and review.
-Later
+**Current focus:** the downtime activities. D01 Fishing is designed;
+next to design: bug catching and the collection. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: C15, the hotbar,
+and D01's design** (dev logs 2026-10-27-c15-hotbar and
+2026-10-27-d01-fishing-design): 1 Hands and 2 Rod, picked with the
+number keys or the wheel, shown on a switch and fading out; fishing
+designed around a catch-bar fight, not built. Live check passed.
 **Merged to `main` (2026-10-27), approved by the user: island
 smoothing** (W01, W06, W08, W12; dev log 2026-10-27-island-smoothing):
 islands' main-thread work a step a frame, first-time costs paid by a
