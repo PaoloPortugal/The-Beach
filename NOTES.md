@@ -5615,7 +5615,9 @@ and settings files, never the user's): the real world in a window, main
 menu up, vsync off, and six sessions' islands arriving 140 frames apart,
 one per biome. It prints the median, 95th percentile and worst frame,
 the frames round each snapshot and each island's `built`, and every
-frame over 2.5 times the median ("spikes"). Run it on a quiet machine
+frame over 2.5 times the median ("spikes"). Add `--start` for a
+game's start instead: frames from the very first, and six sessions
+taken back by one sync 30 frames in, as a restart brings them. Run it on a quiet machine
 (a busy one gives 200-330 ms frames everywhere) before and after a
 change to islands, props, bridges, agents or the bubble. Not a suite:
 headless Godot draws nothing, and CI machines' timings mean little.
