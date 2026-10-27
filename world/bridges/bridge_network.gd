@@ -21,6 +21,9 @@ var _regions := {}
 var _links: Array[Dictionary] = []
 ## Groups whose trees leave the hubs out → true.
 var _hubless := {}
+## Its bridges are made on a worker thread ([member
+## Bridge.build_in_background]; SessionIslands sets it).
+var build_in_background := false
 
 
 ## Adds a hub: in every group's tree (but hubless ones), never bridged by
@@ -177,6 +180,7 @@ func _link(a: String, b: String, group: String) -> void:
 	var to: Vector3 = rb["edge"].call(ra["centre"])
 	var bridge := Bridge.new(from, to)
 	bridge.name = "Bridge"
+	bridge.build_in_background = build_in_background
 	add_child(bridge, true)
 	_links.append({"a": a, "b": b, "group": group, "bridge": bridge})
 

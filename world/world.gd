@@ -83,6 +83,7 @@ func _ready() -> void:
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
+	add_child(WarmUp.new())
 	fit_draw_distance()
 	# The platform is in every near cluster's bridge tree (W06; a far
 	# cluster's leaves it out, W05).
@@ -265,9 +266,9 @@ func go_to_platform() -> void:
 ## map (W06).
 func teleport(session_id: String) -> void:
 	_teleport_when_risen = ""
-	if _islands.island(session_id) == null:
+	if _islands.island(session_id) == null and not _islands.is_rising(session_id):
 		return
-	if _islands.is_rising(session_id):
+	if _islands.is_rising(session_id): # or still to be placed
 		_teleport_when_risen = session_id
 		return
 	_player.global_position = _islands.arrival_point(session_id)

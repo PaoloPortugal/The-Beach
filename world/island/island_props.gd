@@ -41,6 +41,13 @@ const SOLID := {
 
 static var _meshes := {} # Prop → ArrayMesh, made once
 static var _material: StandardMaterial3D
+static var _warm_task := -1 # warm_up's WorkerThreadPool task, till its meshes are taken
+static var _warm := {} # Prop → its arrays: written by that task only, read once it's done
+# The primitives' arrays, by shape: made on the main thread only (a
+# PrimitiveMesh makes a RenderingServer mesh, which a worker mustn't),
+# read by warm_up's task once all are made.
+static var _shapes := {}
+static var _collecting := false # _arrays only gathers the primitives
 
 ## The props standing: entries as from [method IslandGenerator.prop_spots].
 var spots: Array[Dictionary] = []
@@ -55,16 +62,24 @@ func setup(p_spots: Array[Dictionary]) -> void:
 ## Takes away the props within [param radius] metres (across the ground)
 ## of the segment from [param a] to [param b] (local).
 func clear_near(a: Vector3, b: Vector3, radius: float) -> void:
-	var kept: Array[Dictionary] = []
-	var p := Vector2(a.x, a.z)
-	var q := Vector2(b.x, b.z)
-	for s in spots:
-		var at := Vector2(s["position"].x, s["position"].z)
-		if Geometry2D.get_closest_point_to_segment(at, p, q).distance_to(at) >= radius:
-			kept.append(s)
+	var kept := without_near(spots, a, b, radius)
 	if kept.size() != spots.size():
 		spots = kept
 		_rebuild()
+
+
+## [param p_spots] less those within [param radius] metres (across the
+## ground) of the segment from [param a] to [param b]: to clear spots
+## before [method setup], with no rebuild.
+static func without_near(p_spots: Array[Dictionary], a: Vector3, b: Vector3, radius: float) -> Array[Dictionary]:
+	var kept: Array[Dictionary] = []
+	var p := Vector2(a.x, a.z)
+	var q := Vector2(b.x, b.z)
+	for s in p_spots:
+		var at := Vector2(s["position"].x, s["position"].z)
+		if Geometry2D.get_closest_point_to_segment(at, p, q).distance_to(at) >= radius:
+			kept.append(s)
+	return kept
 
 
 ## Whether a prop stands within [param radius] metres of [param at]
@@ -124,14 +139,57 @@ static func material() -> StandardMaterial3D:
 	return _material
 
 
-## The mesh of a kind of prop, made once.
+## Starts making every kind's mesh on a worker thread (W01: 5-20 ms a
+## kind, which the first island of a biome would otherwise spend at once).
+static func warm_up() -> void:
+	if _warm_task >= 0 or _meshes.size() == Prop.size():
+		return
+	# Its primitives first, here: the task only reads them.
+	_collecting = true
+	for kind: int in Prop.values():
+		_arrays(kind)
+	_collecting = false
+	var into := _warm
+	_warm_task = WorkerThreadPool.add_task(func() -> void:
+		for kind: int in Prop.values():
+			into[kind] = IslandProps._arrays(kind), false, "Prop meshes")
+
+
+## Whether [method warm_up]'s meshes are made (or none are being made).
+static func is_warm() -> bool:
+	return _warm_task < 0 or WorkerThreadPool.is_task_completed(_warm_task)
+
+
+## Waits for [method warm_up]'s task, if any, and takes its meshes
+## (WarmUp calls it as it goes, so a quit never leaves it running).
+static func finish_warm_up() -> void:
+	if _warm_task < 0:
+		return
+	WorkerThreadPool.wait_for_task_completion(_warm_task)
+	_warm_task = -1
+	for k: int in _warm:
+		if not _meshes.has(k):
+			_meshes[k] = _mesh_of(_warm[k])
+	_warm.clear()
+
+
+## The mesh of a kind of prop, made once (waits for [method warm_up]'s,
+## if they're still being made).
 static func mesh(kind: int) -> ArrayMesh:
+	finish_warm_up()
 	if not _meshes.has(kind):
-		_meshes[kind] = _make(kind)
+		_meshes[kind] = _mesh_of(_arrays(kind))
 	return _meshes[kind]
 
 
-static func _make(kind: int) -> ArrayMesh:
+static func _mesh_of(arrays: Array) -> ArrayMesh:
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
+
+
+# A kind's surface, on any thread once its primitives are made (warm_up).
+static func _arrays(kind: int) -> Array:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
@@ -199,40 +257,53 @@ static func _make(kind: int) -> ArrayMesh:
 				_add(st, _box(Vector3(0.22, 0.04, 0.08)), Basis(Vector3.UP, yaw) * Vector3(0.11, 0.02, 0.0), Vector3.ONE, STARFISH_ORANGE, rng, 0.0, 0.0, yaw)
 		Prop.SHELL:
 			_add(st, _sphere(0.1, 0.1, 6, 3), Vector3(0, 0.02, 0), Vector3(1.0, 0.8, 0.8), SHELL_PINK, rng, 0.0)
-	return st.commit()
+	return [] if _collecting else st.commit_to_arrays()
 
 
-static func _cylinder(top: float, bottom: float, height: float, sides: int) -> CylinderMesh:
+static func _cylinder(top: float, bottom: float, height: float, sides: int) -> Array:
+	var key := ["cylinder", top, bottom, height, sides]
+	if _shapes.has(key):
+		return _shapes[key]
 	var m := CylinderMesh.new()
 	m.top_radius = top
 	m.bottom_radius = bottom
 	m.height = height
 	m.radial_segments = sides
 	m.rings = 0
-	return m
+	_shapes[key] = m.get_mesh_arrays()
+	return _shapes[key]
 
 
-static func _box(size: Vector3) -> BoxMesh:
+static func _box(size: Vector3) -> Array:
+	var key := ["box", size]
+	if _shapes.has(key):
+		return _shapes[key]
 	var m := BoxMesh.new()
 	m.size = size
-	return m
+	_shapes[key] = m.get_mesh_arrays()
+	return _shapes[key]
 
 
-static func _sphere(radius: float, height: float, sides: int, rings: int) -> SphereMesh:
+static func _sphere(radius: float, height: float, sides: int, rings: int) -> Array:
+	var key := ["sphere", radius, height, sides, rings]
+	if _shapes.has(key):
+		return _shapes[key]
 	var m := SphereMesh.new()
 	m.radius = radius
 	m.height = height
 	m.radial_segments = sides
 	m.rings = rings
-	return m
+	_shapes[key] = m.get_mesh_arrays()
+	return _shapes[key]
 
 
-# Adds [param primitive]'s triangles, scaled by [param size], turned
+# Adds the triangles of a primitive's [param arrays], scaled by [param size], turned
 # [param roll] about z, then [param yaw] about y, and moved to [param at], in one colour with flat
 # normals. [param jitter] moves its vertices up to that much, the same for
 # vertices in the same place, so it stays closed.
-static func _add(st: SurfaceTool, primitive: PrimitiveMesh, at: Vector3, size: Vector3, colour: Color, rng: RandomNumberGenerator, jitter: float, roll := 0.0, yaw := 0.0) -> void:
-	var arrays := primitive.get_mesh_arrays()
+static func _add(st: SurfaceTool, arrays: Array, at: Vector3, size: Vector3, colour: Color, rng: RandomNumberGenerator, jitter: float, roll := 0.0, yaw := 0.0) -> void:
+	if _collecting:
+		return
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
 	var xform := Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.BACK, roll).scaled(size), at)

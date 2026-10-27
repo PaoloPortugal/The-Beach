@@ -83,7 +83,7 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd` |
+| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd`, `world/warm_up.gd` |
 | W02 | Ocean (v1)                                | built   | W01, W02, W04 | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
@@ -525,7 +525,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -1015,6 +1015,48 @@ The water level is y = 0.
   `height_at` works and `surface_height` falls back to it. Islands made
   outside `SessionIslands` (W01 and W10 tests) make their ground at once, on
   the main thread.
+- *Smoothing* (user's ask, 2026-10-26: islands arriving still hitched;
+  dev log 2026-10-27-island-smoothing). What's left for the main thread
+  goes in a step a frame (`_finish_steps`: the ground, the collision's
+  faces, the collision, the props, the torches, the rest; 2-8 ms each,
+  18-30 ms all at once). Every island's ground shares one material
+  (`Island.ground_material`). The torches' spots are cleared of props
+  before the props are built (`IslandProps.without_near`), so they're
+  built once. An island freed before its props step frees them itself.
+  *The warm-up* (`WarmUp`, `world/warm_up.gd`, added by `world.gd`
+  behind the main menu) pays the first-time costs once: every prop
+  kind's mesh is made on a worker (`IslandProps.warm_up`; 5-20 ms a
+  kind, which a biome's first island paid at once; the primitives they're
+  made from are made first, on the main thread, since a `PrimitiveMesh`
+  makes a RenderingServer mesh; it's waited for if the game quits
+  meanwhile), then one of each
+  prop, the ground's material, an orchestrator, a torch and a message
+  bubble with some text go in out of sight (`SessionIslands.BUILDING_Y`)
+  for 3 frames. Their materials are kept for good (a
+  `StandardMaterial3D`'s shader is freed with the last material using
+  it, so the first island paid the shader builds again otherwise), and
+  a second world (the suites) skips it. The island memory (W12) and
+  bridges (W06) are written and made off the main thread too. Measured
+  in a window behind the menu (`tests/live/timing/time_world.gd`):
+  median 9.7 ms, the worst frame 21 ms, none over 2.5 times the median;
+  before, the first island's frame was 75 ms and a biome's first props
+  16-100 ms.
+  *A game's start* (user's report, 2026-10-27: rough for the first few
+  seconds; `time_world.gd --start`). Three causes, measured: the
+  seabed's chunks made on the main thread (W08, now on a worker:
+  frames 2-30 went from 25-33 ms to about 16); the sync placing every
+  taken-back island in one frame (about 9 ms each, a 51 ms frame for
+  six; now one a frame, in their saved order, W12: about 17 ms); and
+  the GPU clocking up. That last is the machine's, not the game's: a
+  fixed full-screen load with nothing of the game's runs at 7.3 ms a
+  frame for about 4.5 s, then at 2.8 ms (the developer's AMD integrated
+  GPU), and the world's GPU time falls from 15-20 ms to 7-9 ms the same
+  way, every part of it alike. Not shader compiles: Godot's counters
+  show every pipeline made in the first frame and only 3 small
+  specializations after. Left: the world's first frame (about 280 ms:
+  everything's `_ready`, then the first draw and its pipelines) and one
+  30-45 ms frame a few frames in, spent drawing (probably the warm-up's
+  first draw; not pinned down).
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1409,6 +1451,15 @@ and the real layout (user's, 2026-10-02; W07).
   made of is the placeholder; the segments stay when bridges become art.
   The collision is unchanged (one shape for the whole bridge). Far
   versions are hidden past the fog, like the islands.
+- *Made off the main thread* (W01's smoothing, 2026-10-27: about 0.5 ms
+  a metre, 51 ms for a 102 m bridge). Sessions' bridges
+  (`BridgeNetwork.build_in_background`, set by `SessionIslands`, passed
+  to each `Bridge`) make their meshes' arrays and collision faces on a
+  `WorkerThreadPool` task, on a stand-in bridge of their own out of the
+  tree, then add them on the main thread: a bridge appears a few frames
+  after its island is up (`built`, `is_built`). `carries` works before.
+  Freed meanwhile, it waits for its task. Bridges made outside
+  `SessionIslands` (the W06 tests' own) are made at once.
 - *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
   under `SessionIslands`): regions are keys with a centre, a reach and an
   edge (a Callable giving where a bridge heading for a point meets the
@@ -1701,7 +1752,14 @@ chosen as offered):*
   Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
   with matching collision, from the camera out to 420 m (past the fog)
-  and dropped past 548 m; at most 6 chunks a frame, nearest first. Flat
+  and dropped past 548 m. Chunks are made on a worker thread, nearest
+  first, 6 to a task and one task at a time (`BATCH`; a chunk's heights,
+  mesh arrays and collision faces, about 2 ms each), and the main thread
+  adds at most 2 a frame (`ADDS_PER_FRAME`, about 1 ms each); one made
+  for a spot the camera has since left far behind is dropped. Before
+  (W01 → Smoothing, 2026-10-27) they were made on the main thread, 6 a
+  frame at about 4 ms each: the game's first half second, and any
+  teleport out to sea, ran at 25-30 ms frames. Flat
   shaded, no shadows cast. Coloured by depth (`colour`): sand to -10 m,
   blending to a greyer mid colour at -19 m and to the deep colour at
   -28 m.
@@ -2098,7 +2156,9 @@ a random biome and seed, in whatever order the snapshots arrived.
   wedges too (rejected: every island and cluster keeping its exact
   spot, holes left for new sessions to fill).
 - **Bridges are rebuilt**, not saved: the islands are added in their
-  saved order, each bridged to its nearest (W06), which is usually the
+  saved order, one a frame (W01 → Smoothing; a session started
+  meanwhile waits behind them, one ended first never comes), each
+  bridged to its nearest (W06), which is usually the
   same tree (rejected: saving each bridge's ends; a tree patched after
   a sinking can come back different).
 - Only for sessions that come back (S07) or are found running again
@@ -2153,6 +2213,16 @@ saved goes confirmed by the user, 2026-10-22).
   crash never leaves half a file (on Windows, where the rename removes
   the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
   back are dropped at the next sync.
+- *Written off the main thread* (W01's smoothing, 2026-10-27: 7-9 ms a
+  write on Windows, one as each island arrives). One worker task writes
+  the newest text and loops while a newer one is waiting (a mutex guards
+  it), so writes never overlap and only the latest is kept. Reading
+  (`load_file`) and switching to another file wait for it, and
+  `SessionIslands` waits for it as it leaves the tree
+  (`IslandMemory.flush`), so quitting never loses a write. A crash (not
+  a quit) can lose the newest one, made in the last few ms: that
+  island comes back as new, or a forgotten entry comes back (security
+  review, 2026-10-27).
 - *Coming back:* islands of sessions taken back wait for the first
   sync to finish (behind the main menu, C14; under S07's loading cover before). Then those with an
   entry are placed, cluster by cluster in saved slot order, each
@@ -5563,6 +5633,21 @@ steps (user's, 2026-10-12): replace them for the next one, and empty it
 once the check passes. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
+**Frame timing (dev tool, W01;** kept by the user, 2026-10-27**).**
+`godot --path . -s res://tests/live/timing/time_world.gd --
+--sidecar-dev-fake` (it refuses to run without the flag; its own islands
+and settings files, never the user's): the real world in a window, main
+menu up, vsync off, and six sessions' islands arriving 140 frames apart,
+one per biome. It prints the median, 95th percentile and worst frame,
+the frames round each snapshot and each island's `built`, and every
+frame over 2.5 times the median ("spikes"). Add `--start` for a
+game's start instead: frames from the very first, and six sessions
+taken back by one sync 30 frames in, as a restart brings them. Run it on a quiet machine
+(a busy one gives 200-330 ms frames everywhere) before and after a
+change to islands, props, bridges, agents or the bubble. Not a suite:
+headless Godot draws nothing, and CI machines' timings mean little.
+Last measured: W01 → Smoothing.
+
 **Ring demo (dev tool, W07;** user's request, 2026-10-12**).**
 `godot --path . res://tests/live/ring_demo.tscn -- --sidecar-dev-fake
 --checklist`: the world with the fake provider and 12 sessions started
@@ -5721,9 +5806,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none set; the user picks what's next. Later
+**Current focus:** none chosen yet. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: island
+smoothing** (W01, W06, W08, W12; dev log 2026-10-27-island-smoothing):
+islands' main-thread work a step a frame, first-time costs paid by a
+warm-up behind the main menu, bridges, the island memory's writes and
+the seabed's chunks off the main thread, a sync's islands placed one a
+frame. Live check passed with the user; the soft first seconds left
+are the GPU clocking up (Watch items).
 **Merged to `main` (2026-10-26), approved by the user: C14, a main
 menu** (dev log 2026-10-26-c14-main-menu): the game opens on Play,
 Settings, Credits and Quit over the live world, a camera circling the
@@ -6322,6 +6414,19 @@ Ideas weighed and turned down. Each says what would reopen it.
 
 ### Watch items
 
+- **A soft first few seconds at start** (W01; measured 2026-10-27, left
+  as it is with the user: further work isn't worth it). On the
+  developer's AMD integrated GPU the GPU takes about 4.5 s of load to
+  clock up, so the world's frames are 15-20 ms then 7-9 ms; the
+  machine's, not the game's (W01 → Smoothing). The world's first frame
+  is about 280 ms, and one frame a few in is 30-47 ms, spent drawing.
+  Measure again with `time_world.gd --start` (Running it → Frame
+  timing) if a start feels rough on another machine, before
+  optimizing.
+- **`bridges_test`'s "no bridge over another island's land"** (W06;
+  failed once in six runs, 2026-10-27, not since). Likely a random
+  layout case that `main` has too; unproven. If it fails again, keep
+  the layout's seed and look.
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
   not yet seen in a game session). The Claude desktop app pauses a
   flagged chat ("Session paused", with retry or switch model); how

@@ -1105,6 +1105,35 @@ func _swimming(world: Node3D, player: Player) -> void:
 	var env: Environment = (world.get_node("WorldEnvironment") as WorldEnvironment).environment
 	var seabed: Seabed = world.get_node("Seabed")
 	_check(seabed.chunk_count() > 0, "the seabed is built around you")
+	# Its chunks are made on a worker thread and go in a couple a frame:
+	# after a jump far out to sea, the floor fills in round you.
+	var was := player.global_position
+	player.global_position = Vector3(3000, 5, -2000)
+	player.velocity = Vector3.ZERO
+	var camera := player.get_viewport().get_camera_3d()
+	var most := 0
+	var deadline := Time.get_ticks_msec() + 15000
+	while Time.get_ticks_msec() < deadline:
+		var before := seabed.chunk_count()
+		await process_frame
+		most = maxi(most, seabed.chunk_count() - before)
+		player.global_position = Vector3(3000, 5, -2000)
+		player.velocity = Vector3.ZERO
+		if seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty():
+			break
+	var under := seabed.get_node_or_null("Chunk_%d_%d" % [floori(3000 / Seabed.CHUNK), floori(-2000 / Seabed.CHUNK)])
+	_check(seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and under != null, "far out, the floor fills in round you (%d chunks)" % seabed.chunk_count())
+	_check(most <= Seabed.ADDS_PER_FRAME, "at most %d chunks go in a frame (%d)" % [Seabed.ADDS_PER_FRAME, most])
+	var fits := under != null
+	if under:
+		for v: Vector3 in ((under.get_child(0) as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			fits = fits and is_equal_approx(v.y, Seabed.height_at(v.x, v.z))
+	await physics_frame
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(3001, 0, -1999), Vector3(3001, -60, -1999)))
+	_check(fits and not hit.is_empty() and absf(hit["position"].y - Seabed.height_at(3001, -1999)) < 2.0, "a chunk made on the worker has the floor's shape and collision")
+	player.global_position = was
+	player.velocity = Vector3.ZERO
+	await _until(func() -> bool: return seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty(), 15.0)
 	_check(Seabed.height_at(0, 0) == Seabed.PLATFORM_FLOOR and Seabed.height_at(5000, 300) <= Seabed.SHALLOWEST and Seabed.height_at(5000, 300) >= Seabed.DEEPEST, "shallow by the platform, deeper out at sea")
 	# Out at sea it stays between SHALLOWEST and DEEPEST (sunk islands and
 	# bridge posts count on it) but uses that range: banks, deeps, mounds.
@@ -1657,11 +1686,20 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var chat: ChatController = world.get_node("ChatController")
 	var at := player.global_position
 	store.apply({"type": "session.snapshot", "session": _snapshot("h1")})
-	store.apply({"type": "session.snapshot", "session": _snapshot("h2")})
 	var island := islands.island("h1")
 	_check(island != null and not island.is_built() and island.position.y == SessionIslands.BUILDING_Y and islands.is_rising("h1"), "C14: its ground is made on a worker thread, the island out of sight meanwhile")
 	await _until(func() -> bool: return island.is_built(), 5.0)
 	_check(island.is_built() and island.position.y < -1.0 and islands.is_rising("h1"), "C14: then a session already running's island rises too")
+	# h2 only now: islands made at once finish in any order, and the first
+	# up gets the bridge to the platform (checked below).
+	store.apply({"type": "session.snapshot", "session": _snapshot("h2")})
+	var early := Island.new()
+	early.build_in_background = true
+	early.position.y = -500.0 # out of the way
+	world.add_child(early)
+	var early_props := early.props
+	early.free()
+	_check(not is_instance_valid(early_props), "W01: an island freed before its props went in frees them too")
 	await _islands_up(islands)
 	var orchestrator := islands.orchestrator("h1")
 	_check(island != null and islands.island("h2") != null, "an island per session")
@@ -1931,6 +1969,9 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var beacon: AttentionBeacon = h3.get_node("NewBeacon")
 	_check(Array(islands.unvisited()) == ["h3"] and beacon.is_on(), "a beacon stands over it until you've been there")
 	var pointers: NewIslandPointers = world.pointers
+	# Built (its main-thread part takes a few frames, W01): from then on it
+	# rises from where you'd see it.
+	await _until(h3.is_built, 5.0)
 	var to_h3 := h3.global_position - player.global_position
 	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
 	# The arrows follow the camera in _process: wait for process frames, not
