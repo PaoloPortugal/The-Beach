@@ -18,8 +18,10 @@ again for the torches.
 sends six sessions' snapshots, one biome each, 140 frames apart, then
 prints the median, the 95th percentile, the worst frame, the frames
 round each snapshot and each island's `built`, and every frame over 2.5
-times the median. `time_finish.gd` times an island's main-thread steps
-alone. During the work they carried temporary prints (each step, each
+times the median. A second script, `time_finish.gd`, timed an island's
+main-thread steps alone; it was deleted before landing, as `time_world`
+covers it (user's choice, 2026-10-27: `time_world` kept as a dev tool,
+the only automated eye on smoothness). During the work they carried temporary prints (each step, each
 part of `SessionIslands._place`, the render's CPU and GPU time, where
 in the frame the time went); those are gone. Runs on a busy machine
 gave 200-330 ms frames everywhere and were thrown away.
