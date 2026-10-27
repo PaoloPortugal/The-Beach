@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing (D01) and bug catching (D02)
-are designed; the rest is not yet (see Known issues and next steps → Deferred ideas).
+what the public release waits for. Fishing (D01), bug catching (D02)
+and the collection (D03) are designed; the rest is not yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -126,6 +126,7 @@ slice.
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
 | D01 | Fishing                                   | designed | —            | — |
 | D02 | Bug catching                              | designed | —            | — |
+| D03 | Collection (field guide)                  | designed | —            | — |
 
 ## When a feature lands
 
@@ -5438,6 +5439,46 @@ runs; the meter's look; whether bugs live on the platform (no props
 today) and on read-only islands (S08); what happens to bugs when
 their island sinks (W04); the tests.
 
+### D03 Collection
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):*
+no provider, protocol or sidecar part. What fishing (D01) and bug
+catching (D02) fill: a field guide now, and the hub as the museum once
+the hub is built. Dev log 2026-10-27-d03-collection-design.
+
+*Decided (user's, 2026-10-27; my recommendations unless noted):*
+- *A field guide now, the museum later* (recommended): a log you open
+  with a key, built with D01 and D02. The museum comes with the hub
+  (Deferred ideas → The hub).
+- *A catch disappears into the collection* (the user's): as if bagged,
+  but with no item to carry. It shows up in the log and goes to the
+  museum on its own, with no trip to hand it in. The hotbar stays tools
+  only (C15).
+- *The museum is the hub itself* (the user's): a central island with an
+  area for each biome. Each species you catch then lives in its biome's
+  area and roams freely there (the user's pick over a fixed spot per
+  species). At first the hub is empty, and it fills little by little
+  as the collection does. Filling it is the reward.
+- *The hub's creatures act as in the wild* (the user's pick over always
+  out): fireflies only at night, most bugs hidden in the rain, the time
+  and weather as on any island (W09).
+- *Nothing can be caught at the hub* (recommended): only your
+  collection lives there, and it can't be caught again. All catching is
+  on session islands and the sea, which gives a reason to go out.
+- *Entries: hints and records* (recommended). A species not yet caught
+  shows as a silhouette with a hint of where and when it lives (biome,
+  time of day, weather). A caught one shows its first catch (when and
+  where), and fish also keep their biggest size.
+- *Kept between runs* in the game's per-user folder (`user://`). It
+  never depends on agents or sessions, so ending a session loses
+  nothing.
+
+*Open (before building):* the key that opens the field guide; its look
+and layout; whether catching a species again (for a bigger fish) adds
+another to the hub or only updates the record; how many creatures of
+each species the hub shows; the save format. The hub itself (its size,
+how its biome areas are laid out, how it replaces the platform) is
+designed with the hub.
+
 ## Conventions
 
 - **A new feature** first gets its provider scope decided (core, capability
@@ -5961,8 +6002,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing and D02 Bug
-catching are designed; next to design: the collection. Later
+**Current focus:** the downtime activities. D01 Fishing, D02 Bug
+catching and D03 Collection are designed; next to design: the hub or
+parkour. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: D02's design**
@@ -6479,7 +6521,8 @@ the user's vision first; others using the MIT code afterwards is fine.
     time of day (W09), and fish on the sea and seabed (W02, W08), which
     gives a reason to visit other islands.
   - *A collection*: a log of what you've caught, ideally a museum like
-    Animal Crossing's.
+    Animal Crossing's. Designed as D03 (2026-10-27): a field guide now,
+    and the hub as the museum, filling with what you catch.
   - *Parkour courses*, two kinds side by side: a course you spawn at the
     hub (the platform) and swap for another, and short courses between
     islands as an alternative to bridges (W06). Builds on W11.
@@ -6490,9 +6533,10 @@ the user's vision first; others using the MIT code afterwards is fine.
     Confirmed for fishing (D01) with one exception, the user's: leaving
     mid-fight loses the fish on the line, and nothing else.
     A parkour timer must pause or be optional.
-  - *Open:* what catching unlocks, if anything (decorations, island
-    looks); where the museum stands; how between-island courses are laid
-    out next to the bridge tree; whether there's a reward loop at all.
+  - *Open:* how between-island courses are laid out next to the bridge
+    tree. *Answered by D03 (user's, 2026-10-27):* catching unlocks no
+    decorations or looks; the museum is the hub, and filling it is the
+    reward loop.
 - **The hub** (user's, 2026-10-12): a designed place that replaces the
   platform once it holds the downtime activities, a base you come back to
   rather than only where you spawn.
@@ -6512,6 +6556,13 @@ the user's vision first; others using the MIT code afterwards is fine.
     the hub itself becomes the long-term reward. A first guess, not a
     decision: a small, cozy hub island that grows a little with the
     collection.
+  - *Decided with D03 (user's, 2026-10-27):* the hub is a central
+    island with an area for each biome, and it is the museum. The fish
+    and bugs you catch live there, roaming their biome's area and
+    following the time and weather as in the wild. It starts empty and
+    fills as you catch; nothing can be caught there. Still open: its
+    size, how the areas are laid out, and whether it grows in size too
+    or only fills up.
 - **Commands from the world** (probably a capability). Skills and custom
   commands could be sent through as requests, since Claude can run most
   skills itself (not guaranteed; skills marked user-only won't run that
