@@ -5608,6 +5608,19 @@ steps (user's, 2026-10-12): replace them for the next one, and empty it
 once the check passes. `world.gd` adds the overlay
 (`tests/live/checklist.tscn`) only with that flag.
 
+**Frame timing (dev tool, W01;** kept by the user, 2026-10-27**).**
+`godot --path . -s res://tests/live/timing/time_world.gd --
+--sidecar-dev-fake` (it refuses to run without the flag; its own islands
+and settings files, never the user's): the real world in a window, main
+menu up, vsync off, and six sessions' islands arriving 140 frames apart,
+one per biome. It prints the median, 95th percentile and worst frame,
+the frames round each snapshot and each island's `built`, and every
+frame over 2.5 times the median ("spikes"). Run it on a quiet machine
+(a busy one gives 200-330 ms frames everywhere) before and after a
+change to islands, props, bridges, agents or the bubble. Not a suite:
+headless Godot draws nothing, and CI machines' timings mean little.
+Last measured: W01 → Smoothing.
+
 **Ring demo (dev tool, W07;** user's request, 2026-10-12**).**
 `godot --path . res://tests/live/ring_demo.tscn -- --sidecar-dev-fake
 --checklist`: the world with the fake provider and 12 sessions started

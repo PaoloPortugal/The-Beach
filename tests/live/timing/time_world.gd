@@ -1,6 +1,7 @@
 extends SceneTree
 # Frame times in the real world scene (main menu up) as sessions' islands
-# arrive. Run with -- --sidecar-dev-fake. Never the user's files.
+# arrive (W01; NOTES → Running it → Frame timing). Run with
+# -- --sidecar-dev-fake. Never the user's files.
 
 const SNAP := {
 	"seq": 1, "provider": "fake", "native_id": null, "origin": "app",
