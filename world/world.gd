@@ -10,7 +10,7 @@ extends Node3D
 ## turns to night and back, and the weather changes (W09). Esc opens the
 ## pause menu (C13), which opens the settings menu (C10), whose settings
 ## this applies, and quits through the quit guard. The crosshair picks
-## what E acts on (C11). The game opens on the main menu (C14), over the
+## what E acts on (C11), the hotbar the tool in hand (C15). The game opens on the main menu (C14), over the
 ## world as the sidecar takes back the sessions still running from before
 ## a restart (S07); Play takes the player in, the pause menu back out.
 
@@ -46,6 +46,8 @@ var pause_menu := PauseMenu.new()
 var settings_menu := SettingsMenu.new()
 ## The crosshair, and what E acts on (C11).
 var crosshair := Crosshair.new()
+## The tools you carry, picked with the number keys or the wheel (C15).
+var hotbar := Hotbar.new()
 ## The game's start, and the pause menu's Main menu (C14), with the camera
 ## that circles the islands behind it.
 var main_menu := MainMenu.new()
@@ -106,6 +108,9 @@ func _ready() -> void:
 	crosshair.name = "Crosshair"
 	crosshair.player = _player
 	add_child(crosshair)
+	hotbar.name = "Hotbar"
+	hotbar.player = _player
+	add_child(hotbar)
 	add_child(world_map)
 	world_map.setup(_islands, _player, store, minimap)
 	world_map.go_to.connect(teleport)
