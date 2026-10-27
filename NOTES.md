@@ -126,7 +126,7 @@ slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
-| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/`, `world/ocean/ocean.gd` (height_at), `world/world.gd`, `project.godot` (input) |
+| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/`, `world/ocean/ocean.gd` (height_at), `world/world.gd`, `project.godot` (input, the ground layer); the ground layer in `world/island/island.gd`, `world/bridges/bridge.gd`, `world/seabed/seabed.gd`, `world/platform/spawn_platform.tscn` |
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
 | D04 | Parkour courses                           | designed | —            | — |
@@ -3854,9 +3854,9 @@ the tests, auto-translate off on content; (2) the menus; (3) the drawn
 HUDs; (4) the chat panel's chrome; (5) D01's text once D01 is merged
 (the species names in `FishSpecies.SPECIES` under `"fish"`; the catch
 card's line, today "You caught a/an {species}!" with the article
-picked in code, its "{n} cm" and "New"; and the HUD's lines "Can't
-cast onto land", "Too soon: it swam off" and "It got away", all in
-`world/fishing/`); (6) codes for the sidecar's
+picked in code, its "{n} cm" and "New"; and the HUD's lines "Too
+soon: it swam off" and "It got away", all in `world/fishing/`; the
+bite's "!" needs none); (6) codes for the sidecar's
 free-form messages; (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
@@ -5498,8 +5498,8 @@ the setting sent again once synced after a change lost while
 reconnecting).
 
 ### D01 Fishing
-*Built (2026-10-27, look placeholder); round 2 decided after the live
-check, not built yet (below). Scope: core (world only):* no
+*Built (2026-10-27; round 2 after the user's live check the same day;
+look placeholder). Scope: core (world only):* no
 provider, protocol or sidecar part; it never reads sessions or agents.
 The first downtime activity (Concept → Downtime): something to do while
 agents work, dropped the moment one needs you. Dev logs
@@ -5520,9 +5520,27 @@ agents work, dropped the moment one needs you. Dev logs
   it off. Rejected earlier: set lines (rods planted and collected
   later).
 - *Casting* (user's, 2026-10-27): hold left click to charge the
-  distance (a small meter fills), release to cast where you look. Left
-  click while waiting reels in, losing nothing. No casting while
-  swimming or onto land.
+  distance (a small meter fills), release to cast where you look. No
+  casting while swimming. ~~No casting onto land~~: reversed after the
+  live check (below).
+- *Round 2* (user's, 2026-10-27, after the live check, which found
+  round 1 "fine as a placeholder"; the numbers in "How it works" are
+  my picks):
+  - *The bobber is a real ball on the line*, thrown by the cast; it
+    floats on the water, and on land it rolls as you reel it in.
+  - *Minimal collisions on land:* "it's not the focus of fishing", so
+    the bobber hits only the ground, never props, agents or you.
+  - *Casting onto land is allowed, with no effect:* nothing comes to a
+    bobber on land.
+  - *Hold the click to reel in slowly*, letting go to stop. (It was: a
+    click while waiting reels in at once.)
+  - *You can move a bit while the line is out*, instead of walking off
+    reeling in.
+  - *The windows felt too tight:* the bite's window is longer. The
+    nibbles stay as they are: you wait for the bite.
+  - *A clearer sign of when to click* (the bite).
+  - *The rod in the same place at any field of view* (it sat too near
+    the middle at a wide one: a bug).
 - *Species* (user's, 2026-10-27): the user supplies the real list.
   Until then three placeholders, one each for the shallows, the
   drop-off and the open sea, in one small table that's easy to edit.
@@ -5537,12 +5555,12 @@ agents work, dropped the moment one needs you. Dev logs
 - *Agents:* fishing does not depend on them. The catch depends only on
   the world, never on what agents are doing (rarer fish while agents
   work would reward spending the user's tokens to fish).
-- *Leaving* (walking off, opening a chat, switching tool) or reeling
-  in lets the fish on the line go. Nothing else is lost (no bait, no
+- *Leaving* (opening a chat, switching tool, swimming) or reeling in
+  lets the fish on the line go. Nothing else is lost (no bait, no
   streak, no record), so leaving costs only the fish on the line.
 - *A05 during a fight:* moot while there is no fight (user's,
   2026-10-27). It was: A05's count pulses once and sits next to the
-  catch bar while the fight lasts. Decide again if a fight returns.
+  catch bar while the fight lasts. Decide again with the fight.
 - *The collection* (D03): every catch is recorded now with what D03
   needs: each species caught, its first catch (when and where), how
   many, and its biggest fish's size, kept in `user://` (user's,
@@ -5553,137 +5571,110 @@ after the live check), not a catch bar like the games above. The
 user's idea: once hooked, you keep the click held to reel the fish in
 slowly, the fish pulls one way and another, and you move the mouse
 against its pull while holding; read from the world (the line's
-angle and strain, the rod bending), not a bar. To design: how a fish
-is lost (the line snapping, or slipping off), how long a fight lasts,
-how species differ, and A05 during a fight. The real species list
-(the user's). Fish models to replace the shadows.
-
-**Round 2** (*decided with the user, 2026-10-27, after the live check;
-not built yet:* the live check found it "fine as a placeholder", with
-the changes below; "How it works" still describes round 1 until these
-land, then they are folded in. Numbers are my picks):
-- *The bobber is a real ball on the line* (user's): a small physics
-  body (`RigidBody3D`, a 7 cm sphere) tied to the rod's tip by a line
-  of a set length. It floats on the waves (a buoyancy force from
-  `Ocean.height_at`, damped), rolls and bounces on land, and the line
-  pulls it when taut. The line sags while slack and runs straight
-  when taut, so its tension shows in the world (the fight reads it
-  next round).
-- *Minimal collisions on land* (user's): it isn't the focus of
-  fishing. The bobber collides only with the ground (islands, the sea
-  floor), the bridges' decks and the platform; props (trees, rocks,
-  plants), agents and the player pass through. For that the ground's
-  bodies (`Island`, `Bridge`, the sea floor's chunks, the platform)
-  are also put on a second collision layer, "ground" (layer 3, named
-  in `project.godot`), and the bobber collides with that layer only.
-  Everything stays on layer 1 as now, so the player, the crosshair's
-  line of sight (C11) and every ray are unchanged. Rejected: moving
-  the props and agents to a layer of their own (the crosshair would
-  then see through trees and rocks unless every ray were changed).
-  Snagged while reeling (moving less than
-  5 cm in 0.5 s with the line taut), it hops up and over.
-- *Casting is a throw:* hold to charge as now, release to throw the
-  bobber along where you look, a little upward; a fuller charge throws
-  harder, a tap about 4 m and a full charge about 22 m over flat water
-  at eye level. The line pays out as it flies. Aiming at a shadow is
-  less exact than round 1's, so `AIM_RADIUS` (4 m) stays.
-- *Casting onto land is allowed, with no effect* (user's, reversing
-  round 1's "no casting onto land"): the bobber lands, rolls and rests,
-  and nothing ever comes to it there. "Can't cast onto land" goes.
-- *Hold to reel in slowly* (user's): holding the click while the
-  bobber is out shortens the line, 4 m/s, dragging it back over water
-  or rolling it over land; letting go stops it. It's back once within
-  1.5 m of the rod's tip. A fish comes only to a bobber resting in the
-  water, not while it's being reeled, so a bobber reeled off land into
-  the water starts the wait there. On the bite a click still catches
-  the fish at once, as in round 1 (the fight is next round); clicking
-  on the approach or a nibble still scares it off.
-- *Moving while the line is out* (user's): you can walk, and the line
-  pays out up to 30 m (`MAX_LINE`); past that it drags the bobber after
-  you, and a dragged bobber scares off the fish on the line.
-  Swimming, riding a zipline, another tool, the chat, a menu, the
-  sessions ring and the map still reel in at once, costing only the
-  fish on the line.
-- *Looser windows* (user's, "too tight"): the bite window from 0.9 s to
-  1.5 s.
-- *A clearer bite* (user's): the bobber plunges further (0.3 to
-  0.45 m), a splash ring spreads on the water, and a small "!" shows
-  under the crosshair while the bite lasts.
-- *The rod in the same place at any field of view* (a bug: the grip
-  was a fixed point in front of the camera, so at C10's widest, 110°,
-  the rod sat too near the middle): the grip is worked out from the
-  camera's field of view each frame, so it stays bottom right.
-- *Tests* to change with it: the cast's reach over flat water (a tap
-  and a full charge); a cast onto the platform's deck lands there and
-  nothing comes; holding reels in and letting go stops it; the bobber
-  floats on the waves, and rests on land; props don't stop it, the
-  ground does; walking within `MAX_LINE` keeps the line out, past it
-  drags the bobber and the fish swims off; the rod's tip on screen,
-  bottom right, at 60° and 110°; the 1.5 s window; the "!" on the bite.
+angle and strain, the rod bending), not a bar. Round 2's line, with
+its length and tension, is built for it. To design: how a fish is lost
+(the line snapping, or slipping off), how long a fight lasts, how
+species differ, and A05 during a fight. The real species list (the
+user's). Fish models to replace the shadows.
 
 **How it works** (distances, timings, sizes and the look my picks).
 - `Fishing` (`world/fishing/fishing.gd`, a `Node3D` at the world's
   origin, made by `world.gd` with the player, the hotbar, the islands,
   `DayNight`, `Weather` and the `Ocean`). A state machine: idle,
-  charging, casting, waiting, approach, nibble, bite.
+  charging, casting (flying), out (on land, rolling, reeled or
+  dragged: nothing comes), waiting, approach, nibble, bite.
 - *Input:* the new action `use` (left mouse button), read in
   `_unhandled_input` only while `player.controls_enabled` and the rod
   (C15's slot 2) is in hand. Pressed while idle (and not swimming or
   riding a zipline) it starts charging; released, it casts. Pressed on a
   bite it catches; on the approach or a nibble it scares the fish off
-  ("Too soon: it swam off"); while the bobber flies or waits it reels in.
+  ("Too soon: it swam off") and starts reeling; otherwise, with the
+  bobber out, it reels in while held (`reeling`) and stops when let go.
+- *The bobber* (a placeholder, `assets/CREDITS.md`): a `RigidBody3D`,
+  a 7 cm sphere of 50 g, bouncy (0.3) and rolling. It collides with the
+  **"ground" layer** only (layer 3, named in `project.godot`), which
+  `Island`, `Bridge`, the sea floor's chunks and the platform are also
+  on; everything stays on layer 1 as before, so the player, the
+  crosshair's line of sight (C11) and every ray are unchanged, and
+  props, agents and the player don't stop the bobber. Rejected: moving
+  props and agents to a layer of their own (the crosshair would then
+  see through trees and rocks unless every ray changed). In the water
+  a buoyancy push from `Ocean.height_at` (the shader's waves worked out
+  in GDScript) holds it up, with drag.
 - *Casting:* the meter fills in 1 s (`CHARGE_TIME`) and stays full; the
-  reach is 4 m for a tap to 22 m full (`MIN_CAST`, `MAX_CAST`) from
-  the player, along where the camera looks, flattened (looking straight
-  down, where the body faces). A ray straight down there (`depth_at`,
-  past the player; the seabed's `height_at` where it hits nothing)
-  gives the water's depth: under 0.3 m (`MIN_DEPTH`), an island, a
-  deck or the platform, there's no cast ("Can't cast onto land"). The
-  bobber flies there in 0.6 s on a 2.5 m arc.
+  bobber leaves the rod's tip along where the camera looks, 15° above
+  it (`LIFT`), at 5.2 m/s for a tap to 18 m/s full (`MIN_THROW`,
+  `MAX_THROW`): about 4 m and 22 m over flat water at eye level, more
+  aiming up. The line pays out as it flies. It stops where it lands:
+  in water at least 0.3 m deep (`MIN_DEPTH`; the depth from a ray
+  straight down, `depth_at`, past the player, or the seabed's
+  `height_at` where it hits nothing) it rests there at once (waiting);
+  touching anything else (an island, a deck, the platform, the beach)
+  it's out: it rolls and rests, and nothing comes.
+- *The line* (`line_length`): when the bobber is further than that from
+  the rod's tip, the line pulls it back. It pays out up to 30 m
+  (`max_line`, a variable for the tests) as you walk; past it the
+  bobber is dragged, and a dragged bobber scares off the fish on the
+  line. Resting, it has 0.6 m of slack (`SLACK`). Holding the click
+  shortens it 4 m/s (`REEL_SPEED`): the bobber is dragged back over the
+  water or rolls over land, and it's back once within 1.5 m of the tip
+  (`BACK`). A taut bobber moving less than 5 cm in 0.5 s while reeled
+  is snagged and hops up 2.5 m/s and toward you. Let go in the water
+  and it rests where it slows below 0.6 m/s, and the wait starts there.
+  More than 10 m past the line's longest (a jump across the world) it
+  reels in.
 - *What bites* (`FishSpecies`, `world/fishing/fish_species.gd`): one
   table, `SPECIES`, each entry an id (kept in the catch file; never
   change one), a name, the waters, biomes, hours (from-to on a 24-hour
   clock, past midnight when from > to), weathers (`Weather.NAMES`), a
   size range in cm and a weight; an empty list means any. The water is
-  set by the depth where the bobber lands: under 4.5 m the shallows
-  (the islands' shelf is 4 m down, W08), under 12 m the drop-off, deeper
-  the open sea (the sea floor is 14-30 m). The biome is the nearest
-  island's (`SessionIslands.session_at`, within twice its radius), or
-  none (the platform, the open sea). The hour and weather are read when
-  a fish comes. `pick` draws by weight among the species that match;
-  where none does, nothing comes. Sizes: `size_for`, the range eased
-  so big fish are rarer (roll to the power 1.6). Placeholders: Shallows
-  fish 12-30 cm, Drop-off fish 25-60 cm, Open sea fish 40-120 cm, each
-  in its one water, anywhere, any time.
-- *A bite:* after a wait of 4-12 s a fish comes: its shadow starts 3.5 m
-  from the bobber and swims to 0.35 m from it in 2 s, nibbles 1-3 times
-  0.7-1.5 s apart (a 0.15 m dart, the bobber dipping 8 cm), then bites:
-  the bobber goes 0.3 m under for 0.9 s (`bite_window`). Missed, the
-  fish swims off ("It got away") and the wait starts again. The timings
-  are variables so the tests can shorten them.
+  set by the depth where the bobber comes to rest: under 4.5 m the
+  shallows (the islands' shelf is 4 m down, W08), under 12 m the
+  drop-off, deeper the open sea (the sea floor is 14-30 m). The biome
+  is the nearest island's (`SessionIslands.session_at`, within twice
+  its radius), or none (the platform, the open sea). The hour and
+  weather are read when a fish comes. `pick` draws by weight among the
+  species that match; where none does, nothing comes. Sizes:
+  `size_for`, the range eased so big fish are rarer (roll to the power
+  1.6). Placeholders: Shallows fish 12-30 cm, Drop-off fish 25-60 cm,
+  Open sea fish 40-120 cm, each in its one water, anywhere, any time.
+- *A bite:* only to a bobber resting in the water, placed each frame at
+  the waves' height (not moved by the physics while it rests). After a
+  wait of 4-12 s a fish comes: its shadow starts 3.5 m from the bobber
+  and swims to 0.35 m from it in 2 s, nibbles 1-3 times 0.7-1.5 s apart
+  (a 0.15 m dart, the bobber dipping 8 cm), then bites: the bobber
+  plunges 0.45 m under for 1.5 s (`bite_window`), a splash ring spreads
+  round it (to 0.8 m in 0.6 s, fading) and a "!" shows under the
+  crosshair. Missed, the fish swims off ("It got away") and the wait
+  starts again. The timings are variables so the tests can shorten
+  them.
 - *Shadows* (`FishShadow`, `world/fishing/fish_shadow.gd`): a dark
   flat fish shape (body and tail, unshaded, 35-60 cm), 0.45 m under the
   water, growing in and shrinking out of sight. Up to 5 wander round the
   player, 6-30 m away, where the water is 1.5-4.5 m deep (one spot tried
   every 0.5 s); each roams within 2 m of where it came, and goes past
-  40 m. A cast landing within 4 m of one (`AIM_RADIUS`) puts that one
-  on the line, and it comes after 0.5-1.5 s instead of the wait.
+  40 m. A bobber coming to rest within 4 m of one (`AIM_RADIUS`) puts
+  that one on the line, and it comes after 0.5-1.5 s instead of the
+  wait.
 - *Leaving:* each frame, the rod put away, the controls gone (the chat,
-  a menu, the sessions ring, the map), swimming, riding, or the player
-  more than 2.5 m (`LEAVE_DISTANCE`) from where they cast reels in,
-  and the fish on the line swims off.
+  a menu, the sessions ring, the map), swimming or riding reels in at
+  once, and the fish on the line swims off. Walking doesn't (the line
+  above).
 - *The look* (placeholders, `assets/CREDITS.md`): the rod a brown
-  tapering cylinder, 1.2 m, held bottom right in the camera's view,
-  tilting back as you charge; the bobber a red ball with a white top,
-  floating at the waves' height (`Ocean.height_at`, the shader's waves
-  worked out in GDScript); the line a 1-pixel strip from the rod's tip,
-  sagging toward the water. Nothing casts shadows.
+  tapering cylinder, 1.2 m, held bottom right in the camera's view
+  (`GRIP` at an 80° field of view, its place and size scaled by the
+  field of view's tangent so it stays put on screen from 60° to 110°),
+  tilting back as you charge and up as you reel; the bobber a red ball
+  with a white top, upright while it rests, turning as it rolls; the
+  line a 1-pixel strip from the rod's tip, straight when taut, sagging
+  with its slack; the splash a flat white ring. Nothing casts shadows.
 - *On screen* (`FishingHud`, `world/fishing/fishing_hud.gd`, drawn in
   code like the hotbar; hidden without the controls): the meter (64 by
-  6 px, 26 px under the middle) while charging; a short line under it
-  for 2 s; the catch card at a quarter of the way down for 3.5 s, "You
-  caught a Drop-off fish!" over "34 cm", and "New" in gold on a
-  species' first. Both fade out over 0.4 s.
+  6 px, 26 px under the middle) while charging; a gold "!" just under
+  the middle while a fish bites; a short line under it for 2 s; the
+  catch card at a quarter of the way down for 3.5 s, "You caught a
+  Drop-off fish!" over "34 cm", and "New" in gold on a species' first.
+  The line and card fade out over 0.4 s.
 - *The catches* (`CatchLog`, `world/fishing/catch_log.gd`):
   `user://catches.json`, `{"version": 1, "species": {id: {"count",
   "biggest_cm", "first": {"at", "biome", "water"}}}}`: "at" the local
@@ -5699,15 +5690,21 @@ Tested in the world test: `_fish_species` (each placeholder in its
 water; hours past midnight, biomes and weather by a test table; weights;
 nothing where nothing lives; sizes), `_catch_log` (counts, the biggest,
 the first catch, read back, a damaged file kept as `.bad`) and
-`_fishing` with real clicks: no rod, no cast; land and shallows under
-an island and its biome; shadows in the shallows; a cast near a shadow
-brings that one; a shallows catch recorded with its biome; no cast onto
-the platform's deck; a full charge's 22 m into the drop-off; the bobber
-on the waves; the card and New; a second catch not New, the biggest
-kept; a nibble clicked scares it off; a missed bite; reeling in;
-switching tool, losing the controls and walking off reel in; no cast
-while swimming; the file saved. The look, the feel and the timings
-can't be judged headless: the live check has them.
+`_fishing` with real clicks: the 1.5 s window; no rod, no cast; the rod
+in the same place on screen at 60° and 110°; the bobber on the ground
+layer only, the props not on it; land and shallows under an island and
+its biome; shadows in the shallows; a tap into the shallows near a
+shadow brings that one; the bite's "!" and splash; a shallows catch
+recorded with its biome; a cast onto the platform's deck rests there,
+nothing comes, and holding reels it in; a full charge into the
+drop-off (17-27 m); the bobber on the waves; the card and New; a
+second catch not New, the biggest kept; a nibble clicked scares it off
+and reels; letting go stops reeling, and it rests and waits again; a
+missed bite; holding reels it all the way in; a few steps keep the line
+out, past the longest it's dragged and the fish swims off; switching
+tool and losing the controls reel in; no cast while swimming; the file
+saved. The look, the feel, rolling and snags, and the timings can't be
+judged headless: the live check has them.
 
 ### D02 Bug catching
 *Designed (user's, 2026-10-27); not built. Scope: core (world only):*
@@ -6408,9 +6405,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the downtime activities. D01 Fishing is built on
 branch `d01-fishing` (placeholder species and look). The user's live
 check found it fine as a placeholder; round 2 (a real bobber on the
-line, hold to reel in, casting onto land, looser windows, NOTES → D01
-→ Round 2) is written up for the user's review, then built on the same
-branch. Next round: the fight. Then the user's species list. D02 Bug
+line, hold to reel in, casting onto land, a longer and clearer bite)
+is built on the same branch, waiting for the user's live check and
+review. Next round: the fight. Then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
