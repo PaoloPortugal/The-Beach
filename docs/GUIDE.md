@@ -627,8 +627,8 @@ sags when it's slack and runs straight when it's pulled tight.
 **Reeling in.** Hold the left mouse button while the bobber is out to
 reel it in slowly; let go to stop. Reeling drags the bobber toward you
 without lifting it: through the water, or rolling over land, and if it
-catches on an edge it hops over. When it reaches the platform, a bridge
-or a steep shore from the water, the line lifts it out. Let go while
+catches on an edge it hops over. When it reaches the platform, a
+bridge's end or a steep shore from the water, the line lifts it out. Let go while
 it's in the water and it stays there, and the wait for a fish starts
 again: so if you threw too far, reel it back a little.
 
