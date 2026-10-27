@@ -29,9 +29,10 @@ var zipline_valley := 0
 var zipline_waits := false
 ## Set before it enters the tree (SessionIslands does, C14): its ground
 ## is made on a worker thread, so a new island doesn't stall the game for
-## the 50-90 ms it takes. Until [signal built] it has its [member
-## generator] ([method height_at] works) but no ground, collision, props
-## or torches.
+## the 50-90 ms it takes, and what's then added on the main thread goes
+## in a step a frame (W01). Until [signal built] it has its [member
+## generator] ([method height_at] works) but not all of its ground,
+## collision, props or torches.
 var build_in_background := false
 
 ## Its ground is in ([member build_in_background]).
@@ -41,6 +42,10 @@ var _landings: Array[Vector3] = []
 var _landed := false # set_landings has been called
 var _task := -1 # its WorkerThreadPool task while it's being made
 var _made := {} # what the task made: written there, read once it's done
+var _steps: Array[Callable] = [] # what's left to add, a step a frame
+var _built := false
+var _shape: ConcavePolygonShape3D # its collision, between two steps
+static var _ground_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -50,7 +55,9 @@ func _ready() -> void:
 	print("Island seed: %d (%s)" % [island_seed, Biome.NAMES[biome]])
 	generator = IslandGenerator.new(island_seed, biome)
 	if not build_in_background:
-		_finish(_make(island_seed, biome, {}))
+		for step in _finish_steps(_make(island_seed, biome, {})):
+			step.call()
+		_built = true
 		return
 	# The task has a generator of its own and writes only to _made, so the
 	# island can be freed while it runs.
@@ -62,23 +69,33 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _task < 0 or not WorkerThreadPool.is_task_completed(_task):
-		return
-	WorkerThreadPool.wait_for_task_completion(_task)
-	_task = -1
-	set_process(false)
-	_finish(_made)
-	built.emit()
+	if _task >= 0:
+		if not WorkerThreadPool.is_task_completed(_task):
+			return
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+		_steps = _finish_steps(_made)
+	var step: Callable = _steps.pop_front()
+	step.call()
+	if _steps.is_empty():
+		_built = true
+		set_process(false)
+		built.emit()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and _task >= 0:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if _task >= 0:
 		WorkerThreadPool.wait_for_task_completion(_task)
+	# Freed before its props step: they never went in, so nothing frees them.
+	if props.get_parent() == null:
+		props.free()
 
 
 ## Whether its ground is in (always, unless [member build_in_background]).
 func is_built() -> bool:
-	return generator != null and _task < 0
+	return _built
 
 
 # The slow part, on any thread: [param into] gets the ground and the
@@ -90,39 +107,66 @@ static func _make(s: int, b: int, into: Dictionary) -> Dictionary:
 	return into
 
 
-func _finish(made: Dictionary) -> void:
+# What's added on the main thread once the ground is made, in steps of a
+# few ms each (measured: 2.5-8 ms; 18-30 ms all at once).
+func _finish_steps(made: Dictionary) -> Array[Callable]:
+	return [_add_ground.bind(made), _make_collision.bind(made), _add_collision, _add_props.bind(made), _add_torches, _add_rest]
+
+
+func _add_ground(made: Dictionary) -> void:
 	generator.take(made)
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, made["arrays"])
-
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.vertex_color_is_srgb = true  # the palette is written in sRGB
-	material.roughness = 1.0
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = mesh
-	mesh_instance.material_override = material
+	mesh_instance.material_override = ground_material()
 	add_child(mesh_instance)
 
-	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(made["faces"])
+
+func _make_collision(made: Dictionary) -> void:
+	_shape = ConcavePolygonShape3D.new()
+	_shape.set_faces(made["faces"])
+
+
+func _add_collision() -> void:
 	var collision := CollisionShape3D.new()
-	collision.shape = shape
+	collision.shape = _shape
+	_shape = null
 	add_child(collision)
+
+
+# The torches' spots are cleared first, so the props are built once.
+func _add_props(made: Dictionary) -> void:
+	var spots: Array[Dictionary] = made["spots"]
+	for at in _torch_spots():
+		spots = IslandProps.without_near(spots, at, at, TORCH_CLEAR)
 	props.name = "Props"
 	add_child(props)
-	props.setup(made["spots"])
-	_add_torches()
+	props.setup(spots)
+
+
+func _add_rest() -> void:
 	if not zipline_waits:
 		_add_zipline()
 	# The read-only mark stood on height_at till now; landings that came
 	# first place the zipline now.
 	if _landed:
+		_built = true # set_landings places the zipline only on a built one
 		set_landings(_landings)
 	else:
 		var flag := get_node_or_null("ReadOnlyFlag") as ReadOnlyFlag
 		if flag:
 			flag.place(self)
+
+
+## The ground's material, one for every island: vertex colours, matte.
+static func ground_material() -> StandardMaterial3D:
+	if _ground_material == null:
+		_ground_material = StandardMaterial3D.new()
+		_ground_material.vertex_color_use_as_albedo = true
+		_ground_material.vertex_color_is_srgb = true  # the palette is written in sRGB
+		_ground_material.roughness = 1.0
+	return _ground_material
 
 
 func height_at(x: float, z: float) -> float:
@@ -202,17 +246,24 @@ func torches() -> Array[NightLight]:
 # They stand on the built ground, which on a cliff can be metres off
 # height_at (W10).
 func _add_torches() -> void:
+	var spots := _torch_spots()
+	for k in spots.size():
+		var torch := NightLight.torch()
+		torch.name = "Torch%d" % k
+		torch.position = spots[k]
+		add_child(torch)
+
+
+func _torch_spots() -> Array[Vector3]:
+	var out: Array[Vector3] = []
 	var at := maxf(0.5, edge_height())
 	for k in TORCHES:
 		var dir := Vector2.from_angle(TAU * (k + 0.5) / TORCHES)
 		var r := generator.shore_radius(dir.x, dir.y)
 		while r > 0.0 and generator.surface_height(dir.x * r, dir.y * r) < at:
 			r -= 0.5
-		var torch := NightLight.torch()
-		torch.name = "Torch%d" % k
-		torch.position = Vector3(dir.x * r, generator.surface_height(dir.x * r, dir.y * r), dir.y * r)
-		add_child(torch)
-		props.clear_near(torch.position, torch.position, TORCH_CLEAR)
+		out.append(Vector3(dir.x * r, generator.surface_height(dir.x * r, dir.y * r), dir.y * r))
+	return out
 
 
 func _add_zipline() -> void:
