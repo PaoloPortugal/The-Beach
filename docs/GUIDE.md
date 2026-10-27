@@ -485,7 +485,7 @@ You see the world through your character's eyes.
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
-| Pause menu: resume, settings, main menu, quit (frees the mouse pointer) | Esc (Esc again closes it; click in the game to take the pointer back) |
+| Pause menu: resume, settings, main menu, quit (frees the mouse pointer) | Esc (Esc again closes it and locks the pointer again) |
 | Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
 | Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
