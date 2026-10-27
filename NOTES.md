@@ -5806,15 +5806,16 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** island smoothing (branch `island-smoothing`, W01,
-W06, W08, W12; dev log 2026-10-27-island-smoothing): islands' main-thread
-work a step a frame, first-time costs paid by a warm-up behind the main
-menu, bridges, the island memory's writes and the seabed's chunks off
-the main thread, a sync's islands placed one a frame.
-Built and measured; its live check (`tests/live/checklist.txt`) and the
-user's approval are next. Later
+**Current focus:** none chosen yet. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: island
+smoothing** (W01, W06, W08, W12; dev log 2026-10-27-island-smoothing):
+islands' main-thread work a step a frame, first-time costs paid by a
+warm-up behind the main menu, bridges, the island memory's writes and
+the seabed's chunks off the main thread, a sync's islands placed one a
+frame. Live check passed with the user; the soft first seconds left
+are the GPU clocking up (Watch items).
 **Merged to `main` (2026-10-26), approved by the user: C14, a main
 menu** (dev log 2026-10-26-c14-main-menu): the game opens on Play,
 Settings, Credits and Quit over the live world, a camera circling the
@@ -6413,6 +6414,19 @@ Ideas weighed and turned down. Each says what would reopen it.
 
 ### Watch items
 
+- **A soft first few seconds at start** (W01; measured 2026-10-27, left
+  as it is with the user: further work isn't worth it). On the
+  developer's AMD integrated GPU the GPU takes about 4.5 s of load to
+  clock up, so the world's frames are 15-20 ms then 7-9 ms; the
+  machine's, not the game's (W01 → Smoothing). The world's first frame
+  is about 280 ms, and one frame a few in is 30-47 ms, spent drawing.
+  Measure again with `time_world.gd --start` (Running it → Frame
+  timing) if a start feels rough on another machine, before
+  optimizing.
+- **`bridges_test`'s "no bridge over another island's land"** (W06;
+  failed once in six runs, 2026-10-27, not since). Likely a random
+  layout case that `main` has too; unproven. If it fails again, keep
+  the layout's seed and look.
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
   not yet seen in a game session). The Claude desktop app pauses a
   flagged chat ("Session paused", with retry or switch model); how
