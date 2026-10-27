@@ -5498,7 +5498,8 @@ the setting sent again once synced after a change lost while
 reconnecting).
 
 ### D01 Fishing
-*Built (2026-10-27, look placeholder). Scope: core (world only):* no
+*Built (2026-10-27, look placeholder); round 2 decided after the live
+check, not built yet (below). Scope: core (world only):* no
 provider, protocol or sidecar part; it never reads sessions or agents.
 The first downtime activity (Concept → Downtime): something to do while
 agents work, dropped the moment one needs you. Dev logs
@@ -5547,11 +5548,78 @@ agents work, dropped the moment one needs you. Dev logs
   many, and its biggest fish's size, kept in `user://` (user's,
   2026-10-27). D03's field guide, which shows them, comes later.
 
-*Open:* a fight of our own, later (user's, 2026-10-27), not a catch bar
-like the games above; a candidate is in-world line tension (the rod
-bends and the line strains, read from the world rather than a bar).
-The real species list (the user's). Fish models to replace the
-shadows.
+*Open:* a fight of our own, **the next round** (user's, 2026-10-27,
+after the live check), not a catch bar like the games above. The
+user's idea: once hooked, you keep the click held to reel the fish in
+slowly, the fish pulls one way and another, and you move the mouse
+against its pull while holding; read from the world (the line's
+angle and strain, the rod bending), not a bar. To design: how a fish
+is lost (the line snapping, or slipping off), how long a fight lasts,
+how species differ, and A05 during a fight. The real species list
+(the user's). Fish models to replace the shadows.
+
+**Round 2** (*decided with the user, 2026-10-27, after the live check;
+not built yet:* the live check found it "fine as a placeholder", with
+the changes below; "How it works" still describes round 1 until these
+land, then they are folded in. Numbers are my picks):
+- *The bobber is a real ball on the line* (user's): a small physics
+  body (`RigidBody3D`, a 7 cm sphere) tied to the rod's tip by a line
+  of a set length. It floats on the waves (a buoyancy force from
+  `Ocean.height_at`, damped), rolls and bounces on land, and the line
+  pulls it when taut. The line sags while slack and runs straight
+  when taut, so its tension shows in the world (the fight reads it
+  next round).
+- *Minimal collisions on land* (user's): it isn't the focus of
+  fishing. The bobber collides only with the ground (islands, the sea
+  floor), the bridges' decks and the platform; props (trees, rocks,
+  plants), agents and the player pass through. For that the ground's
+  bodies (`Island`, `Bridge`, the sea floor's chunks, the platform)
+  are also put on a second collision layer, "ground" (layer 3, named
+  in `project.godot`), and the bobber collides with that layer only.
+  Everything stays on layer 1 as now, so the player, the crosshair's
+  line of sight (C11) and every ray are unchanged. Rejected: moving
+  the props and agents to a layer of their own (the crosshair would
+  then see through trees and rocks unless every ray were changed).
+  Snagged while reeling (moving less than
+  5 cm in 0.5 s with the line taut), it hops up and over.
+- *Casting is a throw:* hold to charge as now, release to throw the
+  bobber along where you look, a little upward; a fuller charge throws
+  harder, a tap about 4 m and a full charge about 22 m over flat water
+  at eye level. The line pays out as it flies. Aiming at a shadow is
+  less exact than round 1's, so `AIM_RADIUS` (4 m) stays.
+- *Casting onto land is allowed, with no effect* (user's, reversing
+  round 1's "no casting onto land"): the bobber lands, rolls and rests,
+  and nothing ever comes to it there. "Can't cast onto land" goes.
+- *Hold to reel in slowly* (user's): holding the click while the
+  bobber is out shortens the line, 4 m/s, dragging it back over water
+  or rolling it over land; letting go stops it. It's back once within
+  1.5 m of the rod's tip. A fish comes only to a bobber resting in the
+  water, not while it's being reeled, so a bobber reeled off land into
+  the water starts the wait there. On the bite a click still catches
+  the fish at once, as in round 1 (the fight is next round); clicking
+  on the approach or a nibble still scares it off.
+- *Moving while the line is out* (user's): you can walk, and the line
+  pays out up to 30 m (`MAX_LINE`); past that it drags the bobber after
+  you, and a dragged bobber scares off the fish on the line.
+  Swimming, riding a zipline, another tool, the chat, a menu, the
+  sessions ring and the map still reel in at once, costing only the
+  fish on the line.
+- *Looser windows* (user's, "too tight"): the bite window from 0.9 s to
+  1.5 s.
+- *A clearer bite* (user's): the bobber plunges further (0.3 to
+  0.45 m), a splash ring spreads on the water, and a small "!" shows
+  under the crosshair while the bite lasts.
+- *The rod in the same place at any field of view* (a bug: the grip
+  was a fixed point in front of the camera, so at C10's widest, 110°,
+  the rod sat too near the middle): the grip is worked out from the
+  camera's field of view each frame, so it stays bottom right.
+- *Tests* to change with it: the cast's reach over flat water (a tap
+  and a full charge); a cast onto the platform's deck lands there and
+  nothing comes; holding reels in and letting go stops it; the bobber
+  floats on the waves, and rests on land; props don't stop it, the
+  ground does; walking within `MAX_LINE` keeps the line out, past it
+  drags the bobber and the fish swims off; the rod's tip on screen,
+  bottom right, at 60° and 110°; the 1.5 s window; the "!" on the bite.
 
 **How it works** (distances, timings, sizes and the look my picks).
 - `Fishing` (`world/fishing/fishing.gd`, a `Node3D` at the world's
@@ -6338,8 +6406,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing is built on
-branch `d01-fishing` (placeholder species and look), waiting for the
-user's live check and review; then the user's species list. D02 Bug
+branch `d01-fishing` (placeholder species and look). The user's live
+check found it fine as a placeholder; round 2 (a real bobber on the
+line, hold to reel in, casting onto land, looser windows, NOTES → D01
+→ Round 2) is written up for the user's review, then built on the same
+branch. Next round: the fight. Then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
