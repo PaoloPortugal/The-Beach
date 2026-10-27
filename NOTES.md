@@ -6444,8 +6444,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 branch `d01-fishing` (placeholder species and look). The user's live
 check found it fine as a placeholder; round 2 (a real bobber on the
 line, hold to reel in, casting onto land, a longer and clearer bite)
-is built on the same branch, waiting for the user's live check and
-review. Next round: the fight. Then the user's species list. D02 Bug
+is built on the same branch, with the user's review changes (W06's
+rails solid at 1 m, so you can jump over them; the throw capped at
+the line's longest), waiting for the user's live check. Next round: the fight. Then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and

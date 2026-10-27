@@ -116,4 +116,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [D04: parkour, designed (and W13's new moves, D05's plunger gun)](2026-10-27-d04-parkour-design.md) | D04, W13, D05, W03, W11, W04, W06, the hub |
 | 2026-10-27 | [C16: multi-language support, designed](2026-10-27-c16-localisation-design.md) | C16, C10, D01, S01, C05, C06, C07, C09, A05 |
 | 2026-10-27 | [S08: the flag check read the island mid-build](2026-10-27-s08-flag-check-flaky.md) | S08, W01, C14 |
-| 2026-10-27 | [D01: fishing](2026-10-27-d01-fishing.md) | D01, C15, D03, W01, W06, W08 |
+| 2026-10-27 | [D01: fishing](2026-10-27-d01-fishing.md) | D01, C15, D03, W01, W02, W06, W08, C11, C16 |
