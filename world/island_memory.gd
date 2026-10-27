@@ -20,7 +20,7 @@ const MAX_TEXT := 4096 # a long project path (Linux allows 4096)
 
 var _entries := {} # key → entry
 
-# The file is written on a worker thread (W01: 5-10 ms a write on
+# The file is written on a worker thread (W01: 7-9 ms a write on
 # Windows, as each island arrives), one write at a time, the newest text
 # only. Shared by every IslandMemory, so a read waits for any write.
 static var _mutex := Mutex.new()
@@ -135,10 +135,15 @@ static func flush() -> void:
 	if _writer >= 0:
 		WorkerThreadPool.wait_for_task_completion(_writer)
 		_writer = -1
+		# Cleared by the task as it ends; a task cut short (an error) would
+		# leave it set and no save would start another.
+		_mutex.lock()
+		_writing = false
+		_mutex.unlock()
 
 
 func _save() -> void:
-	if _writer >= 0 and _written != file:
+	if _writer >= 0 and (_written != file or WorkerThreadPool.is_task_completed(_writer)):
 		flush() # another file's text isn't dropped (the suites switch files)
 	_written = file
 	_mutex.lock()
@@ -147,7 +152,8 @@ func _save() -> void:
 	_writing = true
 	_mutex.unlock()
 	if start:
-		flush() # one that has just written its last
+		if _writer >= 0: # one that has just written its last
+			WorkerThreadPool.wait_for_task_completion(_writer)
 		_writer = WorkerThreadPool.add_task(IslandMemory._write_all, false, "Island memory")
 
 

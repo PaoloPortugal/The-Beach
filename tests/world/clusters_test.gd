@@ -197,6 +197,32 @@ func _w12_memory() -> void:
 	m.load_file()
 	_check(m.has(k) and m.has("a") and not m.has("b"), "W12: ones not kept are dropped from the file")
 	_check(not FileAccess.file_exists(IslandMemory.file + ".tmp"), "W12: written through a .tmp renamed over")
+	# Written on a worker thread (W01's smoothing): many saves in a row
+	# end with the newest in the file once it's flushed.
+	for n in 40:
+		m.put(["many%d" % n], _entry("1", 3, n))
+	IslandMemory.flush()
+	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(IslandMemory.file))
+	_check(raw is Dictionary and raw["islands"].has("many39") and raw["islands"].has(k), "W12: written off the main thread, the newest text in the file once flushed")
+	for n in 40:
+		m.erase(["many%d" % n])
+	# Another file while a write is under way: each text goes to its own
+	# file (the suites' and the timing scripts' files kept off the user's).
+	var mine := IslandMemory.file
+	var other := "user://test-islands-other.json"
+	m.put(["in mine"], _entry("1", 4, 0))
+	IslandMemory.file = other
+	var m2 := IslandMemory.new()
+	m2.put(["in other"], _entry("1", 4, 0))
+	IslandMemory.flush()
+	var in_mine: Variant = JSON.parse_string(FileAccess.get_file_as_string(mine))
+	var in_other: Variant = JSON.parse_string(FileAccess.get_file_as_string(other))
+	_check(in_mine is Dictionary and in_mine["islands"].has("in mine") and not in_mine["islands"].has("in other")
+		and in_other is Dictionary and in_other["islands"].has("in other") and not in_other["islands"].has("in mine")
+		and not FileAccess.file_exists(mine + ".tmp") and not FileAccess.file_exists(other + ".tmp"), "W12: switching files mid-write, each text lands in its own file")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(other))
+	IslandMemory.file = mine
+	m.erase(["in mine"])
 	if OS.get_name() != "Windows":
 		_check((FileAccess.get_unix_permissions(IslandMemory.file) & 0x1FF) == (FileAccess.UNIX_READ_OWNER | FileAccess.UNIX_WRITE_OWNER), "W12: the file is owner-only")
 	var bad := {
@@ -262,7 +288,10 @@ func _w12_islands() -> void:
 	store.apply({"type": "session.ended", "session": "k2", "seq": 2, "reason": "exited"})
 	saved.load_file()
 	_check(not saved.has(IslandMemory.key(_live("k2"))), "W12: one that ends is forgotten")
-	islands.free()
+	islands.memory.put(["at exit"], _entry("1", 5, 0))
+	islands.free() # no flush of our own, nor a read (which waits too)
+	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(IslandMemory.file))
+	_check(raw is Dictionary and raw["islands"].has("at exit"), "W12: the islands leaving (quitting) waits for the last write")
 	IslandMemory.flush()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 

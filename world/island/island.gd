@@ -75,10 +75,8 @@ func _process(_delta: float) -> void:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
 		_steps = _finish_steps(_made)
-	var t0 := Time.get_ticks_usec() # TIMING
 	var step: Callable = _steps.pop_front()
 	step.call()
-	print("TIMING step %s %.2f ms" % [step.get_method(), (Time.get_ticks_usec() - t0) / 1000.0]) # TIMING
 	if _steps.is_empty():
 		_built = true
 		set_process(false)
@@ -86,8 +84,13 @@ func _process(_delta: float) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and _task >= 0:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if _task >= 0:
 		WorkerThreadPool.wait_for_task_completion(_task)
+	# Freed before its props step: they never went in, so nothing frees them.
+	if props.get_parent() == null:
+		props.free()
 
 
 ## Whether its ground is in (always, unless [member build_in_background]).

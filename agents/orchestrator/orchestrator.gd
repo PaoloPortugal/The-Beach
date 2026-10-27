@@ -19,11 +19,9 @@ var _bob: Tween
 
 
 func _ready() -> void:
-	var t0 := Time.get_ticks_usec() # TIMING
 	var lamp := NightLight.lamp()
 	lamp.position = Vector3(0.62, 0.8, 0.62) # the desk's front corner
 	add_child(lamp)
-	print("TIMING lamp %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
 	talk.position = Vector3(0, 1.2, -0.2)
 	add_child(talk)
 

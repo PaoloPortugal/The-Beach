@@ -83,7 +83,7 @@ v1 slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
-| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd` |
+| W01 | Beach island (v1)                         | built   | W01, W02, W04 | `world/island/`, `world/session_islands.gd`, `world/warm_up.gd` |
 | W02 | Ocean (v1)                                | built   | W01, W02, W04 | `world/ocean/` |
 | W03 | Player movement (v1)                      | built   | W03           | `world/player/` |
 | W04 | Island rise / sink                        | built (UI placeholder) | W01, W02, W04 | `world/session_islands.gd`, `world/session_clusters.gd`, `world/new_island_pointers.gd` |
@@ -525,7 +525,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -1015,6 +1015,32 @@ The water level is y = 0.
   `height_at` works and `surface_height` falls back to it. Islands made
   outside `SessionIslands` (W01 and W10 tests) make their ground at once, on
   the main thread.
+- *Smoothing* (user's ask, 2026-10-26: islands arriving still hitched;
+  dev log 2026-10-27-island-smoothing). What's left for the main thread
+  goes in a step a frame (`_finish_steps`: the ground, the collision's
+  faces, the collision, the props, the torches, the rest; 2-8 ms each,
+  18-30 ms all at once). Every island's ground shares one material
+  (`Island.ground_material`). The torches' spots are cleared of props
+  before the props are built (`IslandProps.without_near`), so they're
+  built once. An island freed before its props step frees them itself.
+  *The warm-up* (`WarmUp`, `world/warm_up.gd`, added by `world.gd`
+  behind the main menu) pays the first-time costs once: every prop
+  kind's mesh is made on a worker (`IslandProps.warm_up`; 5-20 ms a
+  kind, which a biome's first island paid at once; the primitives they're
+  made from are made first, on the main thread, since a `PrimitiveMesh`
+  makes a RenderingServer mesh; it's waited for if the game quits
+  meanwhile), then one of each
+  prop, the ground's material, an orchestrator, a torch and a message
+  bubble with some text go in out of sight (`SessionIslands.BUILDING_Y`)
+  for 3 frames. Their materials are kept for good (a
+  `StandardMaterial3D`'s shader is freed with the last material using
+  it, so the first island paid the shader builds again otherwise), and
+  a second world (the suites) skips it. The island memory (W12) and
+  bridges (W06) are written and made off the main thread too. Measured
+  in a window behind the menu (`tests/live/timing/time_world.gd`):
+  median 9.7 ms, the worst frame 21 ms, none over 2.5 times the median;
+  before, the first island's frame was 75 ms and a biome's first props
+  16-100 ms.
 
 **Islands for sessions** (user's direction, 2026-09-30).
 `SessionIslands` (`world/session_islands.gd`) listens to `SessionStore`:
@@ -1409,6 +1435,15 @@ and the real layout (user's, 2026-10-02; W07).
   made of is the placeholder; the segments stay when bridges become art.
   The collision is unchanged (one shape for the whole bridge). Far
   versions are hidden past the fog, like the islands.
+- *Made off the main thread* (W01's smoothing, 2026-10-27: about 0.5 ms
+  a metre, 51 ms for a 102 m bridge). Sessions' bridges
+  (`BridgeNetwork.build_in_background`, set by `SessionIslands`, passed
+  to each `Bridge`) make their meshes' arrays and collision faces on a
+  `WorkerThreadPool` task, on a stand-in bridge of their own out of the
+  tree, then add them on the main thread: a bridge appears a few frames
+  after its island is up (`built`, `is_built`). `carries` works before.
+  Freed meanwhile, it waits for its task. Bridges made outside
+  `SessionIslands` (the W06 tests' own) are made at once.
 - *The tree* (`BridgeNetwork`, `world/bridges/bridge_network.gd`, a node
   under `SessionIslands`): regions are keys with a centre, a reach and an
   edge (a Callable giving where a bridge heading for a point meets the
@@ -2153,6 +2188,16 @@ saved goes confirmed by the user, 2026-10-22).
   crash never leaves half a file (on Windows, where the rename removes
   the old file first, it may leave none: islands come back as new). Entries of sessions that didn't come
   back are dropped at the next sync.
+- *Written off the main thread* (W01's smoothing, 2026-10-27: 7-9 ms a
+  write on Windows, one as each island arrives). One worker task writes
+  the newest text and loops while a newer one is waiting (a mutex guards
+  it), so writes never overlap and only the latest is kept. Reading
+  (`load_file`) and switching to another file wait for it, and
+  `SessionIslands` waits for it as it leaves the tree
+  (`IslandMemory.flush`), so quitting never loses a write. A crash (not
+  a quit) can lose the newest one, made in the last few ms: that
+  island comes back as new, or a forgotten entry comes back (security
+  review, 2026-10-27).
 - *Coming back:* islands of sessions taken back wait for the first
   sync to finish (behind the main menu, C14; under S07's loading cover before). Then those with an
   entry are placed, cluster by cluster in saved slot order, each
@@ -5721,7 +5766,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none set; the user picks what's next. Later
+**Current focus:** island smoothing (branch `island-smoothing`, W01,
+W06, W12; dev log 2026-10-27-island-smoothing): islands' main-thread
+work a step a frame, first-time costs paid by a warm-up behind the main
+menu, bridges and the island memory's writes off the main thread.
+Built and measured; its live check (`tests/live/checklist.txt`) and the
+user's approval are next. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-26), approved by the user: C14, a main

@@ -3,9 +3,10 @@ extends Node3D
 ## Pays an island's first-time costs as the world loads, behind the main
 ## menu (W01), so the first island to arrive costs what later ones do:
 ## its props' meshes ([method IslandProps.warm_up], on a worker thread),
-## then one of each prop, the ground's material, an orchestrator and a
-## torch, out of sight where islands are made, for a few frames (their
-## shaders are made as they go in and first drawn). Then it goes.
+## then one of each prop, the ground's material, an orchestrator, a torch
+## and a message bubble showing some text (its fonts), out of sight where
+## islands are made, for a few frames (their shaders are made as they go
+## in and first drawn). Then it goes.
 
 ## Frames it stays once all is in.
 const FRAMES := 3
@@ -22,6 +23,10 @@ func _ready() -> void:
 		return
 	position.y = SessionIslands.BUILDING_Y
 	IslandProps.warm_up()
+
+
+func _exit_tree() -> void:
+	IslandProps.finish_warm_up()
 
 
 func _process(_delta: float) -> void:
@@ -52,10 +57,11 @@ func _add() -> void:
 	add_child(ground)
 	var o: Orchestrator = SessionIslands.ORCHESTRATOR.instantiate()
 	o.remove_from_group("orchestrators") # no chat watches it
-	var t0 := Time.get_ticks_usec() # TIMING
 	add_child(o)
-	print("TIMING warm orch add %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
 	add_child(NightLight.torch())
+	var bubble: MessageBubble = ChatController.BUBBLE.instantiate()
+	add_child(bubble)
+	bubble.show_text("Warm **up** `now`")
 	# A material's shader goes with the last material that uses it: these
 	# keep each one made here.
 	for g: GeometryInstance3D in find_children("*", "GeometryInstance3D", true, false):

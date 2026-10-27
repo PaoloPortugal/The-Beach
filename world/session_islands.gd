@@ -317,10 +317,6 @@ func forget_outside() -> void:
 # [param saved]: its remembered island, all of it, or with
 # [param whole] false only its biome and seed.
 func _place(id: String, created: bool, saved := {}, whole := true) -> void:
-	var t0 := Time.get_ticks_usec() # TIMING
-	var tl := func(what: String) -> void: # TIMING
-		print("TIMING place %s %.2f ms" % [what, (Time.get_ticks_usec() - t0) / 1000.0]) # TIMING
-		t0 = Time.get_ticks_usec() # TIMING
 	var i := Island.new()
 	i.name = "Island"
 	if saved.is_empty() or not whole:
@@ -339,22 +335,16 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 	i.build_in_background = true
 	# Out of sight till its ground is made (it then rises from sunk_y).
 	i.position.y = BUILDING_Y
-	tl.call("clusters") # TIMING
 	add_child(i, true)
-	tl.call("island add") # TIMING
 	var o: Orchestrator = ORCHESTRATOR.instantiate()
-	tl.call("orch instantiate") # TIMING
 	o.name = "Orchestrator"
 	o.session_id = id
 	o.position = Vector3(0.0, i.height_at(0.0, 0.0), 0.0)
-	tl.call("orch height") # TIMING
 	i.add_child(o)
-	tl.call("orch add") # TIMING
 	var agents := IslandAgents.new()
 	agents.name = "Agents"
 	i.add_child(agents)
 	agents.setup(store, id, i, o)
-	tl.call("agents") # TIMING
 	i.set_read_only(store.session(id).get("read_only", false) == true)
 	_islands[id] = i
 	var cluster := clusters.cluster_of(id)
@@ -363,9 +353,7 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 		"biome": i.biome, "seed": i.island_seed, "cluster": cluster, "name": clusters.cluster_name(cluster),
 		"repo_key": clusters.cluster_key(cluster), "slot": clusters.slot_of(cluster), "index": clusters.index_of(id),
 	})
-	tl.call("read-only, memory") # TIMING
 	island_added.emit(id, i, o)
-	tl.call("island_added") # TIMING
 	# Rises with the island, from its middle. Not for one already running
 	# (taken back) or started outside the game (S08): the player didn't
 	# just ask for it, so it isn't news.
@@ -377,7 +365,6 @@ func _place(id: String, created: bool, saved := {}, whole := true) -> void:
 		i.add_child(beacon)
 		beacon.set_on(true)
 		_unvisited[id] = beacon
-		tl.call("beacon") # TIMING
 	# Every island rises once its ground is made (C14: taken-back ones too,
 	# behind the main menu); it counts as rising till then.
 	_rising[id] = null
@@ -451,17 +438,12 @@ func _on_node_added(node: Node) -> void:
 
 func _limit(node: Variant) -> void:
 	if is_instance_valid(node) and (node as Node).is_inside_tree():
-		var t0 := Time.get_ticks_usec() # TIMING
 		DrawDistance.limit(node, draw_distance)
-		var ms := (Time.get_ticks_usec() - t0) / 1000.0 # TIMING
-		if ms > 0.3: # TIMING
-			print("TIMING limit %s %.2f ms" % [(node as Node).name, ms]) # TIMING
 
 
 # A risen island joins its cluster's bridges; a far cluster's leave the
 # platform out.
 func _bridge(id: String) -> void:
-	var t0 := Time.get_ticks_usec() # TIMING
 	var i: Island = _islands[id]
 	var reach := i.generator.radius * 1.45
 	var cluster := clusters.cluster_of(id)
@@ -472,10 +454,7 @@ func _bridge(id: String) -> void:
 		var inward := Vector3(-local.x, 0.0, -local.z).normalized() * LANDING_RUN
 		i.props.clear_near(local, local + inward, LANDING_CLEAR)
 		return p, not clusters.is_far(cluster))
-	print("TIMING _bridge add %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
-	t0 = Time.get_ticks_usec() # TIMING
 	_tell_landings()
-	print("TIMING _bridge landings %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
 
 
 # Tells every island where its bridges land now, after bridges came or
