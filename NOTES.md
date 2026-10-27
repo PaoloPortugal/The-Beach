@@ -5657,7 +5657,8 @@ on land where fishing (D01) is on the water. Dev log
   says "Talk" on an orchestrator (C11). It was chosen over a hit
   followed by a timing minigame (the same game as fishing twice) and
   a chase as the main loop (longer, harder to tune). Its contrast
-  with fishing: there you watch a bar, here you watch the world.
+  with fishing: there you stand still and wait for the bite, here you
+  go after what you see.
 - *Bugs notice you:* sprinting or landing a jump nearby scares them
   off, and crouching (W11) lets you creep up. A few rare bugs flee in
   a short chase when startled (sprint, jump and slide after them),
