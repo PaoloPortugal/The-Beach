@@ -41,6 +41,8 @@ const SOLID := {
 
 static var _meshes := {} # Prop → ArrayMesh, made once
 static var _material: StandardMaterial3D
+static var _warm_task := -1 # warm_up's WorkerThreadPool task, till its meshes are taken
+static var _warm := {} # Prop → its arrays: written by that task only, read once it's done
 
 ## The props standing: entries as from [method IslandGenerator.prop_spots].
 var spots: Array[Dictionary] = []
@@ -91,8 +93,12 @@ func _rebuild() -> void:
 	var by_kind := {}
 	for s in spots:
 		by_kind.get_or_add(s["prop"], []).append(s)
+	var t_mm := 0 # TIMING
+	var t_col := 0 # TIMING
+	var n_col := 0 # TIMING
 	for kind: int in by_kind:
 		var list: Array = by_kind[kind]
+		var t0 := Time.get_ticks_usec() # TIMING
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.mesh = mesh(kind)
@@ -104,8 +110,11 @@ func _rebuild() -> void:
 		mmi.multimesh = mm
 		mmi.material_override = material()
 		add_child(mmi)
+		t_mm += Time.get_ticks_usec() - t0 # TIMING
+		t0 = Time.get_ticks_usec() # TIMING
 		if not SOLID.has(kind):
 			continue
+		n_col += list.size() # TIMING
 		for s: Dictionary in list:
 			var size: float = s["scale"]
 			var shape := CylinderShape3D.new()
@@ -115,6 +124,8 @@ func _rebuild() -> void:
 			collision.shape = shape
 			collision.position = s["position"] + Vector3(0.0, shape.height / 2.0, 0.0)
 			add_child(collision)
+		t_col += Time.get_ticks_usec() - t0 # TIMING
+	print("TIMING props %d spots: multimeshes %.2f ms, %d collisions %.2f ms" % [spots.size(), t_mm / 1000.0, n_col, t_col / 1000.0]) # TIMING
 
 
 static func _transform(s: Dictionary) -> Transform3D:
@@ -132,14 +143,45 @@ static func material() -> StandardMaterial3D:
 	return _material
 
 
-## The mesh of a kind of prop, made once.
+## Starts making every kind's mesh on a worker thread (W01: 5-20 ms a
+## kind, which the first island of a biome would otherwise spend at once).
+static func warm_up() -> void:
+	if _warm_task >= 0 or _meshes.size() == Prop.size():
+		return
+	var into := _warm
+	_warm_task = WorkerThreadPool.add_task(func() -> void:
+		for kind: int in Prop.values():
+			into[kind] = IslandProps._arrays(kind), false, "Prop meshes")
+
+
+## Whether [method warm_up]'s meshes are made (or none are being made).
+static func is_warm() -> bool:
+	return _warm_task < 0 or WorkerThreadPool.is_task_completed(_warm_task)
+
+
+## The mesh of a kind of prop, made once (waits for [method warm_up]'s,
+## if they're still being made).
 static func mesh(kind: int) -> ArrayMesh:
+	if _warm_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_warm_task)
+		_warm_task = -1
+		for k: int in _warm:
+			if not _meshes.has(k):
+				_meshes[k] = _mesh_of(_warm[k])
+		_warm.clear()
 	if not _meshes.has(kind):
-		_meshes[kind] = _make(kind)
+		_meshes[kind] = _mesh_of(_arrays(kind))
 	return _meshes[kind]
 
 
-static func _make(kind: int) -> ArrayMesh:
+static func _mesh_of(arrays: Array) -> ArrayMesh:
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
+
+
+# A kind's surface, on any thread.
+static func _arrays(kind: int) -> Array:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
@@ -207,7 +249,7 @@ static func _make(kind: int) -> ArrayMesh:
 				_add(st, _box(Vector3(0.22, 0.04, 0.08)), Basis(Vector3.UP, yaw) * Vector3(0.11, 0.02, 0.0), Vector3.ONE, STARFISH_ORANGE, rng, 0.0, 0.0, yaw)
 		Prop.SHELL:
 			_add(st, _sphere(0.1, 0.1, 6, 3), Vector3(0, 0.02, 0), Vector3(1.0, 0.8, 0.8), SHELL_PINK, rng, 0.0)
-	return st.commit()
+	return st.commit_to_arrays()
 
 
 static func _cylinder(top: float, bottom: float, height: float, sides: int) -> CylinderMesh:
