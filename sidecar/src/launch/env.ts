@@ -9,8 +9,8 @@ export type Env = Record<string, string | undefined>
 
 /**
  * Variables a store client injects into the game that must not reach the
- * user's own programs. Untested so far (no Steam build yet): see NOTES.md ->
- * Watch items -> Steam.
+ * user's own programs. Untested so far (no Steam build yet): see
+ * docs/release.md -> Steam.
  */
 export const STORE_CLIENT_VARIABLES: readonly string[] = [
   'SteamAppId', 'SteamGameId', 'SteamOverlayGameId', 'SteamClientLaunch',
