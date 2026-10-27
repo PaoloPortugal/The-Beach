@@ -3515,6 +3515,35 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_check(fishing.state == Fishing.State.IDLE, "D01: losing the controls (a chat, a menu) reels in")
 	player.controls_enabled = true
 
+	# A full charge aimed 30° up would fly past the line's longest: it's
+	# held there and drops into the water, not dragged.
+	fishing.wait = Vector2(60.0, 60.0)
+	var eye := camera.global_position
+	_face(player, eye + out * 10.0 + Vector3.UP * 10.0 * tan(deg_to_rad(30.0)))
+	await _cast(1.0)
+	await _until(fishing._floating, 5.0)
+	var reach := fishing._tip.global_position.distance_to(fishing._bobber.global_position)
+	await _frames(30)
+	_check(fishing._floating() and reach <= fishing.max_line and reach > fishing.max_line - 3.0, "D01: a long throw stops at the line's longest and rests there (%.1f m, %s)" % [reach, Fishing.State.keys()[fishing.state]])
+	fishing.reel_in()
+	# Off a bridge's side, mid-span: over its rails (not ground) into the sea.
+	var span: Bridge = islands.bridges.all_bridges()[0]
+	for b in islands.bridges.all_bridges():
+		if b.length() > span.length():
+			span = b
+	var middle := (span.from + span.to) / 2.0
+	player.global_position = Vector3(middle.x, span.deck_y(span.length() / 2.0) + 0.1, middle.z)
+	player.velocity = Vector3.ZERO
+	await _frames(10)
+	var side := (span.to - span.from).cross(Vector3.UP) * Vector3(1, 0, 1)
+	_face(player, player.global_position + side.normalized() * 6.0)
+	await _cast(0.0)
+	await _until(fishing._floating, 4.0)
+	var off := span.to_local(fishing._bobber.global_position)
+	_check(fishing._floating() and absf(off.x) > Bridge.WIDTH / 2.0, "D01: a cast off a bridge's side clears its rails and lands in the water (%s, %.1f m across)" % [Fishing.State.keys()[fishing.state], off.x])
+	fishing.reel_in()
+	fishing.wait = Vector2(0.2, 0.3)
+
 	# Not while swimming.
 	player.global_position = out * 30.0 + Vector3(0, -3, 0)
 	await _until(func() -> bool: return player.swimming, 3.0)
