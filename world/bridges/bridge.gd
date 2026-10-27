@@ -71,6 +71,8 @@ func _init(p_from := Vector3.ZERO, p_to := Vector3.FORWARD) -> void:
 
 func _ready() -> void:
 	set_process(false)
+	# Also on the "ground" layer (project.godot), for D01's bobber.
+	set_collision_layer_value(3, true)
 	var flat := Vector2(to.x - from.x, to.z - from.z)
 	position = from
 	# Local -z runs along the bridge, +x across it.

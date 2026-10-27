@@ -206,6 +206,7 @@ func _add_chunk(made: Dictionary) -> Node3D:
 	var arrays: Array = made["arrays"]
 	var body := StaticBody3D.new()
 	body.name = "Chunk_%d_%d" % [key.x, key.y]
+	body.set_collision_layer_value(3, true) # also "ground" (project.godot), for D01's bobber
 	var mesh := MeshInstance3D.new()
 	var array_mesh := ArrayMesh.new()
 	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

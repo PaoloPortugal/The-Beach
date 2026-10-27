@@ -50,6 +50,9 @@ static var _ground_material: StandardMaterial3D
 
 func _ready() -> void:
 	set_process(false)
+	# Also on the "ground" layer (project.godot), the only one D01's
+	# bobber collides with: it rolls on the ground, not the props.
+	set_collision_layer_value(3, true)
 	if island_seed == 0:
 		island_seed = randi_range(1, 2147483647) # kept: W12 saves it
 	print("Island seed: %d (%s)" % [island_seed, Biome.NAMES[biome]])

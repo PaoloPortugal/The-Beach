@@ -2,14 +2,17 @@ class_name FishingHud
 extends CanvasLayer
 ## Fishing's bits of screen (D01), drawn in code like the hotbar (C15)
 ## and placeholders like it: the cast's meter under the crosshair while
-## you charge, a short line under it ("It got away"), and the catch card
-## ("You caught a ...! 34 cm", marked New on a species' first). Hidden
-## without the controls (the chat, a menu, the sessions ring, the map).
+## you charge, a "!" under it while a fish bites (time to click), a
+## short line under it ("It got away"), and the catch card ("You caught
+## a ...! 34 cm", marked New on a species' first). Hidden without the
+## controls (the chat, a menu, the sessions ring, the map).
 
 ## The meter's size and its distance under the middle of the screen,
 ## pixels.
 const METER := Vector2(64, 6)
 const METER_BELOW := 26.0
+## The bite's "!": its size, pixels.
+const BITE_SIZE := 26
 ## Seconds a line and the catch card stay up, then fading out.
 const SAY_TIME := 2.0
 const CARD_TIME := 3.5
@@ -51,6 +54,11 @@ func said() -> String:
 	return _said if _said_age < SAY_TIME + FADE_TIME else ""
 
 
+## Whether the bite's "!" shows now.
+func bite_mark() -> bool:
+	return fishing != null and fishing.state == Fishing.State.BITE and fishing.player.controls_enabled
+
+
 ## Shows the catch card.
 func show_catch(species_name: String, size_cm: int, first: bool) -> void:
 	var article := "an" if species_name.left(1).to_lower() in ["a", "e", "i", "o", "u"] else "a"
@@ -81,6 +89,8 @@ func _paint() -> void:
 		var rect := Rect2(middle + Vector2(-METER.x / 2.0, METER_BELOW), METER)
 		_canvas.draw_rect(rect.grow(1.5), FILL)
 		_canvas.draw_rect(Rect2(rect.position, Vector2(METER.x * fishing.charge, METER.y)), LINE)
+	if bite_mark():
+		_text(font, middle + Vector2(0, METER_BELOW + 8), "!", BITE_SIZE, NEW, 1.0)
 	var alpha := _alpha(_said_age, SAY_TIME)
 	if alpha > 0.0 and _said != "":
 		_text(font, middle + Vector2(0, METER_BELOW + 30), _said, 15, LINE, alpha)

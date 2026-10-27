@@ -1,39 +1,65 @@
 class_name Fishing
 extends Node3D
-## Fishing (D01; the user's design, 2026-10-27), with the rod in hand
-## (C15's slot 2). Hold left click (`use`) to charge the cast, a small
-## meter filling; let go and the bobber flies where you look, as far as
-## the charge says. Then a fish comes, its shadow swimming up to the
-## bobber, nibbles once or a few times, and bites: the bobber goes under
-## for a moment. A click then catches it; a click on a nibble scares it
-## off; a click while nothing is there reels in. No catch bar for now.
+## Fishing (D01; the user's design, 2026-10-27, round 2 after the live
+## check), with the rod in hand (C15's slot 2). Hold left click (`use`)
+## to charge the cast, a small meter filling; let go and the bobber, a
+## real ball on the line, is thrown where you look, harder the fuller the
+## charge. It floats on the water, and rolls and rests on land, where
+## nothing ever comes. Hold the click while it's out to reel it in
+## slowly; let go to stop. A fish comes to a bobber resting in the
+## water: its shadow swims up, nibbles once or a few times, and bites,
+## the bobber plunging with a splash. A click then catches it; a click
+## on a nibble scares it off. No fight yet (the next round).
 ##
 ## What comes depends only on the world ([FishSpecies]): the water under
 ## the bobber, the nearest island's biome, the hour and the weather.
 ## Shadows wander in the clear shallows, and a cast near one brings that
-## one at once. Leaving (walking off, the chat or a menu, another tool,
-## swimming) reels in: it costs only the fish on the line. Catches go in
-## the [CatchLog]. Made by `world.gd`, at the world's origin, so its
+## one at once. You can walk while the line is out: it pays out up to
+## [member max_line], then drags the bobber, scaring off the fish on the
+## line. Leaving (the chat or a menu, another tool, swimming) reels in
+## at once: it costs only the fish on the line. Catches go in the
+## [CatchLog]. Made by `world.gd`, at the world's origin, so its
 ## children's positions are the world's.
 
 ## A fish was caught; [param first] the species' first.
 signal caught(id: String, size_cm: int, first: bool)
 
-enum State { IDLE, CHARGING, CASTING, WAITING, APPROACH, NIBBLE, BITE }
+## OUT: the bobber is out but not resting in the water (flying is
+## CASTING): on land, rolling, being reeled or dragged. Nothing comes.
+enum State { IDLE, CHARGING, CASTING, OUT, WAITING, APPROACH, NIBBLE, BITE }
 
-## Seconds to fill the meter; the cast's reach, metres from the player,
-## from a tap to a full meter.
+## Seconds to fill the meter; the throw's speed, m/s, from a tap to a
+## full meter (about 4 m and 22 m over flat water at eye level), and how
+## far above where you look it goes, degrees.
 const CHARGE_TIME := 1.0
-const MIN_CAST := 4.0
-const MAX_CAST := 22.0
-## The bobber's flight, seconds, and how high its arc rises, metres.
-const FLIGHT_TIME := 0.6
-const ARC := 2.5
-## Water shallower than this where the bobber would land counts as land.
+const MIN_THROW := 5.2
+const MAX_THROW := 18.0
+const LIFT := 15.0
+## The bobber: its radius, metres, and mass, kg. It collides only with
+## the "ground" layer (project.godot: islands, the sea floor, bridges,
+## the platform), never props, agents or the player.
+const BOBBER_RADIUS := 0.07
+const BOBBER_MASS := 0.05
+const GROUND_LAYER := 3
+## Water shallower than this under the bobber counts as land: nothing
+## comes there.
 const MIN_DEPTH := 0.3
-## Walking further than this from where you cast reels in, metres.
-const LEAVE_DISTANCE := 2.5
-## A shadow this near where the bobber lands comes at once, metres.
+## Line left slack when the bobber settles in the water, metres; how fast
+## holding the click reels in, m/s; how near the rod's tip it's back.
+const SLACK := 0.6
+const REEL_SPEED := 4.0
+const BACK := 1.5
+## Reeling, a taut bobber moving less than SNAG_MOVE metres in SNAG_TIME
+## seconds is snagged, and hops up at HOP m/s.
+const SNAG_TIME := 0.5
+const SNAG_MOVE := 0.05
+const HOP := 2.5
+## Further than this past the line's longest from the rod's tip (a jump
+## across the world), it reels in, metres.
+const LOST := 10.0
+## Under this speed, m/s, a bobber in the water rests there.
+const REST_SPEED := 0.6
+## A shadow this near where the bobber settles comes at once, metres.
 const AIM_RADIUS := 4.0
 ## Shadows in the shallows round the player: at most SHADOWS, between
 ## SHADOW_NEAR and SHADOW_RANGE metres away, in water SHADOW_DEPTH deep
@@ -54,15 +80,22 @@ const LUNGE := 0.15
 ## How far under the water the bobber dips on a nibble and on the bite,
 ## metres, and how fast a nibble's dip comes back up, m/s.
 const NIBBLE_DIP := 0.08
-const BITE_DIP := 0.3
+const BITE_DIP := 0.45
 const DIP_BACK := 0.6
+## The splash ring on the bite: how long it spreads, seconds, and how
+## wide it gets, metres.
+const SPLASH_TIME := 0.6
+const SPLASH_SIZE := 0.8
 ## The rod (a placeholder): its length, where its grip is in the
-## camera's view, and its tilt forward from upright, degrees, at rest
-## and fully charged.
+## camera's view at GRIP_FOV degrees (moved and scaled with the field of
+## view, so it stays in the same place on screen), and its tilt forward
+## from upright, degrees, at rest, fully charged and reeling.
 const ROD_LENGTH := 1.2
 const GRIP := Vector3(0.28, -0.32, -0.45)
+const GRIP_FOV := 80.0
 const ROD_TILT := -55.0
 const ROD_CHARGED := -15.0
+const ROD_REELING := -40.0
 const ROD_COLOUR := Color(0.45, 0.30, 0.18)
 const LINE_COLOUR := Color(0.92, 0.92, 0.88)
 
@@ -75,7 +108,10 @@ var aimed_wait := Vector2(0.5, 1.5)
 var approach_time := 2.0
 var nibbles := Vector2i(1, 3)
 var nibble_gap := Vector2(0.7, 1.5)
-var bite_window := 0.9
+var bite_window := 1.5
+## The longest the line pays out, metres, as you walk; past it the
+## bobber is dragged. A variable so the tests can shorten it.
+var max_line := 30.0
 
 var player: Player
 var hotbar: Hotbar
@@ -90,24 +126,31 @@ var rng := RandomNumberGenerator.new()
 var state := State.IDLE
 ## How full the meter is, 0 to 1, while charging.
 var charge := 0.0
-## Where the bobber flies to or floats, on the water's plane.
+## Where the bobber rests in the water, on the water's plane.
 var target := Vector3.ZERO
+## How much line is out, metres: the bobber is pulled back when further
+## from the rod's tip.
+var line_length := 0.0
+## Whether the click is held to reel in.
+var reeling := false
 
-var _cast_from := Vector3.ZERO # where the player stood
-var _flight := 0.0
-var _flight_from := Vector3.ZERO
 var _timer := 0.0
 var _nibbles_left := 0
 var _dip := 0.0
 var _fish: FishShadow # the fish on the line: aimed at, coming, nibbling or biting
 var _species := {}
 var _where := {} # the bobber's water and biome
-var _release := false # cast on the next physics frame (the ray needs it)
+var _release := false # cast on the next physics frame
+var _snag_timer := 0.0
+var _snag_from := Vector3.ZERO
 var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
+var _splash_age := INF
 var _rod := Node3D.new()
 var _tip := Node3D.new()
-var _bobber := Node3D.new()
+var _bobber := RigidBody3D.new()
+var _splash := MeshInstance3D.new()
+var _splash_material := StandardMaterial3D.new()
 var _line := MeshInstance3D.new()
 var _line_mesh := ImmediateMesh.new()
 var _line_material := StandardMaterial3D.new()
@@ -157,11 +200,16 @@ func biome_at(point: Vector3) -> int:
 	return i.generator.biome if i else -1
 
 
-## Reels in: the bobber comes back and the fish on the line, if any,
-## swims off.
+## Reels in at once: the bobber comes back and the fish on the line, if
+## any, swims off.
 func reel_in() -> void:
 	_lose_fish(false)
 	_end()
+
+
+## Whether the bobber is out (flying, on land, in the water).
+func bobber_out() -> bool:
+	return state != State.IDLE and state != State.CHARGING
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -180,12 +228,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			State.APPROACH, State.NIBBLE:
 				_lose_fish(true)
 				hud.say("Too soon: it swam off")
-				_end()
+				_to_out()
+				reeling = true
+			State.WAITING:
+				_lose_fish(false)
+				_to_out()
+				reeling = true
 			_:
-				reel_in()
+				reeling = true
 		get_viewport().set_input_as_handled()
-	elif event.is_action_released("use") and state == State.CHARGING:
-		_release = true
+	elif event.is_action_released("use"):
+		if state == State.CHARGING:
+			_release = true
+		reeling = false
 		get_viewport().set_input_as_handled()
 
 
@@ -200,30 +255,23 @@ func _physics_process(delta: float) -> void:
 	if _shadow_timer <= 0.0:
 		_shadow_timer = SHADOW_EVERY
 		_tend_shadows()
+	if bobber_out() and not _left():
+		_move_bobber(delta)
 
 
 func _process(delta: float) -> void:
 	if player == null:
 		return
-	_rod.visible = hotbar.held_tool() == "rod"
-	var tilt := ROD_TILT
-	if state == State.CHARGING:
-		tilt = lerpf(ROD_TILT, ROD_CHARGED, charge)
-	elif state == State.BITE:
-		tilt = ROD_TILT + 10.0
-	_rod.rotation_degrees.x = move_toward(_rod.rotation_degrees.x, tilt, 400.0 * delta)
-	if state == State.IDLE:
-		return
-	if _left():
-		reel_in()
+	_place_rod(delta)
+	_splash_age += delta
+	if state == State.IDLE or _left():
+		if state != State.IDLE:
+			reel_in()
+		_place_splash()
 		return
 	match state:
 		State.CHARGING:
 			charge = minf(charge + delta / CHARGE_TIME, 1.0)
-		State.CASTING:
-			_flight = minf(_flight + delta / FLIGHT_TIME, 1.0)
-			if _flight >= 1.0:
-				_land()
 		State.WAITING:
 			_timer -= delta
 			if _timer <= 0.0:
@@ -246,6 +294,7 @@ func _process(delta: float) -> void:
 				else:
 					state = State.BITE
 					_timer = bite_window
+					_splash_age = 0.0
 					if is_instance_valid(_fish):
 						_fish.lunge(HOLD)
 		State.BITE:
@@ -257,18 +306,17 @@ func _process(delta: float) -> void:
 				_back_to_waiting()
 	if state != State.BITE:
 		_dip = move_toward(_dip, 0.0, DIP_BACK * delta)
-	_place_bobber()
+	if _floating():
+		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip, target.z)
+	if bobber_out():
+		_draw_line()
+	_place_splash()
 
 
-# Leaving the spot or the rod (D01): walking off, the chat or a menu,
-# another tool, swimming or riding.
+# Leaving the rod (D01): the chat or a menu, another tool, swimming or
+# riding. Walking isn't: the line pays out.
 func _left() -> bool:
-	if not usable() or player.swimming or player.riding:
-		return true
-	if state == State.CHARGING:
-		return false
-	var moved := Vector2(player.global_position.x - _cast_from.x, player.global_position.z - _cast_from.z)
-	return moved.length() > LEAVE_DISTANCE
+	return not usable() or player.swimming or player.riding
 
 
 func _on_held(_tool: String) -> void:
@@ -276,34 +324,111 @@ func _on_held(_tool: String) -> void:
 		reel_in()
 
 
-# Where you look, as far as the charge says: onto water only.
+# Resting in the water, where fish come: it floats on the waves, placed
+# there each frame, not moved by the physics.
+func _floating() -> bool:
+	return state in [State.WAITING, State.APPROACH, State.NIBBLE, State.BITE]
+
+
+# Thrown along where you look, a little above it, harder the fuller the
+# charge, from the rod's tip.
 func _cast() -> void:
 	var camera := player.get_node("Head/Camera3D") as Camera3D
 	var forward := -camera.global_basis.z
-	var flat := Vector3(forward.x, 0.0, forward.z)
-	if flat.length() < 0.05: # looking straight down
-		flat = -player.global_basis.z
-	flat = flat.normalized()
-	var at := player.global_position + flat * lerpf(MIN_CAST, MAX_CAST, charge)
-	var depth := depth_at(at)
-	if depth < MIN_DEPTH:
-		state = State.IDLE
-		hud.say("Can't cast onto land")
-		return
-	target = Vector3(at.x, Player.WATER_Y, at.z)
-	_where = {"water": FishSpecies.water_at(depth), "biome": biome_at(at)}
-	_cast_from = player.global_position
-	_flight_from = _tip.global_position
-	_flight = 0.0
-	_dip = 0.0
-	state = State.CASTING
+	var throw := forward.rotated(camera.global_basis.x.normalized(), deg_to_rad(LIFT)).normalized()
+	_bobber.freeze = false
+	_bobber.global_position = _tip.global_position
+	_bobber.global_rotation = Vector3.ZERO
+	_bobber.linear_velocity = throw * lerpf(MIN_THROW, MAX_THROW, charge)
+	_bobber.angular_velocity = Vector3.ZERO
 	_bobber.visible = true
 	_line.visible = true
+	line_length = 0.0
+	_dip = 0.0
+	state = State.CASTING
 
 
-# The bobber is on the water: a shadow near it comes soon, else wait.
-func _land() -> void:
+# The bobber's physics while it's out: the line pays out as it flies or
+# as you walk, holding the click reels it in, the line pulls it when
+# taut, and the water holds it up. A flying bobber stops in the water or
+# on land; one that comes to rest in the water is where fish come.
+func _move_bobber(delta: float) -> void:
+	var tip := _tip.global_position
+	var at := _bobber.global_position
+	var dist := tip.distance_to(at)
+	if dist > max_line + LOST:
+		reel_in()
+		return
+	if _floating():
+		if dist > max_line:
+			# Dragged: the fish on the line takes fright.
+			_lose_fish(true)
+			_to_out()
+		else:
+			line_length = maxf(line_length, dist)
+		return
+	if reeling:
+		if state == State.CASTING:
+			state = State.OUT
+		line_length = maxf(minf(line_length, dist) - REEL_SPEED * delta, 0.0)
+		if dist < BACK:
+			_end()
+			return
+	elif dist > line_length:
+		line_length = minf(dist, max_line if state != State.CASTING else INF)
+	var v := _bobber.linear_velocity
+	var to_tip := (tip - at) / maxf(dist, 0.001)
+	if dist > line_length:
+		var away := v.dot(to_tip)
+		if away < 0.0:
+			v -= to_tip * away
+		v += to_tip * (dist - line_length) * 8.0
+		_unsnag(at, to_tip, delta)
+	else:
+		_snag_timer = 0.0
+	var water := ocean.height_at(at.x, at.z)
+	var under := clampf((water + BOBBER_RADIUS - at.y) / (2.0 * BOBBER_RADIUS), 0.0, 1.0)
+	if under > 0.0:
+		v.y += under * 2.2 * 9.8 * delta
+		v -= v * minf(under * 4.0 * delta, 1.0)
+	_bobber.linear_velocity = v
+	var deep := under > 0.0 and depth_at(at) >= MIN_DEPTH
+	if state == State.CASTING:
+		if deep:
+			_settle_in_water()
+		elif _bobber.get_contact_count() > 0:
+			state = State.OUT
+	elif deep and not reeling and dist <= max_line and v.length() < REST_SPEED:
+		_settle_in_water()
+
+
+# Reeling a taut bobber that has stopped (an edge, a step): it hops up
+# and over.
+func _unsnag(at: Vector3, to_tip: Vector3, delta: float) -> void:
+	if not reeling:
+		_snag_timer = 0.0
+		return
+	if at.distance_to(_snag_from) > SNAG_MOVE:
+		_snag_from = at
+		_snag_timer = 0.0
+		return
+	_snag_timer += delta
+	if _snag_timer >= SNAG_TIME:
+		_snag_timer = 0.0
+		_bobber.linear_velocity = Vector3(to_tip.x, 0.0, to_tip.z) + Vector3.UP * HOP
+
+
+# The bobber rests in the water: a shadow near it comes soon, else wait.
+func _settle_in_water() -> void:
+	var at := _bobber.global_position
+	target = Vector3(at.x, Player.WATER_Y, at.z)
+	_where = {"water": FishSpecies.water_at(depth_at(at)), "biome": biome_at(at)}
+	_bobber.freeze = true
+	_bobber.global_rotation = Vector3.ZERO
+	line_length = minf(_tip.global_position.distance_to(at) + SLACK, max_line)
+	_dip = 0.0
 	state = State.WAITING
+	_fish = null
 	var best := AIM_RADIUS
 	for s in _shadows:
 		if is_instance_valid(s) and not s.hooked:
@@ -316,6 +441,15 @@ func _land() -> void:
 		_timer = rng.randf_range(aimed_wait.x, aimed_wait.y)
 	else:
 		_timer = rng.randf_range(wait.x, wait.y)
+
+
+# Out of the water's rest, back to the physics: reeled or dragged.
+func _to_out() -> void:
+	state = State.OUT
+	_bobber.freeze = false
+	_bobber.linear_velocity = Vector3.ZERO
+	_snag_from = _bobber.global_position
+	_snag_timer = 0.0
 
 
 # What lives here now comes: the aimed shadow, or a new one. Nothing
@@ -373,28 +507,60 @@ func _end() -> void:
 	state = State.IDLE
 	charge = 0.0
 	_release = false
+	reeling = false
+	line_length = 0.0
+	_bobber.freeze = true
 	_bobber.visible = false
 	_line.visible = false
 
 
-func _place_bobber() -> void:
+# The rod in your hand, bottom right whatever the field of view, tilting
+# back as you charge and up as you reel.
+func _place_rod(delta: float) -> void:
+	_rod.visible = hotbar.held_tool() == "rod"
+	var camera := _rod.get_parent() as Camera3D
+	var s := tan(deg_to_rad(camera.fov) / 2.0) / tan(deg_to_rad(GRIP_FOV) / 2.0)
+	_rod.position = Vector3(GRIP.x * s, GRIP.y * s, GRIP.z)
+	_rod.scale = Vector3.ONE * s
+	var tilt := ROD_TILT
 	if state == State.CHARGING:
-		return
-	var at := target
-	if state == State.CASTING:
-		at = _flight_from.lerp(target, _flight) + Vector3.UP * ARC * 4.0 * _flight * (1.0 - _flight)
-	else:
-		at.y = ocean.height_at(at.x, at.z) - _dip
-	_bobber.global_position = at
-	# The line: from the rod's tip, sagging toward the water.
+		tilt = lerpf(ROD_TILT, ROD_CHARGED, charge)
+	elif state == State.BITE:
+		tilt = ROD_TILT + 10.0
+	elif reeling:
+		tilt = ROD_REELING
+	_rod.rotation_degrees.x = move_toward(_rod.rotation_degrees.x, tilt, 400.0 * delta)
+
+
+# The line: from the rod's tip to the bobber, straight when taut, sagging
+# with the slack.
+func _draw_line() -> void:
 	var from := _tip.global_position
-	var sag := 0.0 if state == State.CASTING else minf(from.distance_to(at) * 0.08, 1.2)
+	var at := _bobber.global_position
+	var dist := from.distance_to(at)
+	var slack := line_length - dist
+	var sag := 0.0
+	if state != State.CASTING and slack > 0.05:
+		sag = minf(dist * 0.06 + slack * 0.5, 1.5)
 	_line_mesh.clear_surfaces()
 	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, _line_material)
 	for i in 13:
 		var t := i / 12.0
 		_line_mesh.surface_add_vertex(from.lerp(at, t) + Vector3.DOWN * sag * 4.0 * t * (1.0 - t))
 	_line_mesh.surface_end()
+
+
+# The bite's splash: a ring spreading on the water round the bobber,
+# fading out.
+func _place_splash() -> void:
+	var t := _splash_age / SPLASH_TIME
+	_splash.visible = t < 1.0 and bobber_out()
+	if not _splash.visible:
+		return
+	var r := lerpf(0.1, SPLASH_SIZE, t)
+	_splash.scale = Vector3(r, 0.2, r)
+	_splash.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) + 0.02, target.z)
+	_splash_material.albedo_color.a = 0.8 * (1.0 - t)
 
 
 # Keeps a few shadows wandering in the shallows round the player.
@@ -448,11 +614,33 @@ func _make_rod() -> void:
 	player.get_node("Head/Camera3D").add_child(_rod)
 
 
-# A placeholder bobber, red below and white above, and the line.
+# A placeholder bobber, red below and white above: a small ball that
+# rolls, on the ground layer only. Then the line and the splash ring.
 func _make_bobber() -> void:
 	_bobber.name = "Bobber"
 	_bobber.visible = false
-	for part in [[Color(0.85, 0.12, 0.1), 0.07, 0.0], [Color(0.95, 0.95, 0.92), 0.05, 0.04]]:
+	_bobber.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	_bobber.freeze = true
+	_bobber.mass = BOBBER_MASS
+	_bobber.collision_layer = 0
+	_bobber.collision_mask = 0
+	_bobber.set_collision_mask_value(GROUND_LAYER, true)
+	_bobber.continuous_cd = true
+	_bobber.contact_monitor = true
+	_bobber.max_contacts_reported = 2
+	_bobber.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	_bobber.linear_damp = 0.05
+	_bobber.angular_damp = 1.5
+	var surface := PhysicsMaterial.new()
+	surface.friction = 0.6
+	surface.bounce = 0.3
+	_bobber.physics_material_override = surface
+	var collision := CollisionShape3D.new()
+	var shape := SphereShape3D.new()
+	shape.radius = BOBBER_RADIUS
+	collision.shape = shape
+	_bobber.add_child(collision)
+	for part in [[Color(0.85, 0.12, 0.1), BOBBER_RADIUS, 0.0], [Color(0.95, 0.95, 0.92), 0.05, 0.04]]:
 		var ball := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
 		sphere.radius = part[1]
@@ -474,3 +662,17 @@ func _make_bobber() -> void:
 	_line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_line_material.albedo_color = LINE_COLOUR
 	add_child(_line)
+	_splash.name = "Splash"
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.85
+	ring.outer_radius = 1.0
+	ring.rings = 24
+	ring.ring_segments = 3
+	_splash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_splash_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_splash_material.albedo_color = Color(1, 1, 1, 0.8)
+	ring.material = _splash_material
+	_splash.mesh = ring
+	_splash.visible = false
+	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_splash)
