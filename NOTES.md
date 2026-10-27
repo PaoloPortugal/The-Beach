@@ -1370,7 +1370,7 @@ and the real layout (user's, 2026-10-02; W07).
   and vanish when one starts sinking; how they show up and leave is
   designed later (rejected for now: rising after the island and sinking
   first; tilting with the island).
-- **Rails** you can't walk through, so you don't fall in the sea (since
+- **Rails** you can't walk through, so you don't fall in the sea by accident (since
   W08 you'd have to swim to a beach: no climbing back on).
   *Changed (user's, 2026-10-27, D01 round 2 review; "meant to for a
   while"):* the rails are solid only at their own 1 m height, so you
