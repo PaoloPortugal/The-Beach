@@ -1479,7 +1479,18 @@ and the real layout (user's, 2026-10-02; W07).
   `with_hubs` false; its first region gets no bridge). `add` bridges a new region to its group's nearest
   one, preferring a line that keeps clear of every other region's reach
   (`is_clear`); `remove` frees its bridges and, while the group is in
-  pieces, adds the shortest clear bridge between two pieces.
+  pieces, adds the shortest clear bridge between two pieces (`_patch`).
+  *Since 2026-10-27 (my pick, for the user's review):* a region that
+  comes under a bridge (`_crosses`: the line within its reach) takes
+  that bridge's place. The bridge goes and its group is patched the
+  same way, now through the new region; every other bridge stays. Before,
+  `add` only linked the new region, so an island could rise through a
+  bridge: islands risen out of order (a further one first, as after a
+  restart, W12, where they are built off the main thread) or a new
+  session filling a nearer spot a sunk island left, under the bridge
+  that patched the gap (rejected: keeping islands' spots clear of
+  bridges, which moves the layout; joining bridges only after a
+  cluster's islands are all up, which covers restarts only).
 - *Islands* (`SessionIslands`): an island joins its cluster's tree once
   it has risen (at once for a snapshot), a far cluster's without the
   platform (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
@@ -1532,7 +1543,10 @@ and the real layout (user's, 2026-10-02; W07).
   checks the same scene: every near island joined to the platform, every
   far cluster's islands joined to each other and to nothing else, no
   bridge over another island's land or across another bridge, before and
-  after islands in the middle of trees (one of them far) sink. It does the
+  after islands in the middle of trees (one of them far) sink; a failing
+  "over land" check prints the bridge, the island, its biome and seed.
+  The tree's own test (`_tree`) also adds a region under a bridge and
+  regions out of order: every bridge stays clear. It does the
   same with a crowd (user's request, 2026-10-09): the demo with clusters
   of varied sizes (`LayoutDemo.sizes`), no two islands closer than 100 m,
   nine islands sinking, near and far. On CI the trimmed crowd
@@ -6902,10 +6916,6 @@ Ideas weighed and turned down. Each says what would reopen it.
   Measure again with `time_world.gd --start` (Running it → Frame
   timing) if a start feels rough on another machine, before
   optimizing.
-- **`bridges_test`'s "no bridge over another island's land"** (W06;
-  failed once in six runs, 2026-10-27, not since). Likely a random
-  layout case that `main` has too; unproven. If it fails again, keep
-  the layout's seed and look.
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
   not yet seen in a game session). The Claude desktop app pauses a
   flagged chat ("Session paused", with retry or switch model); how
