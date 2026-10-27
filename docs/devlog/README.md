@@ -111,3 +111,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [Island smoothing](2026-10-27-island-smoothing.md) | W01, W06, W08, W12 |
 | 2026-10-27 | [D01: fishing, designed](2026-10-27-d01-fishing-design.md) | D01, C15, A05 |
 | 2026-10-27 | [C15: the hotbar](2026-10-27-c15-hotbar.md) | C15, D01 |
+| 2026-10-27 | [D02: bug catching, designed](2026-10-27-d02-bug-catching-design.md) | D02, D01, C15, C11 |
