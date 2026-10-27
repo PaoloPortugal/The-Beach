@@ -2,7 +2,8 @@ extends SceneTree
 ## Headless test for W06's bridges: a bridge's shape (clearance, ramps,
 ## any slope), walking across one and not getting past its rails (real
 ## physics), the bridge tree (each region to its nearest, patching a cut
-## without moving other bridges, a hubless group), and the layout demo's
+## without moving other bridges, a hubless group, a region coming under
+## a bridge, regions out of order), and the layout demo's
 ## 64 sessions: every near cluster joined to the platform, every far one
 ## joined within but not to it, no bridge over another island's land or
 ## across another bridge, and still so after islands sink; and a crowd of

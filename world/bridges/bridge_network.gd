@@ -9,8 +9,8 @@ extends Node3D
 ## go with it and the cut pieces are patched: every other bridge stays,
 ## and the shortest new ones join the pieces (user's, 2026-10-07). A
 ## region that comes under a bridge (a nearer spot filled after a
-## further one) takes that bridge's place: the bridge goes and the
-## pieces are patched the same way, now through it.
+## further one) takes that bridge's place: the bridge goes and its
+## group is patched the same way, through the new region if it's in it.
 ##
 ## A region is a key with a centre, a reach (how far its land goes, for
 ## keeping bridges clear of it) and an edge: a Callable taking the point a

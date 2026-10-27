@@ -18,7 +18,8 @@ against a region that came later. In the tests a cluster's islands are
 built off the main thread and rise in any order: when a further island
 rose first, it was bridged straight to the platform, and the nearer one
 rose under that bridge. The same happens in play after a restart (W12
-brings islands back at once) and when a new session takes the nearer
+adds islands one a frame, but each rises once built off the main
+thread, in any order) and when a new session takes the nearer
 spot a sunk island left, under the bridge that patched the gap.
 
 ## The fix (my pick, for the user's review)
@@ -34,13 +35,20 @@ bridge stays. Rejected:
 
 It means a bridge can now go when an island rises, not only when one
 sinks, which the user's re-linking rule (2026-10-07: every bridge still
-standing stays, so nothing moves under you) didn't foresee; the island would otherwise rise through it.
+standing stays, so nothing moves under you) didn't foresee; NOTES → W06
+marks it open for the user. Islands join the tree only once risen, so
+an island still rises through the bridge for its 3 s and the bridge
+goes at the end; freeing it as the rise starts is the user's call too.
+A bridge of another cluster (where clusters reach each other, W06's
+known limits) is patched within its own cluster, without the new
+island, and may come back over it.
 
 ## Tested
 
 The tree's own test adds a region under a bridge (it takes its place;
 the rest stay; gone again, the cut is patched as before) and regions
 out of order (the same row, every bridge clear). Without the fix the
-first of those fails. The bridges test then passed 20 runs in a row,
+first of those fails (the suite stops at its first failure; the
+out-of-order case would fail too: hub-r2 is made first, over r0 and r1). The bridges test then passed 20 runs in a row,
 and every suite passed on Windows (the sidecar's typecheck and tests,
 every Godot suite one at a time).

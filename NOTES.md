@@ -1357,7 +1357,10 @@ and the real layout (user's, 2026-10-02; W07).
   Every bridge still standing stays; only the shortest new bridges that
   join the cut pieces appear, so nothing moves under you (rejected:
   rebuilding the whole tree each time; an empty hub left where the island
-  was).
+  was). *Open (2026-10-27, for the user):* an island that comes up
+  under a bridge now takes that bridge's place once it has risen (How
+  it works → The tree), so a bridge can also go when an island rises,
+  with you on it or not.
 - **Look:** made in code, like the islands: low-poly wooden planks on
   posts, generated to any length and slope (so W10's different heights
   work later). A placeholder that art can replace.
@@ -1483,16 +1486,22 @@ and the real layout (user's, 2026-10-02; W07).
   *Since 2026-10-27 (my pick, for the user's review):* a region that
   comes under a bridge (`_crosses`: the line within its reach) takes
   that bridge's place. The bridge goes and its group is patched the
-  same way, now through the new region; every other bridge stays. Before,
-  `add` only linked the new region, so an island could rise through a
-  bridge: islands risen out of order (a further one first, as after a
-  restart, W12, where they are built off the main thread) or a new
-  session filling a nearer spot a sunk island left, under the bridge
-  that patched the gap (rejected: keeping islands' spots clear of
-  bridges, which moves the layout; joining bridges only after a
-  cluster's islands are all up, which covers restarts only).
+  same way; when the bridge is in the new region's own group, the patch
+  goes through it. Every other bridge stays. A bridge of another group
+  (clusters reaching each other, W06's known limits) is patched without
+  the new region and may come back over it. Before, `add` only linked
+  the new region, so an island could end up standing under a bridge:
+  islands risen out of order (a further one first: islands rise once
+  built off the main thread, in any order, as after a restart, W12) or
+  a new session filling a nearer spot a sunk island left, under the
+  bridge that patched the gap. Islands join the tree once risen, so
+  the island still rises through the bridge for its 3 s, and the
+  bridge goes at the end (freeing it when the rise starts is the
+  user's call). Rejected: keeping islands' spots clear of bridges,
+  which moves the layout; joining bridges only after a cluster's
+  islands are all up, which covers restarts only.
 - *Islands* (`SessionIslands`): an island joins its cluster's tree once
-  it has risen (at once for a snapshot), a far cluster's without the
+  it has risen, a far cluster's without the
   platform (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
   times the generator's radius; a bridge meets it at the outermost point
   at its edge height (0.5 m on a beach; W10's `Island.edge_height`) on
@@ -2183,7 +2192,9 @@ a random biome and seed, in whatever order the snapshots arrived.
 - **Bridges are rebuilt**, not saved: the islands are added in their
   saved order, one a frame (W01 → Smoothing; a session started
   meanwhile waits behind them, one ended first never comes), each
-  bridged to its nearest (W06), which is usually the
+  bridged to its nearest (W06) once risen; built off the main thread,
+  they rise in any order, and a nearer one rising under a further one's
+  bridge takes its place (W06 → The tree). Usually the
   same tree (rejected: saving each bridge's ends; a tree patched after
   a sinking can come back different).
 - Only for sessions that come back (S07) or are found running again
