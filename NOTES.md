@@ -5619,7 +5619,12 @@ user's). Fish models to replace the shadows.
   bobber leaves the rod's tip along where the camera looks, 15° above
   it (`LIFT`), at 5.2 m/s for a tap to 18 m/s full (`MIN_THROW`,
   `MAX_THROW`): about 4 m and 22 m over flat water at eye level, more
-  aiming up. The line pays out as it flies. It stops where it lands:
+  aiming up. The line pays out as it flies, at most to `max_line` less
+  `SLACK` (29.4 m; since 2026-10-27, user's call on my recommendation:
+  a full charge aimed high used to fly past `max_line` and be dragged
+  back): there the line holds it and it drops, and coming to rest it's
+  pulled back to that if the line's pull stretched it a little past
+  (`_settle_in_water`). It stops where it lands:
   in water at least 0.3 m deep (`MIN_DEPTH`; the depth from a ray
   straight down, `depth_at`, past the player, or the seabed's
   `height_at` where it hits nothing) it rests there at once (waiting);
@@ -5711,7 +5716,10 @@ its biome; shadows in the shallows; a tap into the shallows near a
 shadow brings that one; the bite's "!" and splash; a shallows catch
 recorded with its biome; a cast onto the platform's deck rests there,
 nothing comes, and holding reels it in; a full charge into the
-drop-off (17-27 m); the bobber on the waves; the card and New; a
+drop-off (17-27 m); a full charge 30° up held at the line's longest,
+resting in the water within `max_line`; a tap sideways off the longest
+bridge's side, mid-span, over its rails into the water; the bobber on
+the waves; the card and New; a
 second catch not New, the biggest kept; a nibble clicked scares it off
 and reels; letting go stops reeling, and it rests and waits again; a
 missed bite; holding reels it all the way in; a few steps keep the line

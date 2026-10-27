@@ -615,8 +615,8 @@ a shore, a bridge or the platform.
 crosshair fills in about a second, and stays full. Let go to throw the
 bobber where you look: the fuller the charge, the harder the throw. A
 short tap lands it about 4 m out and a full charge about 22 m, looking
-straight ahead; aim higher to throw further. You can't cast while
-swimming.
+straight ahead; aim higher to throw further, up to about 29 m, where the
+line runs out and the bobber drops. You can't cast while swimming.
 
 **The bobber** is a little ball on your line. In the water it floats on
 the waves. On land (an island, a bridge's deck, the platform) it lands
