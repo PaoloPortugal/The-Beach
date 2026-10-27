@@ -98,9 +98,7 @@ func add(session_id: String, session: Dictionary) -> String:
 		index += 1
 	members[session_id] = index
 	_of[session_id] = id
-	var t0 := Time.get_ticks_usec() # TIMING
 	changed.emit()
-	print("TIMING clusters changed %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
 	return id
 
 

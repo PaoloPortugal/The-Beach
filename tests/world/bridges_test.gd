@@ -26,6 +26,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_profile()
 	_tree()
+	await _background()
 	await _walk()
 	await _demo()
 	await _crowd()
@@ -44,6 +45,45 @@ func _profile() -> void:
 	_check(steepest <= Bridge.RAMP + 0.001, "ramps no steeper than %.2f" % Bridge.RAMP)
 	var high := func(s: float) -> float: return Bridge.deck_height(3.0, 9.0, 60.0, s)
 	_check(is_equal_approx(high.call(30.0), 6.0), "ends higher up (W10): a straight slope")
+
+
+# A session's bridge is made on a worker thread (W01's smoothing): the
+# same bridge as one made at once, a few frames later.
+func _background() -> void:
+	await process_frame # the root is in the tree from now on
+	var a := Vector3(0.0, 1.0, 0.0)
+	var b := Vector3(10.0, 1.5, -80.0)
+	var at_once := Bridge.new(a, b)
+	root.add_child(at_once)
+	var later := Bridge.new(a, b)
+	later.build_in_background = true
+	root.add_child(later)
+	var middle := (a + b) / 2.0
+	_check(at_once.is_built() and not later.is_built() and later.get_child_count() == 0, "W06: a bridge made in the background has nothing in at first")
+	_check(later.carries(Vector3(middle.x, later.deck_y(later.length() / 2.0), middle.z)), "but carries works already")
+	await _until(later.is_built, 5.0)
+	_check(later.is_built() and not _built_shape(later).is_empty() and _built_shape(later) == _built_shape(at_once), "then the same segments, meshes and collision as one made at once")
+	var gone := Bridge.new(a, b)
+	gone.build_in_background = true
+	root.add_child(gone)
+	gone.free() # waits for its task: no error, nothing leaked
+	await _settle()
+	_check(true, "freed while it's being made, nothing goes wrong")
+	at_once.free()
+	later.free()
+
+
+# Each segment's near and far vertex counts, then the collision's faces.
+func _built_shape(bridge: Bridge) -> Array:
+	var out := []
+	for segment in bridge.get_children():
+		if segment is Node3D and segment.has_node("Near"):
+			out.append((segment.get_node("Near") as MeshInstance3D).mesh.get_faces().size())
+			out.append((segment.get_node("Far") as MeshInstance3D).mesh.get_faces().size())
+	for c in bridge.get_children():
+		if c is CollisionShape3D:
+			out.append(((c as CollisionShape3D).shape as ConcavePolygonShape3D).get_faces())
+	return out
 
 
 # Regions in a row, 100 m apart, plus a hub: the bridges make a tree.

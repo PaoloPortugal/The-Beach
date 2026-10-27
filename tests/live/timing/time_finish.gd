@@ -1,6 +1,6 @@
 extends SceneTree
-# Times an island's main-thread work after its ground is made (Island._finish
-# and what follows), with the real renderer, then frame times as islands
+# Times an island's main-thread work after its ground is made
+# (Island._finish_steps and what follows), with the real renderer, then frame times as islands
 # arrive through the background path.
 
 func _initialize() -> void:

@@ -108,3 +108,4 @@ reading; look things up by feature ID.
 | 2026-10-26 | [S02: Claude Code set by hand](2026-10-26-s02-program-path.md) | S02, C10, S03, Protocol |
 | 2026-10-26 | [Session details: no beacon for outside sessions, a quicker bridge](2026-10-26-session-start-details.md) | S08, W04, S02, S01 |
 | 2026-10-26 | [C14: the main menu](2026-10-26-c14-main-menu.md) | C14, C13, S07, W01, W04 |
+| 2026-10-27 | [Island smoothing](2026-10-27-island-smoothing.md) | W01, W06, W12 |

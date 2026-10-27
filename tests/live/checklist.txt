@@ -1,38 +1,46 @@
-RE-CHECK: C14 fixes
+LIVE CHECK: island smoothing
   godot --path . -- --checklist
 Page Down / wheel scrolls this.
 Real Claude. Never pick Fable
 (no access).
 
-A. Islands at start
-1. Start a session (Tab, +),
-   wait for its island. Quit,
-   Quit in the dialog (the
-   session keeps running).
-2. Start the game again. Its
-   island rises out of the
-   sea behind the menu, no
-   green beam? The circling
-   view smooth, no stutter
-   as it comes in?
-3. Play, Tab, + again: a new
-   island rises, the game
-   smooth while it comes?
+A. Behind the menu
+1. Start 3 sessions in 2
+   repositories (Tab, +), one
+   after another; wait for
+   each island and bridge.
+   Quit, Quit in the dialog
+   (sessions keep running).
+2. Start the game again.
+   Watch the circling view as
+   the islands rise: smooth,
+   no hitch as each comes in?
+   (One hitch while the world
+   loads, before any island,
+   is expected.)
+3. Bridges appear a moment
+   after their islands, whole
+   (planks, rails, posts)?
 
-B. Ending behind the menu
-4. Walk onto one of the two
-   islands. Esc -> Main menu.
-5. /exit that session in its
-   terminal. Its island sinks
-   behind the menu straight
-   away?
-6. Play: the view glides down
-   to you on the platform,
-   not to where the island
-   was?
-7. Esc -> Main menu, Play
-   again: you stay where you
-   are?
-8. /exit the other session.
-   Esc -> Main menu -> Quit:
-   closes without asking?
+B. Mid-game
+4. Play. Tab, + a session in
+   a new biome's repository:
+   the game smooth while its
+   island and bridge come?
+5. Walk the new bridge, both
+   ways: solid, no falling
+   through, walls hold?
+6. Walk round the new island:
+   props there, none in the
+   torches or bridge landing?
+7. Its orchestrator's bubble
+   shows its first message?
+
+C. Kept across restarts
+8. Quit (sessions keep
+   running), start again:
+   each island back with the
+   same biome, shape and spot?
+9. End one session, quit the
+   game at once, start again:
+   it doesn't come back?

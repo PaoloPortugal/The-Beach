@@ -55,10 +55,8 @@ func watch(orchestrator: Orchestrator) -> void:
 	var id := orchestrator.session_id
 	if id.is_empty() or store == null:
 		return
-	var t0 := Time.get_ticks_usec() # TIMING
 	var bubble: MessageBubble = BUBBLE.instantiate()
 	orchestrator.add_child(bubble)
-	print("TIMING bubble %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)) # TIMING
 	bubble.global_position = orchestrator.message_anchor()
 	_bubbles[id] = bubble
 	_show_latest(id)
