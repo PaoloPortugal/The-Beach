@@ -1,50 +1,70 @@
-LIVE CHECK: D01 fishing
+LIVE CHECK: D01 fishing,
+round 2
   godot --path . -- --checklist
   (add --sidecar-dev-fake if
   you like: no Claude needed)
 PgDn/PgUp scroll this.
 
 1. Play. Press 2: the rod
-   shows bottom right? How
-   does it look?
+   bottom right? Settings →
+   Field of view at 60 and
+   110: still in place?
 2. Hold left click, let go:
-   a meter fills under the
-   crosshair? A fuller
-   charge casts further?
-3. Aim at an island and at
-   the platform's deck:
-   no cast, "Can't cast
-   onto land"?
-4. The bobber rides the
-   waves? The line from the
-   rod's tip looks right?
-5. By an island: shadows
-   in the shallows? A cast
-   near one brings it?
-6. Nibbles visible (the
-   bobber dips), then the
-   bite (it goes under)?
-7. Click on a nibble: "Too
+   the meter fills, and the
+   bobber is thrown: a fuller
+   charge further, aiming up
+   further still?
+3. The bobber floats and
+   bobs on the waves? The
+   line sags when slack and
+   goes straight when tight?
+4. Throw it onto an island,
+   a bridge and the
+   platform's deck: it lands
+   and rolls, no message,
+   and nothing ever comes?
+5. Hold left click: it reels
+   in slowly, rolling back
+   over land; let go: it
+   stops? Trees, rocks and
+   steps don't get it stuck?
+6. Reel part way in the
+   water and let go: it
+   rests, and a fish comes
+   there?
+7. By an island: shadows in
+   the shallows? A cast near
+   one brings it?
+8. Nibbles visible, then the
+   bite: the plunge, the
+   splash ring and the "!"
+   clear enough to know it's
+   time to click?
+9. Click on a nibble: "Too
    soon: it swam off"?
-8. Click on the bite: the
+10. Click on the bite: the
    card, with New? A second
    of that species: no New?
-9. Miss a bite: "It got
-   away", and another comes?
-10. Click while waiting: it
-   reels in?
-11. Cast, then each of:
-   walk off, press 1, open
-   the chat (E on an
-   orchestrator), the map
-   (M), jump in and swim:
-   each reels in?
-12. The timings, the
-   distances and the bite
-   window feel right?
-13. Restart with
+11. Miss a bite: "It got
+   away", another comes? The
+   1.5 s window feels right?
+12. With the line out, walk
+   about: it stays out?
+   Walk far (30 m): the
+   bobber drags after you?
+13. Cast, then each of:
+   press 1, open the chat
+   (E on an orchestrator),
+   the map (M), jump in and
+   swim: each reels in?
+14. Reeling speed, the
+   throw's distances and the
+   bobber's bounce feel
+   right?
+15. Restart with
    -- --checklist --hour 22
    --weather rain: the
-   bobber, line, shadows,
-   meter and card readable
-   at night and in rain?
+   bobber, line, splash,
+   "!", meter and card
+   readable at night and in
+   rain?
