@@ -117,6 +117,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
+| C16 | Multi-language support                    | designed | —            | — |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -470,7 +471,9 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Fonts.** Don't rely on system fonts being present; ship the fonts the
   UI needs (the Markdown spike's monospace list is a stand-in). Which
   fonts is open: most good monospace fonts are under the OFL, not CC0, so
-  ask before adding one.
+  ask before adding one. The UI font for other scripts is decided:
+  Noto Sans (OFL), with a fallback per script, once the first
+  non-Latin language comes (user's, 2026-10-27; C16).
 - **WSL.** Only native Windows Claude Code in v1 (see Deliberate
   limitations).
 - **Testing.** Only Windows is available to test on for now; see Watch
@@ -3730,6 +3733,133 @@ headless: the live check has it.
 *Live check passed (2026-10-27)* with the user on Windows ("looks
 good"). macOS and Linux unchecked.
 
+### C16 Multi-language support
+*Designed (user's, 2026-10-27); not built. Scope: core,* mostly on the world side:
+every provider's sessions show the same game text, no protocol event is
+added, and a provider's own strings live in its own folders (below).
+The game's text in more languages than English, made so that adding
+text (species, hints, menus) and adding a language both scale. Dev log
+2026-10-27-c16-localisation-design.
+
+*Decided (user's, 2026-10-27; my recommendations, all taken):*
+- *Godot's own translation system* (`TranslationServer`) with
+  **gettext PO files**: `locale/messages.pot` (the template) and one
+  `locale/<lang>.po` per language. Rejected: CSV (one spreadsheet,
+  easy to edit, but every language in one file, which conflicts in git
+  and doesn't suit Poedit, Weblate or translators' pull requests).
+- *Keys are the English text itself*, with a context where a word is
+  ambiguous (`tr("Close", "action")`) and for data (species names
+  under `"fish"`, later `"bug"`). Code stays readable, a missing
+  translation shows English, and tests that check English text keep
+  working. Changing English wording marks its translations fuzzy
+  (Godot skips those), so they show English until a translator
+  checks them. Rejected: stable ids (`SETTINGS_TITLE`), which need
+  an English file of their own and hide the text from the code.
+- *Timing:* the groundwork and the conversion now, step by step, so
+  new text (D01-D05) is translatable from the start; the **first real
+  language waits until the UI stops being a placeholder**, near the
+  public release, since translating placeholder wording now would go
+  stale.
+- *Translators:* **AI-assisted translations are allowed, but every one
+  is reviewed by a human before it ships** (user's, 2026-10-27). A
+  string not yet reviewed stays fuzzy (shown in English).
+- *Picking the language:* a "Language" row in C10's Game tab,
+  **Automatic** by default (the system's language,
+  `OS.get_locale_language()`, else English), then each shipped
+  language under its own name ("Deutsch", "日本語"). It applies at
+  once, as C10's settings do.
+- *Fonts:* the first non-Latin language brings a shipped UI font,
+  **Noto Sans (OFL)**, with a fallback per script (Platforms → Fonts),
+  and `internationalization/locale/include_text_server_data` (about
+  4 MB) for Chinese, Japanese and Thai line breaking. Until then
+  Godot's default (Open Sans SemiBold) with its system-font fallback
+  (`FontFile.allow_system_fallback`, on by default), which differs by
+  OS and Linux distribution. That already matters for chat content in
+  CJK, whatever the game's language.
+- *Right-to-left* languages (Arabic, Hebrew) are not in the first
+  wave: Godot mirrors its own Controls, but our drawn HUDs (below) are
+  laid out by hand and would need it done by hand.
+- *The sidecar stays English.* Godot owns all the text: it translates
+  a notice or error by its `code`, and the sidecar's English `message`
+  is the fallback for a code it doesn't know (as `NOTICE_TEXT` does
+  already). The sidecar's free-form reasons (refusals, "not found",
+  sign-in) get codes over time. No locale is sent to the sidecar.
+- *Permission choices* (C05-C07): our fixed wording ("Yes, and use
+  auto mode") is translated by its option id; the AI tool's own parts
+  (a rule pattern, a tool name) stay word for word. Rejected: keeping
+  them English to match the terminal exactly.
+- *Debug commands* (C09) stay English: a developer tool.
+- *Species and other data:* each row keeps a stable `id` and an
+  English `name` (later its hints), translated under the row's context.
+  The user's species list only adds rows; the template picks them up.
+  Text never builds English grammar in code: no "a/an" picked by code
+  (D01's catch card, built on branch `d01-fishing`, becomes e.g.
+  "Caught: {species}!") and no plurals by `if n == 1` (A05's
+  "1 session waiting" in `world/attention.gd` today).
+- *Mods* (Deferred ideas → Mod support, undesigned): a mod would ship
+  its own `locale/*.po`, loaded at runtime with
+  `TranslationServer.add_translation`. Its text is untrusted: each
+  string must keep the English string's placeholders, never reaches a
+  BBCode label unescaped (no `[url]` slipped in), and a mod's ids are
+  namespaced.
+
+**How it will work.**
+- *What is ours, and what isn't.* Ours: the menus (main, pause,
+  settings, quit warning, sessions menu and its `.tscn`), the sessions
+  ring, the chat panel's chrome (status lines, notices, stop reasons,
+  the pending card, permission modes, the usage line and its dates,
+  Details, Copy), the sidecar client's failure lines, the crosshair's
+  hints (`Interactable.hint`), the hotbar's names, biome names, the
+  big map, A05's count, C08's limits, W04's arrows and the downtime
+  activities' text. **Never translated:** chat content, tool names and
+  inputs, session titles, project names, paths, and model and product
+  names ("Opus 5.5", "Claude Code").
+- *Two ways text is translated.* Text set once on a Label or Button
+  stays English in code and is translated by Godot's auto-translate,
+  which also redraws it when the language changes. Text that is
+  formatted or drawn (`draw_string` in the crosshair, hotbar, ring, map
+  and fishing HUD) goes through `tr()` / `tr_n()` with named
+  placeholders (`tr("Caught: {species}!").format(...)`, so a language
+  can reorder them), and its node redraws on
+  `NOTIFICATION_TRANSLATION_CHANGED`.
+- *Content is never auto-translated.* No control sets
+  `auto_translate_mode` today, so once a translation loads, any Label
+  whose text matches a key changes, chat content included. Every
+  control that shows content (chat, Markdown, tool rows, session
+  titles, paths, option text from the provider) gets
+  `AUTO_TRANSLATE_MODE_DISABLED`.
+- *Numbers and dates:* plurals with `tr_n` and the PO file's plural
+  rule ("%d min ago"); day and month names and the time's format as
+  translatable strings (no hand-written "Jan…Dec" in English only);
+  digits through `TextServer.format_number`. Sizes stay metric.
+- *Provider text:* a provider's own strings sit in
+  `providers/<id>/locale/` (Godot looks through every translation
+  loaded for a language), so removing a provider removes them.
+- *Tests* (to build): every constant `tr()` / `tr_n()` string and
+  every auto-translated text is in `messages.pot` (through Godot's
+  template generation if 4.7 runs it headless, else a small extractor
+  in the tests); each `.po` is valid, keeps the English string's
+  placeholders and the right number of plural forms, and has nothing
+  stale (missing translations are reported as coverage, not failures:
+  they fall back to English); the world test loads a made-up language
+  where every string is `⟦English⟧`, opens every menu and HUD, and
+  fails on visible text without the brackets outside content
+  controls; and a session titled "Settings" still says "Settings".
+  Pseudolocalization (`TranslationServer.pseudolocalization_enabled`)
+  for checking by eye that longer text fits.
+
+*Migration order:* (1) the groundwork: `locale/`, the project
+settings (fallback `en`, the translation list), C10's Language row,
+the tests, auto-translate off on content; (2) the menus; (3) the drawn
+HUDs; (4) the chat panel's chrome; (5) D01's text once D01 is merged
+(species names, the catch card's wording); (6) codes for the sidecar's
+free-form messages; (7) the first real language and its font.
+
+*Open:* which languages come first, and who translates them (Open
+questions → 11). Checked against Godot's docs (master, raw), not yet
+on 4.7.2 itself: CSV plurals and contexts arrived in 4.6, and loading
+a `.po` from outside `res://` at runtime (for mods) is to confirm.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -6094,13 +6224,21 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
     lost); the alternative is to take it out only when the arriving
     message has the same text, which depends on how each provider
     reports a message from the world.
+11. **First languages (C16).** Which languages ship first, and who
+    translates and reviews them (AI-assisted drafts are allowed, but a
+    human reviews each before it ships: user's, 2026-10-27). Decided
+    near the public release, once the UI is no longer a placeholder.
+    My recommendation then: a few Latin-script languages first (no new
+    font), and CJK once Noto's fallbacks are in.
 
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing, D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall
 run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pick what to
-build first. Later
+build first. C16 multi-language support is designed (on branch
+`c16-localisation`): its groundwork and the conversion of today's
+strings come step by step, the first real language near release. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: D04, W13 and
@@ -6697,7 +6835,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   out), the Workshop's terms and API (Watch items → Anthropic's terms,
   Steam), and the art rule (mods are the players' own, not ours, so
   never-AI-generated can't be enforced on them; only our assets follow
-  it).
+  it). A mod's translations: C16 → Mods.
 - **External music app support** (user's idea, 2026-10-01). Show what
   the user's music app (YouTube Music, Spotify, ...) is playing and
   control it from the game: volume, pause, skip. Not a provider feature
