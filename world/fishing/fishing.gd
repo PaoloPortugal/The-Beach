@@ -532,6 +532,7 @@ func _end() -> void:
 	charge = 0.0
 	_release = false
 	reeling = false
+	_lifting = false
 	line_length = 0.0
 	_bobber.freeze = true
 	_bobber.visible = false

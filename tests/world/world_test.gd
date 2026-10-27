@@ -3488,9 +3488,12 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _until(func() -> bool: return fishing.state == Fishing.State.WAITING, 2.0)
 	_check(fishing.state == Fishing.State.WAITING and hud.said() == "It got away" and caught.size() == 3, "D01: a missed bite: it gets away, the bobber stays out")
 	_mouse_left(true)
-	await _until(func() -> bool: return fishing.state == Fishing.State.IDLE, 10.0)
+	var lifted := {"seen": false} # snagged on the platform's side, then lifted out
+	await _until(func() -> bool:
+		lifted["seen"] = lifted["seen"] or fishing._lifting
+		return fishing.state == Fishing.State.IDLE, 10.0)
 	_mouse_left(false)
-	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and caught.size() == 3, "D01: holding the click while waiting reels it all the way in, lifted out at the platform's side (%s at %s)" % [Fishing.State.keys()[fishing.state], fishing._bobber.global_position])
+	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and caught.size() == 3 and lifted["seen"] and not fishing._lifting, "D01: holding the click while waiting reels it all the way in, lifted out at the platform's side (%s, lifted %s)" % [Fishing.State.keys()[fishing.state], lifted["seen"]])
 	await _settle()
 
 	# Walking: the line pays out, up to its longest; past it the bobber
