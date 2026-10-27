@@ -49,4 +49,5 @@ number keys. For now that's the fishing rod; the bug net comes later.
 Decided with it (user's, my recommendations unless noted): slot 1 is
 empty hands, the rod is slot 2; the hotbar shows when you switch and
 fades out when idle (the user's pick over always shown); ID **C15**.
-It is designed and built on its own branch (NOTES → C15).
+It is designed and built on `c15-hotbar`, which carries this design
+too (NOTES → C15).

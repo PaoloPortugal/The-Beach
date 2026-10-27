@@ -4,8 +4,8 @@ extends CanvasLayer
 ## everything, and reloads them when the file changes. The world adds it
 ## only when the game starts with `-- --checklist`. F1 hides it down to a
 ## small tab and shows it again. A list taller than the window shows what
-## fits; the mouse wheel (over the list, or while walking) or Page Up and
-## Page Down scroll it.
+## fits; the mouse wheel over the list (the pointer free: Esc) or Page Up
+## and Page Down scroll it. While walking the wheel is the hotbar's (C15).
 
 const FILE := "res://tests/live/checklist.txt"
 
@@ -49,10 +49,10 @@ func _input(event: InputEvent) -> void:
 	var wheel := event as InputEventMouseButton
 	if wheel and wheel.pressed and not _hidden and _label.get_line_count() > _label.max_lines_visible \
 			and (wheel.button_index == MOUSE_BUTTON_WHEEL_UP or wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN):
-		# Over the list, or while walking (mouse captured, nothing else
-		# scrolls); else the wheel is left to the chat.
+		# Over the list only (the pointer free); else the wheel is left to
+		# the chat, the map and, while walking, the hotbar (C15).
 		var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-		if captured or $Panel.get_global_rect().has_point(wheel.position):
+		if not captured and $Panel.get_global_rect().has_point(wheel.position):
 			get_viewport().set_input_as_handled()
 			_scroll += 2 if wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN else -2
 			_show()

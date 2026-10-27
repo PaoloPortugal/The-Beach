@@ -1,54 +1,33 @@
-LIVE CHECK: island smoothing
+LIVE CHECK: C15 hotbar
   godot --path . -- --checklist
-Page Down / wheel scrolls this.
-Real Claude. Never pick Fable
-(no access).
+  (add --sidecar-dev-fake if
+  you like: no Claude needed)
+PgDn/PgUp scroll this.
 
-A. Behind the menu
-1. Start 3 sessions in 2
-   repositories (Tab, +), one
-   after another; wait for
-   each island and bridge.
-   Quit, Quit in the dialog
-   (sessions keep running).
-2. Start the game again.
-   Watch the circling view as
-   the islands rise: smooth,
-   no hitch as each comes in?
-   (One hitch while the world
-   loads, before any island,
-   is expected.) The first
-   seconds smooth too, not
-   rough then smooth?
-3. Bridges appear a moment
-   after their islands, whole
-   (planks, rails, posts)?
-
-B. Mid-game
-4. Play. Tab, + a session in
-   a new biome's repository:
-   the game smooth while its
-   island and bridge come?
-5. Walk the new bridge, both
-   ways: solid, no falling
-   through, walls hold?
-6. Walk round the new island:
-   props there, none in the
-   torches or bridge landing?
-7. Its orchestrator's bubble
-   shows its first message?
-7b. M, click a far island
-   (or swim far out): no
-   hitch on arriving; the sea
-   floor fills in round you,
-   no holes under you when
-   you dive?
-
-C. Kept across restarts
-8. Quit (sessions keep
-   running), start again:
-   each island back with the
-   same biome, shape and spot?
-9. End one session, quit the
-   game at once, start again:
-   it doesn't come back?
+1. Play. No hotbar at the
+   bottom until you switch?
+2. Press 2: a row of two
+   squares, bottom centre,
+   "2 Rod" outlined in white?
+   Readable on sand, sea and
+   sky?
+3. Wait: it fades out after
+   a moment?
+4. Wheel down, wheel up: it
+   steps round Hands / Rod
+   both ways, showing again?
+5. Press 9: nothing changes.
+   Press 1: back to Hands.
+6. Open the chat (E on an
+   orchestrator), the map
+   (M), the ring (hold Tab),
+   Esc: the hotbar hidden,
+   and 1/2/wheel do nothing?
+   The map still zooms and
+   the chat still scrolls
+   with the wheel?
+7. Back in the game: the
+   wheel switches tools, not
+   this list?
+8. The size and the fade
+   timing feel right?

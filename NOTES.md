@@ -115,6 +115,7 @@ slice.
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
+| C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -3653,6 +3654,56 @@ come in, which they put down to their hardware; what is left on the
 main thread (the collision shape, props, the mesh upload, a few ms an
 island) could be measured if it comes up again.
 
+### C15 Hotbar
+*Built (2026-10-27, UI placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part. The tools you carry, in a row of
+slots: the inventory the downtime activities need first (user's,
+2026-10-27). It holds tools only, nothing caught or collected. Dev log
+2026-10-27-c15-hotbar.
+
+*Decided (user's, 2026-10-27; my recommendations unless noted):*
+- **A simple hotbar** (user's): the number keys pick a slot, the mouse
+  wheel steps through them. For now the tools are the fishing rod (D01)
+  and later the bug net (user's: "the bugnet later").
+- **Slot 1 is empty hands**, the rod slot 2; the wheel goes round all of
+  them. Rejected: tools only, always holding one; tools only, with the
+  held slot's number putting it away.
+- **Shows when you switch and fades when idle** (the user's pick over
+  always shown): a small row at the bottom centre, the held slot
+  highlighted.
+- **Hidden and deaf without the controls** (the chat, a menu, the
+  sessions ring, the map), like the crosshair (C11).
+- **The ID is C15** (in-world UI, like C11), over D02 (with the downtime
+  features) and W13 (with the player).
+
+**How it works.**
+- `Hotbar` (`world/hotbar.gd`, a `CanvasLayer` made by `world.gd`):
+  `TOOLS` (`hands`, `rod`) in slot order and `NAMES` for what each slot
+  says; `held_tool()`, `select(slot)`, `step(±1)` (round the ends) and
+  `held_changed(tool)`, which D01 will listen to. You start with empty
+  hands; the held slot isn't saved between runs.
+- *Input:* `hotbar_1` to `hotbar_9` (the number row's physical keys 1-9;
+  a number past the last tool does nothing), `hotbar_next` (wheel down)
+  and `hotbar_previous` (wheel up), read in `_unhandled_input` only while
+  `player.controls_enabled`. The wheel is free while walking: the big map
+  (W06) and the chat take it only while they're open, which turns the
+  controls off. The live checklist (dev tool) took it while walking
+  too; it now scrolls with it only under a free pointer (Page Up and
+  Page Down from anywhere).
+- *Look (placeholder):* 56 px squares 6 px apart, 28 px from the bottom,
+  a see-through dark fill; the held one outlined in white, the others
+  faintly. Each shows its number in a corner and its tool's name (no
+  icons yet). Fully shown for 1.5 s after a switch, even to the slot
+  already held, then fading out over 0.5 s.
+- Holding the rod does nothing yet, and nothing is seen in your hand:
+  both come with D01.
+
+Tested in the world test (`_hotbar`, with real key and wheel events):
+empty hands and hidden at the start; 2 takes the rod and shows it; 9
+does nothing; the wheel goes round both ways; it fades out; nothing
+without the controls; 1 puts the rod away. The look can't be judged
+headless: the live check has it.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -5672,8 +5723,9 @@ step like a failed check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
-the mouse wheel, over the list or while walking, or Page Up and Page
-Down scroll a list taller than the window) shows
+the mouse wheel over the list with the pointer free, or Page Up and
+Page Down, scroll a list taller than the window; while walking the
+wheel is the hotbar's, C15) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
 second when the file changes. It holds only the current live check's
@@ -5855,8 +5907,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing is designed
-(2026-10-27, branch `d01-fishing`); C15, a hotbar for its tools, comes
-first and is being built. Later
+(2026-10-27); C15, a hotbar for its tools, is built on `c15-hotbar`
+(with D01's design) and waits for the user's live check and review.
+Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: island
