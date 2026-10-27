@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing (D01), bug catching (D02),
-the collection (D03) and parkour (D04) are designed, none built yet (see Known issues and next steps → Deferred ideas).
+what the public release waits for. Fishing (D01) is built; bug catching (D02),
+the collection (D03) and parkour (D04) are designed, not built yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -125,7 +125,7 @@ slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
-| D01 | Fishing                                   | designed | —            | — |
+| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/`, `world/ocean/ocean.gd` (height_at), `world/world.gd`, `project.godot` (input) |
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
 | D04 | Parkour courses                           | designed | —            | — |
@@ -3704,7 +3704,7 @@ slots: the inventory the downtime activities need first (user's,
 - `Hotbar` (`world/hotbar.gd`, a `CanvasLayer` made by `world.gd`):
   `TOOLS` (`hands`, `rod`) in slot order and `NAMES` for what each slot
   says; `held_tool()`, `select(slot)`, `step(±1)` (round the ends) and
-  `held_changed(tool)`, which D01 will listen to. You start with empty
+  `held_changed(tool)`, which D01 listens to. You start with empty
   hands; the held slot isn't saved between runs.
 - *Input:* `hotbar_1` to `hotbar_9` (the number row's physical keys 1-9;
   a number past the last tool does nothing), `hotbar_next` (wheel down)
@@ -3719,8 +3719,8 @@ slots: the inventory the downtime activities need first (user's,
   faintly. Each shows its number in a corner and its tool's name (no
   icons yet). Fully shown for 1.5 s after a switch, even to the slot
   already held, then fading out over 0.5 s.
-- Holding the rod does nothing yet, and nothing is seen in your hand:
-  both come with D01.
+- With the rod in hand, left click fishes, and the rod shows in your
+  hand (D01).
 
 Tested in the world test (`_hotbar`, with real key and wheel events):
 empty hands and hidden at the start; 2 takes the rod and shows it; 9
@@ -5364,11 +5364,11 @@ the setting sent again once synced after a change lost while
 reconnecting).
 
 ### D01 Fishing
-*Designed (user's, 2026-10-27); not built. Scope: core (world only):* it
-reads no provider events; its one tie to sessions is A05's count of
-waiting sessions, which is already generic. The first downtime activity
-(Concept → Downtime): something to do while agents work, dropped the
-moment one needs you. Dev log 2026-10-27-d01-fishing-design.
+*Built (2026-10-27, look placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part; it never reads sessions or agents.
+The first downtime activity (Concept → Downtime): something to do while
+agents work, dropped the moment one needs you. Dev logs
+2026-10-27-d01-fishing-design and 2026-10-27-d01-fishing.
 
 *Decided (user's, 2026-10-27):*
 - *Needs the hotbar first* (C15): the rod is a tool you hold, picked on
@@ -5418,6 +5418,93 @@ like the games above; a candidate is in-world line tension (the rod
 bends and the line strains, read from the world rather than a bar).
 The real species list (the user's). Fish models to replace the
 shadows.
+
+**How it works** (distances, timings, sizes and the look my picks).
+- `Fishing` (`world/fishing/fishing.gd`, a `Node3D` at the world's
+  origin, made by `world.gd` with the player, the hotbar, the islands,
+  `DayNight`, `Weather` and the `Ocean`). A state machine: idle,
+  charging, casting, waiting, approach, nibble, bite.
+- *Input:* the new action `use` (left mouse button), read in
+  `_unhandled_input` only while `player.controls_enabled` and the rod
+  (C15's slot 2) is in hand. Pressed while idle (and not swimming or
+  riding a zipline) it starts charging; released, it casts. Pressed on a
+  bite it catches; on the approach or a nibble it scares the fish off
+  ("Too soon: it swam off"); while the bobber flies or waits it reels in.
+- *Casting:* the meter fills in 1 s (`CHARGE_TIME`) and stays full; the
+  reach is 4 m for a tap to 22 m full (`MIN_CAST`, `MAX_CAST`) from
+  the player, along where the camera looks, flattened (looking straight
+  down, where the body faces). A ray straight down there (`depth_at`,
+  past the player; the seabed's `height_at` where it hits nothing)
+  gives the water's depth: under 0.3 m (`MIN_DEPTH`), an island, a
+  deck or the platform, there's no cast ("Can't cast onto land"). The
+  bobber flies there in 0.6 s on a 2.5 m arc.
+- *What bites* (`FishSpecies`, `world/fishing/fish_species.gd`): one
+  table, `SPECIES`, each entry an id (kept in the catch file; never
+  change one), a name, the waters, biomes, hours (from-to on a 24-hour
+  clock, past midnight when from > to), weathers (`Weather.NAMES`), a
+  size range in cm and a weight; an empty list means any. The water is
+  set by the depth where the bobber lands: under 4.5 m the shallows
+  (the islands' shelf is 4 m down, W08), under 12 m the drop-off, deeper
+  the open sea (the sea floor is 14-30 m). The biome is the nearest
+  island's (`SessionIslands.session_at`, within twice its radius), or
+  none (the platform, the open sea). The hour and weather are read when
+  a fish comes. `pick` draws by weight among the species that match;
+  where none does, nothing comes. Sizes: `size_for`, the range eased
+  so big fish are rarer (roll to the power 1.6). Placeholders: Shallows
+  fish 12-30 cm, Drop-off fish 25-60 cm, Open sea fish 40-120 cm, each
+  in its one water, anywhere, any time.
+- *A bite:* after a wait of 4-12 s a fish comes: its shadow starts 3.5 m
+  from the bobber and swims to 0.35 m from it in 2 s, nibbles 1-3 times
+  0.7-1.5 s apart (a 0.15 m dart, the bobber dipping 8 cm), then bites:
+  the bobber goes 0.3 m under for 0.9 s (`bite_window`). Missed, the
+  fish swims off ("It got away") and the wait starts again. The timings
+  are variables so the tests can shorten them.
+- *Shadows* (`FishShadow`, `world/fishing/fish_shadow.gd`): a dark
+  flat fish shape (body and tail, unshaded, 35-60 cm), 0.45 m under the
+  water, growing in and shrinking out of sight. Up to 5 wander round the
+  player, 6-30 m away, where the water is 1.5-4.5 m deep (one spot tried
+  every 0.5 s); each roams within 2 m of where it came, and goes past
+  40 m. A cast landing within 4 m of one (`AIM_RADIUS`) puts that one
+  on the line, and it comes after 0.5-1.5 s instead of the wait.
+- *Leaving:* each frame, the rod put away, the controls gone (the chat,
+  a menu, the sessions ring, the map), swimming, riding, or the player
+  more than 2.5 m (`LEAVE_DISTANCE`) from where they cast reels in,
+  and the fish on the line swims off.
+- *The look* (placeholders, `assets/CREDITS.md`): the rod a brown
+  tapering cylinder, 1.2 m, held bottom right in the camera's view,
+  tilting back as you charge; the bobber a red ball with a white top,
+  floating at the waves' height (`Ocean.height_at`, the shader's waves
+  worked out in GDScript); the line a 1-pixel strip from the rod's tip,
+  sagging toward the water. Nothing casts shadows.
+- *On screen* (`FishingHud`, `world/fishing/fishing_hud.gd`, drawn in
+  code like the hotbar; hidden without the controls): the meter (64 by
+  6 px, 26 px under the middle) while charging; a short line under it
+  for 2 s; the catch card at a quarter of the way down for 3.5 s, "You
+  caught a Drop-off fish!" over "34 cm", and "New" in gold on a
+  species' first. Both fade out over 0.4 s.
+- *The catches* (`CatchLog`, `world/fishing/catch_log.gd`):
+  `user://catches.json`, `{"version": 1, "species": {id: {"count",
+  "biggest_cm", "first": {"at", "biome", "water"}}}}`: "at" the local
+  date and time, "biome" the biome's name or "" away from islands.
+  Written on a worker thread after each catch (to a `.tmp`, renamed
+  over), waited for when the world closes. A damaged file is copied to
+  `.bad` and the log starts empty, so a catch never writes over it.
+  The suites use `user://test-catches.json` (Running it). Species no
+  longer in the table keep their entries.
+
+Tested in the world test: `_fish_species` (each placeholder in its
+water; hours past midnight, biomes and weather by a test table; weights;
+nothing where nothing lives; sizes), `_catch_log` (counts, the biggest,
+the first catch, read back, a damaged file kept as `.bad`) and
+`_fishing` with real clicks: no rod, no cast; land and shallows under
+an island and its biome; shadows in the shallows; a cast near a shadow
+brings that one; a shallows catch recorded with its biome; no cast onto
+the platform's deck; a full charge's 22 m into the drop-off; the bobber
+on the waves; the card and New; a second catch not New, the biggest
+kept; a nibble clicked scares it off; a missed bite; reeling in;
+switching tool, losing the controls and walking off reel in; no cast
+while swimming; the file saved. The look, the feel and the timings
+can't be judged headless: the live check has them.
 
 ### D02 Bug catching
 *Designed (user's, 2026-10-27); not built. Scope: core (world only):*
@@ -5774,6 +5861,8 @@ off, so a suite's sidecar never shows the user's own running sessions
 (S08; the sidecar client test checks it), and never gets the user's
 own program set by hand (S02's `[programs]`): with none set and
 outside sessions off, nothing at start runs the real `claude`.
+It points `CatchLog.file` (D01) at `user://test-catches.json` and
+deletes it too, so the suites never touch the user's catches.
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
@@ -6104,10 +6193,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing, D02 Bug
-catching, D03 Collection, D04 Parkour (with W13's mantle and wall
-run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pick what to
-build first. Later
+**Current focus:** the downtime activities. D01 Fishing is built on
+branch `d01-fishing` (placeholder species and look), waiting for the
+user's live check and review; then the user's species list. D02 Bug
+catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
+and D05 Plunger gun are designed; the hub is the user's to model.
+Multi-language support is being designed in a session of its own. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: D04, W13 and
@@ -6626,7 +6717,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   what the public release waits for; Codex and OpenCode can come after
   the commercial release.
   - *Fishing and bug catching* are the two main ways to pass the time.
-    Fishing is designed as D01 and bug catching as D02 (2026-10-27);
+    Fishing is built as D01 and bug catching designed as D02 (2026-10-27);
     their tools are picked on the hotbar (C15: the rod built, the bug
     net to come with D02).
     What you find could depend on the biome (W10), the weather and the
