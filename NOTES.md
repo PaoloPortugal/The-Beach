@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Not designed yet (see Known issues and
-next steps → Deferred ideas).
+what the public release waits for. Fishing is designed (D01); the rest
+is not yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -78,8 +78,9 @@ agent models (custom ones by the user, open question 7).
 
 Prefixes: **W** world (islands, ocean, bridges, travel, player movement),
 **A** agents (orchestrator, subagents, states, placement), **C** chat panel
-and in-world UI, **S** sidecar and session management. v1 = part of the
-v1 slice.
+and in-world UI, **S** sidecar and session management, **D** downtime
+(fishing, bug catching, the collection, parkour). v1 = part of the v1
+slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
@@ -114,6 +115,7 @@ v1 slice.
 | C12 | Model, effort and mode at launch          | built (UI placeholder) | C12 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd`, `chat/chat_panel.gd`, `sidecar/src/providers/claude/launch-options.ts` |
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
+| C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -122,6 +124,7 @@ v1 slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
+| D01 | Fishing                                   | designed | —            | — |
 
 ## When a feature lands
 
@@ -3651,6 +3654,58 @@ come in, which they put down to their hardware; what is left on the
 main thread (the collision shape, props, the mesh upload, a few ms an
 island) could be measured if it comes up again.
 
+### C15 Hotbar
+*Built (2026-10-27, UI placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part. The tools you carry, in a row of
+slots: the inventory the downtime activities need first (user's,
+2026-10-27). It holds tools only, nothing caught or collected. Dev log
+2026-10-27-c15-hotbar.
+
+*Decided (user's, 2026-10-27; my recommendations unless noted):*
+- **A simple hotbar** (user's): the number keys pick a slot, the mouse
+  wheel steps through them. For now the tools are the fishing rod (D01)
+  and later the bug net (user's: "the bugnet later").
+- **Slot 1 is empty hands**, the rod slot 2; the wheel goes round all of
+  them. Rejected: tools only, always holding one; tools only, with the
+  held slot's number putting it away.
+- **Shows when you switch and fades when idle** (the user's pick over
+  always shown): a small row at the bottom centre, the held slot
+  highlighted.
+- **Hidden and deaf without the controls** (the chat, a menu, the
+  sessions ring, the map), like the crosshair (C11).
+- **The ID is C15** (in-world UI, like C11), over D02 (with the downtime
+  features) and W13 (with the player).
+
+**How it works.**
+- `Hotbar` (`world/hotbar.gd`, a `CanvasLayer` made by `world.gd`):
+  `TOOLS` (`hands`, `rod`) in slot order and `NAMES` for what each slot
+  says; `held_tool()`, `select(slot)`, `step(±1)` (round the ends) and
+  `held_changed(tool)`, which D01 will listen to. You start with empty
+  hands; the held slot isn't saved between runs.
+- *Input:* `hotbar_1` to `hotbar_9` (the number row's physical keys 1-9;
+  a number past the last tool does nothing), `hotbar_next` (wheel down)
+  and `hotbar_previous` (wheel up), read in `_unhandled_input` only while
+  `player.controls_enabled`. The wheel is free while walking: the big map
+  (W06) and the chat take it only while they're open, which turns the
+  controls off. The live checklist (dev tool) took it while walking
+  too; it now scrolls with it only under a free pointer (Page Up and
+  Page Down from anywhere).
+- *Look (placeholder):* 56 px squares 6 px apart, 28 px from the bottom,
+  a see-through dark fill; the held one outlined in white, the others
+  faintly. Each shows its number in a corner and its tool's name (no
+  icons yet). Fully shown for 1.5 s after a switch, even to the slot
+  already held, then fading out over 0.5 s.
+- Holding the rod does nothing yet, and nothing is seen in your hand:
+  both come with D01.
+
+Tested in the world test (`_hotbar`, with real key and wheel events):
+empty hands and hidden at the start; 2 takes the rod and shows it; 9
+does nothing; the wheel goes round both ways; it fades out; nothing
+without the controls; 1 puts the rod away. The look can't be judged
+headless: the live check has it.
+*Live check passed (2026-10-27)* with the user on Windows ("looks
+good"). macOS and Linux unchecked.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -5284,6 +5339,52 @@ session event, focus told once per change, both commands answered,
 the setting sent again once synced after a change lost while
 reconnecting).
 
+### D01 Fishing
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):* it
+reads no provider events; its one tie to sessions is A05's count of
+waiting sessions, which is already generic. The first downtime activity
+(Concept → Downtime): something to do while agents work, dropped the
+moment one needs you. Dev log 2026-10-27-d01-fishing-design.
+
+*Decided (user's, 2026-10-27):*
+- *Needs the hotbar first* (C15): the rod is a tool you hold, picked on
+  the hotbar.
+- *Loop:* cast, wait for a bite, hook it, then a fight with active
+  reeling: a catch bar like Stardew Valley's. You keep a bar over a fish
+  that darts up and down until a progress meter fills; how hard it
+  fights depends on the species. It was chosen as the most engaging,
+  over cast-and-bite (one press on the real bite: Animal Crossing's and
+  code-town's) and set lines (rods planted and collected later).
+- *Where:* from any water's edge: a shore, a bridge deck, the platform.
+- *What bites* depends on the world: the biome (W10), the water
+  (shallows, the shelf's drop-off, open sea between islands, from W08's
+  depths), the time of day and the weather (W09). That gives a reason to
+  visit other islands and to fish in bad weather.
+- *Fish in the water:* a placeholder at first, fish shadows seen in the
+  clear shallows (W08) that you can aim at. Once there are fish models
+  (the user's or CC0), real fish swimming about replace or join them.
+- *Agents:* fishing does not depend on them. The catch depends only on
+  the world, never on what agents are doing (rarer fish while agents
+  work would reward spending the user's tokens to fish).
+- *Leaving mid-fight:* walking off, opening a chat or reeling in lets
+  that fish go. Nothing else is lost (no bait, no streak, no record), so
+  leaving costs only the fish on the line. Losing the fight costs the
+  same.
+- *A05 during a fight:* your eyes are on the catch bar, so when an agent
+  starts waiting during a fight, A05's count pulses once and sits next to
+  the bar while the fight lasts. No sound in the game (as in A05), and
+  nothing is paused or answered for you. Beacons are unchanged.
+- *The collection:* every catch goes into the shared collection, a
+  feature of its own with bug catching (Deferred ideas → Downtime). What
+  it records (sizes, firsts), rewards and the museum are decided there.
+
+*Open (before building):* casting controls (hold to aim, release to
+cast?); the species list, how many there are and each one's fight; what
+happens to a fish once caught (kept, released, recorded only); the
+placeholder look (simple shapes for the rod, line, bobber and shadows;
+no art assets unless asked for a placeholder); where the catches are
+saved (`user://`); the tests.
+
 ## Conventions
 
 - **A new feature** first gets its provider scope decided (core, capability
@@ -5624,8 +5725,9 @@ step like a failed check (above).
 
 **Live-check checklist (dev tool).** `godot --path . -- --checklist`
 (add it to `--sidecar-dev-fake` if wanted; F1 hides and shows it;
-the mouse wheel, over the list or while walking, or Page Up and Page
-Down scroll a list taller than the window) shows
+the mouse wheel over the list with the pointer free, or Page Up and
+Page Down, scroll a list taller than the window; while walking the
+wheel is the hotbar's, C15) shows
 `tests/live/checklist.txt`
 in the top-left corner over everything, and reloads it within half a
 second when the file changes. It holds only the current live check's
@@ -5806,9 +5908,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none chosen yet. Later
+**Current focus:** the downtime activities. D01 Fishing is designed;
+next to design: bug catching and the collection. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: C15, the hotbar,
+and D01's design** (dev logs 2026-10-27-c15-hotbar and
+2026-10-27-d01-fishing-design): 1 Hands and 2 Rod, picked with the
+number keys or the wheel, shown on a switch and fading out; fishing
+designed around a catch-bar fight, not built. Live check passed.
 **Merged to `main` (2026-10-27), approved by the user: island
 smoothing** (W01, W06, W08, W12; dev log 2026-10-27-island-smoothing):
 islands' main-thread work a step a frame, first-time costs paid by a
@@ -6307,6 +6415,8 @@ the user's vision first; others using the MIT code afterwards is fine.
   what the public release waits for; Codex and OpenCode can come after
   the commercial release.
   - *Fishing and bug catching* are the two main ways to pass the time.
+    Fishing is designed as D01 (2026-10-27); its tools are picked on a
+    hotbar (C15, user's: rod now, bug net later).
     What you find could depend on the biome (W10), the weather and the
     time of day (W09), and fish on the sea and seabed (W02, W08), which
     gives a reason to visit other islands.
@@ -6319,6 +6429,8 @@ the user's vision first; others using the MIT code afterwards is fine.
     about 30 s to a few minutes, so each activity must be short, droppable
     the moment an agent needs you (A05 is the interrupt) without losing
     progress, never punish you for leaving, and leave the agents in view.
+    Confirmed for fishing (D01) with one exception, the user's: leaving
+    mid-fight loses the fish on the line, and nothing else.
     A parkour timer must pause or be optional.
   - *Open:* what catching unlocks, if anything (decorations, island
     looks); where the museum stands; how between-island courses are laid
