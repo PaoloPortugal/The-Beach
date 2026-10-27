@@ -3341,6 +3341,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	var pitch := (player.get_node("Head") as Node3D).rotation.x
 	var caught := []
 	fishing.caught.connect(func(id: String, size: int, first: bool) -> void: caught.append([id, size, first]))
+	_check(is_equal_approx(fishing.bite_window, 1.5), "D01: the bite's window is 1.5 s")
 	fishing.wait = Vector2(0.2, 0.3)
 	fishing.aimed_wait = Vector2(0.1, 0.1)
 	fishing.approach_time = 0.3
@@ -3357,6 +3358,19 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_key(KEY_2)
 	await _settle()
 	_check(fishing._rod.visible, "D01: 2 takes the rod, seen in your hand")
+	# Bottom right, in the same place on screen at any field of view.
+	var camera := player.get_node("Head/Camera3D") as Camera3D
+	var fov := camera.fov
+	var on_screen := []
+	for f in [60.0, 110.0]:
+		camera.fov = f
+		await _settle()
+		on_screen.append(camera.unproject_position(fishing._rod.global_position))
+	camera.fov = fov
+	var screen := camera.get_viewport().get_visible_rect().size
+	_check(on_screen[0].distance_to(on_screen[1]) < 2.0 and on_screen[0].x > screen.x * 0.5 and on_screen[0].y > screen.y * 0.5, "D01: the rod bottom right at 60° and 110° (%s, %s)" % on_screen)
+	# Only the ground stops the bobber: not the props, agents or you.
+	_check(fishing._bobber.collision_mask == 1 << (Fishing.GROUND_LAYER - 1) and fishing._bobber.collision_layer == 0 and island.get_collision_layer_value(Fishing.GROUND_LAYER) and island.get_collision_layer_value(1) and not island.props.get_collision_layer_value(Fishing.GROUND_LAYER), "D01: the bobber collides with the ground layer only, the props aren't on it")
 
 	# On the shore of h1's island, facing away from its bridges.
 	var c := island.global_position
@@ -3385,14 +3399,19 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 		var depth := fishing.depth_at(s.home) # where it came from: it wanders up to 2 m off
 		in_shallows = in_shallows and depth >= Fishing.SHADOW_DEPTH.x and depth < Fishing.SHADOW_DEPTH.y and s.global_position.y < 0.0
 	_check(in_shallows, "D01: fish shadows wander in the shallows round you, under the water (%d)" % fishing._shadows.size())
-	# A shadow where the bobber lands comes at once, though the wait is long.
+	# A shadow where the bobber settles comes at once, though the wait is
+	# long: shadows all along the throw, as where it lands isn't known.
 	fishing.wait = Vector2(60.0, 60.0)
-	var landing := player.global_position + away * Fishing.MIN_CAST
-	var aimed := fishing._add_shadow(Vector3(landing.x, 0.0, landing.z) + away * 0.5)
+	for k in 9:
+		var along := player.global_position + away * (2.0 + 3.0 * k)
+		fishing._add_shadow(Vector3(along.x, 0.0, along.z))
 	await _cast(0.0)
-	_check(fishing.state == Fishing.State.WAITING and fishing._fish == aimed, "D01: cast near a shadow, it's the one on the line")
+	await _until(func() -> bool: return fishing.state == Fishing.State.WAITING, 4.0)
+	var aimed := fishing._fish
+	var landed := fishing._bobber.global_position
+	_check(fishing.state == Fishing.State.WAITING and is_instance_valid(aimed) and aimed.hooked and Vector2(aimed.position.x - fishing.target.x, aimed.position.z - fishing.target.z).length() < Fishing.AIM_RADIUS, "D01: a tap throws it into the shallows near a shadow, which is the one on the line (%s at %s, %.1f m out, %.2f m deep)" % [Fishing.State.keys()[fishing.state], landed, Vector2(landed.x - player.global_position.x, landed.z - player.global_position.z).length(), fishing.depth_at(landed)])
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
-	_check(fishing.state == Fishing.State.BITE, "D01: it comes, nibbles and bites")
+	_check(fishing.state == Fishing.State.BITE and hud.bite_mark() and fishing._splash.visible, "D01: it comes, nibbles and bites: the \"!\" and the splash")
 	fishing.wait = Vector2(0.2, 0.3)
 	_mouse_left(true)
 	_mouse_left(false)
@@ -3406,14 +3425,25 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _frames(20)
 	var out := (Vector3.ZERO - c) * Vector3(1, 0, 1)
 	out = out.normalized()
-	# Toward the platform's middle: a short cast lands on the deck.
-	_face(player, Vector3(0, 1.6, -10))
+	# Toward the platform's middle: a tap lands on the deck, rests there
+	# and nothing comes; holding reels it in.
+	_face(player, Vector3(0, 0.5, 0) - out * 2.0)
 	await _cast(0.0)
-	_check(fishing.state == Fishing.State.IDLE and hud.said() == "Can't cast onto land" and not fishing._bobber.visible, "D01: no cast onto land (\"%s\")" % hud.said())
-	_face(player, player.global_position + out * 30.0)
+	await _frames(60)
+	var deck := fishing._bobber.global_position
+	_check(fishing.state == Fishing.State.OUT and fishing._bobber.visible and absf(deck.x) < 6.0 and absf(deck.z) < 6.0 and deck.y > 0.9 and deck.y < 1.3, "D01: a cast onto the deck lands and rests on it (%s)" % deck)
+	await _frames(30)
+	_check(fishing.state == Fishing.State.OUT and not is_instance_valid(fishing._fish), "D01: nothing comes to a bobber on land")
+	_mouse_left(true)
+	await _until(func() -> bool: return fishing.state == Fishing.State.IDLE, 5.0)
+	_mouse_left(false)
+	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible, "D01: holding the click reels it in off the deck")
+	await _settle()
+	_face(player, player.global_position + Vector3(0, 1.0, 0) + out * 30.0)
 	await _cast(1.0)
 	var flew := Vector2(fishing.target.x - player.global_position.x, fishing.target.z - player.global_position.z).length()
-	_check(fishing.state == Fishing.State.WAITING and fishing._bobber.visible and absf(flew - Fishing.MAX_CAST) < 0.5 and fishing._where["water"] == "drop_off", "D01: a full charge casts %.1f m where you look, into the drop-off" % flew)
+	_check(fishing.state == Fishing.State.WAITING and fishing._bobber.visible and flew > 17.0 and flew < 27.0 and fishing._where["water"] == "drop_off", "D01: a full charge throws it %.1f m where you look, into the drop-off" % flew)
+	await _frames(2)
 	_check(absf(fishing._bobber.global_position.y - fishing.ocean.height_at(fishing.target.x, fishing.target.z)) < 0.01, "D01: the bobber floats on the waves")
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)
@@ -3433,22 +3463,47 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.NIBBLE, 5.0)
 	_mouse_left(true)
+	await _settle()
+	_check(fishing.state == Fishing.State.OUT and fishing.reeling and hud.said() == "Too soon: it swam off" and caught.size() == 3, "D01: a click on a nibble scares it off, and reels")
+	# Let go: it stops, and rests in the water again, where the wait starts.
 	_mouse_left(false)
 	await _settle()
-	_check(fishing.state == Fishing.State.IDLE and hud.said() == "Too soon: it swam off" and caught.size() == 3, "D01: a click on a nibble scares it off")
+	var length := fishing.line_length
+	await _frames(10)
+	_check(not fishing.reeling and fishing.line_length >= length - 0.01, "D01: letting go stops reeling")
+	await _until(func() -> bool: return fishing.state == Fishing.State.WAITING, 5.0)
+	_check(fishing.state == Fishing.State.WAITING, "D01: reeled part way, it rests in the water and the wait starts there")
 	fishing.bite_window = 0.1
-	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	fishing.wait = Vector2(60.0, 60.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.WAITING, 2.0)
 	_check(fishing.state == Fishing.State.WAITING and hud.said() == "It got away" and caught.size() == 3, "D01: a missed bite: it gets away, the bobber stays out")
 	_mouse_left(true)
+	await _until(func() -> bool: return fishing.state == Fishing.State.IDLE, 10.0)
 	_mouse_left(false)
+	_check(fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and caught.size() == 3, "D01: holding the click while waiting reels it all the way in")
 	await _settle()
-	_check(fishing.state == Fishing.State.IDLE and caught.size() == 3, "D01: a click while waiting reels in")
 
-	# Leaving reels in: another tool, the controls gone (the chat, a
-	# menu), walking off.
+	# Walking: the line pays out, up to its longest; past it the bobber
+	# is dragged and the fish on the line takes fright.
+	fishing.wait = Vector2(0.2, 0.3)
+	fishing.nibble_gap = Vector2(30.0, 30.0)
+	await _cast(0.5)
+	var along_deck := out.cross(Vector3.UP)
+	player.global_position += along_deck * 3.0
+	await _frames(10)
+	_check(fishing.state in [Fishing.State.WAITING, Fishing.State.APPROACH, Fishing.State.NIBBLE], "D01: a few steps don't reel in: the line pays out (%s)" % Fishing.State.keys()[fishing.state])
+	await _until(func() -> bool: return fishing.state == Fishing.State.NIBBLE, 5.0)
+	fishing.max_line = fishing._tip.global_position.distance_to(fishing._bobber.global_position) + 1.0
+	player.global_position -= out * 4.0
+	await _frames(10)
+	_check(fishing.state == Fishing.State.OUT and not is_instance_valid(fishing._fish) and caught.size() == 3, "D01: past the line's longest it drags the bobber, and the fish swims off")
+	fishing.max_line = 30.0
+	fishing.nibble_gap = Vector2(0.3, 0.3)
+	player.global_position = Vector3(0, player.global_position.y, 0) + out * 4.0
+	await _settle()
+
+	# Leaving reels in: another tool, the controls gone (the chat, a menu).
 	await _cast(0.5)
 	_key(KEY_1)
 	await _settle()
@@ -3459,10 +3514,6 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _settle()
 	_check(fishing.state == Fishing.State.IDLE, "D01: losing the controls (a chat, a menu) reels in")
 	player.controls_enabled = true
-	await _cast(0.5)
-	player.global_position += out.cross(Vector3.UP) * (Fishing.LEAVE_DISTANCE + 0.5)
-	await _settle()
-	_check(fishing.state == Fishing.State.IDLE, "D01: walking off reels in")
 
 	# Not while swimming.
 	player.global_position = out * 30.0 + Vector3(0, -3, 0)
@@ -3493,7 +3544,7 @@ func _cast(charge: float) -> void:
 	if charge > 0.0:
 		await _until(func() -> bool: return fishing.charge >= charge, 3.0)
 	_mouse_left(false)
-	await _until(func() -> bool: return fishing.state != Fishing.State.CHARGING and fishing.state != Fishing.State.CASTING, 3.0)
+	await _until(func() -> bool: return fishing.state != Fishing.State.CHARGING and fishing.state != Fishing.State.CASTING, 5.0)
 
 
 # The left mouse button, down or up.
