@@ -6836,6 +6836,15 @@ Release plans (terms, branding, signing, the stores, exports) are in
   (checked by the user). Harmless so far; likely the channel check
   running before our `--mcp-config` server is registered. If chat ever
   fails after a resume, start here.
+- **The message bubble re-laid out on every streamed batch** (C02;
+  open since the M1 review, measured 2026-10-27). `MessageBubble.show_text`
+  parses and lays out the whole reply on each change, for every
+  island's bubble at any distance, though only the last 4 lines show:
+  about 5 ms a batch at 1,000 characters, 21 ms at 2,000, 38 ms at
+  5,000, 95 ms at 10,000 (headless, the developer's machine). The user
+  plans to change the bubble so it shows no text, which ends this; if
+  the text stays, lay out only the reply's last paragraphs (never cut
+  inside a code block) and skip bubbles out of sight.
 - **The message bubble vanishing over the sea** (C02; seen live by the
   user, 2026-10-12, to fix later). Parts of an orchestrator's bubble
   (panel and text) disappear where only sea is behind it, and draw fine
