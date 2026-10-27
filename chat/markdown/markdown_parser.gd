@@ -1,7 +1,7 @@
 class_name MarkdownParser
 extends RefCounted
 ## Markdown -> blocks, and inline Markdown -> BBCode (C03). From the M0 spike
-## (`spikes/markdown/`, dev log 2026-09-29-markdown-spike).
+## (dev log 2026-09-29-markdown-spike; its code is in git history).
 ##
 ## Safety (NOTES.md → Security rules): every character of message text is
 ## escaped (`[` -> `[lb]`), so the only BBCode tags in the output are ones

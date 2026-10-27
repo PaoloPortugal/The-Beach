@@ -526,7 +526,7 @@ top-level folders sit beside it:
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
-| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. Left: `markdown/` (Godot, for C03), visible to Godot so its demo scene runs (`claude-cli/`, Node, for S02, deleted 2026-10-22). |
+| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. None left: `claude-cli/` (Node, for S02) deleted 2026-10-22, `markdown/` (Godot, for C03) 2026-10-27; both in git history. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 **Godot folders (user's decision: by domain).** Scenes and scripts for a
@@ -2679,7 +2679,7 @@ capability).
 *Built. Scope: core* (it renders the generic `message` text). Godot's
 `RichTextLabel` uses BBCode, not Markdown, so the chat translates.
 Prototyped in the M0 spike (`spikes/markdown/`, dev log
-2026-09-29-markdown-spike, kept there as evidence) and ported to
+2026-09-29-markdown-spike; deleted 2026-10-27, in git history) and ported to
 `chat/markdown/` (dev log 2026-10-01-c03-markdown). The user's decisions,
 verified in the spike:
 - **Converted in Godot by our own GDScript**, from the Markdown the
@@ -6935,7 +6935,8 @@ most behind a button.
 - **Markdown → BBCode spike (C03).** *Done 2026-09-29: parser and view in
   GDScript, safe escaping (fuzz-tested), code-block panels, streaming by
   line batches. Results in C03 and the dev log (2026-09-29-markdown-spike);
-  code in `spikes/markdown/`.*
+  its code, `spikes/markdown/`, deleted 2026-10-27 (in git history; its
+  checks and samples live on in `tests/chat/`).*
 
 **M1 v1 slice.** *Done, merged to `main` 2026-10-01.* The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
