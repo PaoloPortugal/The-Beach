@@ -1357,15 +1357,18 @@ and the real layout (user's, 2026-10-02; W07).
   Every bridge still standing stays; only the shortest new bridges that
   join the cut pieces appear, so nothing moves under you (rejected:
   rebuilding the whole tree each time; an empty hub left where the island
-  was). *Open (2026-10-27, for the user):* an island that comes up
-  under a bridge now takes that bridge's place once it has risen (How
-  it works → The tree), so a bridge can also go when an island rises,
-  with you on it or not.
+  was). *Since 2026-10-27 (user's):* an island that comes up under a
+  bridge takes that bridge's place, so a bridge can also go when an
+  island rises. It goes as soon as the island starts rising, not once
+  it's up, with you on it or not: you drop into the sea (rejected:
+  keeping the island's spot clear of bridges; freeing it once the
+  island is up, so the island rises through it).
 - **Look:** made in code, like the islands: low-poly wooden planks on
   posts, generated to any length and slope (so W10's different heights
   work later). A placeholder that art can replace.
 - **Coming and going:** for now bridges just appear once an island is up
-  and vanish when one starts sinking; how they show up and leave is
+  and vanish when one starts sinking (or starts rising under them, see
+  Re-linking); how they show up and leave is
   designed later (rejected for now: rising after the island and sinking
   first; tilting with the island).
 - **Rails** you can't walk through, so you don't fall in the sea (since
@@ -1483,7 +1486,7 @@ and the real layout (user's, 2026-10-02; W07).
   one, preferring a line that keeps clear of every other region's reach
   (`is_clear`); `remove` frees its bridges and, while the group is in
   pieces, adds the shortest clear bridge between two pieces (`_patch`).
-  *Since 2026-10-27 (my pick, for the user's review):* a region that
+  *Since 2026-10-27 (user's):* a region that
   comes under a bridge (`_crosses`: the line within its reach) takes
   that bridge's place. The bridge goes and its group is patched the
   same way; when the bridge is in the new region's own group, the patch
@@ -1494,19 +1497,29 @@ and the real layout (user's, 2026-10-02; W07).
   islands risen out of order (a further one first: islands rise once
   built off the main thread, in any order, as after a restart, W12) or
   a new session filling a nearer spot a sunk island left, under the
-  bridge that patched the gap. Islands join the tree once risen, so
-  the island still rises through the bridge for its 3 s, and the
-  bridge goes at the end (freeing it when the rise starts is the
-  user's call). Rejected: keeping islands' spots clear of bridges,
+  bridge that patched the gap. *Since 2026-10-27 (user's):* the bridge
+  goes as the island starts rising (`make_way`, called from
+  `SessionIslands._rise` with the island's centre and reach): every
+  bridge over its land goes then, and the groups that cuts are patched
+  round it where a bridge can go without crossing it (`_blocked`; else
+  they stay in pieces for the rise's 3 s). The island joins the tree
+  once risen (`add`), which patches those groups again, through it when
+  it's theirs. Sunk before it rose, `remove` calls it off and patches
+  them as before. Rejected: keeping islands' spots clear of bridges,
   which moves the layout; joining bridges only after a cluster's
   islands are all up, which covers restarts only.
-- *Islands* (`SessionIslands`): an island joins its cluster's tree once
-  it has risen, a far cluster's without the
-  platform (`is_far`), and leaves it when it starts sinking. Its reach is 1.45
+- *Islands* (`SessionIslands`): an island makes way as it starts
+  rising, joins its cluster's tree once it has risen, a far cluster's
+  without the platform (`is_far`), and leaves it when it starts
+  sinking. Only islands in the tree are told where their bridges land
+  (`_tell_landings`), so a rising island's zipline (W10) still waits for
+  its own. Its reach is 1.45
   times the generator's radius; a bridge meets it at the outermost point
   at its edge height (0.5 m on a beach; W10's `Island.edge_height`) on
   the line from its middle toward the other end. An empty island doesn't sink while you're on one
-  of its bridges (`on_bridge_of`, from `Bridge.carries`).
+  of its bridges (`on_bridge_of`, from `Bridge.carries`); a bridge
+  freed for a rising island no longer counts, so standing on it you
+  drop into the sea and the empty island sinks as if you'd left.
 - *The platform* (`world.gd`): the hub `platform`, reach 8.5 m; a bridge
   leaves from the deck's edge toward its island (`platform_edge`).
 - *Minimap* (`Minimap`, `world/minimap.gd`, a `CanvasLayer` made by
@@ -1554,8 +1567,12 @@ and the real layout (user's, 2026-10-02; W07).
   bridge over another island's land or across another bridge, before and
   after islands in the middle of trees (one of them far) sink; a failing
   "over land" check prints the bridge, the island, its biome and seed.
-  The tree's own test (`_tree`) also adds a region under a bridge and
-  regions out of order: every bridge stays clear. It does the
+  The tree's own test (`_tree`) also adds a region under a bridge,
+  makes way for one (and calls it off) and adds regions out of order:
+  every bridge stays clear. In the demo, after the sinking, a new
+  session rises on a sunk island's spot with a bridge laid across it:
+  the bridge is gone as the rise starts, and the island joined at its
+  end. It does the
   same with a crowd (user's request, 2026-10-09): the demo with clusters
   of varied sizes (`LayoutDemo.sizes`), no two islands closer than 100 m,
   nine islands sinking, near and far. On CI the trimmed crowd

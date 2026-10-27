@@ -384,6 +384,10 @@ func _rise(id: String, i: Island) -> void:
 	if _islands.get(id) != i:
 		return
 	i.position.y = sunk_y(i)
+	# A bridge over its spot goes as it starts rising, not through it
+	# (user's, 2026-10-27); it joins the bridges once risen.
+	bridges.make_way(region(i), i.global_position, _reach(i))
+	_tell_landings()
 	# Bound to the island, so it stops if the island goes.
 	var tween := i.create_tween()
 	tween.tween_property(i, "position:y", 0.0, rise_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -455,9 +459,8 @@ func _limit(node: Variant) -> void:
 # platform out.
 func _bridge(id: String) -> void:
 	var i: Island = _islands[id]
-	var reach := i.generator.radius * 1.45
 	var cluster := clusters.cluster_of(id)
-	bridges.add(region(i), cluster, i.global_position, reach, func(toward: Vector3) -> Vector3:
+	bridges.add(region(i), cluster, i.global_position, _reach(i), func(toward: Vector3) -> Vector3:
 		var p := _shore_point(i, toward)
 		# The way in from the bridge is kept clear of props.
 		var local := p - i.global_position
@@ -467,11 +470,19 @@ func _bridge(id: String) -> void:
 	_tell_landings()
 
 
+# How far an island's land goes, for keeping bridges clear of it.
+static func _reach(i: Island) -> float:
+	return i.generator.radius * 1.45
+
+
 # Tells every island where its bridges land now, after bridges came or
 # went, so its zipline (W10) and its read-only flag (S08) keep off them.
+# Not one still rising: its zipline waits for its own bridges.
 func _tell_landings() -> void:
 	for i in all_islands():
 		var key := region(i)
+		if not bridges.has(key):
+			continue
 		var landings: Array[Vector3] = []
 		for l in bridges.links():
 			if key in l:
