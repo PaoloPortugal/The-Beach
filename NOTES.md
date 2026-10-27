@@ -5646,8 +5646,8 @@ user's). Fish models to replace the shadows.
   (`max_line`, a variable for the tests) as you walk; past it the
   bobber is dragged, and a dragged bobber scares off the fish on the
   line. Resting, it has 0.6 m of slack (`SLACK`). The line pulls
-  level, toward the point under the tip, so it never lifts the bobber
-  (since 2026-10-27). Holding the click shortens it 4 m/s
+  level, toward the point under the tip, so it doesn't lift the bobber
+  (since 2026-10-27), except one snagged in the water (below). Holding the click shortens it 4 m/s
   (`REEL_SPEED`), never below the drop from the tip: the bobber is
   dragged back through the water or rolls over land, and it's back
   once within 1.5 m of the tip, seen from above (`BACK`). A taut bobber
@@ -5655,7 +5655,7 @@ user's). Fish models to replace the shadows.
   is snagged: on land it hops up 2.5 m/s and toward you; in the water
   (against the platform's side, a bridge's end or a steep shore) the
   line lifts it out toward the rod from then on (`_lifting`, until you
-  let go). Let go in the water
+  let go or it's back). Let go in the water
   and it rests where it slows below 0.6 m/s, and the wait starts there.
   More than 10 m past the line's longest (a jump across the world) it
   reels in.
