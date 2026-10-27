@@ -1757,6 +1757,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0 and player.is_on_floor(), "teleport: in front of the orchestrator, on its island")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
 	await _crosshair(world, player, orchestrator)
+	await _hotbar(world, player)
 	# The sidecar doesn't have h1, so fetching its history fails.
 	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
 	_check(not chat._history.has("h1"), "a failed history fetch is forgotten")
@@ -3221,6 +3222,56 @@ func _crosshair(world: Node3D, player: Player, orchestrator: Orchestrator) -> vo
 	_check(not crosshair.shown() and crosshair.hint_text() == "" and crosshair.target() == null, "C11: hidden without the controls (chat, menus, the ring, the map)")
 	player.controls_enabled = true
 	await _frames(2)
+
+
+# C15: the hotbar, by the number keys and the wheel, its fade, and nothing
+# without the controls.
+func _hotbar(world: Node3D, player: Player) -> void:
+	var hotbar: Hotbar = world.hotbar
+	var changes := []
+	hotbar.held_changed.connect(func(tool: String) -> void: changes.append(tool))
+	_check(hotbar.held_tool() == "hands" and is_zero_approx(hotbar.shown()), "C15: empty hands at the start, the hotbar hidden")
+	_key(KEY_2)
+	await _settle()
+	_check(hotbar.held_tool() == "rod" and changes == ["rod"] and is_equal_approx(hotbar.shown(), 1.0), "C15: 2 takes the rod and shows the hotbar")
+	_key(KEY_9)
+	await _settle()
+	_check(hotbar.held_tool() == "rod" and changes.size() == 1, "C15: a number past the last tool does nothing")
+	_wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	await _settle()
+	_check(hotbar.held_tool() == "hands", "C15: the wheel down from the last slot goes round to the first")
+	_wheel(MOUSE_BUTTON_WHEEL_UP)
+	await _settle()
+	_check(hotbar.held_tool() == "rod" and changes == ["rod", "hands", "rod"], "C15: the wheel up goes round the other way")
+	await _until(func() -> bool: return is_zero_approx(hotbar.shown()), Hotbar.SHOW_TIME + Hotbar.FADE_TIME + 1.0)
+	_check(is_zero_approx(hotbar.shown()), "C15: it fades out when left alone")
+	player.controls_enabled = false
+	_key(KEY_1)
+	_wheel(MOUSE_BUTTON_WHEEL_DOWN)
+	await _settle()
+	_check(hotbar.held_tool() == "rod" and is_zero_approx(hotbar.shown()), "C15: nothing without the controls (chat, menus, the ring, the map)")
+	player.controls_enabled = true
+	_key(KEY_1)
+	await _settle()
+	_check(hotbar.held_tool() == "hands", "C15: 1 puts it away")
+
+
+# A press and release of the key at [param physical] (the US layout's place).
+func _key(physical: Key) -> void:
+	for pressed in [true, false]:
+		var event := InputEventKey.new()
+		event.physical_keycode = physical
+		event.pressed = pressed
+		Input.parse_input_event(event)
+
+
+# One notch of the mouse wheel.
+func _wheel(button: MouseButton) -> void:
+	for pressed in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.button_index = button
+		event.pressed = pressed
+		Input.parse_input_event(event)
 
 
 # Turns the player and its head so the camera looks at [param at].

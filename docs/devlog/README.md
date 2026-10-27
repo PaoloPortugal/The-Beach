@@ -110,3 +110,4 @@ reading; look things up by feature ID.
 | 2026-10-26 | [C14: the main menu](2026-10-26-c14-main-menu.md) | C14, C13, S07, W01, W04 |
 | 2026-10-27 | [Island smoothing](2026-10-27-island-smoothing.md) | W01, W06, W08, W12 |
 | 2026-10-27 | [D01: fishing, designed](2026-10-27-d01-fishing-design.md) | D01, C15, A05 |
+| 2026-10-27 | [C15: the hotbar](2026-10-27-c15-hotbar.md) | C15, D01 |

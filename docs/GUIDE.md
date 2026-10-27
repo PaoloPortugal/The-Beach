@@ -21,6 +21,7 @@ here; each section is labelled with its feature ID.
 - [Swimming and the sea floor (W08)](#swimming-and-the-sea-floor-w08)
 - [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
 - [The crosshair (C11)](#the-crosshair-c11)
+- [The hotbar (C15)](#the-hotbar-c15)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -489,6 +490,7 @@ You see the world through your character's eyes.
 | Big map (M or Esc closes it) | M |
 | Chat: look at the orchestrator from close by | E (Esc closes the chat) |
 | Ride a mountain's zipline: look at its post from close by | E |
+| Take a tool from the hotbar (C15) | 1, 2, … or the mouse wheel |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -584,6 +586,21 @@ or the map. If you'd rather not see the ring, turn off **Crosshair** in
 the settings' Game tab; the words still appear when you look at
 something, and E still works. Like the rest of the look for now, it's a
 placeholder.
+
+## The hotbar (C15)
+
+The tools you carry sit in a row of slots at the bottom of the screen:
+**1 Hands** (nothing in your hands) and **2 Rod**, the fishing rod. Press
+a slot's number to take that tool, or turn the mouse wheel to step
+through them; past the last slot it goes round to the first. The held
+slot is outlined in white.
+
+The hotbar shows when you switch and fades out a moment later. It does
+nothing while you're in the chat, a menu, the sessions ring or the map.
+You start each game with empty hands.
+
+The rod can't fish yet: fishing comes later, and the bug net after it.
+The hotbar's look is a placeholder.
 
 ## Talking to the orchestrator (C01)
 
