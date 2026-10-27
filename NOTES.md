@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Not designed yet (see Known issues and
-next steps → Deferred ideas).
+what the public release waits for. Fishing is designed (D01); the rest
+is not yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -78,8 +78,9 @@ agent models (custom ones by the user, open question 7).
 
 Prefixes: **W** world (islands, ocean, bridges, travel, player movement),
 **A** agents (orchestrator, subagents, states, placement), **C** chat panel
-and in-world UI, **S** sidecar and session management. v1 = part of the
-v1 slice.
+and in-world UI, **S** sidecar and session management, **D** downtime
+(fishing, bug catching, the collection, parkour). v1 = part of the v1
+slice.
 
 | ID  | Feature                                   | Status  | Guide section | Main code |
 |-----|-------------------------------------------|---------|---------------|-----------|
@@ -122,6 +123,7 @@ v1 slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
+| D01 | Fishing                                   | designed | —            | — |
 
 ## When a feature lands
 
@@ -5284,6 +5286,52 @@ session event, focus told once per change, both commands answered,
 the setting sent again once synced after a change lost while
 reconnecting).
 
+### D01 Fishing
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):* it
+reads no provider events; its one tie to sessions is A05's count of
+waiting sessions, which is already generic. The first downtime activity
+(Concept → Downtime): something to do while agents work, dropped the
+moment one needs you. Dev log 2026-10-27-d01-fishing-design.
+
+*Decided (user's, 2026-10-27):*
+- *Needs the hotbar first* (C15): the rod is a tool you hold, picked on
+  the hotbar.
+- *Loop:* cast, wait for a bite, hook it, then a fight with active
+  reeling: a catch bar like Stardew Valley's. You keep a bar over a fish
+  that darts up and down until a progress meter fills; how hard it
+  fights depends on the species. It was chosen as the most engaging,
+  over cast-and-bite (one press on the real bite: Animal Crossing's and
+  code-town's) and set lines (rods planted and collected later).
+- *Where:* from any water's edge: a shore, a bridge deck, the platform.
+- *What bites* depends on the world: the biome (W10), the water
+  (shallows, the shelf's drop-off, open sea between islands, from W08's
+  depths), the time of day and the weather (W09). That gives a reason to
+  visit other islands and to fish in bad weather.
+- *Fish in the water:* a placeholder at first, fish shadows seen in the
+  clear shallows (W08) that you can aim at. Once there are fish models
+  (the user's or CC0), real fish swimming about replace or join them.
+- *Agents:* fishing does not depend on them. The catch depends only on
+  the world, never on what agents are doing (rarer fish while agents
+  work would reward spending the user's tokens to fish).
+- *Leaving mid-fight:* walking off, opening a chat or reeling in lets
+  that fish go. Nothing else is lost (no bait, no streak, no record), so
+  leaving costs only the fish on the line. Losing the fight costs the
+  same.
+- *A05 during a fight:* your eyes are on the catch bar, so when an agent
+  starts waiting during a fight, A05's count pulses once and sits next to
+  the bar while the fight lasts. No sound in the game (as in A05), and
+  nothing is paused or answered for you. Beacons are unchanged.
+- *The collection:* every catch goes into the shared collection, a
+  feature of its own with bug catching (Deferred ideas → Downtime). What
+  it records (sizes, firsts), rewards and the museum are decided there.
+
+*Open (before building):* casting controls (hold to aim, release to
+cast?); the species list, how many there are and each one's fight; what
+happens to a fish once caught (kept, released, recorded only); the
+placeholder look (simple shapes for the rod, line, bobber and shadows;
+no art assets unless asked for a placeholder); where the catches are
+saved (`user://`); the tests.
+
 ## Conventions
 
 - **A new feature** first gets its provider scope decided (core, capability
@@ -5806,7 +5854,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** none chosen yet. Later
+**Current focus:** the downtime activities. D01 Fishing is designed
+(2026-10-27, branch `d01-fishing`); C15, a hotbar for its tools, comes
+first and is being built. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: island
@@ -6307,6 +6357,8 @@ the user's vision first; others using the MIT code afterwards is fine.
   what the public release waits for; Codex and OpenCode can come after
   the commercial release.
   - *Fishing and bug catching* are the two main ways to pass the time.
+    Fishing is designed as D01 (2026-10-27); its tools are picked on a
+    hotbar (C15, user's: rod now, bug net later).
     What you find could depend on the biome (W10), the weather and the
     time of day (W09), and fish on the sea and seabed (W02, W08), which
     gives a reason to visit other islands.
@@ -6319,6 +6371,8 @@ the user's vision first; others using the MIT code afterwards is fine.
     about 30 s to a few minutes, so each activity must be short, droppable
     the moment an agent needs you (A05 is the interrupt) without losing
     progress, never punish you for leaving, and leave the agents in view.
+    Confirmed for fishing (D01) with one exception, the user's: leaving
+    mid-fight loses the fish on the line, and nothing else.
     A parkour timer must pause or be optional.
   - *Open:* what catching unlocks, if anything (decorations, island
     looks); where the museum stands; how between-island courses are laid
