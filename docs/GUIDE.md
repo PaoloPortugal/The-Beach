@@ -22,6 +22,7 @@ here; each section is labelled with its feature ID.
 - [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
 - [The crosshair (C11)](#the-crosshair-c11)
 - [The hotbar (C15)](#the-hotbar-c15)
+- [Fishing (D01)](#fishing-d01)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -599,8 +600,57 @@ The hotbar shows when you switch and fades out a moment later. It does
 nothing while you're in the chat, a menu, the sessions ring or the map.
 You start each game with empty hands.
 
-The rod can't fish yet: fishing comes later, and the bug net after it.
+The rod fishes (see [Fishing](#fishing-d01)); the bug net comes later.
 The hotbar's look is a placeholder.
+
+## Fishing (D01)
+
+Something to do while your agents work. Take the rod (press **2**) and
+it shows at the bottom right of the screen. Fish from any water's edge:
+a shore, a bridge or the platform.
+
+**Casting.** Hold the left mouse button: a small meter under the
+crosshair fills in about a second, and stays full. Let go to cast where
+you look: a short tap drops the bobber about 4 m out, a full charge
+about 22 m. You can't cast onto land (an island, a bridge's deck or the
+platform): the screen says **Can't cast onto land**. You can't cast
+while swimming either. The bobber rides the waves, its line running
+from the rod's tip.
+
+**Fish shadows.** In the clear shallows round the islands you'll see
+dark fish shapes wandering just under the surface. Cast near one and
+that fish comes to your bobber within a second or so.
+
+**The bite.** Otherwise wait: after a few seconds (4 to 12) a fish
+comes. Its shadow swims up to the bobber and nibbles once or a few
+times, each nibble a small dip of the bobber. Then it bites: the bobber
+goes under for just under a second. **Click then** to catch it.
+
+- Click on a nibble, or before it gets there, and you scare it off:
+  **Too soon: it swam off**.
+- Miss the bite and **It got away**; keep waiting and another comes.
+- Click while you're still waiting to reel in.
+
+**Leaving.** Walking off (a few steps from where you cast), taking
+another tool, opening the chat, a menu, the sessions ring or the map,
+swimming, or riding a zipline reels in. The only thing you lose is the
+fish on the line: there's no bait, streak or record to lose.
+
+**A catch** shows a card near the top of the screen with the fish and
+its size, for example "You caught a Drop-off fish!" and "34 cm", marked
+**New** the first time you catch that species.
+
+**What bites** depends on where and when you fish: the water under the
+bobber (the shallows by an island, the drop-off where the shelf ends,
+or the open sea), the kind of the nearest island, the time of day and
+the weather. For now there are only three placeholder species, one for
+each water, which bite at any time and in any weather: **Shallows
+fish**, **Drop-off fish** and **Open sea fish**. Fishing never depends
+on what your agents are doing.
+
+Every catch is kept (each species, how many, the biggest and the first)
+for the collection that comes later. The rod, the bobber, the shadows,
+the meter and the card are placeholders, and it's all silent for now.
 
 ## Talking to the orchestrator (C01)
 
