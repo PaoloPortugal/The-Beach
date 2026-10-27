@@ -22,6 +22,7 @@ here; each section is labelled with its feature ID.
 - [Day, night and the weather (W09)](#day-night-and-the-weather-w09)
 - [The crosshair (C11)](#the-crosshair-c11)
 - [The hotbar (C15)](#the-hotbar-c15)
+- [Fishing (D01)](#fishing-d01)
 - [Talking to the orchestrator (C01)](#talking-to-the-orchestrator-c01)
 - [The chat (C02)](#the-chat-c02)
 - [Formatting in the chat (C03)](#formatting-in-the-chat-c03)
@@ -441,8 +442,9 @@ cluster's bridges make a single path between its islands: each new
 island gets a bridge to the nearest one. A bridge appears a moment
 after its island has risen and goes as soon as the island starts sinking. If that
 leaves part of a cluster cut off, a new bridge joins it back on; the
-other bridges stay where they are. The bridges have rails, and you can't
-run or jump off them. Seen from about 70 m away, a bridge is drawn more
+other bridges stay where they are. The bridges have rails, so you can't
+walk off them, but you can jump over a rail into the sea (and swim to a
+beach to get out). Seen from about 70 m away, a bridge is drawn more
 simply, with a smooth deck and one rail a side instead of every plank;
 up close it has all its planks again.
 
@@ -484,13 +486,14 @@ You see the world through your character's eyes.
 | Swim (in deep water) | W A S D, toward where you look |
 | Swim up / down | Space / Ctrl |
 | Look around | mouse |
-| Pause menu: resume, settings, main menu, quit (frees the mouse pointer) | Esc (Esc again closes it; click in the game to take the pointer back) |
+| Pause menu: resume, settings, main menu, quit (frees the mouse pointer) | Esc (Esc again closes it and locks the pointer again) |
 | Sessions ring: go to a session or the platform | hold Tab, point, let go (Esc cancels) |
 | Start or resume a session | hold Tab, click the + in the middle (Esc goes back a page; Tab closes it) |
 | Big map (M or Esc closes it) | M |
 | Chat: look at the orchestrator from close by | E (Esc closes the chat) |
 | Ride a mountain's zipline: look at its post from close by | E |
 | Take a tool from the hotbar (C15) | 1, 2, … or the mouse wheel |
+| Fish, with the rod in hand (D01) | hold left click, let go to cast; hold left click to reel in; left click on the bite |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -542,8 +545,8 @@ After a jump far out to sea, the floor fills in around you over a second
 or so, nearest first; the far part is hidden by the haze anyway.
 
 You get out of the water by swimming to a beach and walking up it. You
-can't climb or leap onto the platform or a bridge's railed sides from the
-water. To get back to
+can't climb or leap onto the platform or a bridge from the water: their
+decks are too high. To get back to
 the platform from anywhere, hold Tab, point at the house at the top of
 the sessions ring and let go, or click the platform on the big map (M).
 
@@ -599,8 +602,75 @@ The hotbar shows when you switch and fades out a moment later. It does
 nothing while you're in the chat, a menu, the sessions ring or the map.
 You start each game with empty hands.
 
-The rod can't fish yet: fishing comes later, and the bug net after it.
+The rod fishes (see [Fishing](#fishing-d01)); the bug net comes later.
 The hotbar's look is a placeholder.
+
+## Fishing (D01)
+
+Something to do while your agents work. Take the rod (press **2**) and
+it shows at the bottom right of the screen. Fish from any water's edge:
+a shore, a bridge or the platform.
+
+**Casting.** Hold the left mouse button: a small meter under the
+crosshair fills in about a second, and stays full. Let go to throw the
+bobber where you look: the fuller the charge, the harder the throw. A
+short tap lands it about 4 m out and a full charge about 22 m, looking
+straight ahead; aim higher to throw further, up to about 29 m, where the
+line runs out and the bobber drops. You can't cast while swimming.
+
+**The bobber** is a little ball on your line. In the water it floats on
+the waves. On land (an island, a bridge's deck, the platform) it lands
+and rolls; it's harmless there, but no fish comes to it. Trees, rocks,
+plants and people don't get in its way, only the ground does. The line
+sags when it's slack and runs straight when it's pulled tight; slack
+over land, it lies on the ground rather than through it.
+
+**Reeling in.** Hold the left mouse button while the bobber is out to
+reel it in slowly; let go to stop. Reeling drags the bobber toward you
+without lifting it: through the water, or rolling over land, and if it
+catches on an edge it hops over. When it reaches the platform, a
+bridge's end or a steep shore from the water, the line lifts it out. Let go while
+it's in the water and it stays there, and the wait for a fish starts
+again: so if you threw too far, reel it back a little.
+
+**Fish shadows.** In the clear shallows round the islands you'll see
+dark fish shapes wandering just under the surface. Cast near one and
+that fish starts toward your bobber within a second or so of it
+settling.
+
+**The bite.** Otherwise wait: after a few seconds (4 to 12) a fish
+comes to a bobber resting in the water. Its shadow swims up to the
+bobber and nibbles once or a few times, each nibble a small dip of the
+bobber. Then it bites: the bobber plunges under with a splash ring, and
+a gold **!** shows under the crosshair for a second and a half. **Click
+then** to catch it.
+
+- Click on a nibble, or before it gets there, and you scare it off:
+  **Too soon: it swam off**. Keep holding and you reel in.
+- Miss the bite and **It got away**; keep waiting and another comes.
+
+**Moving and leaving.** You can walk about while the line is out: it
+pays out up to 30 m. Further than that, you drag the bobber after you,
+and the fish on the line swims off. Taking another tool, opening the
+chat, a menu, the sessions ring or the map, swimming, or riding a
+zipline reels in at once. The only thing you lose is the fish on the
+line: there's no bait, streak or record to lose.
+
+**A catch** shows a card high on the screen with the fish and
+its size, for example "You caught a Drop-off fish!" and "34 cm", marked
+**New** the first time you catch that species.
+
+**What bites** depends on where and when you fish: the water under the
+bobber (the shallows by an island, the drop-off where the shelf ends,
+or the open sea), the kind of the nearest island, the time of day and
+the weather. For now there are only three placeholder species, one for
+each water, which bite at any time and in any weather: **Shallows
+fish**, **Drop-off fish** and **Open sea fish**. Fishing never depends
+on what your agents are doing.
+
+Every catch is kept (each species, how many, the biggest and the first)
+for the collection that comes later. The rod, the bobber, the shadows,
+the splash, the meter, the "!" and the card are placeholders.
 
 ## Talking to the orchestrator (C01)
 

@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing (D01), bug catching (D02),
-the collection (D03) and parkour (D04) are designed, none built yet (see Known issues and next steps → Deferred ideas).
+what the public release waits for. Fishing (D01) is built; bug catching (D02),
+the collection (D03) and parkour (D04) are designed, not built yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -126,7 +126,7 @@ slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
-| D01 | Fishing                                   | designed | —            | — |
+| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/`, `world/ocean/ocean.gd` (height_at), `world/world.gd`, `project.godot` (input, the ground layer); the ground layer in `world/island/island.gd`, `world/bridges/bridge.gd`, `world/seabed/seabed.gd`, `world/platform/spawn_platform.tscn` |
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
 | D04 | Parkour courses                           | designed | —            | — |
@@ -536,7 +536,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -1006,7 +1006,8 @@ The water level is y = 0.
   water keeps its 2 m detail; W08) is two triangles, 8 m across. Where a
   2 m cell meets such a block, its vertices on the shared edge move onto
   that edge, so there are no cracks. Under half the triangles of the 2 m
-  grid everywhere. The collision uses the same faces; `height_at`
+  grid everywhere. The collision uses the same faces (on layers 1 and 3,
+  Conventions → Physics layers); `height_at`
   (placing agents, the orchestrator, bridges' ends) is unchanged.
 - *Seed.* `island_seed` 0 (the default) picks a new island every run and
   prints its seed; any other value pins it. The seed rolled is kept in
@@ -1101,6 +1102,9 @@ horizon is seamless (since W09 that colour follows the hour and the
 weather). Since W08 the water is see-through, tinted by depth (see W08);
 since W09 wind makes the waves faster and a little higher, and rain
 draws rings on the water (see W09). Plain enough for the Compatibility renderer.
+Since D01, `Ocean.height_at` (`world/ocean/ocean.gd`) works out the
+same waves in GDScript, for the bobber: change it and `ocean.gdshader`'s
+waves together.
 
 ### W03 Player movement
 *Built (v1). Scope: core.* On-foot movement for walking up to agents. Keep
@@ -1136,6 +1140,7 @@ platform, the islands for sessions, ocean, sun, sky, chat, sessions menu
 and player together. The **spawn platform** (`world/platform/`, user's
 direction, 2026-09-30) is a 12 m wooden square at the world's centre, its
 deck 1 m above the water; the player starts on it, 3 m from its centre.
+Its collision is on layers 1 and 3 (Conventions → Physics layers).
 (Its "New session" post was removed for the sessions menu, S03.)
 `world.gd` creates the `SessionStore` and connects the parts: the islands
 hear of a new session first, so its island exists when the menu's
@@ -1365,8 +1370,13 @@ and the real layout (user's, 2026-10-02; W07).
   and vanish when one starts sinking; how they show up and leave is
   designed later (rejected for now: rising after the island and sinking
   first; tilting with the island).
-- **Rails** you can't walk through, so you don't fall in the sea (since
+- **Rails** you can't walk through, so you don't fall in the sea by accident (since
   W08 you'd have to swim to a beach: no climbing back on).
+  *Changed (user's, 2026-10-27, D01 round 2 review; "meant to for a
+  while"):* the rails are solid only at their own 1 m height, so you
+  still can't walk off but can jump over them into the sea (rejected
+  since: invisible walls 2.2 m high, higher than a jump). D01's
+  bobber flies over them.
 - **Minimap now:** a small map of the cluster (islands, bridges, you;
   read-only marks since S08).
   Placeholder UI, like all UI. A square in the top left (the top right
@@ -1447,8 +1457,11 @@ and the real layout (user's, 2026-10-02; W07).
   most 4 m apart on both sides, from 0.5 m into the sea floor (W08's
   `Seabed.height_at` under each post, `POST_SINK`) to rails 1 m up, with
   a mid rail. The rails start 1 m from each end. Collision: the deck as
-  one strip, and on both sides a wall 2.2 m high (higher than a jump) so
-  you can't run or jump off. Flat-shaded, vertex colours like the islands.
+  one strip (layers 1 and 3, "ground": Conventions → Physics layers),
+  and on both sides a wall up to the top rail, 1 m (`RAIL_HEIGHT`),
+  in a `StaticBody3D` child of its own, `Rails`, on layer 1 only: you
+  can't walk off but can jump over (a jump is about 1.5 m), and D01's
+  bobber flies over. Flat-shaded, vertex colours like the islands.
 - *Far version* (user's decision, 2026-10-07; Architecture →
   Performance). A bridge is drawn in segments: its deck's run, overrun
   included, cut evenly into pieces of at most 24 m (`SEGMENT`,
@@ -1460,7 +1473,8 @@ and the real layout (user's, 2026-10-02; W07).
   triangles. Both use a 4 m margin, so a segment swaps at 74 m going away
   and at 66 m coming back, never flickering. Only what each version is
   made of is the placeholder; the segments stay when bridges become art.
-  The collision is unchanged (one shape for the whole bridge). Far
+  The collision is unchanged (one shape for the whole deck, one for
+  its rails). Far
   versions are hidden past the fog, like the islands.
 - *Made off the main thread* (W01's smoothing, 2026-10-27: about 0.5 ms
   a metre, 51 ms for a 102 m bridge). Sessions' bridges
@@ -1541,7 +1555,10 @@ and the real layout (user's, 2026-10-02; W07).
   full one (`CROWD`, 311: near 52, 45, 40, 38, 33, 25, 8 and 3, far 26,
   20, 14, 5 and 2), too slow for every push (user's, 2026-10-09). The
   demo itself opens the full crowd with `-- --crowd`, to look at or to
-  measure performance with.
+  measure performance with. It also checks the rails (2026-10-27): the
+  deck on layers 1 and 3, `Rails` on 1 only, a ray across the deck
+  stopped at the rail but not on the ground layer, a player sprinting at
+  it stays on the deck, and jumping takes it over, off the bridge.
 
 *Known limits.* A far cluster (a 9th or later) has no bridge to the
 platform: it's reached by teleport only (user's, 2026-10-09). Growth
@@ -1762,7 +1779,8 @@ chosen as offered):*
   Features narrower than about 12 m wouldn't show on the 4 m grid.
   Built in 64 m chunks on a 4 m grid (vertices
   jittered by their grid index, so neighbours share their edge), each
-  with matching collision, from the camera out to 420 m (past the fog)
+  with matching collision (layers 1 and 3, Conventions → Physics
+  layers), from the camera out to 420 m (past the fog)
   and dropped past 548 m. Chunks are made on a worker thread, nearest
   first, 6 to a task and one task at a time (`BATCH`; a chunk's heights,
   mesh arrays and collision faces, about 2 ms each), and the main thread
@@ -1811,12 +1829,14 @@ chosen as offered):*
   sprinting up breaches (straight up, or steeper than about 50°); plain
   Space or W toward the sky still floats. At the 6 m/s sprint the feet
   reach about 0.8 m above the water: under the platform's 1 m deck (tried
-  from every gap and angle, never lands on it), and the bridges' rails
-  are 2.2 m walls; only their last metre on an island's beach is open,
-  and that beach is a way out anyway. Swimming into ground that
-  slopes up (facing up more than 0.35) rides up it, and touching such
-  ground with the feet less than 1.2 m under ends swimming: that's how you
-  walk out up a beach. The platform's and bridges' sides are walls.
+  from every gap and angle, never lands on it), and under a bridge's
+  deck, 1.2 m up away from its ends (since 2026-10-27 its rails are no
+  longer 2.2 m walls, W06, but the deck alone is out of reach); near its
+  ends the deck meets an island's beach, a way out anyway. Swimming into
+  ground that slopes up (facing up more than 0.35) rides up it, and
+  touching such ground with the feet less than 1.2 m under ends
+  swimming: that's how you walk out up a beach. The platform's sides
+  are walls, and a bridge's deck stops you from below.
 - *The way back* (`world.gd` → `go_to_platform`, which also drops a
   teleport waiting for an island to rise): the sessions ring's ⌂
   (hold Tab, point at the top, let go; W07), and a click on the platform
@@ -3707,7 +3727,7 @@ slots: the inventory the downtime activities need first (user's,
 - `Hotbar` (`world/hotbar.gd`, a `CanvasLayer` made by `world.gd`):
   `TOOLS` (`hands`, `rod`) in slot order and `NAMES` for what each slot
   says; `held_tool()`, `select(slot)`, `step(±1)` (round the ends) and
-  `held_changed(tool)`, which D01 will listen to. You start with empty
+  `held_changed(tool)`, which D01 listens to. You start with empty
   hands; the held slot isn't saved between runs.
 - *Input:* `hotbar_1` to `hotbar_9` (the number row's physical keys 1-9;
   a number past the last tool does nothing), `hotbar_next` (wheel down)
@@ -3722,8 +3742,8 @@ slots: the inventory the downtime activities need first (user's,
   faintly. Each shows its number in a corner and its tool's name (no
   icons yet). Fully shown for 1.5 s after a switch, even to the slot
   already held, then fading out over 0.5 s.
-- Holding the rod does nothing yet, and nothing is seen in your hand:
-  both come with D01.
+- With the rod in hand, left click fishes, and the rod shows in your
+  hand (D01).
 
 Tested in the world test (`_hotbar`, with real key and wheel events):
 empty hands and hidden at the start; 2 takes the rod and shows it; 9
@@ -3852,7 +3872,11 @@ text (species, hints, menus) and adding a language both scale. Dev log
 settings (fallback `en`, the translation list), C10's Language row,
 the tests, auto-translate off on content; (2) the menus; (3) the drawn
 HUDs; (4) the chat panel's chrome; (5) D01's text once D01 is merged
-(species names, the catch card's wording); (6) codes for the sidecar's
+(the species names in `FishSpecies.SPECIES` under `"fish"`; the catch
+card's line, today "You caught a/an {species}!" with the article
+picked in code, its "{n} cm" and "New"; and the HUD's lines "Too
+soon: it swam off" and "It got away", all in `world/fishing/`; the
+bite's "!" needs none); (6) codes for the sidecar's
 free-form messages; (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
@@ -5494,11 +5518,12 @@ the setting sent again once synced after a change lost while
 reconnecting).
 
 ### D01 Fishing
-*Designed (user's, 2026-10-27); not built. Scope: core (world only):* it
-reads no provider events; its one tie to sessions is A05's count of
-waiting sessions, which is already generic. The first downtime activity
-(Concept → Downtime): something to do while agents work, dropped the
-moment one needs you. Dev log 2026-10-27-d01-fishing-design.
+*Built (2026-10-27; round 2 after the user's live check the same day;
+look placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part; it never reads sessions or agents.
+The first downtime activity (Concept → Downtime): something to do while
+agents work, dropped the moment one needs you. Dev logs
+2026-10-27-d01-fishing-design and 2026-10-27-d01-fishing.
 
 *Decided (user's, 2026-10-27):*
 - *Needs the hotbar first* (C15): the rod is a tool you hold, picked on
@@ -5506,12 +5531,43 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
 - *Use button* (decided with D02): left click uses the tool in hand,
   so it casts the rod; E keeps meaning "act on what the crosshair is
   on" (C11).
-- *Loop:* cast, wait for a bite, hook it, then a fight with active
-  reeling: a catch bar like Stardew Valley's. You keep a bar over a fish
-  that darts up and down until a progress meter fills; how hard it
-  fights depends on the species. It was chosen as the most engaging,
-  over cast-and-bite (one press on the real bite: Animal Crossing's and
-  code-town's) and set lines (rods planted and collected later).
+- *Loop:* cast, wait for a bite, hook it. ~~Then a fight with a catch
+  bar like Stardew Valley's~~: dropped (user's, 2026-10-27), as too
+  unoriginal (Stardew Valley's and Webfishing's are the ones the user
+  knows). *For now a fish is caught by hooking it on the real bite*
+  (cast-and-bite): a shadow comes, nibbles, then bites, with a short
+  window; a click in the window catches it, a click on a nibble scares
+  it off. Rejected earlier: set lines (rods planted and collected
+  later).
+- *Casting* (user's, 2026-10-27): hold left click to charge the
+  distance (a small meter fills), release to cast where you look. No
+  casting while swimming. ~~No casting onto land~~: reversed after the
+  live check (below).
+- *Round 2* (user's, 2026-10-27, after the live check, which found
+  round 1 "fine as a placeholder"; the numbers in "How it works" are
+  my picks):
+  - *The bobber is a real ball on the line*, thrown by the cast; it
+    floats on the water, and on land it rolls as you reel it in.
+  - *Minimal collisions on land:* "it's not the focus of fishing", so
+    the bobber hits only the ground, never props, agents or you.
+  - *Casting onto land is allowed, with no effect:* nothing comes to a
+    bobber on land.
+  - *Hold the click to reel in slowly*, letting go to stop. (It was: a
+    click while waiting reels in at once.)
+    *Changed (user's, 2026-10-27, on review):* reeling doesn't lift
+    the bobber; it drags it nearer through the water or over the
+    ground, so on the water you can bring back a throw that went too
+    far and let it rest there.
+  - *You can move a bit while the line is out*, instead of walking off
+    reeling in.
+  - *The windows felt too tight:* the bite's window is longer. The
+    nibbles stay as they are: you wait for the bite.
+  - *A clearer sign of when to click* (the bite).
+  - *The rod in the same place at any field of view* (it sat too near
+    the middle at a wide one: a bug).
+- *Species* (user's, 2026-10-27): the user supplies the real list.
+  Until then three placeholders, one each for the shallows, the
+  drop-off and the open sea, in one small table that's easy to edit.
 - *Where:* from any water's edge: a shore, a bridge deck, the platform.
 - *What bites* depends on the world: the biome (W10), the water
   (shallows, the shelf's drop-off, open sea between islands, from W08's
@@ -5523,24 +5579,178 @@ moment one needs you. Dev log 2026-10-27-d01-fishing-design.
 - *Agents:* fishing does not depend on them. The catch depends only on
   the world, never on what agents are doing (rarer fish while agents
   work would reward spending the user's tokens to fish).
-- *Leaving mid-fight:* walking off, opening a chat or reeling in lets
-  that fish go. Nothing else is lost (no bait, no streak, no record), so
-  leaving costs only the fish on the line. Losing the fight costs the
-  same.
-- *A05 during a fight:* your eyes are on the catch bar, so when an agent
-  starts waiting during a fight, A05's count pulses once and sits next to
-  the bar while the fight lasts. No sound in the game (as in A05), and
-  nothing is paused or answered for you. Beacons are unchanged.
-- *The collection:* every catch goes into the shared collection, a
-  feature of its own with bug catching (Deferred ideas → Downtime). What
-  it records (sizes, firsts), rewards and the museum are decided there.
+- *Leaving* (opening a chat, switching tool, swimming) or reeling in
+  lets the fish on the line go. Nothing else is lost (no bait, no
+  streak, no record), so leaving costs only the fish on the line.
+- *A05 during a fight:* moot while there is no fight (user's,
+  2026-10-27). It was: A05's count pulses once and sits next to the
+  catch bar while the fight lasts. Decide again with the fight.
+- *The collection* (D03): every catch is recorded now with what D03
+  needs: each species caught, its first catch (when and where), how
+  many, and its biggest fish's size, kept in `user://` (user's,
+  2026-10-27). D03's field guide, which shows them, comes later.
 
-*Open (before building):* casting (hold left click to aim, release to
-cast?); the species list, how many there are and each one's fight; what
-happens to a fish once caught (kept, released, recorded only); the
-placeholder look (simple shapes for the rod, line, bobber and shadows;
-no art assets unless asked for a placeholder); where the catches are
-saved (`user://`); the tests.
+*Open:* a fight of our own, **the next round** (user's, 2026-10-27,
+after the live check), not a catch bar like the games above. The
+user's idea: once hooked, you keep the click held to reel the fish in
+slowly, the fish pulls one way and another, and you move the mouse
+against its pull while holding; read from the world (the line's
+angle and strain, the rod bending), not a bar. Round 2's line, with
+its length and tension, is built for it. To design: how a fish is lost
+(the line snapping, or slipping off), how long a fight lasts, how
+species differ, and A05 during a fight. The real species list (the
+user's). Fish models to replace the shadows.
+
+**How it works** (distances, timings, sizes and the look my picks).
+- `Fishing` (`world/fishing/fishing.gd`, a `Node3D` at the world's
+  origin, made by `world.gd` with the player, the hotbar, the islands,
+  `DayNight`, `Weather` and the `Ocean`). A state machine: idle,
+  charging, casting (flying), out (on land, rolling, reeled or
+  dragged: nothing comes), waiting, approach, nibble, bite.
+- *Input:* the new action `use` (left mouse button), read in
+  `_unhandled_input` only while `player.controls_enabled` and the rod
+  (C15's slot 2) is in hand. Pressed while idle (and not swimming or
+  riding a zipline) it starts charging; released, it casts. Pressed on a
+  bite it catches; on the approach or a nibble it scares the fish off
+  ("Too soon: it swam off") and starts reeling; otherwise, with the
+  bobber out, it reels in while held (`reeling`) and stops when let go.
+- *The bobber* (a placeholder, `assets/CREDITS.md`): a `RigidBody3D`,
+  a sphere 7 cm in radius, 50 g, bouncy (0.3) and rolling. It collides with the
+  **"ground" layer** only (layer 3, named in `project.godot`), which
+  `Island`, `Bridge`'s deck (not its rails), the sea floor's chunks and
+  the platform are also on (Conventions → Physics layers); everything
+  stays on layer 1 as before, so the player, the
+  crosshair's line of sight (C11) and every ray are unchanged, and
+  props, agents and the player don't stop the bobber. Rejected: moving
+  props and agents to a layer of their own (the crosshair would then
+  see through trees and rocks unless every ray changed). In the water
+  a buoyancy push from `Ocean.height_at` (the shader's waves worked out
+  in GDScript) holds it up, with drag.
+- *Casting:* the meter fills in 1 s (`CHARGE_TIME`) and stays full; the
+  bobber leaves the rod's tip along where the camera looks, 15° above
+  it (`LIFT`), at 5.2 m/s for a tap to 18 m/s full (`MIN_THROW`,
+  `MAX_THROW`): about 4 m and 22 m over flat water at eye level, more
+  aiming up. The line pays out as it flies, at most to `max_line` less
+  `SLACK` (29.4 m; since 2026-10-27, user's call on my recommendation:
+  a full charge aimed high used to fly past `max_line` and be dragged
+  back): there the line holds it and it drops, and coming to rest it's
+  pulled back to that if the line's pull stretched it a little past
+  (`_settle_in_water`). It stops where it lands:
+  in water at least 0.3 m deep (`MIN_DEPTH`; the depth from a ray
+  straight down, `depth_at`, past the player, or the seabed's
+  `height_at` where it hits nothing) it rests there at once (waiting);
+  touching anything else (an island, a deck, the platform, the beach)
+  it's out: it rolls and rests, and nothing comes.
+- *The line* (`line_length`): when the bobber is further than that from
+  the rod's tip, the line pulls it back. It pays out up to 30 m
+  (`max_line`, a variable for the tests) as you walk; past it the
+  bobber is dragged, and a dragged bobber scares off the fish on the
+  line. Resting, it has 0.6 m of slack (`SLACK`). The line pulls
+  level, toward the point under the tip, so it doesn't lift the bobber
+  (since 2026-10-27), except one snagged in the water (below). Holding the click shortens it 4 m/s
+  (`REEL_SPEED`), never below the drop from the tip: the bobber is
+  dragged back through the water or rolls over land, and it's back
+  once within 1.5 m of the tip, seen from above (`BACK`). A taut bobber
+  coming less than 5 cm nearer (seen from above) in 0.5 s while reeled
+  is snagged: on land it hops up 2.5 m/s and toward you; in the water
+  (against the platform's side, a bridge's end or a steep shore) the
+  line lifts it out toward the rod from then on (`_lifting`, until you
+  let go or it's back). Let go in the water
+  and it rests where it slows below 0.6 m/s, and the wait starts there.
+  More than 10 m past the line's longest (a jump across the world) it
+  reels in.
+- *What bites* (`FishSpecies`, `world/fishing/fish_species.gd`): one
+  table, `SPECIES`, each entry an id (kept in the catch file; never
+  change one), a name, the waters, biomes, hours (from-to on a 24-hour
+  clock, past midnight when from > to), weathers (`Weather.NAMES`), a
+  size range in cm and a weight; an empty list means any. The water is
+  set by the depth where the bobber comes to rest: under 4.5 m the
+  shallows (the islands' shelf is 4 m down, W08), under 12 m the
+  drop-off, deeper the open sea (the sea floor is 14-30 m). The biome
+  is the nearest island's (`SessionIslands.session_at`, within twice
+  its radius), or none (the platform, the open sea). The hour and
+  weather are read when a fish comes. `pick` draws by weight among the
+  species that match; where none does, nothing comes. Sizes:
+  `size_for`, the range eased so big fish are rarer (roll to the power
+  1.6). Placeholders: Shallows fish 12-30 cm, Drop-off fish 25-60 cm,
+  Open sea fish 40-120 cm, each in its one water, anywhere, any time.
+- *A bite:* only to a bobber resting in the water, placed each frame at
+  the waves' height (not moved by the physics while it rests). After a
+  wait of 4-12 s a fish comes: its shadow starts 3.5 m from the bobber
+  and swims to 0.35 m from it in 2 s, nibbles 1-3 times 0.7-1.5 s apart
+  (a 0.15 m dart, the bobber dipping 8 cm), then bites: the bobber
+  plunges 0.45 m under for 1.5 s (`bite_window`), a splash ring spreads
+  round it (to 0.8 m in 0.6 s, fading) and a "!" shows under the
+  crosshair. Missed, the fish swims off ("It got away") and the wait
+  starts again. The timings are variables so the tests can shorten
+  them.
+- *Shadows* (`FishShadow`, `world/fishing/fish_shadow.gd`): a dark
+  flat fish shape (body and tail, unshaded, 35-60 cm), 0.45 m under the
+  water, growing in and shrinking out of sight. Up to 5 wander round the
+  player, 6-30 m away, where the water is 1.5-4.5 m deep (one spot tried
+  every 0.5 s); each roams within 2 m of where it came, and goes past
+  40 m. A bobber coming to rest within 4 m of one (`AIM_RADIUS`) puts
+  that one on the line, and it comes after 0.5-1.5 s instead of the
+  wait.
+- *Leaving:* each frame, the rod put away, the controls gone (the chat,
+  a menu, the sessions ring, the map), swimming or riding reels in at
+  once, and the fish on the line swims off. Walking doesn't (the line
+  above).
+- *The look* (placeholders, `assets/CREDITS.md`): the rod a brown
+  tapering cylinder, 1.2 m, held bottom right in the camera's view
+  (`GRIP` at an 80° field of view, its place and size scaled by the
+  field of view's tangent so it stays put on screen from 60° to 110°),
+  tilting back as you charge and up as you reel; the bobber a red ball
+  with a white top, upright while it rests, turning as it rolls; the
+  line a 1-pixel strip from the rod's tip, straight when taut, sagging
+  with its slack (`line_points`, 12 pieces); each point between its
+  ends is kept 3 cm above the ground layer (`LINE_LIFT`), found by a ray
+  from where it would be taut down to where it sags, so it lies on land
+  or a deck instead of going through, and a deck above it doesn't lift
+  it. A taut line through a crest isn't caught (the user's live check,
+  2026-10-27; a placeholder like the rod); the splash a flat white ring. Nothing casts shadows.
+- *On screen* (`FishingHud`, `world/fishing/fishing_hud.gd`, drawn in
+  code like the hotbar; hidden without the controls): the meter (64 by
+  6 px, 26 px under the middle) while charging; a gold "!" just under
+  the middle while a fish bites; a short line under it for 2 s; the
+  catch card at a quarter of the way down for 3.5 s, "You caught a
+  Drop-off fish!" over "34 cm", and "New" in gold on a species' first.
+  The line and card fade out over 0.4 s.
+- *The catches* (`CatchLog`, `world/fishing/catch_log.gd`):
+  `user://catches.json`, `{"version": 1, "species": {id: {"count",
+  "biggest_cm", "first": {"at", "biome", "water"}}}}`: "at" the local
+  date and time, "biome" the biome's name or "" away from islands.
+  Written on a worker thread after each catch (to a `.tmp`, renamed
+  over), waited for when the world closes. A damaged file is copied to
+  `.bad` and the log starts empty, so a catch never writes over what
+  could still be recovered.
+  The suites use `user://test-catches.json` (Running it). Species no
+  longer in the table keep their entries.
+
+Tested in the world test: `_fish_species` (each placeholder in its
+water; hours past midnight, biomes and weather by a test table; weights;
+nothing where nothing lives; sizes), `_catch_log` (counts, the biggest,
+the first catch, read back, a damaged file kept as `.bad`) and
+`_fishing` with real clicks: the 1.5 s window; no rod, no cast; the rod
+in the same place on screen at 60° and 110°; the bobber on the ground
+layer only, the props not on it; land and shallows under an island and
+its biome; shadows in the shallows; a tap into the shallows near a
+shadow brings that one; the bite's "!" and splash; a shallows catch
+recorded with its biome; a cast onto the platform's deck rests there,
+nothing comes, and holding reels it in; a full charge into the
+drop-off (17-27 m); a full charge 30° up held at the line's longest,
+resting in the water within `max_line`; a tap sideways off the longest
+bridge's side, mid-span, over its rails into the water; the bobber on
+the waves; the card and New; a
+second catch not New, the biggest kept; a nibble clicked scares it off
+and reels; reeling drags it nearer through the water, never more than
+0.15 m above it; letting go stops reeling, and it rests and waits again; a
+missed bite; holding reels it all the way in, lifted out at the
+platform's side; a few steps keep the line
+out, past the longest it's dragged and the fish swims off; switching
+tool and losing the controls reel in; no cast while swimming; the file
+saved. The look, the feel, rolling and snags, and the timings can't be
+judged headless: the live check has them.
 
 ### D02 Bug catching
 *Designed (user's, 2026-10-27); not built. Scope: core (world only):*
@@ -5558,7 +5768,8 @@ on land where fishing (D01) is on the water. Dev log
   says "Talk" on an orchestrator (C11). It was chosen over a hit
   followed by a timing minigame (the same game as fishing twice) and
   a chase as the main loop (longer, harder to tune). Its contrast
-  with fishing: there you watch a bar, here you watch the world.
+  with fishing: there you stand still and wait for the bite, here you
+  go after what you see.
 - *Bugs notice you:* sprinting or landing a jump nearby scares them
   off, and crouching (W11) lets you creep up. A few rare bugs flee in
   a short chase when startled (sprint, jump and slide after them),
@@ -5627,7 +5838,9 @@ the hub is built. Dev log 2026-10-27-d03-collection-design.
 *Open (before building):* the key that opens the field guide; its look
 and layout; whether catching a species again (for a bigger fish) adds
 another to the hub or only updates the record; how many creatures of
-each species the hub shows; the save format. The hub itself is the
+each species the hub shows; the save format. The catches are already
+recorded since D01, in `user://catches.json` (D01 → How it works →
+The catches). The hub itself is the
 user's model (Deferred ideas → The hub).
 
 ### D04 Parkour courses
@@ -5720,6 +5933,15 @@ zipline; the tests.
   `assets/CREDITS.md` → Shaders and code-generated visuals saying so
   (user's, 2026-10-08: some people may count them as AI art, though the
   user doesn't).
+- **Physics layers** (since D01, 2026-10-27). Everything that collides
+  is on layer 1, and every ray, the player and the crosshair (C11) use
+  it. Ground you can stand on is also on layer 3, "ground" (named in
+  `project.godot`), which D01's bobber alone collides with: an island
+  (W01), a bridge's deck (W06), the sea floor (W08) and the spawn
+  platform. A bridge's rails are on layer 1 only, so the bobber flies
+  over them; so are props and agents. Anything new you can stand on,
+  such as the hub or D04's courses, must be on layer 3 too, or the
+  bobber falls through it.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
@@ -5897,6 +6119,8 @@ off, so a suite's sidecar never shows the user's own running sessions
 (S08; the sidecar client test checks it), and never gets the user's
 own program set by hand (S02's `[programs]`): with none set and
 outside sessions off, nothing at start runs the real `claude`.
+It points `CatchLog.file` (D01) at `user://test-catches.json` and
+deletes it too, so the suites never touch the user's catches.
 
 The clusters test (W05) checks grouping by repository and worktree,
 folders outside git, a chosen or new cluster, names, freeing spots,
@@ -6233,11 +6457,17 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing, D02 Bug
-catching, D03 Collection, D04 Parkour (with W13's mantle and wall
-run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pick what to
-build first. Later
-(user's): a player-facing credits file for C14's Credits, and
+**Current focus:** the downtime activities. D01 Fishing is built on
+branch `d01-fishing` (placeholder species and look). The user's live
+check found it fine as a placeholder; round 2 (a real bobber on the
+line, hold to reel in, casting onto land, a longer and clearer bite)
+is built on the same branch, with the user's review changes (W06's
+rails solid at 1 m, so you can jump over them; the throw capped at
+the line's longest; reeling drags the bobber level instead of lifting
+it), waiting for the user's live check. Next round: the fight. Then the user's species list. D02 Bug
+catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
+and D05 Plunger gun are designed; the hub is the user's to model.
+Later (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: C16's design**
 (dev log 2026-10-27-c16-localisation-design): Godot's translations
@@ -6761,7 +6991,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   what the public release waits for; Codex and OpenCode can come after
   the commercial release.
   - *Fishing and bug catching* are the two main ways to pass the time.
-    Fishing is designed as D01 and bug catching as D02 (2026-10-27);
+    Fishing is built as D01 and bug catching designed as D02 (2026-10-27);
     their tools are picked on the hotbar (C15: the rod built, the bug
     net to come with D02).
     What you find could depend on the biome (W10), the weather and the
@@ -6781,7 +7011,7 @@ the user's vision first; others using the MIT code afterwards is fine.
     the moment an agent needs you (A05 is the interrupt) without losing
     progress, never punish you for leaving, and leave the agents in view.
     Confirmed for fishing (D01) with one exception, the user's: leaving
-    mid-fight loses the fish on the line, and nothing else.
+    with a fish on the line loses that fish, and nothing else.
     A parkour timer must pause or be optional. (Settled by D04: leaving
     ends the run with nothing lost, so the timer needs no pause.)
   - *Open:* how between-island courses are laid out next to the bridge
@@ -6903,9 +7133,10 @@ Ideas weighed and turned down. Each says what would reopen it.
   timing) if a start feels rough on another machine, before
   optimizing.
 - **`bridges_test`'s "no bridge over another island's land"** (W06;
-  failed once in six runs, 2026-10-27, not since). Likely a random
-  layout case that `main` has too; unproven. If it fails again, keep
-  the layout's seed and look.
+  failed once in six runs, 2026-10-27; again later that day on
+  Windows, 9 points, passing on two re-runs; the log was overwritten
+  before its seeds were kept). Likely a random layout case that `main`
+  has too; unproven. If it fails again, keep the layout's seed and look.
 - **A turn stopped by the model's safeguards** (user's, 2026-10-13;
   not yet seen in a game session). The Claude desktop app pauses a
   flagged chat ("Session paused", with retry or switch model); how
