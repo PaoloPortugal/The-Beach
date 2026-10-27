@@ -6103,6 +6103,11 @@ run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pic
 build first. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: D04, W13 and
+D05's designs** (dev log 2026-10-27-d04-parkour-design): hand-made
+hub courses with best times, a mantle and a wall run, and a plunger
+gun swinging on anchors, with swing routes beside every bridge. Not
+built.
 **Merged to `main` (2026-10-27), approved by the user: D03's design**
 (dev log 2026-10-27-d03-collection-design): a field guide now; the
 museum is the hub, the user's own model, filling with your catches.
