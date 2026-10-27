@@ -129,6 +129,7 @@ slice.
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
 | D04 | Parkour courses                           | designed | —            | — |
+| D05 | Plunger gun (swing routes)                | designed | —            | — |
 
 ## When a feature lands
 
@@ -5509,8 +5510,11 @@ agents work, using W03, W11 and the new moves of W13. Dev log
 - *Hub courses first:* a course rises out of the sea beside the hub,
   as islands do (W04). A gate on the hub picks a course or swaps it for
   another; the gate is a spot marked on the user's hub model
-  (Deferred ideas → The hub). Short courses between islands, as an
-  alternative to bridges (W06), come later.
+  (Deferred ideas → The hub). The courses between islands, as an
+  alternative to bridges (W06), are swing routes for the plunger gun
+  (D05; the user's, 2026-10-27), not courses of their own.
+- *Swinging on courses:* a course can have D05's swing anchors among
+  its pieces (the user's).
 - *Hand-made from pieces:* each course is laid out in Godot from
   blocks: simple shapes as placeholders, then a CC0 kit (such as
   Kenney's Platformer Kit) or the user's models, recorded in
@@ -5535,8 +5539,40 @@ agents work, using W03, W11 and the new moves of W13. Dev log
 how hard); how far from the hub a course stands, and what happens to
 it when you swap or leave; what checkpoints and the finish look like;
 how the timer and best times are shown; whether there is a ghost of
-your best run; the between-island courses' layout next to the bridge
-tree; the tests.
+your best run; the tests.
+
+### D05 Plunger gun
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):*
+no provider, protocol or sidecar part. A tool you swing from: the
+user's idea, and the way between islands other than the bridges. Dev
+log 2026-10-27-d04-parkour-design.
+
+*Decided (user's, 2026-10-27; my recommendations unless noted):*
+- *The hotbar's slot 4* (C15). Left click fires it (the use button,
+  D02).
+- *How it works* (the user's): you shoot the plunger at a point, it
+  sticks, and the rope lets you pivot on that point and swing, like a
+  pendulum. Let go and you fly on with your speed, which chains with
+  W11's slide jump and W13's mantle and wall run. Rejected: reeling
+  you in toward the point (simpler, less skill), and both.
+- *It sticks only to swing anchors:* placed objects such as posts,
+  buoys or rings. While you hold the gun, the crosshair says "Swing" on
+  one in range (C11). Rejected: any surface (it would make bridges,
+  ziplines and course design moot) and anchors plus surfaces marked
+  for it.
+- *Swing routes between islands, beside every bridge* (the user's
+  pick, over beside some bridges or instead of some): a chain of
+  anchors next to each bridge's way, so every link between islands can
+  be walked or swung. A fall means a swim, as anywhere at sea (W08).
+  These are D04's between-island courses.
+- *On parkour courses* (D04): anchors are one of the course pieces.
+
+*Open (before building):* the gun's range and the rope's length; how
+the anchors look (placeholder shapes first); how far apart they stand
+and how a route is laid out beside a bridge's curve and height (W06's
+bridge tree, the far clusters, the mountains' cliffs); whether you can
+aim at the next anchor mid-swing; how it works in the water and on a
+zipline; the tests.
 
 ## Conventions
 
@@ -6062,8 +6098,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing, D02 Bug
-catching, D03 Collection and D04 Parkour (with W13's mantle and wall
-run) are designed; the hub is the user's to model. Next: pick what to
+catching, D03 Collection, D04 Parkour (with W13's mantle and wall
+run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pick what to
 build first. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
@@ -6590,8 +6626,9 @@ the user's vision first; others using the MIT code afterwards is fine.
   - *Parkour courses*, two kinds side by side: a course you spawn at the
     hub (the platform) and swap for another, and short courses between
     islands as an alternative to bridges (W06). Builds on W11.
-    Designed as D04 (2026-10-27): hub courses first, hand-made, timed
-    with best times; between-island courses later; new moves in W13.
+    Designed as D04 (2026-10-27): hub courses, hand-made, timed with
+    best times; new moves in W13. The between-island courses are
+    swing routes beside every bridge, for the plunger gun (D05).
   - *Constraints* (proposed, to confirm when designing): waits run from
     about 30 s to a few minutes, so each activity must be short, droppable
     the moment an agent needs you (A05 is the interrupt) without losing

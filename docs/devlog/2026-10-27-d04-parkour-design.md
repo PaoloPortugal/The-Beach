@@ -1,6 +1,6 @@
-# D04: parkour, designed (and W13's new moves)
+# D04: parkour, designed (and W13's new moves, D05's plunger gun)
 
-Features: D04, W13, W03, W11, W04, W06, the hub
+Features: D04, W13, D05, W03, W11, W04, W06, the hub
 
 The last downtime piece designed with the user the same day, after
 fishing, bug catching and the collection (dev logs 2026-10-27-d01-,
@@ -35,3 +35,19 @@ and W13.
   costs more tuning. Both are W13, a movement feature beside W11.
   The ID was my choice, following W11. Their feel (triggers, timing,
   which walls count) is left open in W13 for when it's built.
+
+## Then the plunger gun (D05)
+
+Before D04 merged, the user added another item, a plunger gun, and
+reframed the between-island courses: "just objects you can swing on as
+an alternative to bridges", with swinging on the hub's courses too. In
+the user's words: "you shoot the plunger, the rope lets you pivot on
+the point and you swing". Decided:
+- **It sticks to swing anchors only** (recommended, chosen). Rejected:
+  any surface (it would make bridges, ziplines and course design moot)
+  and specially marked surfaces.
+- **Pendulum swing** (recommended, and the user's own description).
+  Rejected: reeling in like a grapple, and both.
+- **Swing routes beside every bridge** (the user's pick, over beside
+  some bridges as I recommended, or instead of some bridges).
+- **D05, hotbar slot 4** (recommended, chosen), fired with left click.
