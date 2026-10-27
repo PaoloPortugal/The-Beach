@@ -13,7 +13,10 @@ PgDn/PgUp scroll this.
    the meter fills, and the
    bobber is thrown: a fuller
    charge further, aiming up
-   further still?
+   further still? A full
+   charge aimed high drops
+   at about 29 m, never
+   dragged back to you?
 3. The bobber floats and
    bobs on the waves? The
    line sags when slack and
@@ -23,9 +26,10 @@ PgDn/PgUp scroll this.
    platform's deck: it lands
    and rolls, no message,
    and nothing ever comes?
-   From mid-bridge, throw
-   sideways off it: does it
-   reach the water?
+   From mid-span, tap a
+   short throw sideways off
+   a bridge: it flies over
+   the rail into the water?
 5. Hold left click: it reels
    in slowly, rolling back
    over land; let go: it
@@ -72,3 +76,10 @@ PgDn/PgUp scroll this.
    "!", meter and card
    readable at night and in
    rain?
+16. On a bridge: walk and
+   sprint at a rail: it
+   stops you? Jump over it:
+   into the sea, and you
+   can't get back on from
+   the water (swim to a
+   beach)?
