@@ -7,7 +7,10 @@ extends Node3D
 ## one's (a far cluster). A region that
 ## comes is bridged to its group's nearest one. When one goes, its bridges
 ## go with it and the cut pieces are patched: every other bridge stays,
-## and the shortest new ones join the pieces (user's, 2026-10-07).
+## and the shortest new ones join the pieces (user's, 2026-10-07). A
+## region that comes under a bridge (a nearer spot filled after a
+## further one) takes that bridge's place: the bridge goes and the
+## pieces are patched the same way, now through it.
 ##
 ## A region is a key with a centre, a reach (how far its land goes, for
 ## keeping bridges clear of it) and an edge: a Callable taking the point a
@@ -41,9 +44,13 @@ func add(key: String, group: String, centre: Vector3, reach: float, edge: Callab
 	if not with_hubs:
 		_hubless[group] = true
 	_regions[key] = {"group": group, "centre": centre, "reach": reach, "edge": edge, "hub": false}
-	var best := _best_link([key], _members(group).filter(func(k: String) -> bool: return k != key))
-	if not best.is_empty():
-		_link(best[0], best[1], group)
+	var cut := {group: true}
+	for l in _links.duplicate():
+		if _crosses(l["a"], l["b"], key):
+			cut[l["group"]] = true
+			_unlink(l)
+	for g in cut:
+		_patch(g)
 
 
 ## Takes a region out with its bridges, and joins what that cut apart.
@@ -59,6 +66,12 @@ func remove(key: String) -> void:
 		return
 	if not _regions.values().any(func(r: Dictionary) -> bool: return r["group"] == group):
 		_hubless.erase(group)
+	_patch(group)
+
+
+# Joins [param group]'s pieces, shortest clear bridge first, keeping the
+# bridges it has.
+func _patch(group: String) -> void:
 	var pieces := _pieces(group)
 	while pieces.size() > 1:
 		var best := []
@@ -120,17 +133,23 @@ func on_bridge_of(key: String, point: Vector3) -> bool:
 ## Whether the straight line between two regions' centres keeps clear of
 ## every other region's land.
 func is_clear(a: String, b: String) -> bool:
-	var p: Vector3 = _regions[a]["centre"]
-	var q: Vector3 = _regions[b]["centre"]
 	for k in _regions:
-		if k == a or k == b:
-			continue
-		var r: Dictionary = _regions[k]
-		var c: Vector3 = r["centre"]
-		var closest := Geometry2D.get_closest_point_to_segment(Vector2(c.x, c.z), Vector2(p.x, p.z), Vector2(q.x, q.z))
-		if closest.distance_to(Vector2(c.x, c.z)) < r["reach"] + Bridge.WIDTH / 2.0 + 1.0:
+		if _crosses(a, b, k):
 			return false
 	return true
+
+
+# Whether the straight line between [param a]'s and [param b]'s centres
+# comes within region [param k]'s land.
+func _crosses(a: String, b: String, k: String) -> bool:
+	if k == a or k == b:
+		return false
+	var p: Vector3 = _regions[a]["centre"]
+	var q: Vector3 = _regions[b]["centre"]
+	var r: Dictionary = _regions[k]
+	var c: Vector3 = r["centre"]
+	var closest := Geometry2D.get_closest_point_to_segment(Vector2(c.x, c.z), Vector2(p.x, p.z), Vector2(q.x, q.z))
+	return closest.distance_to(Vector2(c.x, c.z)) < r["reach"] + Bridge.WIDTH / 2.0 + 1.0
 
 
 # The group's regions and, unless it's hubless, the hubs.
