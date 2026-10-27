@@ -5591,7 +5591,7 @@ user's). Fish models to replace the shadows.
   ("Too soon: it swam off") and starts reeling; otherwise, with the
   bobber out, it reels in while held (`reeling`) and stops when let go.
 - *The bobber* (a placeholder, `assets/CREDITS.md`): a `RigidBody3D`,
-  a 7 cm sphere of 50 g, bouncy (0.3) and rolling. It collides with the
+  a sphere 7 cm in radius, 50 g, bouncy (0.3) and rolling. It collides with the
   **"ground" layer** only (layer 3, named in `project.godot`), which
   `Island`, `Bridge`, the sea floor's chunks and the platform are also
   on; everything stays on layer 1 as before, so the player, the
