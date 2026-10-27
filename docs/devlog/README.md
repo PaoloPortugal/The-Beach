@@ -118,3 +118,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [S08: the flag check read the island mid-build](2026-10-27-s08-flag-check-flaky.md) | S08, W01, C14 |
 | 2026-10-27 | [D01: fishing](2026-10-27-d01-fishing.md) | D01, C15, D03, W01, W02, W06, W08, C11, C16 |
 | 2026-10-27 | [W06: an island could rise through a bridge](2026-10-27-w06-island-under-bridge.md) | W06, W12, W05, W10 |
+| 2026-10-27 | [Merge log](2026-10-27-merge-log.md) | docs |
