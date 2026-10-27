@@ -243,3 +243,14 @@ only the program ones, so a program found during a long
 - Live check: `tests/live/checklist.txt` (the user's): passed with the
   user, 2026-10-26, on Windows (the real claude.exe moved away and back
   for part D). Merged to `main` the same day.
+
+## Later fix: the PATH test on Linux and macOS (2026-10-27)
+
+"A path set by hand is the only one tried" failed outside Windows: its
+fake `claude` was written with mode 0644, and the PATH lookup
+(`findOnPath` → `isProgram`) wants an exec bit there, as intended. It
+passed on the user's Windows machine, and CI had been paused since. The
+test now marks the fake `chmod 0o755`, and first checks (outside
+Windows) that `findOnPath` skips it while it isn't executable, so the
+exec-bit check is tested, not only worked around. The code is unchanged.
+Found in a cloud session on Linux; security review: no findings.

@@ -12,6 +12,7 @@ import { checkClaudePath, ClaudeNotFound, findClaude, MIN_VERSION } from '../src
 import { ClaudeProvider, type ClaudeOptions } from '../src/providers/claude/index.ts'
 import { prepare, serveDefaults, serveOptions } from '../src/serve.ts'
 import { TEST_SESSIONS_DIR } from '../src/launch/app-data.ts'
+import { findOnPath } from '../src/launch/terminal.ts'
 import { Registry } from '../src/registry.ts'
 import type { Program } from '../src/protocol.ts'
 import { FakeProvider } from './fake-provider.ts'
@@ -83,8 +84,11 @@ test('checks on a path set by hand: full path, a file, .exe on Windows, answerin
 
 test('a path set by hand is the only one tried: once it fails, no other claude is found instead', async () => {
   const good = file(process.platform === 'win32' ? 'claude.exe' : 'claude')
-  const v = versions({ [good]: '2.1.300' })
   const env = { PATH: path.dirname(good) }
+  // Outside Windows the PATH lookup wants the exec bit: a plain file isn't a program.
+  if (process.platform !== 'win32') assert.equal(findOnPath('claude', env), null, 'not executable: skipped')
+  fs.chmodSync(good, 0o755)
+  const v = versions({ [good]: '2.1.300' })
   // Without one, the one on PATH is found.
   assert.equal((await findClaude({ env, cleanEnv: {}, home: os.tmpdir(), readVersion: v.read, loginShellPath: async () => [] })).path, good)
   const gone = path.join(os.tmpdir(), 'no-such-folder-program-path', 'claude.exe')
