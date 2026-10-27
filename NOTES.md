@@ -6236,11 +6236,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 **Current focus:** the downtime activities. D01 Fishing, D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall
 run) and D05 Plunger gun are designed; the hub is the user's to model. Next: pick what to
-build first. C16 multi-language support is designed (on branch
-`c16-localisation`): its groundwork and the conversion of today's
-strings come step by step, the first real language near release. Later
+build first. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: C16's design**
+(dev log 2026-10-27-c16-localisation-design): Godot's translations
+with gettext PO files and English text as keys, a Language row in
+C10, AI-assisted translations reviewed by a human; the groundwork and
+the conversion of today's strings come step by step, the first real
+language near release. Not built.
 **Merged to `main` (2026-10-27), approved by the user: D04, W13 and
 D05's designs** (dev log 2026-10-27-d04-parkour-design): hand-made
 hub courses with best times, a mantle and a wall run, and a plunger
