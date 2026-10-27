@@ -47,8 +47,8 @@ at any time (S02).
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
 movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing (D01), bug catching (D02)
-and the collection (D03) are designed; the rest is not yet (see Known issues and next steps → Deferred ideas).
+what the public release waits for. Fishing (D01), bug catching (D02),
+the collection (D03) and parkour (D04) are designed, none built yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
 - **A pretty interface over the real thing, nothing more.** We touch as
@@ -96,6 +96,7 @@ slice.
 | W10 | Island biomes                             | built   | W10           | `world/island/`, `world/session_islands.gd`, `world/bridges/bridge.gd`, `world/sessions_menu/`, `agents/island_agents.gd`, `world/minimap.gd`, `world/world_map.gd`, `world/player/player.gd` |
 | W11 | Crouch and slide                          | built   | W11           | `world/player/player.gd` |
 | W12 | Islands kept across restarts              | built   | W12           | `world/island_memory.gd`, `world/session_islands.gd`, `world/session_clusters.gd` |
+| W13 | Mantle and wall run                       | designed | —            | — |
 | A01 | Orchestrator (v1)                         | placeholder built | C01 | `agents/orchestrator/` |
 | A02 | Subagents spawn / despawn (v1)            | placeholder built | A02 | `agents/subagent/`, `agents/island_agents.gd`, `agents/orchestrator/orchestrator.gd` |
 | A03 | Agent state indicators                    | minimal built | A02 | `agents/state_marker.gd` |
@@ -127,6 +128,7 @@ slice.
 | D01 | Fishing                                   | designed | —            | — |
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
+| D04 | Parkour courses                           | designed | —            | — |
 
 ## When a feature lands
 
@@ -2277,6 +2279,25 @@ checks it before anything else), and `tests/world/layout_demo.gd` run
 as the main scene uses its own too, as does any run with
 `--sidecar-dev-fake` (`user://dev-fake-islands.json`, so
 `tests/live/ring_demo.gd` too).
+
+### W13 Mantle and wall run
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):*
+no provider part. Two moves added to W03 and W11 for parkour courses
+(D04), usable anywhere. Dev log 2026-10-27-d04-parkour-design.
+
+*Decided (user's, 2026-10-27):*
+- **Mantle** (recommended): pull yourself up any ledge about chest
+  high, which makes courses forgiving and helps on islands too.
+- **Wall run** (the user's pick over a mantle alone, or no new moves):
+  more expressive movement, at the cost of more tuning.
+
+*Open (before building):* the mantle's trigger (moving into a ledge
+while jumping, or a key) and how high it reaches; the wall run's
+trigger (jumping at a wall at a sprint?), how long and how fast it
+lasts, whether it falls as it goes, jumping off it, and which walls
+count (course pieces only, or any steep surface such as rock, props
+and the platform); how both work with W11's slide and momentum and
+with W08's swimming; the tests.
 
 ### A01 Orchestrator
 *Placeholder built (v1, 2026-09-30). Scope: core.* A bigger model at the
@@ -5478,6 +5499,45 @@ another to the hub or only updates the record; how many creatures of
 each species the hub shows; the save format. The hub itself is the
 user's model (Deferred ideas → The hub).
 
+### D04 Parkour courses
+*Designed (user's, 2026-10-27); not built. Scope: core (world only):*
+no provider, protocol or sidecar part. Movement for its own sake while
+agents work, using W03, W11 and the new moves of W13. Dev log
+2026-10-27-d04-parkour-design.
+
+*Decided (user's, 2026-10-27; my recommendations):*
+- *Hub courses first:* a course rises out of the sea beside the hub,
+  as islands do (W04). A gate on the hub picks a course or swaps it for
+  another; the gate is a spot marked on the user's hub model
+  (Deferred ideas → The hub). Short courses between islands, as an
+  alternative to bridges (W06), come later.
+- *Hand-made from pieces:* each course is laid out in Godot from
+  blocks: simple shapes as placeholders, then a CC0 kit (such as
+  Kenney's Platformer Kit) or the user's models, recorded in
+  `assets/CREDITS.md`. Each course is a file of its own, which suits
+  parkour maps as mods later (Deferred ideas → Mod support). Rejected:
+  generated courses (hard to make fun, impossible jumps can slip
+  through) and designed sections chained at random.
+- *A timer with best times:* it starts at the gate and stops at the
+  finish. Only a finished run counts, and best times are kept between
+  runs (`user://`). Checkpoints along the way are free.
+- *Falling* drops you in the sea, and you're back at your last
+  checkpoint; never a game over.
+- *Leaving mid-run* (walking or swimming off, teleporting, opening a
+  chat) ends that run and nothing else is lost, so the timer never
+  needs a pause. This settles Downtime's "a parkour timer must pause or
+  be optional".
+- *Agents:* courses never depend on them. Courses stand over the open
+  sea, so A05's beacons stay in view.
+- *New moves:* a mantle and a wall run (W13).
+
+*Open (before building):* the first courses (how many, how long,
+how hard); how far from the hub a course stands, and what happens to
+it when you swap or leave; what checkpoints and the finish look like;
+how the timer and best times are shown; whether there is a ghost of
+your best run; the between-island courses' layout next to the bridge
+tree; the tests.
+
 ## Conventions
 
 - **A new feature** first gets its provider scope decided (core, capability
@@ -6002,8 +6062,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing, D02 Bug
-catching and D03 Collection are designed; the hub is the user's to
-model; next to design: parkour. Later
+catching, D03 Collection and D04 Parkour (with W13's mantle and wall
+run) are designed; the hub is the user's to model. Next: pick what to
+build first. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: D03's design**
@@ -6529,13 +6590,16 @@ the user's vision first; others using the MIT code afterwards is fine.
   - *Parkour courses*, two kinds side by side: a course you spawn at the
     hub (the platform) and swap for another, and short courses between
     islands as an alternative to bridges (W06). Builds on W11.
+    Designed as D04 (2026-10-27): hub courses first, hand-made, timed
+    with best times; between-island courses later; new moves in W13.
   - *Constraints* (proposed, to confirm when designing): waits run from
     about 30 s to a few minutes, so each activity must be short, droppable
     the moment an agent needs you (A05 is the interrupt) without losing
     progress, never punish you for leaving, and leave the agents in view.
     Confirmed for fishing (D01) with one exception, the user's: leaving
     mid-fight loses the fish on the line, and nothing else.
-    A parkour timer must pause or be optional.
+    A parkour timer must pause or be optional. (Settled by D04: leaving
+    ends the run with nothing lost, so the timer needs no pause.)
   - *Open:* how between-island courses are laid out next to the bridge
     tree. *Answered by D03 (user's, 2026-10-27):* catching unlocks no
     decorations or looks; the museum is the hub, and filling it is the
