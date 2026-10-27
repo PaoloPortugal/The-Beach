@@ -226,6 +226,7 @@ func _w12_memory() -> void:
 	_check(m.find(["none", a, k]) == a and m.find(["", "none"]) == "", "S08: found by either key, the first that has one")
 	m.erase([k, a])
 	_check(not m.has(k) and not m.has(a), "S08: both keys go together")
+	IslandMemory.flush()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
 
@@ -262,6 +263,7 @@ func _w12_islands() -> void:
 	saved.load_file()
 	_check(not saved.has(IslandMemory.key(_live("k2"))), "W12: one that ends is forgotten")
 	islands.free()
+	IslandMemory.flush()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
 
@@ -322,10 +324,12 @@ func _w12_outside() -> void:
 	saved.load_file()
 	_check(kept and not saved.has(IslandMemory.key(later)) and not saved.has(IslandMemory.alias(later)), "S08: one kept after it went is forgotten when the setting is turned off")
 	islands.free()
+	IslandMemory.flush()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(IslandMemory.file))
 
 
 func _write(text: String) -> void:
+	IslandMemory.flush()
 	var f := FileAccess.open(IslandMemory.file, FileAccess.WRITE)
 	f.store_string(text)
 	f.close()

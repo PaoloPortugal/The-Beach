@@ -50,6 +50,18 @@ const FAR_STEP := 4.0
 
 var from: Vector3
 var to: Vector3
+## Set before it enters the tree ([BridgeNetwork] passes it on): its
+## meshes and collision are made on a worker thread (W01: about 0.5 ms a
+## metre), and go in once made; [method carries] works before.
+var build_in_background := false
+
+## Its meshes and collision are in ([member build_in_background]).
+signal built
+
+var _task := -1 # its WorkerThreadPool task while it's being made
+var _made := {} # what the task made: written there, read once it's done
+var _maker: Bridge # the bridge the task works on
+var _built := false
 
 
 func _init(p_from := Vector3.ZERO, p_to := Vector3.FORWARD) -> void:
@@ -58,40 +70,102 @@ func _init(p_from := Vector3.ZERO, p_to := Vector3.FORWARD) -> void:
 
 
 func _ready() -> void:
+	set_process(false)
 	var flat := Vector2(to.x - from.x, to.z - from.z)
 	position = from
 	# Local -z runs along the bridge, +x across it.
 	rotation.y = atan2(-flat.x, -flat.y)
+	if not build_in_background:
+		_add(_make(self, {}))
+		return
+	# The task works on a bridge of its own, out of the tree (made here: a
+	# body is made with it), and writes only to _made, so this one can be
+	# freed while it runs.
+	_maker = Bridge.new(from, to)
+	_maker.rotation.y = rotation.y
+	var made := _made
+	var maker := _maker
+	_task = WorkerThreadPool.add_task(func() -> void: Bridge._make(maker, made), false, "Bridge")
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if not WorkerThreadPool.is_task_completed(_task):
+		return
+	_end_task()
+	set_process(false)
+	_add(_made)
+	built.emit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _task >= 0:
+		_end_task()
+
+
+func _end_task() -> void:
+	WorkerThreadPool.wait_for_task_completion(_task)
+	_task = -1
+	_maker.free()
+	_maker = null
+
+
+## Whether its meshes and collision are in (always, unless [member
+## build_in_background]).
+func is_built() -> bool:
+	return _built
+
+
+# The slow part, on any thread for a bridge out of the tree: [param into]
+# gets [param b]'s near and far surfaces, a segment each, and its
+# collision's faces.
+static func _make(b: Bridge, into: Dictionary) -> Dictionary:
+	var bounds := b.segment_bounds()
+	var far: Array[Array] = []
+	for k in bounds.size() - 1:
+		far.append(b._far_mesh(b.length(), bounds[k], bounds[k + 1]))
+	into["near"] = b._near_meshes(b.length(), bounds)
+	into["far"] = far
+	into["faces"] = b._collision_faces(b.length())
+	return into
+
+
+func _add(made: Dictionary) -> void:
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.vertex_color_is_srgb = true
 	material.roughness = 1.0
-	var bounds := segment_bounds()
-	var near := _near_meshes(flat.length(), bounds)
-	for k in bounds.size() - 1:
+	for k in made["near"].size():
 		var segment := Node3D.new()
 		segment.name = "Segment%d" % k
 		add_child(segment)
 		var up_close := MeshInstance3D.new()
 		up_close.name = "Near"
-		up_close.mesh = near[k]
+		up_close.mesh = _mesh_of(made["near"][k])
 		up_close.material_override = material
 		up_close.visibility_range_end = NEAR_DISTANCE
 		up_close.visibility_range_end_margin = NEAR_MARGIN
 		segment.add_child(up_close)
 		var far := MeshInstance3D.new()
 		far.name = "Far"
-		far.mesh = _far_mesh(flat.length(), bounds[k], bounds[k + 1])
+		far.mesh = _mesh_of(made["far"][k])
 		far.material_override = material
 		far.visibility_range_begin = NEAR_DISTANCE
 		far.visibility_range_begin_margin = NEAR_MARGIN
 		segment.add_child(far)
 	var shape := ConcavePolygonShape3D.new()
 	shape.backface_collision = true # the rail walls work from both sides
-	shape.set_faces(_collision_faces(flat.length()))
+	shape.set_faces(made["faces"])
 	var collision := CollisionShape3D.new()
 	collision.shape = shape
 	add_child(collision)
+	_built = true
+
+
+static func _mesh_of(arrays: Array) -> ArrayMesh:
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
 
 
 ## Where the segments start and end, metres along from [member from]: the
@@ -133,10 +207,10 @@ func carries(point: Vector3) -> bool:
 		and point.y >= deck_y(s) - 0.5 and point.y <= deck_y(s) + 3.0
 
 
-# The up-close look, one mesh per segment: planks across the deck, each
+# The up-close look, one surface's arrays per segment: planks across the deck, each
 # tilted to the slope under it, and posts with two rails on both sides. A
 # piece goes in the segment where it starts.
-func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]:
+func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[Array]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([from, to])
 	var tools: Array[SurfaceTool] = []
@@ -187,16 +261,16 @@ func _near_meshes(length: float, bounds: PackedFloat32Array) -> Array[ArrayMesh]
 				var ya: float = y.call(at) + h
 				var yb: float = y.call(nxt) + h
 				_slab(st, Vector3(x - 0.06, ya, -at), Vector3(x + 0.06, ya, -at), Vector3(x + 0.06, yb, -nxt), Vector3(x - 0.06, yb, -nxt), 0.1, WOOD.lightened(0.05))
-	var out: Array[ArrayMesh] = []
+	var out: Array[Array] = []
 	for st in tools:
-		out.append(st.commit())
+		out.append(st.commit_to_arrays())
 	return out
 
 
 # The far version of the segment from [param s0] to [param s1]: the deck
 # as one slab (its top and sides), a top rail on each side and plain posts
-# down into the sea floor, in the near pieces' colours.
-func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
+# down into the sea floor, in the near pieces' colours (a surface's arrays).
+func _far_mesh(length: float, s0: float, s1: float) -> Array:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var y := _deck_y_local(length)
@@ -218,7 +292,7 @@ func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
 		_quad(st, inside, l0, l1, l1 + down, l0 + down, WOOD.darkened(0.15))
 	var posts := _posts(length)
 	if posts.is_empty():
-		return st.commit()
+		return st.commit_to_arrays()
 	var dark := WOOD.darkened(0.25)
 	var rail := WOOD.lightened(0.05)
 	for side in [-1.0, 1.0]:
@@ -247,7 +321,7 @@ func _far_mesh(length: float, s0: float, s1: float) -> ArrayMesh:
 			_quad(st, inside, p0, q0, q1, p1, rail)
 			_quad(st, inside, q0, q1, q1 + lo, q0 + lo, rail.darkened(0.15))
 			_quad(st, inside, p0, p1, p1 + lo, p0 + lo, rail.darkened(0.15))
-	return st.commit()
+	return st.commit_to_arrays()
 
 
 # The deck's collision as one strip sampled every metre, and on both sides

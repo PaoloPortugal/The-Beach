@@ -20,9 +20,19 @@ const MAX_TEXT := 4096 # a long project path (Linux allows 4096)
 
 var _entries := {} # key → entry
 
+# The file is written on a worker thread (W01: 5-10 ms a write on
+# Windows, as each island arrives), one write at a time, the newest text
+# only. Shared by every IslandMemory, so a read waits for any write.
+static var _mutex := Mutex.new()
+static var _next := [] # [file, text] not yet written, or empty; under _mutex
+static var _writing := false # under _mutex
+static var _writer := -1 # the WorkerThreadPool task, till waited for
+static var _written := "" # the file it's writing
 
-## Reads the file, if any.
+
+## Reads the file, if any (once any write to it is done).
 func load_file() -> void:
+	flush()
 	_entries.clear()
 	if not FileAccess.file_exists(file):
 		return
@@ -119,11 +129,47 @@ func ordered(keys: Array) -> Array:
 	return out
 
 
+## Waits till what was kept is in the file ([SessionIslands] calls it as
+## it leaves the tree, so nothing kept is lost on quitting).
+static func flush() -> void:
+	if _writer >= 0:
+		WorkerThreadPool.wait_for_task_completion(_writer)
+		_writer = -1
+
+
+func _save() -> void:
+	if _writer >= 0 and _written != file:
+		flush() # another file's text isn't dropped (the suites switch files)
+	_written = file
+	_mutex.lock()
+	_next = [file, JSON.stringify({"version": VERSION, "islands": _entries})]
+	var start := not _writing
+	_writing = true
+	_mutex.unlock()
+	if start:
+		flush() # one that has just written its last
+		_writer = WorkerThreadPool.add_task(IslandMemory._write_all, false, "Island memory")
+
+
+# On the worker: writes the newest text till there's none left.
+static func _write_all() -> void:
+	while true:
+		_mutex.lock()
+		var next := _next
+		_next = []
+		if next.is_empty():
+			_writing = false
+			_mutex.unlock()
+			return
+		_mutex.unlock()
+		_write(next[0], next[1])
+
+
 ## Owner-only where the system has permissions (macOS, Linux), like the
 ## sidecar's run folders: it holds running sessions' project paths. Written
 ## to a .tmp first and renamed over, so a crash never leaves half a file.
-func _save() -> void:
-	var tmp := file + ".tmp"
+static func _write(path: String, text: String) -> void:
+	var tmp := path + ".tmp"
 	# Created empty and restricted before anything is written to it.
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f != null:
@@ -134,11 +180,11 @@ func _save() -> void:
 		push_warning("IslandMemory: can't write %s" % tmp)
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 		return
-	f.store_string(JSON.stringify({"version": VERSION, "islands": _entries}))
+	f.store_string(text)
 	f.close()
-	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(file))
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(path))
 	if err != OK:
-		push_warning("IslandMemory: can't write %s (%s)" % [file, error_string(err)])
+		push_warning("IslandMemory: can't write %s (%s)" % [path, error_string(err)])
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
 

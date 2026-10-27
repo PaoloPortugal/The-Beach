@@ -83,6 +83,7 @@ func _ready() -> void:
 	# Order matters: the islands hear of a new session first, so its island
 	# exists by the time the menu's launcher says it started.
 	_islands.setup(store)
+	add_child(WarmUp.new())
 	fit_draw_distance()
 	# The platform is in every near cluster's bridge tree (W06; a far
 	# cluster's leaves it out, W05).
