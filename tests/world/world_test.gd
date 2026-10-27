@@ -3434,6 +3434,20 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_check(fishing.state == Fishing.State.OUT and fishing._bobber.visible and absf(deck.x) < 6.0 and absf(deck.z) < 6.0 and deck.y > 0.9 and deck.y < 1.3, "D01: a cast onto the deck lands and rests on it (%s)" % deck)
 	await _frames(30)
 	_check(fishing.state == Fishing.State.OUT and not is_instance_valid(fishing._fish), "D01: nothing comes to a bobber on land")
+	# Walking up to it, the line goes slack and lies on the deck, never
+	# through it (the user's live check, 2026-10-27).
+	var toward := ((deck - player.global_position) * Vector3(1, 0, 1)).normalized()
+	player.global_position = Vector3(deck.x, player.global_position.y, deck.z) - toward * 1.5
+	await _frames(10)
+	var slack := fishing.line_length - fishing._tip.global_position.distance_to(fishing._bobber.global_position)
+	var points := fishing.line_points()
+	var through := 0
+	for p in points.slice(1, points.size() - 1):
+		var query := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 3.0, p + Vector3.DOWN * 3.0, 1 << (Fishing.GROUND_LAYER - 1))
+		var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
+		if not hit.is_empty() and (hit["position"] as Vector3).y > p.y + 0.001:
+			through += 1
+	_check(fishing.state == Fishing.State.OUT and slack > 1.0 and through == 0, "D01: walked up to it, the slack line lies on the deck, not through it (%.1f m slack, %d points under)" % [slack, through])
 	_mouse_left(true)
 	await _until(func() -> bool: return fishing.state == Fishing.State.IDLE, 5.0)
 	_mouse_left(false)

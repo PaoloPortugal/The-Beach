@@ -41,6 +41,10 @@ const LIFT := 15.0
 const BOBBER_RADIUS := 0.07
 const BOBBER_MASS := 0.05
 const GROUND_LAYER := 3
+## The line is drawn in this many pieces; each point between its ends is
+## held this far above the ground under it (metres).
+const LINE_POINTS := 12
+const LINE_LIFT := 0.03
 ## Water shallower than this under the bobber counts as land: nothing
 ## comes there.
 const MIN_DEPTH := 0.3
@@ -558,8 +562,17 @@ func _place_rod(delta: float) -> void:
 
 
 # The line: from the rod's tip to the bobber, straight when taut, sagging
-# with the slack.
+# with the slack, never into the ground (it lies on it instead).
 func _draw_line() -> void:
+	_line_mesh.clear_surfaces()
+	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, _line_material)
+	for p in line_points():
+		_line_mesh.surface_add_vertex(p)
+	_line_mesh.surface_end()
+
+
+## The line's points as drawn, from the rod's tip to the bobber.
+func line_points() -> PackedVector3Array:
 	var from := _tip.global_position
 	var at := _bobber.global_position
 	var dist := from.distance_to(at)
@@ -567,12 +580,25 @@ func _draw_line() -> void:
 	var sag := 0.0
 	if state != State.CASTING and slack > 0.05:
 		sag = minf(dist * 0.06 + slack * 0.5, 1.5)
-	_line_mesh.clear_surfaces()
-	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP, _line_material)
-	for i in 13:
-		var t := i / 12.0
-		_line_mesh.surface_add_vertex(from.lerp(at, t) + Vector3.DOWN * sag * 4.0 * t * (1.0 - t))
-	_line_mesh.surface_end()
+	var space := get_world_3d().direct_space_state
+	var out := PackedVector3Array()
+	for i in LINE_POINTS + 1:
+		var t := float(i) / LINE_POINTS
+		var straight := from.lerp(at, t)
+		var p := straight + Vector3.DOWN * sag * 4.0 * t * (1.0 - t)
+		if i > 0 and i < LINE_POINTS:
+			p.y = maxf(p.y, _ground_y(space, straight, p) + LINE_LIFT)
+		out.append(p)
+	return out
+
+
+# The top of the ground layer (as the bobber meets it: not props) between
+# where a point of the line would be taut, [param straight], and sagging,
+# [param p]; -INF if none. So a deck above the line doesn't lift it.
+func _ground_y(space: PhysicsDirectSpaceState3D, straight: Vector3, p: Vector3) -> float:
+	var query := PhysicsRayQueryParameters3D.create(straight + Vector3.UP * 0.1, p + Vector3.DOWN * LINE_LIFT, 1 << (GROUND_LAYER - 1))
+	var hit := space.intersect_ray(query)
+	return (hit["position"] as Vector3).y if not hit.is_empty() else -INF
 
 
 # The bite's splash: a ring spreading on the water round the bobber,
