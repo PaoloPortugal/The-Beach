@@ -5475,9 +5475,8 @@ the hub is built. Dev log 2026-10-27-d03-collection-design.
 *Open (before building):* the key that opens the field guide; its look
 and layout; whether catching a species again (for a bigger fish) adds
 another to the hub or only updates the record; how many creatures of
-each species the hub shows; the save format. The hub itself (its size,
-how its biome areas are laid out, how it replaces the platform) is
-designed with the hub.
+each species the hub shows; the save format. The hub itself is the
+user's model (Deferred ideas → The hub).
 
 ## Conventions
 
@@ -6003,8 +6002,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing, D02 Bug
-catching and D03 Collection are designed; next to design: the hub or
-parkour. Later
+catching and D03 Collection are designed; the hub is the user's to
+model; next to design: parkour. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
 **Merged to `main` (2026-10-27), approved by the user: D02's design**
@@ -6560,9 +6559,16 @@ the user's vision first; others using the MIT code afterwards is fine.
     island with an area for each biome, and it is the museum. The fish
     and bugs you catch live there, roaming their biome's area and
     following the time and weather as in the wild. It starts empty and
-    fills as you catch; nothing can be caught there. Still open: its
-    size, how the areas are laid out, and whether it grows in size too
-    or only fills up.
+    fills as you catch; nothing can be caught there.
+  - *Designed by the user* (user's, 2026-10-27): the hub's shape, size
+    and biome areas come from a 3D model the user makes, not from the
+    island generator. The game supplies what goes around it: where you
+    spawn, the root of the bridge trees (its reach from the model's
+    footprint), and where caught creatures roam. To agree when the
+    model comes: how the model marks those (for example named empty
+    nodes for the spawn point, each biome's land and water areas and
+    the bridge exits), its scale, and how it replaces the platform.
+    Still open: whether it grows in size too or only fills up.
 - **Commands from the world** (probably a capability). Skills and custom
   commands could be sent through as requests, since Claude can run most
   skills itself (not guaranteed; skills marked user-only won't run that

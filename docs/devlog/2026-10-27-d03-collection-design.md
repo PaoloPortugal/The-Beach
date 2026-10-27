@@ -38,6 +38,12 @@ Deferred ideas → The hub.
   species is a silhouette with a where-and-when hint; a caught one
   shows its first catch; fish keep their biggest size.
 
+Then the user added: "the hub should actually be designed by me, like
+as a 3d model". So its layout and size come from their model, and the
+game only marks what it needs on it (spawn, bridge exits, where
+creatures roam). How the model marks those is to be agreed when it
+comes (NOTES → Deferred ideas → The hub).
+
 Taken as settled without asking: the ID D03, the scope core (world
 only), the collection kept between runs in `user://`, and nothing
 depending on agents.
