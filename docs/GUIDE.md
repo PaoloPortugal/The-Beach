@@ -492,7 +492,7 @@ You see the world through your character's eyes.
 | Chat: look at the orchestrator from close by | E (Esc closes the chat) |
 | Ride a mountain's zipline: look at its post from close by | E |
 | Take a tool from the hotbar (C15) | 1, 2, … or the mouse wheel |
-| Fish, with the rod in hand (D01) | hold left click, let go to cast; left click on the bite |
+| Fish, with the rod in hand (D01) | hold left click, let go to cast; hold left click to reel in; left click on the bite |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -611,31 +611,45 @@ it shows at the bottom right of the screen. Fish from any water's edge:
 a shore, a bridge or the platform.
 
 **Casting.** Hold the left mouse button: a small meter under the
-crosshair fills in about a second, and stays full. Let go to cast where
-you look: a short tap drops the bobber about 4 m out, a full charge
-about 22 m. You can't cast onto land (an island, a bridge's deck or the
-platform): the screen says **Can't cast onto land**. You can't cast
-while swimming either. The bobber rides the waves, its line running
-from the rod's tip.
+crosshair fills in about a second, and stays full. Let go to throw the
+bobber where you look: the fuller the charge, the harder the throw. A
+short tap lands it about 4 m out and a full charge about 22 m, looking
+straight ahead; aim higher to throw further. You can't cast while
+swimming.
+
+**The bobber** is a little ball on your line. In the water it floats on
+the waves. On land (an island, a bridge's deck, the platform) it lands
+and rolls; it's harmless there, but no fish comes to it. Trees, rocks,
+plants and people don't get in its way, only the ground does. The line
+sags when it's slack and runs straight when it's pulled tight.
+
+**Reeling in.** Hold the left mouse button while the bobber is out to
+reel it in slowly; let go to stop. On land it rolls back to you, and if
+it catches on an edge it hops over. Let go while it's in the water and
+it stays there, and the wait for a fish starts again.
 
 **Fish shadows.** In the clear shallows round the islands you'll see
 dark fish shapes wandering just under the surface. Cast near one and
-that fish starts toward your bobber within a second or so.
+that fish starts toward your bobber within a second or so of it
+settling.
 
 **The bite.** Otherwise wait: after a few seconds (4 to 12) a fish
-comes. Its shadow swims up to the bobber and nibbles once or a few
-times, each nibble a small dip of the bobber. Then it bites: the bobber
-goes under for just under a second. **Click then** to catch it.
+comes to a bobber resting in the water. Its shadow swims up to the
+bobber and nibbles once or a few times, each nibble a small dip of the
+bobber. Then it bites: the bobber plunges under with a splash ring, and
+a gold **!** shows under the crosshair for a second and a half. **Click
+then** to catch it.
 
 - Click on a nibble, or before it gets there, and you scare it off:
-  **Too soon: it swam off**.
+  **Too soon: it swam off**. Keep holding and you reel in.
 - Miss the bite and **It got away**; keep waiting and another comes.
-- Click while you're still waiting to reel in.
 
-**Leaving.** Walking off (a few steps from where you cast), taking
-another tool, opening the chat, a menu, the sessions ring or the map,
-swimming, or riding a zipline reels in. The only thing you lose is the
-fish on the line: there's no bait, streak or record to lose.
+**Moving and leaving.** You can walk about while the line is out: it
+pays out up to 30 m. Further than that, you drag the bobber after you,
+and the fish on the line swims off. Taking another tool, opening the
+chat, a menu, the sessions ring or the map, swimming, or riding a
+zipline reels in at once. The only thing you lose is the fish on the
+line: there's no bait, streak or record to lose.
 
 **A catch** shows a card high on the screen with the fish and
 its size, for example "You caught a Drop-off fish!" and "34 cm", marked
@@ -651,7 +665,7 @@ on what your agents are doing.
 
 Every catch is kept (each species, how many, the biggest and the first)
 for the collection that comes later. The rod, the bobber, the shadows,
-the meter and the card are placeholders.
+the splash, the meter, the "!" and the card are placeholders.
 
 ## Talking to the orchestrator (C01)
 
