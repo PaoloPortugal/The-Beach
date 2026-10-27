@@ -1105,6 +1105,35 @@ func _swimming(world: Node3D, player: Player) -> void:
 	var env: Environment = (world.get_node("WorldEnvironment") as WorldEnvironment).environment
 	var seabed: Seabed = world.get_node("Seabed")
 	_check(seabed.chunk_count() > 0, "the seabed is built around you")
+	# Its chunks are made on a worker thread and go in a couple a frame:
+	# after a jump far out to sea, the floor fills in round you.
+	var was := player.global_position
+	player.global_position = Vector3(3000, 5, -2000)
+	player.velocity = Vector3.ZERO
+	var camera := player.get_viewport().get_camera_3d()
+	var most := 0
+	var deadline := Time.get_ticks_msec() + 15000
+	while Time.get_ticks_msec() < deadline:
+		var before := seabed.chunk_count()
+		await process_frame
+		most = maxi(most, seabed.chunk_count() - before)
+		player.global_position = Vector3(3000, 5, -2000)
+		player.velocity = Vector3.ZERO
+		if seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty():
+			break
+	var under := seabed.get_node_or_null("Chunk_%d_%d" % [floori(3000 / Seabed.CHUNK), floori(-2000 / Seabed.CHUNK)])
+	_check(seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and under != null, "far out, the floor fills in round you (%d chunks)" % seabed.chunk_count())
+	_check(most <= Seabed.ADDS_PER_FRAME, "at most %d chunks go in a frame (%d)" % [Seabed.ADDS_PER_FRAME, most])
+	var fits := under != null
+	if under:
+		for v: Vector3 in ((under.get_child(0) as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			fits = fits and is_equal_approx(v.y, Seabed.height_at(v.x, v.z))
+	await physics_frame
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(3001, 0, -1999), Vector3(3001, -60, -1999)))
+	_check(fits and not hit.is_empty() and absf(hit["position"].y - Seabed.height_at(3001, -1999)) < 2.0, "a chunk made on the worker has the floor's shape and collision")
+	player.global_position = was
+	player.velocity = Vector3.ZERO
+	await _until(func() -> bool: return seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty(), 15.0)
 	_check(Seabed.height_at(0, 0) == Seabed.PLATFORM_FLOOR and Seabed.height_at(5000, 300) <= Seabed.SHALLOWEST and Seabed.height_at(5000, 300) >= Seabed.DEEPEST, "shallow by the platform, deeper out at sea")
 	# Out at sea it stays between SHALLOWEST and DEEPEST (sunk islands and
 	# bridge posts count on it) but uses that range: banks, deeps, mounds.

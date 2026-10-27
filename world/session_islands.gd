@@ -17,7 +17,7 @@ extends Node3D
 ## rolled at random.
 ## A session taken back after a restart (S07) gets its island back as it
 ## was (W12, [IslandMemory]): its biome, seed and cluster, placed in the
-## saved order once the sync is done, gaps closed up. One started outside
+## saved order once the sync is done, one a frame, gaps closed up. One started outside
 ## the game (S08) is remembered after it goes, until a start that shows
 ## them finds it gone; when it rises again mid-game it gets its biome and
 ## seed back.
@@ -88,6 +88,7 @@ var _aliases := {} # session id → its IslandMemory alias, or ""
 var _outside := {} # session id → true, for one started outside the game (S08)
 var _gone_outside: Array[Array] = [] # [key, alias] of outside ones kept after they went, till the next sync
 var _waiting: Array[String] = [] # sessions taken back, placed once synced
+var _queue: Array[Array] = [] # [id, created, saved, whole] for _place, one a frame
 var _stranded := false # an island sank from under the player while away
 
 
@@ -131,14 +132,14 @@ func agents(session_id: String) -> IslandAgents:
 	return i.get_node("Agents") if i else null
 
 
-## Whether a session's island is still rising.
+## Whether a session's island is still rising (or waiting to be placed).
 func is_rising(session_id: String) -> bool:
-	return _rising.has(session_id)
+	return _rising.has(session_id) or _queue.any(func(q: Array) -> bool: return q[0] == session_id)
 
 
 ## Whether every island is built and up (none rising).
 func all_up() -> bool:
-	return _rising.is_empty()
+	return _rising.is_empty() and _queue.is_empty()
 
 
 ## New sessions whose islands the player hasn't been on yet.
@@ -250,6 +251,8 @@ func session_at(point: Vector3) -> String:
 
 
 func _process(_delta: float) -> void:
+	if not _queue.is_empty():
+		_place.callv(_queue.pop_front())
 	for id: String in _unvisited.keys():
 		if player and _is_over(_islands[id], player.global_position):
 			_unvisited[id].set_on(false)
@@ -278,12 +281,18 @@ func _on_added(id: String, created: bool) -> void:
 	if not created and store.syncing:
 		_waiting.append(id)
 		return
-	_place(id, created, memory.entry(memory.find([_keys[id], _aliases[id]])), false)
+	var saved := memory.entry(memory.find([_keys[id], _aliases[id]]))
+	# Behind those a sync is still placing, so they keep their order (W12).
+	if not _queue.is_empty():
+		_queue.append([id, created, saved, false])
+		return
+	_place(id, created, saved, false)
 
 
-# Places those taken back: the remembered ones in their saved order, then
-# the others as they came. Then forgets the islands of sessions that
-# didn't come back.
+# Places those taken back, one a frame (W01 smoothing: about 9 ms each,
+# a 50 ms frame for six at once): the remembered ones in their saved
+# order, then the others as they came. Then forgets the islands of
+# sessions that didn't come back.
 func _on_synced() -> void:
 	var by_key := {}
 	var waiting := _waiting.duplicate()
@@ -293,10 +302,10 @@ func _on_synced() -> void:
 		if not k.is_empty():
 			by_key[k] = id
 	for k: String in memory.ordered(by_key.keys()):
-		_place(by_key[k], false, memory.entry(k))
+		_queue.append([by_key[k], false, memory.entry(k), true])
 		waiting.erase(by_key[k])
 	for id: String in waiting:
-		_place(id, false)
+		_queue.append([id, false, {}, true])
 	var live := {}
 	for id: String in _keys:
 		live[_keys[id]] = true
@@ -387,6 +396,7 @@ func _rise(id: String, i: Island) -> void:
 
 func _on_removed(id: String, reason: String) -> void:
 	_waiting.erase(id)
+	_queue.assign(_queue.filter(func(q: Array) -> bool: return q[0] != id))
 	# One started outside the game that stops being listed is remembered
 	# until the next start (S08), so its app relaunching it finds it again;
 	# that start's sync forgets it if it's gone. Turning them off forgets it.

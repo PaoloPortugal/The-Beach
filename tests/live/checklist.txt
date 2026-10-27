@@ -17,7 +17,9 @@ A. Behind the menu
    no hitch as each comes in?
    (One hitch while the world
    loads, before any island,
-   is expected.)
+   is expected.) The first
+   seconds smooth too, not
+   rough then smooth?
 3. Bridges appear a moment
    after their islands, whole
    (planks, rails, posts)?
@@ -35,6 +37,12 @@ B. Mid-game
    torches or bridge landing?
 7. Its orchestrator's bubble
    shows its first message?
+7b. M, click a far island
+   (or swim far out): no
+   hitch on arriving; the sea
+   floor fills in round you,
+   no holes under you when
+   you dive?
 
 C. Kept across restarts
 8. Quit (sessions keep
