@@ -442,9 +442,13 @@ cluster's bridges make a single path between its islands: each new
 island gets a bridge to the nearest one. A bridge appears a moment
 after its island has risen and goes as soon as the island starts sinking. If that
 leaves part of a cluster cut off, a new bridge joins it back on; the
-other bridges stay where they are. The bridges have rails, so you can't
-walk off them, but you can jump over a rail into the sea (and swim to a
-beach to get out). Seen from about 70 m away, a bridge is drawn more
+other bridges stay where they are. If an island comes up where a
+bridge passes, that bridge goes as soon as the island starts rising
+(if you're standing on it, you drop into the sea). The rest of the
+cluster is joined back around it if a bridge can go there, else once
+it's up, when the new island is bridged in its place. The bridges have
+rails, so you can't walk off them, but you can jump over a rail into
+the sea (and swim to a beach to get out). Seen from about 70 m away, a bridge is drawn more
 simply, with a smooth deck and one rail a side instead of every plank;
 up close it has all its planks again.
 

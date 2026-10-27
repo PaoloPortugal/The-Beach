@@ -3,10 +3,14 @@ extends SceneTree
 ## any slope), walking across one, not walking through its rails but
 ## jumping over them, and the rails off the ground layer (real physics),
 ## the bridge tree (each region to its nearest, patching a cut
-## without moving other bridges, a hubless group), and the layout demo's
-## 64 sessions: every near cluster joined to the platform, every far one
-## joined within but not to it, no bridge over another island's land or
-## across another bridge, and still so after islands sink; and a crowd of
+## without moving other bridges, a hubless group, a region coming under
+## a bridge, making way for one about to come and calling it off, regions
+## out of order), and
+## the layout demo's 64 sessions: every near cluster joined to the
+## platform, every far one joined within but not to it, no bridge over
+## another island's land or across another bridge, and still so after
+## islands sink and after one rises under a bridge (the bridge goes as it
+## starts rising); and a crowd of
 ## clusters of varied sizes, the same: 178 sessions, or with -- --crowd
 ## the full 311 (too slow to run on every push).
 ##
@@ -108,6 +112,25 @@ func _tree() -> void:
 	_check(not net.is_clear("hub", "r2"), "a line across another region's land isn't clear")
 	net.remove("r0")
 	_check(_pairs(net) == ["hub-other", "hub-r2", "r2-r3"], "losing the hub's bridge: the hub links again")
+	# A region coming under a bridge (a nearer spot filled after a
+	# further one) takes its place, through it; the rest stay.
+	kept = net.bridge("r2", "r3")
+	net.add("back", "g", Vector3(130.0, 0.0, 0.0), 40.0, edge.call(Vector3(130.0, 0.0, 0.0)))
+	_check(_pairs(net) == ["back-hub", "back-r2", "hub-other", "r2-r3"] and net.bridge("r2", "r3") == kept, "a region under a bridge takes its place, the rest stay (%s)" % [_pairs(net)])
+	_check(_all_clear(net), "every bridge clear of other land")
+	net.remove("back")
+	_check(_pairs(net) == ["hub-other", "hub-r2", "r2-r3"], "and gone, the cut is patched as before")
+	# Making way for one (an island starting to rise, user's, 2026-10-27):
+	# the bridge goes at once and none crosses it meanwhile; once added,
+	# it's joined through it. Called off (sunk before it rose): as before.
+	net.make_way("back", Vector3(130.0, 0.0, 0.0), 40.0)
+	_check(_pairs(net) == ["hub-other", "r2-r3"], "making way: the bridge over it goes at once, none crosses it meanwhile (%s)" % [_pairs(net)])
+	net.add("back", "g", Vector3(130.0, 0.0, 0.0), 40.0, edge.call(Vector3(130.0, 0.0, 0.0)))
+	_check(_pairs(net) == ["back-hub", "back-r2", "hub-other", "r2-r3"] and _all_clear(net), "then added, joined through it (%s)" % [_pairs(net)])
+	net.remove("back")
+	net.make_way("back", Vector3(130.0, 0.0, 0.0), 40.0)
+	net.remove("back")
+	_check(_pairs(net) == ["hub-other", "hub-r2", "r2-r3"], "called off: patched as before (%s)" % [_pairs(net)])
 	# A hubless group (a far cluster): bridged within, never to the hub.
 	for k in 3:
 		var c := Vector3(-130.0 - 100.0 * k, 0.0, 0.0)
@@ -115,6 +138,16 @@ func _tree() -> void:
 	_check(_pairs(net) == ["f0-f1", "f1-f2", "hub-other", "hub-r2", "r2-r3"], "a hubless group: its first region has no bridge, the next ones join it")
 	net.remove("f1")
 	_check(net.bridge("f0", "f2") != null and net.bridge("hub", "f0") == null and net.bridge("hub", "f2") == null, "a cut is patched within it, not through the hub")
+	net.free()
+	# Islands rising out of order (after a restart, W12): a further one
+	# first, then the nearer one under its bridge.
+	net = BridgeNetwork.new()
+	root.add_child(net)
+	net.add_hub("hub", Vector3.ZERO, 8.0, edge.call(Vector3.ZERO))
+	for k in [2, 0, 3, 1]:
+		var c := Vector3(130.0 + 100.0 * k, 0.0, 0.0)
+		net.add("r%d" % k, "g", c, 40.0, edge.call(c))
+	_check(_pairs(net) == ["hub-r0", "r0-r1", "r1-r2", "r2-r3"] and _all_clear(net), "out of order: still the row, every bridge clear (%s)" % [_pairs(net)])
 	net.free()
 
 
@@ -230,8 +263,52 @@ func _demo() -> void:
 	var touching := removed.all(func(l: Array) -> bool: return islands.left_islands().any(func(i: Island) -> bool: return SessionIslands.region(i) in l))
 	_check(touching, "only the sinking islands' bridges went")
 	_layout_ok(islands, "after sinking")
+	await _rise_under(world, islands)
 	demo.queue_free()
 	await _frames(2)
+
+
+# An island rising under a bridge (user's, 2026-10-27): the bridge goes
+# as it starts rising, and it's joined once risen. A new session in the
+# first cluster takes a sunk island's spot; a bridge is laid across it
+# here, from the platform, as a patch might.
+func _rise_under(world: Node3D, islands: SessionIslands) -> void:
+	await _until(func() -> bool: return islands.left_islands().is_empty(), 10.0)
+	var net := islands.bridges
+	var cluster := islands.clusters.cluster_of("d03")
+	var added := {}
+	var on_added := func(id: String, i: Island, _o: Orchestrator) -> void: added[id] = i
+	islands.island_added.connect(on_added)
+	world.store.apply({"type": "session.snapshot", "session": LayoutDemo.session("back", "/demo/repo-01", "back")})
+	islands.island_added.disconnect(on_added)
+	var back: Island = added["back"]
+	var key := SessionIslands.region(back)
+	var spot := Vector2(back.global_position.x, back.global_position.z)
+	var platform: Vector3 = net._regions["platform"]["centre"]
+	var across := ""
+	var off := INF
+	for i in islands.cluster_islands(cluster):
+		var k := SessionIslands.region(i)
+		if i == back or not net.has(k) or i.global_position.distance_to(back.global_position) < 100.0:
+			continue
+		var d := Geometry2D.get_closest_point_to_segment(spot, Vector2(platform.x, platform.z), Vector2(i.global_position.x, i.global_position.z)).distance_to(spot)
+		if d < off:
+			off = d
+			across = k
+	_check(not back.is_built() and off < SessionIslands._reach(back), "rising under a bridge: one laid across its spot (%.1f m off its middle)" % off)
+	net._link("platform", across, cluster)
+	var crossing := net._links.back()["bridge"] as Bridge
+	var seen := {}
+	back.built.connect(func() -> void: # after its rise starts
+		seen["sunk"] = back.position.y < -1.0
+		seen["gone"] = crossing.is_queued_for_deletion() and not net.all_bridges().has(crossing)
+		seen["clear"] = net._links.all(func(l: Dictionary) -> bool: return not net._crosses(l["a"], l["b"], key))
+		seen["joined"] = net.has(key), CONNECT_ONE_SHOT)
+	await _until(func() -> bool: return not seen.is_empty(), 20.0)
+	_check(seen.get("sunk", false) and seen["gone"] and seen["clear"] and not seen["joined"], "as it starts rising, the bridge goes and none crosses it (%s)" % [seen])
+	await _until(func() -> bool: return net.has(key), 10.0)
+	_check(back.position.y > -0.01 and net.links().any(func(l: Array) -> bool: return key in l), "once risen, it's joined")
+	_layout_ok(islands, "after rising under a bridge")
 
 
 # The layout demo crowded (LayoutDemo.CROWD_TRIMMED, or CROWD with
@@ -320,10 +397,16 @@ func _layout_ok(islands: SessionIslands, what: String) -> void:
 				continue # too far to reach it
 			if Vector2(b.from.x - c.x, b.from.z - c.z).length() < 50.0 or Vector2(b.to.x - c.x, b.to.z - c.z).length() < 50.0:
 				continue # one of its own ends
+			var here := 0
 			for k in 41:
 				var local := b.from.lerp(b.to, k / 40.0) - c
 				if i.height_at(local.x, local.z) > 0.0:
-					over_land += 1
+					here += 1
+			if here > 0:
+				# Which bridge, over which island, to look at again.
+				var off := Geometry2D.get_closest_point_to_segment(Vector2(c.x, c.z), Vector2(b.from.x, b.from.z), Vector2(b.to.x, b.to.z)).distance_to(Vector2(c.x, c.z))
+				print("  over land: bridge %s over %s (%s, seed %d, radius %.1f), %d points, %.1f m from its middle" % [_link_of(net, b), SessionIslands.region(i), Biome.NAMES[i.biome], i.island_seed, i.generator.radius, here, off])
+			over_land += here
 	_check(over_land == 0, "%s: no bridge over another island's land (%d points)" % [what, over_land])
 	var crossing := 0
 	for x in bridges.size():
@@ -335,6 +418,19 @@ func _layout_ok(islands: SessionIslands, what: String) -> void:
 			if Geometry2D.segment_intersects_segment(Vector2(a.from.x, a.from.z), Vector2(a.to.x, a.to.z), Vector2(b.from.x, b.from.z), Vector2(b.to.x, b.to.z)) != null:
 				crossing += 1
 	_check(crossing == 0, "%s: no bridge across another (%d)" % [what, crossing])
+
+
+# Whether every bridge keeps clear of other regions' land.
+func _all_clear(net: BridgeNetwork) -> bool:
+	return net._links.all(func(l: Dictionary) -> bool: return net.is_clear(l["a"], l["b"]))
+
+
+# The two regions [param bridge] joins, "a-b".
+func _link_of(net: BridgeNetwork, bridge: Bridge) -> String:
+	for l in net._links:
+		if l["bridge"] == bridge:
+			return "%s-%s" % [l["a"], l["b"]]
+	return "?"
 
 
 # The regions joined to [param from] by bridges, it included.
