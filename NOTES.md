@@ -6006,6 +6006,10 @@ catching and D03 Collection are designed; the hub is the user's to
 model; next to design: parkour. Later
 (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
+**Merged to `main` (2026-10-27), approved by the user: D03's design**
+(dev log 2026-10-27-d03-collection-design): a field guide now; the
+museum is the hub, the user's own model, filling with your catches.
+Not built.
 **Merged to `main` (2026-10-27), approved by the user: D02's design**
 (dev log 2026-10-27-d02-bug-catching-design): stalk and swing with the
 net, crouch to sneak under a noise meter, left click uses the held
