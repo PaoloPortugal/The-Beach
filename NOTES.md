@@ -7080,10 +7080,21 @@ Release plans (terms, branding, signing, the stores, exports) are in
   Anthropic's allowlist (or an organisation's). **Settle before the paid
   Steam release:** a product whose main feature hangs on a testing flag
   could break, and refunds would land on us. Ways out: get our channel
-  onto the allowlist (the plugin directory submission form may be the
-  route; our bridge would first have to become a plugin, a design
-  change), channels leaving the preview, or Anthropic confirming the flag
-  is fine (`docs/release.md` → Anthropic's terms).
+  onto the allowlist, channels leaving the preview, or Anthropic
+  confirming the flag is fine (`docs/release.md` → Anthropic's terms).
+  The allowlist is the channel plugins in Anthropic's official
+  marketplace (`claude-plugins-official`), which takes no submissions
+  through the plugin directory: a listing goes through "an Anthropic
+  partner contact", and a channel in our own or the community
+  marketplace still needs the flag (checked 2026-10-27). A listing
+  would also make our bridge a plugin, a design change: the user
+  installs it (it writes their settings), its MCP server starts in
+  every session, the per-session bridge file needs another route than
+  today's per-session MCP config, and its code ships apart from the
+  game. Only worth it if Anthropic offers a listing.
+  The channel must keep negotiating MCP 2025-11-25 or older: Claude
+  Code's v2 MCP client doesn't register a channel on revision
+  2026-07-28 (`MCP_VERSIONS` in `bridge.ts`).
 - **A deny with a message from the channel.** The channel's verdict has
   no message, so a deny's note follows as the user's next chat message
   (S02 → Permissions). *Decided (user's, 2026-10-01):* if Claude Code
