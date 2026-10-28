@@ -38,6 +38,7 @@ func _run() -> void:
 	_jump_assist()
 	_placement()
 	_fish_species()
+	_fish_fight()
 	_catch_log()
 	await _scene()
 	if not _failed and _errors.ok():
@@ -2281,6 +2282,18 @@ func _attention(world: Node3D) -> void:
 	focused[0] = true
 	state.call(9, "idle")
 	await _frames(1)
+	# In a fishing fight (D01) a new wait pulses the corner once.
+	attention.busy = func() -> bool: return true
+	var pulsed := attention.pulses
+	state.call(10, "waiting", "permission")
+	await _frames(2)
+	_check(attention.pulses == pulsed + 1 and asked[0] == 2 and chimes[0] == 1, "attention: a new wait in a fishing fight pulses the corner once, nothing else (D01)")
+	state.call(11, "waiting", "question")
+	await _frames(2)
+	_check(attention.pulses == pulsed + 1, "attention: once per wait in a fight too")
+	attention.busy = world.fishing.fighting
+	state.call(12, "idle")
+	await _frames(1)
 
 
 # S05: closing the window with sessions h1 and h2 running asks first.
@@ -3298,6 +3311,144 @@ func _fish_species() -> void:
 	_check(unique.size() == FishSpecies.SPECIES.size(), "D01: every species' id is its own")
 
 
+# D01: the fight on its own, stepped at 60 frames a second: how the
+# strain, the rod and the line answer, the ways a fish is lost, and
+# whole fights by four ways of playing, with fixed seeds.
+func _fish_fight() -> void:
+	var dt := 1.0 / 60.0
+	# A fresh fish [param dist] metres out, the line taut unless [param slack].
+	var fresh := func(species: Dictionary, size: int, dist: float, s := 1, slack := 0.0) -> FishFight:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = s
+		return FishFight.new(species, size, Vector2(0, -dist), dist + slack, rng)
+	var sea: Dictionary = FishSpecies.named("open_sea_fish")
+	var every := true
+	for s: Dictionary in FishSpecies.SPECIES:
+		every = every and s.get("pull", 0.0) > 0.0 and s.get("stamina", 0.0) > 0.0 and s.get("temper", 0.0) > 0.0
+	_check(every and FishSpecies.named("shallows_fish")["pull"] < FishSpecies.named("drop_off_fish")["pull"] and FishSpecies.named("drop_off_fish")["stamina"] < sea["stamina"], "D01: every species fights by its pull, stamina and temper, the open sea's hardest")
+	var small: FishFight = fresh.call(sea, 40, 20.0)
+	var big: FishFight = fresh.call(sea, 120, 20.0)
+	_check(big.power() > small.power() * 1.4, "D01: a bigger fish pulls harder (%.2f, %.2f)" % [small.power(), big.power()])
+	# The fish held on one way (no turns, no runs unless [param run]),
+	# reeled or not, the rod held where it's put.
+	var held := func(f: FishFight, heading: float, reeling: bool, rod: float, seconds: float, run := false) -> FishFight:
+		f.heading = heading
+		f._turn_in = INF
+		f._run_in = INF
+		f.running = run
+		for i in roundi(seconds * 60.0):
+			f.rod = rod
+			f.step(dt, Vector2.ZERO, reeling)
+		return f
+	var on_run: FishFight = fresh.call(sea, 80, 20.0)
+	var rest_power := on_run.power()
+	on_run.running = true
+	_check(on_run.power() > rest_power * 3.0, "D01: on a run it pulls far harder than between runs (%.2f, %.2f)" % [on_run.power(), rest_power])
+	var reeled: FishFight = held.call(fresh.call(sea, 80, 20.0), 0.0, true, 0.0, 1.2, true)
+	var given: FishFight = held.call(fresh.call(sea, 80, 20.0), 0.0, false, 0.0, 2.0, true)
+	_check(reeled.outcome == "snapped" and given.outcome == "" and given.strain <= 0.1 + FishFight.DRAG_STRAIN * FishFight.DRAG_MOST + 0.01 and given.slack(Vector2.ZERO) < 0.05 and given.line > 22.0 and given.energy < 1.0 - 2.0 / sea["stamina"] * 1.25, "D01: reeling into a run snaps the line; let go, the reel's drag gives line, taut, under the limit, and the run tires it (%s, %.2f, %.1f m out, energy %.2f)" % [reeled.outcome, given.strain, given.line, given.energy])
+	var with: FishFight = held.call(fresh.call(sea, 80, 20.0), 1.2, true, 1.0, 0.3)
+	var against: FishFight = held.call(fresh.call(sea, 80, 20.0), 1.2, true, -1.0, 0.3)
+	_check(with.against() < -0.9 and with.strain > against.strain + 0.3, "D01: the rod held against the fish's side takes its pull; on its side, strains the line (%.2f, %.2f)" % [against.strain, with.strain])
+	# Kept on its way: held against, it would turn and come in slack.
+	var tired: FishFight = fresh.call(sea, 80, 20.0)
+	var tired_with: FishFight = fresh.call(sea, 80, 20.0)
+	for f: FishFight in [tired, tired_with]:
+		f._turn_in = INF
+		f._run_in = INF
+		for i in 120:
+			f.heading = 1.2
+			f.rod = -1.0 if f == tired else 1.0
+			f.step(dt, Vector2.ZERO, false)
+	_check(tired.energy < tired_with.energy - 0.03, "D01: leaning against it tires it faster (%.2f, %.2f)" % [tired.energy, tired_with.energy])
+	var small_fish: Dictionary = FishSpecies.named("shallows_fish")
+	var gained: FishFight = held.call(fresh.call(small_fish, 20, 20.0), 1.2, true, -1.0, 1.0)
+	var lost: FishFight = held.call(fresh.call(small_fish, 20, 20.0), 1.2, true, 1.0, 1.0)
+	_check(gained.line < lost.line - 0.5, "D01: with the rod on the fish's side the reel hardly gains (%.1f m out against it, %.1f with it)" % [gained.line, lost.line])
+	var turned: FishFight = fresh.call(sea, 80, 20.0)
+	turned.heading = 0.8
+	turned._run_in = 5.0
+	turned.running = true
+	for i in 90:
+		turned.rod = -1.0
+		turned.step(dt, Vector2.ZERO, false)
+	var unturned: FishFight = held.call(fresh.call(sea, 80, 20.0), 0.8, false, 0.0, 0.5, true)
+	_check(not turned.running and absf(turned.heading) > PI / 2.0 and absf(unturned.heading - 0.8) < 0.001, "D01: the rod held against a run turns its head round toward you and ends it (heading %.2f)" % turned.heading)
+	var pulled: FishFight = fresh.call(sea, 80, 20.0)
+	pulled.heading = 1.0
+	pulled.running = true
+	pulled.rod = 0.0
+	var arrow_was := pulled.hint()
+	pulled.rod = -1.0
+	_check(arrow_was < -0.8 and absf(pulled.hint()) < 0.05, "D01: the arrow points away from the fish's side, gone with the rod held there (%.2f, %.2f)" % [arrow_was, pulled.hint()])
+	var dragged: FishFight = fresh.call(sea, 80, 20.0)
+	dragged.heading = 1.0
+	dragged._turn_in = INF
+	dragged.step(dt, Vector2.ZERO, false)
+	var drift := dragged.rod
+	dragged.push(-0.5)
+	_check(drift > 0.0 and is_equal_approx(dragged.rod, drift - 0.5), "D01: a fish swimming right drags the rod's tip right; the mouse pushes it back")
+	var snapped: FishFight = held.call(fresh.call(sea, 120, 20.0), 0.0, true, 0.0, 0.5, true)
+	_check(snapped.outcome == "", "D01: not at once at the limit (%.2f)" % snapped.strain)
+	held.call(snapped, 0.0, true, 0.0, FishFight.SNAP_TIME + 0.3, true)
+	_check(snapped.outcome == "snapped", "D01: held at its limit a moment, the line snaps (%s)" % snapped.outcome)
+	var ran_out: FishFight = held.call(fresh.call(sea, 80, 20.0), 0.0, false, 0.0, 10.0)
+	ran_out.max_line = ran_out.line - 0.5 if ran_out.outcome == "" else ran_out.max_line
+	held.call(ran_out, 0.0, false, 0.0, 0.2)
+	_check(ran_out.outcome == "snapped", "D01: a fish that runs out all the line snaps it")
+	var slipped: FishFight = held.call(fresh.call(sea, 80, 20.0), PI, false, 0.0, FishFight.SLIP_TIME - 0.5)
+	_check(slipped.outcome == "" and slipped.slack(Vector2.ZERO) > FishFight.SLIP_SLACK, "D01: a fish coming at you leaves the line slack")
+	held.call(slipped, PI, false, 0.0, 1.5)
+	_check(slipped.outcome == "slipped", "D01: slack a while, the hook slips (%s)" % slipped.outcome)
+	var shore: FishFight = fresh.call(sea, 80, 20.0)
+	shore.swimmable = func(at: Vector2) -> bool: return at.y > -20.01
+	shore.heading = 0.0
+	shore._turn_in = INF
+	shore.step(dt, Vector2.ZERO, false)
+	_check(is_equal_approx(shore.fish.y, -20.0) and shore._turn_in < INF, "D01: a fish never swims onto land: it turns")
+	var landed: FishFight = fresh.call(sea, 40, 3.0)
+	held.call(landed, PI, true, 0.0, 2.0)
+	_check(landed.outcome == "landed", "D01: reeled to the rod's tip, it's landed")
+
+	# Whole fights, 12 each: "good" pushes where the arrow points and
+	# lets go on a run or near the limit, "still" does too but leaves the
+	# rod be, "hold" only reels, "idle" never does.
+	var play := func(species: Dictionary, dist: float, way: String) -> Dictionary:
+		var out := {"landed": 0, "times": []}
+		for s in 12:
+			var size: int = species["size"][0] + (species["size"][1] - species["size"][0]) * (s % 4) / 3
+			var f: FishFight = fresh.call(species, size, dist, s, Fishing.SLACK)
+			var reeling := true
+			var t := 0.0
+			while f.outcome == "" and t < 90.0:
+				if way == "good" or way == "still":
+					reeling = not f.running and (f.strain < 0.7 or (reeling and f.strain <= 0.85))
+					if way == "good":
+						f.push(signf(f.hint()) * 3.0 * dt)
+				else:
+					reeling = way == "hold"
+				f.step(dt, Vector2.ZERO, reeling)
+				t += dt
+			out[f.outcome] = out.get(f.outcome, 0) + 1
+			if f.outcome == "landed":
+				out["times"].append(t)
+		out["times"].sort()
+		out["median"] = out["times"][out["times"].size() / 2] if out["times"].size() > 0 else -1.0
+		return out
+	var lengths := {"shallows_fish": [6.0, 7.0, 16.0], "drop_off_fish": [12.0, 15.0, 32.0], "open_sea_fish": [18.0, 28.0, 55.0]}
+	for id: String in lengths:
+		var r: Dictionary = play.call(FishSpecies.named(id), lengths[id][0], "good")
+		_check(r["landed"] >= 10 and r["median"] >= lengths[id][1] and r["median"] <= lengths[id][2], "D01: played well, a %s %d m out is landed in about %.0f-%.0f s (%d of 12, median %.1f s)" % [id, lengths[id][0], lengths[id][1], lengths[id][2], r["landed"], r["median"]])
+		if id != "shallows_fish":
+			var left_be: Dictionary = play.call(FishSpecies.named(id), lengths[id][0], "still")
+			_check(left_be["landed"] <= r["landed"] - 3 or left_be["median"] > r["median"] * 1.3, "D01: leaving the rod be, a %s takes far longer or gets away (%d of 12, median %.1f s; played well %d, %.1f s)" % [id, left_be["landed"], left_be["median"], r["landed"], r["median"]])
+	var hold: Dictionary = play.call(sea, 18.0, "hold")
+	_check(hold.get("snapped", 0) >= 9, "D01: only holding the click snaps most open sea fish (%d of 12)" % hold.get("snapped", 0))
+	for id in ["drop_off_fish", "open_sea_fish"]:
+		var idle: Dictionary = play.call(FishSpecies.named(id), 12.0, "idle")
+		_check(idle["landed"] == 0 and idle.get("snapped", 0) + idle.get("slipped", 0) >= 9, "D01: never reeling, no %s is landed, most lost (%s)" % [id, idle])
+
+
 # D01: the catches kept for the collection (D03): saved, read back, and a
 # damaged file kept aside rather than written over.
 func _catch_log() -> void:
@@ -3413,11 +3564,31 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_check(fishing.state == Fishing.State.BITE and hud.bite_mark() and fishing._splash.visible, "D01: it comes, nibbles and bites: the \"!\" and the splash")
 	fishing.wait = Vector2(0.2, 0.3)
+	# The click on the bite hooks it, and held, reels: the fight. The
+	# mouse moves the rod, and the view turns with it.
 	_mouse_left(true)
-	_mouse_left(false)
 	await _settle()
+	_check(fishing.state == Fishing.State.FIGHT and fishing.reeling and player.look_held and world.attention.busy.call() and caught.is_empty() and not hud.bite_mark(), "D01: a click on the bite hooks it: the fight, reeling while held, the view held (%s)" % Fishing.State.keys()[fishing.state])
+	var head_pitch := (player.get_node("Head") as Node3D).rotation.x
+	var rod_was := fishing.fight.rod
+	var yaw_was := player.rotation.y
+	_mouse_move(-120.0)
+	await _frames(1)
+	var turn := angle_difference(yaw_was, player.rotation.y)
+	_check(fishing.fight.rod < rod_was - 0.3 and is_equal_approx((player.get_node("Head") as Node3D).rotation.x, head_pitch), "D01: in a fight the mouse moves the rod's tip (%.2f to %.2f), the view only turning with it" % [rod_was, fishing.fight.rod])
+	_check(turn > (rod_was - fishing.fight.rod) * deg_to_rad(Fishing.VIEW_SWING) * 0.5, "D01: the view turns with the rod's tip: pushed left, it turns left (%.1f°)" % rad_to_deg(turn))
+	var stood := player.global_position
+	Input.action_press("move_forward")
+	await _frames(20)
+	Input.action_release("move_forward")
+	_check(player.move_held and Vector2(player.global_position.x - stood.x, player.global_position.z - stood.z).length() < 0.05, "D01: in a fight you stay where you stand: walking does nothing (%.2f m)" % Vector2(player.global_position.x - stood.x, player.global_position.z - stood.z).length())
+	var fought: Dictionary = await _land(fishing)
 	var shallows: Dictionary = fishing.catches.entry("shallows_fish")
-	_check(caught.size() == 1 and caught[0][0] == "shallows_fish" and caught[0][2] and fishing.state == Fishing.State.IDLE and not fishing._bobber.visible, "D01: a click on the bite catches it, and the bobber comes back")
+	_check(caught.size() == 1 and caught[0][0] == "shallows_fish" and caught[0][2] and fishing.state == Fishing.State.IDLE and not fishing._bobber.visible and not player.look_held and not player.move_held and not world.attention.busy.call(), "D01: played against its pull, it's landed at the rod's tip, the bobber back and the view yours (%s, %.1f s)" % [fought["outcome"], fought["time"]])
+	_check(fought["bent"] and fought["followed"] and fought["under"], "D01: in the fight the rod bends with the strain, the shadow swims where the fish is, the bobber pulled under (%s)" % fought)
+	_check(fought["arrow"] and fought["arrow_right"], "D01: the arrow by the crosshair shows where to push the rod, away from the fish's side (%s)" % fought)
+	_check(fought["pulled_out"], "D01: won, the fish is pulled up out of the water, hanging from the line, then caught (%s)" % fought)
+	var sprayed: bool = fought["spray"]
 	_check(not shallows.is_empty() and shallows["count"] == 1 and shallows["first"]["water"] == "shallows" and shallows["first"]["biome"] == Biome.NAMES[island.generator.biome], "D01: recorded with its biome and water (%s)" % [shallows.get("first")])
 
 	# From the platform, away from h1: the drop-off.
@@ -3459,19 +3630,70 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_check(fishing.state == Fishing.State.WAITING and fishing._bobber.visible and flew > 17.0 and flew < 27.0 and fishing._where["water"] == "drop_off", "D01: a full charge throws it %.1f m where you look, into the drop-off" % flew)
 	await _frames(2)
 	_check(absf(fishing._bobber.global_position.y - fishing.ocean.height_at(fishing.target.x, fishing.target.z)) < 0.01, "D01: the bobber floats on the waves")
+	# Hooked up to 27 m out, a run can take the last of 30 m of line: more
+	# line for these two fights, so they're landed (the fight's own test
+	# covers running out of line).
+	fishing.max_line = 40.0
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)
-	_mouse_left(false)
 	await _settle()
+	fought = await _land(fishing)
+	sprayed = sprayed or fought["spray"]
 	var drop: Dictionary = fishing.catches.entry("drop_off_fish")
 	_check(caught.size() == 2 and caught[1][2] and drop["count"] == 1 and drop["first"]["biome"] == "" and hud.card_text() == "You caught a Drop-off fish! %d cm · New" % caught[1][1], "D01: the card: \"%s\"" % hud.card_text())
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)
-	_mouse_left(false)
 	await _settle()
+	fought = await _land(fishing)
+	sprayed = sprayed or fought["spray"]
+	_check(sprayed, "D01: a run throws up spray where the fish swims")
+	fishing.max_line = 30.0
 	drop = fishing.catches.entry("drop_off_fish")
 	_check(drop["count"] == 2 and drop["biggest_cm"] == maxi(caught[1][1], caught[2][1]) and not caught[2][2] and not hud.card_text().ends_with("New"), "D01: a second catch counts, keeps the biggest, not New")
+
+	# Lost in a fight: held into a hard pull straight away, the line snaps; let go while it
+	# swims at you, the hook slips; leaving lets it go.
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_mouse_left(true)
+	await _settle()
+	# Held on its way (no turns: a shore in its path would turn it).
+	fishing.fight.pull = 3.0
+	fishing.fight.heading = 0.0
+	fishing.fight._turn_in = INF
+	fishing.fight._run_in = INF
+	fishing.fight.swimmable = func(_at: Vector2) -> bool: return true
+	var shook := {"seen": false}
+	await _until(func() -> bool:
+		shook["seen"] = shook["seen"] or (fishing.fighting() and absf(camera.h_offset) + absf(camera.v_offset) > 0.0)
+		return fishing.state != Fishing.State.FIGHT, 5.0)
+	_mouse_left(false)
+	_check(fishing.state == Fishing.State.IDLE and hud.said() == "The line snapped" and not player.look_held and camera.h_offset == 0.0 and camera.v_offset == 0.0 and shook["seen"] and caught.size() == 3, "D01: reeled into a hard pull straight away, the view shakes, then the line snaps and the bobber's gone (%s, \"%s\")" % [Fishing.State.keys()[fishing.state], hud.said()])
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_mouse_left(true)
+	await _settle()
+	_mouse_left(false)
+	await _settle()
+	fishing.fight.heading = PI
+	fishing.fight._turn_in = INF
+	fishing.fight._run_in = INF
+	fishing.fight.swimmable = func(_at: Vector2) -> bool: return true
+	await _until(func() -> bool: return fishing.state != Fishing.State.FIGHT, 5.0)
+	# Free, the bobber floats and may already rest again.
+	_check(fishing.state in [Fishing.State.OUT, Fishing.State.WAITING] and fishing._bobber.visible and hud.said() == "It slipped off the hook" and not player.look_held and caught.size() == 3, "D01: let go while it swims at you, the line goes slack and the hook slips, the bobber left out (%s)" % Fishing.State.keys()[fishing.state])
+	fishing.reel_in()
+	await _cast(1.0)
+	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
+	_mouse_left(true)
+	await _settle()
+	_key(KEY_1)
+	await _settle()
+	_mouse_left(false)
+	_check(fishing.state == Fishing.State.IDLE and not player.look_held and caught.size() == 3, "D01: switching tool mid-fight lets the fish go and gives the view back")
+	_key(KEY_2)
+	await _settle()
 
 	# A click on a nibble scares it off; a missed bite leaves the bobber out.
 	await _cast(1.0)
@@ -3600,6 +3822,64 @@ func _cast(charge: float) -> void:
 		await _until(func() -> bool: return fishing.charge >= charge, 3.0)
 	_mouse_left(false)
 	await _until(func() -> bool: return fishing.state != Fishing.State.CHARGING and fishing.state != Fishing.State.CASTING, 5.0)
+
+
+# Plays the hooked fish, the click held from the hook: pushes the mouse
+# where the arrow points, lets go of the click on a run or near the
+# line's limit and takes it again after, until the fight ends. Says how
+# it ended, how long it took, and what the world showed: the rod bent,
+# the shadow following the fish, the bobber under, the arrow (and that
+# it pointed away from the fish's side), a run's spray, and the fish
+# pulled out of the water once won.
+func _land(fishing: Fishing, timeout := 60.0) -> Dictionary:
+	var out := {"outcome": "", "time": 0.0, "bent": false, "followed": true, "under": false, "arrow": false, "arrow_right": true, "spray": false, "pulled_out": false}
+	var frames := [0, 0] # all, the bobber under
+	var held := true
+	var start := Time.get_ticks_msec()
+	var f := fishing.fight # kept: the fishing lets go of it when the fight ends
+	while fishing.fighting() and Time.get_ticks_msec() - start < timeout * 1000.0:
+		var b := fishing._bobber.global_position
+		if fishing.state == Fishing.State.LANDING:
+			# Won: pulled up out of the water, hanging from the line.
+			if b.y > fishing.ocean.height_at(b.x, b.z) + 0.3 and is_instance_valid(fishing._fish) and fishing._fish.hang > 0.5 and fishing._fish.position.y > 0.0:
+				out["pulled_out"] = true
+			await _frames(1)
+			continue
+		if held and (f.running or f.strain > 0.85):
+			_mouse_left(false)
+			held = false
+		elif not held and not f.running and f.strain < 0.7:
+			_mouse_left(true)
+			held = true
+		var arrow := fishing.hud.arrow()
+		if arrow != 0.0:
+			out["arrow"] = true
+			out["arrow_right"] = out["arrow_right"] and signf(arrow) == -signf(sin(f.heading))
+		_mouse_move(signf(f.hint()) * 6.0)
+		out["bent"] = out["bent"] or (f.strain > 0.3 and fishing._joints[-1].rotation_degrees.x < -1.0)
+		# The waves may have moved on since it was placed (a slow frame).
+		frames[0] += 1
+		if b.y < fishing.ocean.height_at(b.x, b.z) - 0.1:
+			frames[1] += 1
+		out["spray"] = out["spray"] or fishing.spraying()
+		if is_instance_valid(fishing._fish) and fishing._fish.arrived():
+			out["followed"] = out["followed"] and Vector2(fishing._fish.position.x - b.x, fishing._fish.position.z - b.z).length() < 0.5
+		await _frames(1)
+	if held:
+		_mouse_left(false)
+	out["outcome"] = f.outcome
+	out["under"] = frames[1] >= frames[0] * 0.9
+	out["time"] = (Time.get_ticks_msec() - start) / 1000.0
+	await _settle()
+	return out
+
+
+# The mouse moved [param dx] pixels across.
+func _mouse_move(dx: float) -> void:
+	var event := InputEventMouseMotion.new()
+	event.relative = Vector2(dx, 0.0)
+	event.screen_relative = Vector2(dx, 0.0)
+	Input.parse_input_event(event)
 
 
 # The left mouse button, down or up.

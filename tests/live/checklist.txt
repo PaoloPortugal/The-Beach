@@ -1,89 +1,74 @@
 LIVE CHECK: D01 fishing,
-round 2
+the fight
   godot --path . -- --checklist
   (add --sidecar-dev-fake if
   you like: no Claude needed)
 PgDn/PgUp scroll this.
 
-1. Play. Press 2: the rod
-   bottom right? Settings →
-   Field of view at 60 and
-   110: still in place?
-2. Hold left click, let go:
-   the meter fills, and the
-   bobber is thrown: a fuller
-   charge further, aiming up
-   further still? A full
-   charge aimed high drops
-   at about 29 m, never
-   dragged back to you?
-3. The bobber floats and
-   bobs on the waves? The
-   line sags when slack and
-   goes straight when tight?
-4. Throw it onto an island,
-   a bridge and the
-   platform's deck: it lands
-   and rolls, no message,
-   and nothing ever comes?
-   From mid-span, tap a
-   short throw sideways off
-   a bridge: it flies over
-   the rail into the water?
-5. Hold left click: it reels
-   in slowly, rolling back
-   over land; let go: it
-   stops? Trees, rocks and
-   steps don't get it stuck?
-6. Reel part way in the
-   water: it's dragged
-   through it, never lifted
-   out? Let go: it rests,
-   and a fish comes there?
-   Reeled to the platform
-   or a bridge's end from
-   the water: lifted out?
-7. By an island: shadows in
-   the shallows? A cast near
-   one brings it?
-8. Nibbles visible, then the
-   bite: the plunge, the
-   splash ring and the "!"
-   clear enough to know it's
-   time to click?
-9. Click on a nibble: "Too
-   soon: it swam off"?
-10. Click on the bite: the
-   card, with New? A second
-   of that species: no New?
-11. Miss a bite: "It got
-   away", another comes? The
-   1.5 s window feels right?
-12. With the line out, walk
-   about: it stays out?
-   Walk far (30 m): the
-   bobber drags after you?
-13. Cast, then each of:
-   press 1, open the chat
-   (E on an orchestrator),
-   the map (M), jump in and
-   swim, ride a zipline:
-   each reels in?
-14. Reeling speed, the
-   throw's distances and the
-   bobber's bounce feel
-   right?
-15. Restart with
-   -- --checklist --hour 22
-   --weather rain: the
-   bobber, line, splash,
-   "!", meter and card
-   readable at night and in
-   rain?
-16. On a bridge: walk and
-   sprint at a rail: it
-   stops you? Jump over it:
-   into the sea, and you
-   can't get back on from
-   the water (swim to a
-   beach)?
+1. Play. Press 2 for the
+   rod. By an island, cast
+   into the shallows; on the
+   bite, click and keep
+   holding: the fight starts
+   and the fish comes in?
+2. In a fight, the fish
+   drags the rod's tip to
+   its side and the view
+   turns with it? An arrow
+   by the crosshair points
+   the other way; push the
+   mouse that way: the rod
+   and view come back and
+   the arrow fades?
+3. Hold the rod against
+   it: the fish turns and
+   comes in, clearly faster
+   than leaving the rod be?
+4. Runs (every few
+   seconds): spray where it
+   swims, the shadow near
+   the surface, the rod and
+   view jerk, it pulls hard.
+   Keep reeling: "The line
+   snapped"? Let go: it
+   takes line, stays on,
+   and tires? Readable
+   enough (the rod bends,
+   the line trembles near
+   the limit, the view
+   shakes a little)?
+5. Let go while it swims at
+   you: the line goes slack
+   and "It slipped off the
+   hook" after a couple of
+   seconds?
+6. In a fight, WASD,
+   Space and Ctrl do
+   nothing: you stay put
+   until it's caught or
+   lost?
+7. Land fish of each water:
+   shallows ~10 s,
+   drop-off ~20-30 s, open
+   sea (deep water, e.g. off
+   a long bridge's middle)
+   ~40 s? Too easy, too
+   hard, too long? Not
+   lifted while reeled;
+   won, it's pulled up out
+   of the water, hanging
+   from the line, then the
+   card?
+8. Mid-fight press 1, open
+   the map (M), or Esc: the
+   fish goes, the mouse
+   turns the view again?
+9. With a session (not the
+   fake), an agent starts
+   waiting mid-fight: the
+   corner count pulses once?
+10. The rod's sensitivity:
+   the mouse moves the tip
+   too much or too little?
+   (Settings → mouse
+   sensitivity changes it.)
