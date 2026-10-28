@@ -5574,13 +5574,14 @@ reconnecting).
 
 ### D01 Fishing
 *Built (2026-10-27, in three rounds: the cast and bite, the bobber on
-the line after the user's live check, then the fight; look
-placeholder). Scope: core (world only):* no
+the line after the user's live check, then the fight, reworked
+2026-10-28 after its live check: runs, the arrow, the view with the
+rod; look placeholder). Scope: core (world only):* no
 provider, protocol or sidecar part; it never reads sessions or agents.
 The first downtime activity (Concept → Downtime): something to do while
 agents work, dropped the moment one needs you. Dev logs
-2026-10-27-d01-fishing-design, 2026-10-27-d01-fishing and
-2026-10-27-d01-fight.
+2026-10-27-d01-fishing-design, 2026-10-27-d01-fishing,
+2026-10-27-d01-fight and 2026-10-28-d01-fight-runs.
 
 *Decided (user's, 2026-10-27; the numbers in "How it works" are my
 picks):*
@@ -5631,24 +5632,51 @@ picks):*
 - *The fight* (user's idea, details my recommendations, chosen
   2026-10-27): a click on the bite hooks the fish and the fight starts;
   hold the click to reel it in, land it at the rod's tip.
-  - *The mouse moves the rod, not the view:* the view holds where you
-    looked, drifting after the fish when it swims far to a side; the
-    fish drags the rod's tip toward its side and you push the mouse
-    the other way. Rejected: the mouse turning the view with the rod
-    (leaning against the fish means looking away from it).
+  - *The mouse moves the rod, and the view turns with it* (user's,
+    2026-10-28, after the live check: "the fish should pull in a
+    direction and pull the camera towards that direction"): the fish
+    drags the rod's tip, and so the view, toward its side; you push the
+    mouse the other way. The view also drifts after the fish when it
+    swims far to a side. Rejected before: the mouse turning the view
+    with the rod and no pull on it (leaning against the fish means
+    looking away from it); the view held still (round 3: the pull
+    couldn't be felt).
+  - *An arrow by the crosshair* (user's idea, 2026-10-28; details my
+    recommendation) points the way to push the rod, away from the
+    fish's pull, and fades as the rod is held there. This reverses
+    round 3's "no HUD at all" for the push only; the strain is still
+    read from the world (below).
+  - *The rod held against the fish counts* (2026-10-28; the live
+    check found "no difference between moving the rod against the
+    fish and leaving it static"): it takes some of its pull, tires it
+    faster and turns its head round toward you, ending a run; on the
+    fish's side, the reel hardly gains and the line strains.
+  - *Runs, the reason to give line* (user's ask, my design, chosen
+    2026-10-28): now and then the fish runs, hard away and to a side,
+    with a splash and the rod jerked. Reeling into a run snaps the
+    line; let go, the reel's drag gives line with the line kept taut
+    (no slack), and the run tires the fish fast. Between runs it pulls
+    weaker: that's when you reel. As in real fishing (let it run on
+    the drag; reeling against a running fish breaks the line). Rejected:
+    jumps you must give slack on (a second signal to learn).
+  - *Walking away while reeling* tows the fish and strains the line as
+    reeling harder would (my recommendation, chosen 2026-10-28).
+    Rejected: free towing (walking would land any fish); losing the
+    fish past a distance (an arbitrary limit to find out).
   - *Lost two ways:* the line snaps after a moment at its limit (or
     when the fish runs out all the line), and the hook slips off after
     a while slack. So neither holding the click nor letting go is
     always safe.
-  - *Read from the world, no bar:* the rod bends with the strain, the
-    line goes from sagging to straight to trembling near its limit and
-    points at the fish, the shadow on the line swims where the fish is,
-    splashing as it starts a run, and the view shakes a little near the
-    limit. No colour on the line (a bar by another name).
-  - *Species differ by pull, stamina and temper* (how hard it runs, how
-    long before it tires, how often it turns), in `FishSpecies`'s
-    table; a bigger fish pulls harder. Pulling against it tires it
-    faster.
+  - *The strain read from the world, no bar:* the rod bends with the
+    strain, the line goes from sagging to straight to trembling near
+    its limit and points at the fish, the shadow on the line swims
+    where the fish is, splashing as it starts a run, and the view
+    shakes a little near the limit. No colour on the line (a bar by
+    another name).
+  - *Species differ by pull, stamina and temper* (how hard it pulls,
+    how long before it tires, how often it turns and runs), in
+    `FishSpecies`'s table; a bigger fish pulls harder. Pulling against
+    it tires it faster.
   - *Length:* roughly 5-10 s in the shallows, 12-20 s at the drop-off,
     20-35 s in the open sea, so most fights are easy to drop.
 - *A05 during a fight* (my recommendation, chosen 2026-10-27): the
@@ -5755,41 +5783,60 @@ shadows.
   the size is rolled and the fish starts where the bobber was, with the
   line out to it plus `SLACK`, and the click already held reels. The
   fish swims away from the rod's tip at an angle, `heading` (0 straight
-  away, positive to your right): up to 1.4 rad either side, or now and
-  then (15 %) 1.9-2.6 rad, toward you; it turns every 0.6-1.4 s divided
-  by its temper (a splash ring each time). It swims at 1.6 m/s times
-  its `power()`: pull × size (0.8 for the smallest of its species to
-  1.25 for the biggest) × (0.35 + 0.65 × energy). It never swims where
-  the water is under 0.3 m deep: it turns instead.
+  away, positive to your right). It swims at 1.6 m/s times its
+  `power()`: pull × size (0.8 for the smallest of its species to 1.25
+  for the biggest) × (0.35 + 0.65 × energy) × 2 on a run (`RUN_PULL`),
+  else 0.6 (`REST_PULL`). It never swims where the water is under
+  0.3 m deep: it turns instead (a run ends).
+  - *Runs:* every 2-4 s divided by (0.5 + temper), the first after half
+    that, it runs (`running`) for 1-2 s × (0.5 + 0.5 × energy): heading
+    0.4-1.2 rad to a side, the rod's tip jerked 0.3 that way, a splash
+    ring (`ran`). Under 0.1 energy it no longer runs. A run ends early
+    once it's turned past side-on (|heading| > π/2); it then swims on
+    as it heads until its next turn. Between runs it turns every
+    0.6-1.4 s divided by its temper: up to 1.4 rad either side, or now
+    and then (15 %) 1.9-2.6 rad, toward you.
   - *Reeling* takes the line in at 1.6 m/s, slowed by a fish running
-    away (by 0.8 × its away pull, never below a tenth); the fish is
-    held at the line's length. Let go, the reel's drag gives line as
-    the fish runs, and a fish swimming at you leaves it slack.
+    away (by 0.8 × its away pull, halved as the rod's held against it,
+    never below a tenth), and by up to 80 % (`WITH_SLOW`) with the rod
+    on its side; the fish is held at the line's length. Let go, the
+    reel's drag gives line as the fish runs, and a fish swimming at you
+    leaves it slack.
   - *The rod's tip* (`rod`, -1 left to 1 right) is dragged toward the
     fish's side at 1.5 × its sideways pull per second; the mouse pushes
     it, 2 × the turn it would have given the view (so the settings'
     sensitivity, C10, counts). `against()`, -1 to 1: how far the rod
     is held on the side away from the fish, counting fully once it
-    swims at least 30° to a side.
+    swims at least 30° to a side. Taut and held against it, the rod
+    turns its head toward you at up to 1.5 rad/s (`STEER`).
+  - *The arrow* (`hint()`, -1 left to 1 right): away from the fish's
+    side, × how far to a side it swims (fully from 30°) × its power (at
+    most 1) × (1 − how far the rod's held against it). `FishingHud`
+    draws it 46 px beside the crosshair from 0.15, bigger and stronger
+    up to 1.
   - *The strain* (0 slack, 1 the limit) follows its aim at 5 per
-    second. Taut and reeling: 0.25 + power × (the away pull, halved as
-    the rod's held against it, + 0.8 × how far it's held on the fish's
-    side). Taut and let go: 0.1 + power × half the away pull. Slack (over
-    5 cm): 0. Taut, the fish tires: energy falls by 1/stamina a second,
-    2.5 times as fast with the rod fully against it.
+    second. Taut and reeling: 0.25 + the away pull (power × its share
+    away, halved as the rod's held against it) + 0.8 × power × how far
+    it's held on the fish's side + 0.12 × how fast the rod's tip goes
+    away from the fish (walking, m/s, smoothed) × (0.5 + power). Taut
+    and let go: 0.1 + 0.5 × the away pull, at most 0.8 (the drag: never
+    the limit). Slack (over 5 cm): 0. Taut, the fish tires: energy falls
+    by 1/stamina a second, 2.5 times as fast with the rod fully against
+    it, 3 times on a run.
   - *The end:* at the limit 0.7 s, or the line out past `max_line`,
     the line snaps ("The line snapped"; the bobber's gone, back in
     hand); slack over 0.4 m for 2 s, the hook slips ("It slipped off
     the hook"; the bobber floats free, out, and rests again where it
     stops); within `BACK` of the rod's tip it's landed: the catch card
     and the record. Leaving (below) lets it go.
-  - *In the world:* the view is held (`Player.look_held`: the mouse
-    doesn't turn it), and drifts after the fish at up to 40°/s once
-    it's more than 20° off the middle; from a strain of 0.8 the line
-    trembles (up to 4 cm) and the camera shakes (up to 1.2 cm, its
-    `h_offset` and `v_offset`). The bobber is pulled 0.2 m under at
-    the fish, its shadow swimming there. `world.gd` gives A05
-    `Fishing.fighting` (A05's pulse).
+  - *In the world:* the mouse doesn't turn the view
+    (`Player.look_held`); the view turns with the rod's tip, 25° at
+    either end (`VIEW_SWING`), and drifts after the fish at up to
+    40°/s once it's more than 20° off the middle less that turn; from
+    a strain of 0.8 the line trembles (up to 4 cm) and the camera
+    shakes (up to 1.2 cm, its `h_offset` and `v_offset`). The bobber
+    is pulled 0.2 m under at the fish, its shadow swimming there.
+    `world.gd` gives A05 `Fishing.fighting` (A05's pulse).
 - *Shadows* (`FishShadow`, `world/fishing/fish_shadow.gd`): a dark
   flat fish shape (body and tail, unshaded, 35-60 cm), 0.45 m under the
   water, growing in and shrinking out of sight. Up to 5 wander round the
@@ -5839,16 +5886,21 @@ shadows.
 Tested in the world test: `_fish_species` (each placeholder in its
 water; hours past midnight, biomes and weather by a test table; weights;
 nothing where nothing lives; sizes), `_fish_fight` (every species'
-pull, stamina and temper; a bigger fish pulls harder; reeling into a
-run strains the line and letting go gives line; the rod held against
+pull, stamina and temper; a bigger fish pulls harder; a run pulls far
+harder; reeling into a run snaps the line, and let go the drag gives
+line, taut, under the limit, the run tiring it; the rod held against
 the fish takes its pull and tires it faster, held on its side strains
-the line; the fish drags the rod and the mouse pushes back; snapping
+the line and the reel hardly gains; held against a run it turns the
+fish and ends the run; the arrow points away from the fish's side,
+gone with the rod held there; walking away while reeling strains the
+line; the fish drags the rod and the mouse pushes back; snapping
 after a moment at the limit and when the line runs out; slipping when
 slack; no swimming onto land; landed at the tip; and whole fights with
 fixed seeds: played well each placeholder is landed, in 4-10 s 10 m
-out, 11-20 s 20 m out and 18-35 s 25 m out; only holding the click
-snaps most open sea fish; never reeling loses every drop-off and open
-sea fish), `_catch_log` (counts, the biggest,
+out, 11-20 s 20 m out and 18-35 s 25 m out; timing the runs but
+leaving the rod be, a drop-off or open sea fish takes far longer or
+gets away; only holding the click snaps most open sea fish; never
+reeling lands no drop-off or open sea fish), `_catch_log` (counts, the biggest,
 the first catch, read back, a damaged file kept as `.bad`) and
 `_fishing` with real clicks: the 1.5 s window; no rod, no cast; the rod
 in the same place on screen at 60° and 110°; the bobber on the ground
@@ -5856,8 +5908,9 @@ layer only, the props not on it; land and shallows under an island and
 its biome; shadows in the shallows; a tap into the shallows near a
 shadow brings that one; the bite's "!" and splash; a click on the bite
 hooks it (the fight, reeling, the view held, A05 told); the mouse moves
-the rod, not the view; played against its pull it's landed, the rod
-bending, the shadow following, the bobber under; a shallows catch
+the rod and the view turns with it; played against its pull it's
+landed, the rod bending, the shadow following, the bobber under, the
+arrow pointing away from the fish's side; a shallows catch
 recorded with its biome; a cast onto the platform's deck rests there,
 nothing comes, and holding reels it in; a full charge into the
 drop-off (17-27 m); a full charge 30° up held at the line's longest,
@@ -6583,9 +6636,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 ## Known issues and next steps
 
 **Current focus:** the downtime activities. D01 Fishing's fight (hook
-on the bite, hold to reel, the mouse moves the rod against the fish,
-lost by snapping or slipping, read from the world) is built on branch
-`d01-fight` (2026-10-27), awaiting the user's live check and review.
+on the bite, hold to reel, let go on the fish's runs, the mouse moves
+the rod and the view against the fish where an arrow points, lost by
+snapping or slipping) is built on branch `d01-fight` (2026-10-27,
+reworked 2026-10-28 after the user's live check), awaiting the user's
+next live check and review.
 Then the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.

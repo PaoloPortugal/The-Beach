@@ -654,25 +654,36 @@ then** to hook it, and keep holding: the fight starts.
 - Miss the bite and **It got away**; keep waiting and another comes.
 
 **The fight.** Holding the left button reels the fish in; bring it all
-the way to you to land it. While a fish is on the hook the view stays
-put (it turns to follow the fish only when it swims far to a side),
-and the mouse moves the rod instead. The fish swims one way and
-another and drags the tip of your rod toward its side: move the mouse
-the other way to hold the rod against it. That takes some of its pull
-and tires it out faster. There's no bar: watch the world.
+the way to you to land it. While a fish is on the hook the mouse moves
+the rod, and the view turns with the rod (and follows the fish when it
+swims far to a side). The fish drags the tip of your rod, and your view
+with it, toward its side. An **arrow** beside the crosshair points the
+other way: move the mouse that way to hold the rod against the fish.
+The arrow fades as you do. Holding against it takes some of its pull,
+tires it out faster and turns its head round toward you, so it comes
+in. Leave the rod on the fish's side and your reeling hardly gains,
+and the line strains.
 
+- Now and then the fish makes a **run**: a splash, and it pulls hard
+  away and to a side, dragging the rod and the view. **Let go** of the
+  button: the reel gives it line and the line stays tight. A run tires
+  the fish fast, more so with the rod held against it, which can turn
+  it and end the run sooner. Between runs it pulls weaker: **reel
+  then**.
 - The **rod bends** the harder the line pulls. Near its limit the line
   pulls straight and **trembles**, and the view shakes a little.
-- When the fish **runs straight away**, let go for a moment: the reel
-  gives it line. Reeling hard into a run, or with the rod on the fish's
-  side, and **The line snapped**: the fish is gone (and so is the
-  bobber, but you get it back for the next cast).
+  Reeling into a run, or with the rod on the fish's side, and **The
+  line snapped**: the fish is gone (and so is the bobber, but you get
+  it back for the next cast).
+- Walking away while you reel tows the fish, and strains the line like
+  reeling harder: fine with a tired fish, a snapped line with one that
+  pulls.
 - When the fish **swims toward you**, the line goes slack: keep
   reeling. Left slack for a couple of seconds, **It slipped off the
   hook**.
 - If it takes out all your line (30 m), the line snaps too.
-- The **shadow** shows where the fish is, with a splash each time it
-  turns, and the bobber is pulled under there.
+- The **shadow** shows where the fish is, and the bobber is pulled
+  under there.
 
 Shallows fish are small and quick to land (a few seconds); drop-off
 fish fight harder (about a quarter of a minute); open sea fish are

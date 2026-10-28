@@ -10,11 +10,14 @@ extends Node3D
 ## water: its shadow swims up, nibbles once or a few times, and bites,
 ## the bobber plunging with a splash. A click then hooks it (a click on
 ## a nibble scares it off) and the fight starts ([FishFight]): hold the
-## click to reel it in, and the mouse, which moves the rod while the view
-## holds, against its pull; it's landed at the rod's tip. The fight is
-## read from the world: the rod bends with the strain, the line goes
-## straight and trembles near its limit, the shadow swims where the fish
-## is. Too much strain snaps the line; too long slack, the hook slips.
+## click to reel it in between its runs and let go on a run, the reel's
+## drag giving line, and push the mouse, which moves the rod (the view
+## turning with it), against its pull, where the arrow by the crosshair
+## points; it's landed at the rod's tip. The fight is read from the
+## world: the rod bends with the strain, the line goes straight and
+## trembles near its limit, the shadow swims where the fish is, splashing
+## on a run. Too much strain snaps the line; too long slack, the hook
+## slips.
 ##
 ## What comes depends only on the world ([FishSpecies]): the water under
 ## the bobber, the nearest island's biome, the hour and the weather.
@@ -115,12 +118,14 @@ const ROD_JOINTS := 4
 const ROD_BEND := 18.0
 const ROD_SWING := 30.0
 ## In a fight: how far the rod's tip moves for the view's turn the mouse
-## would have made (radians; the tip goes from -1 to 1); how far under
-## the water the bobber is pulled, metres; past how far off the middle of
-## the view, degrees, the view drifts after the fish, and how fast,
-## degrees/s; the strain from which the line trembles and the view
-## shakes, and the most it shakes, metres.
+## would have made (radians; the tip goes from -1 to 1); how far the view
+## turns with the rod's tip at either end, degrees; how far under the
+## water the bobber is pulled, metres; past how far off the middle of
+## the view (less the rod's turn), degrees, the view drifts after the
+## fish, and how fast, degrees/s; the strain from which the line
+## trembles and the view shakes, and the most it shakes, metres.
 const ROD_MOUSE := 2.0
+const VIEW_SWING := 25.0
 const FIGHT_DIP := 0.2
 const DRIFT_FROM := 20.0
 const DRIFT_SPEED := 40.0
@@ -181,6 +186,7 @@ var _lifting := false # snagged in the water while reeling: the line lifts it
 var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
 var _splash_age := INF
+var _view_rod := 0.0 # the rod's tip the view was last turned with, in a fight
 var _clock := 0.0
 var _rod := Node3D.new()
 var _joints: Array[Node3D] = [] # the rod's pieces, the first at the grip
@@ -558,12 +564,14 @@ func _hook() -> void:
 	state = State.FIGHT
 	reeling = true
 	player.look_held = true
+	_view_rod = 0.0
 
 
 # The fight's next frame, shown in the world: the fish (its shadow and
 # the bobber pulled under) where it swims, a splash as it starts a run,
-# the line's length, the view drifting after it and shaking near the
-# line's limit. Then landed, snapped or slipped.
+# the line's length, the view turning with the rod, drifting after the
+# fish and shaking near the line's limit. Then landed, snapped or
+# slipped.
 func _fight_step(delta: float) -> void:
 	var tip := _tip.global_position
 	fight.step(delta, Vector2(tip.x, tip.z), reeling)
@@ -575,8 +583,14 @@ func _fight_step(delta: float) -> void:
 	if fight.ran:
 		fight.ran = false
 		_splash_age = 0.0
+	# The view turns with the rod's tip, so the fish dragging it pulls
+	# the view its way and pushing back brings it back; past that, it
+	# drifts after the fish.
+	var swing := deg_to_rad(VIEW_SWING)
+	player.rotate_y(-(fight.rod - _view_rod) * swing)
+	_view_rod = fight.rod
 	var look := -player.global_basis.z * Vector3(1, 0, 1)
-	var off := look.signed_angle_to((target - player.global_position) * Vector3(1, 0, 1), Vector3.UP)
+	var off := look.signed_angle_to((target - player.global_position) * Vector3(1, 0, 1), Vector3.UP) - fight.rod * swing
 	var from := deg_to_rad(DRIFT_FROM)
 	if absf(off) > from:
 		player.rotate_y(signf(off) * minf(absf(off) - from, deg_to_rad(DRIFT_SPEED) * delta))
