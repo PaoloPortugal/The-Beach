@@ -116,6 +116,7 @@ func _ready() -> void:
 	fishing.name = "Fishing"
 	add_child(fishing)
 	fishing.setup(_player, hotbar, _islands, day_night, weather, $Ocean)
+	attention.busy = fishing.fighting
 	add_child(world_map)
 	world_map.setup(_islands, _player, store, minimap)
 	world_map.go_to.connect(teleport)

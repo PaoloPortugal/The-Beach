@@ -74,6 +74,9 @@ var swimming := false
 ## Carried by something else (W10's zipline), which moves the player:
 ## no walking, falling or swimming, but you can still look round.
 var riding := false
+## The view held by something else (D01's fight, where the mouse moves
+## the rod): mouse movement doesn't turn it.
+var look_held := false
 ## Crouched (W11): holding Ctrl, or still under something too low to stand.
 var crouching := false
 ## Sliding on the ground after crouching at a run (W11).
@@ -103,7 +106,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not controls_enabled:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if event is InputEventMouseMotion and captured:
+	if event is InputEventMouseMotion and captured and not look_held:
 		rotate_y(-event.screen_relative.x * mouse_sensitivity)
 		_head.rotation.x = clampf(_head.rotation.x - event.screen_relative.y * mouse_sensitivity, -PI / 2 + 0.01, PI / 2 - 0.01)
 	elif event is InputEventMouseButton and event.pressed and not captured:
