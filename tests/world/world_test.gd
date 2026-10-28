@@ -3600,9 +3600,11 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)
 	await _settle()
+	# Held on its way (no turns: a shore in its path would turn it).
 	fishing.fight.pull = 3.0
 	fishing.fight.heading = 0.0
 	fishing.fight._turn_in = INF
+	fishing.fight.swimmable = func(_at: Vector2) -> bool: return true
 	var shook := {"seen": false}
 	await _until(func() -> bool:
 		shook["seen"] = shook["seen"] or (fishing.fighting() and absf(camera.h_offset) + absf(camera.v_offset) > 0.0)
@@ -3617,8 +3619,10 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	await _settle()
 	fishing.fight.heading = PI
 	fishing.fight._turn_in = INF
+	fishing.fight.swimmable = func(_at: Vector2) -> bool: return true
 	await _until(func() -> bool: return fishing.state != Fishing.State.FIGHT, 5.0)
-	_check(fishing.state == Fishing.State.OUT and hud.said() == "It slipped off the hook" and not player.look_held and caught.size() == 3, "D01: let go while it swims at you, the line goes slack and the hook slips (%s)" % Fishing.State.keys()[fishing.state])
+	# Free, the bobber floats and may already rest again.
+	_check(fishing.state in [Fishing.State.OUT, Fishing.State.WAITING] and fishing._bobber.visible and hud.said() == "It slipped off the hook" and not player.look_held and caught.size() == 3, "D01: let go while it swims at you, the line goes slack and the hook slips, the bobber left out (%s)" % Fishing.State.keys()[fishing.state])
 	fishing.reel_in()
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
@@ -3766,7 +3770,8 @@ func _cast(charge: float) -> void:
 # it took, and what the world showed: the rod bent, the shadow following
 # the fish, the bobber under.
 func _land(fishing: Fishing, timeout := 60.0) -> Dictionary:
-	var out := {"outcome": "", "time": 0.0, "bent": false, "followed": true, "under": true}
+	var out := {"outcome": "", "time": 0.0, "bent": false, "followed": true, "under": false}
+	var frames := [0, 0] # all, the bobber under
 	var held := true
 	var start := Time.get_ticks_msec()
 	var f := fishing.fight # kept: the fishing lets go of it when the fight ends
@@ -3780,13 +3785,17 @@ func _land(fishing: Fishing, timeout := 60.0) -> Dictionary:
 		_mouse_move(-signf(sin(f.heading)) * 6.0)
 		out["bent"] = out["bent"] or (f.strain > 0.3 and fishing._joints[-1].rotation_degrees.x < -1.0)
 		var b := fishing._bobber.global_position
-		out["under"] = out["under"] and b.y < fishing.ocean.height_at(b.x, b.z) - 0.1
+		# The waves may have moved on since it was placed (a slow frame).
+		frames[0] += 1
+		if b.y < fishing.ocean.height_at(b.x, b.z) - 0.1:
+			frames[1] += 1
 		if is_instance_valid(fishing._fish) and fishing._fish.arrived():
 			out["followed"] = out["followed"] and Vector2(fishing._fish.position.x - b.x, fishing._fish.position.z - b.z).length() < 0.5
 		await _frames(1)
 	if held:
 		_mouse_left(false)
 	out["outcome"] = f.outcome
+	out["under"] = frames[1] >= frames[0] * 0.9
 	out["time"] = (Time.get_ticks_msec() - start) / 1000.0
 	await _settle()
 	return out
