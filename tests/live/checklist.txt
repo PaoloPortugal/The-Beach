@@ -24,8 +24,11 @@ PgDn/PgUp scroll this.
    it: the fish turns and
    comes in, clearly faster
    than leaving the rod be?
-4. Runs: a splash, the rod
-   jerks, it pulls hard.
+4. Runs (every few
+   seconds): spray where it
+   swims, the shadow near
+   the surface, the rod and
+   view jerk, it pulls hard.
    Keep reeling: "The line
    snapped"? Let go: it
    takes line, stays on,
@@ -45,12 +48,15 @@ PgDn/PgUp scroll this.
    snaps? A tired small
    fish tows fine?
 7. Land fish of each water:
-   shallows a few seconds,
-   drop-off ~15 s, open sea
-   (deep water, e.g. off a
-   long bridge's middle)
-   ~20-35 s? Too easy, too
-   hard, too long?
+   shallows ~10 s,
+   drop-off ~20-30 s, open
+   sea (deep water, e.g. off
+   a long bridge's middle)
+   ~40 s? Too easy, too
+   hard, too long? Near
+   you, the fish is pulled
+   up out of the water,
+   hanging from the line?
 8. Mid-fight press 1, open
    the map (M), or Esc: the
    fish goes, the mouse

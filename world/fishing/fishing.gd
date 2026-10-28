@@ -126,6 +126,20 @@ const ROD_SWING := 30.0
 ## trembles and the view shakes, and the most it shakes, metres.
 const ROD_MOUSE := 2.0
 const VIEW_SWING := 25.0
+## In a fight, near the rod the fish is pulled out of the water: from
+## LIFT_FROM metres off (seen from above) to LIFT_TO, the bobber rises
+## to HANG metres under the rod's tip, the fish hanging under it.
+const LIFT_FROM := 4.5
+const LIFT_TO := 2.0
+const HANG := 0.6
+## On a run: how far the fish rises toward the surface, metres, and its
+## spray, a ring every SPRAY_EVERY seconds where it swims, each spreading
+## to SPRAY_SIZE metres over SPRAY_TIME seconds (SPRAYS at once at most).
+const RUN_RISE := 0.35
+const SPRAY_EVERY := 0.15
+const SPRAY_TIME := 0.5
+const SPRAY_SIZE := 1.2
+const SPRAYS := 5
 const FIGHT_DIP := 0.2
 const DRIFT_FROM := 20.0
 const DRIFT_SPEED := 40.0
@@ -187,6 +201,10 @@ var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
 var _splash_age := INF
 var _view_rod := 0.0 # the rod's tip the view was last turned with, in a fight
+var _pulled_up := 0.0 # how far the bobber is pulled up out of the water, metres
+var _sprays: Array[MeshInstance3D] = [] # a run's rings, oldest first
+var _spray_ages: Array[float] = []
+var _spray_timer := 0.0
 var _clock := 0.0
 var _rod := Node3D.new()
 var _joints: Array[Node3D] = [] # the rod's pieces, the first at the grip
@@ -320,6 +338,7 @@ func _process(delta: float) -> void:
 		if state != State.IDLE:
 			reel_in()
 		_place_splash()
+		_place_sprays(delta)
 		return
 	match state:
 		State.CHARGING:
@@ -361,10 +380,11 @@ func _process(delta: float) -> void:
 	if state != State.BITE and state != State.FIGHT:
 		_dip = move_toward(_dip, 0.0, DIP_BACK * delta)
 	if _floating():
-		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip, target.z)
+		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip + _pulled_up, target.z)
 	if bobber_out():
 		_draw_line()
 	_place_splash()
+	_place_sprays(delta)
 
 
 # Leaving the rod (D01): the chat or a menu, another tool, swimming or
@@ -577,12 +597,27 @@ func _fight_step(delta: float) -> void:
 	fight.step(delta, Vector2(tip.x, tip.z), reeling)
 	target = Vector3(fight.fish.x, Player.WATER_Y, fight.fish.y)
 	_dip = FIGHT_DIP
+	# Near the rod it's pulled up out of the water, hanging from the line.
+	var flat := Vector2(target.x - tip.x, target.z - tip.z).length()
+	var out := clampf((LIFT_FROM - flat) / (LIFT_FROM - LIFT_TO), 0.0, 1.0)
+	out = out * out * (3.0 - 2.0 * out)
+	_pulled_up = maxf(tip.y - HANG - (ocean.height_at(target.x, target.z) - FIGHT_DIP), 0.0) * out
 	line_length = tip.distance_to(_bobber.global_position) + fight.slack(Vector2(tip.x, tip.z))
 	if is_instance_valid(_fish):
 		_fish.swim_to(target, FishFight.SPEED * 4.0)
+		_fish.raised = lerpf(RUN_RISE if fight.running else 0.0, _pulled_up + FishShadow.DEPTH - FIGHT_DIP - 0.1, out)
+		_fish.hang = out
 	if fight.ran:
 		fight.ran = false
 		_splash_age = 0.0
+	# A run throws up spray where the fish swims.
+	if fight.running:
+		_spray_timer -= delta
+		if _spray_timer <= 0.0:
+			_spray_timer = SPRAY_EVERY
+			_spray(target)
+	else:
+		_spray_timer = 0.0
 	# The view turns with the rod's tip, so the fish dragging it pulls
 	# the view its way and pushing back brings it back; past that, it
 	# drifts after the fish.
@@ -627,6 +662,7 @@ func _stop_fight() -> void:
 	if fight == null:
 		return
 	fight = null
+	_pulled_up = 0.0
 	player.look_held = false
 	var camera := player.get_node("Head/Camera3D") as Camera3D
 	camera.h_offset = 0.0
@@ -741,6 +777,36 @@ func _place_splash() -> void:
 	_splash.scale = Vector3(r, 0.2, r)
 	_splash.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) + 0.02, target.z)
 	_splash_material.albedo_color.a = 0.8 * (1.0 - t)
+
+
+# A run's spray: the oldest ring starts again at [param at].
+func _spray(at: Vector3) -> void:
+	var ring: MeshInstance3D = _sprays.pop_front()
+	_spray_ages.pop_front()
+	ring.set_meta("at", Vector2(at.x, at.z))
+	_sprays.append(ring)
+	_spray_ages.append(0.0)
+
+
+# The run's rings spreading on the water, fading out.
+func _place_sprays(delta: float) -> void:
+	for i in _sprays.size():
+		_spray_ages[i] += delta
+		var ring := _sprays[i]
+		var t := _spray_ages[i] / SPRAY_TIME
+		ring.visible = t < 1.0 and bobber_out()
+		if not ring.visible:
+			continue
+		var at: Vector2 = ring.get_meta("at")
+		var r := lerpf(0.15, SPRAY_SIZE, t)
+		ring.scale = Vector3(r, 0.3, r)
+		ring.global_position = Vector3(at.x, ocean.height_at(at.x, at.y) + 0.02, at.y)
+		((ring.mesh as TorusMesh).material as StandardMaterial3D).albedo_color.a = 0.75 * (1.0 - t)
+
+
+## Whether a run's spray shows now.
+func spraying() -> bool:
+	return _sprays.any(func(r: MeshInstance3D) -> bool: return r.visible)
 
 
 # Keeps a few shadows wandering in the shallows round the player.
@@ -865,3 +931,24 @@ func _make_bobber() -> void:
 	_splash.visible = false
 	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_splash)
+	# A run's spray: rings like the splash, each with its own fade.
+	for i in SPRAYS:
+		var spray := MeshInstance3D.new()
+		spray.name = "Spray%d" % i
+		var torus := TorusMesh.new()
+		torus.inner_radius = 0.8
+		torus.outer_radius = 1.0
+		torus.rings = 24
+		torus.ring_segments = 3
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(1, 1, 1, 0)
+		torus.material = m
+		spray.mesh = torus
+		spray.visible = false
+		spray.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spray.set_meta("at", Vector2.ZERO)
+		add_child(spray)
+		_sprays.append(spray)
+		_spray_ages.append(INF)

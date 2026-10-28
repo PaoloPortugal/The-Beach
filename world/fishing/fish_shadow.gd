@@ -14,13 +14,20 @@ const WANDER := 2.0
 const WANDER_SPEED := 0.5
 ## Seconds to grow in or shrink out of sight.
 const GROW := 0.6
-## How fast it turns toward where it swims, radians/s.
+## How fast it turns toward where it swims, radians/s, and how fast it
+## rises or sinks, m/s.
 const TURN := 5.0
+const RISE := 3.0
 
 static var _mesh: ArrayMesh
 
 ## On the line: [Fishing] moves it; it doesn't wander.
 var hooked := false
+## How far above its depth it's raised, metres (a run near the surface,
+## pulled out of the water near the rod), and how far it's turned nose
+## up, 0 to 1 (hanging from the line); set by [Fishing] in a fight.
+var raised := 0.0
+var hang := 0.0
 ## Where it came from: it wanders round here.
 var home := Vector3.ZERO
 
@@ -65,6 +72,8 @@ func swim_off(from: Vector3, far := 5.0, speed := 4.0) -> void:
 	away = away.normalized() * far
 	swim_to(position + Vector3(away.x, 0.0, away.y), speed)
 	_leaving = true
+	raised = 0.0
+	hang = 0.0
 	hooked = true # no more wandering
 
 
@@ -100,7 +109,8 @@ func _process(delta: float) -> void:
 		position += Vector3(dir.x, 0.0, dir.y) * step
 		var facing := atan2(-dir.x, -dir.y)
 		rotation.y = rotate_toward(rotation.y, facing, TURN * delta)
-	position.y = -DEPTH
+	position.y = move_toward(position.y, -DEPTH + raised, RISE * delta)
+	rotation.x = hang * PI / 2.0
 
 
 # A fish from above, 1 m long and facing -z: a flat body and a tail.

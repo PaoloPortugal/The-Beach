@@ -17,7 +17,7 @@ extends RefCounted
 ## tip. A bigger fish pulls harder; a tired one, less.
 
 ## How fast the line comes in, m/s, against a fish not pulling.
-const REEL := 1.6
+const REEL := 1.0
 ## How fast a fresh fish of pull 1 swims, m/s.
 const SPEED := 1.6
 ## The line's strain from reeling alone, at the limit 1.
@@ -35,13 +35,14 @@ const ROD_DRAG := 1.5
 ## How much faster a fish tires while the rod is held against it, and
 ## on a run.
 const TIRE_AGAINST := 1.5
-const RUN_TIRE := 3.0
+const RUN_TIRE := 1.5
 ## How much of the reel's gain is lost with the rod fully on the fish's
 ## side.
 const WITH_SLOW := 0.8
 ## How fast the rod held fully against a fish turns its head toward you,
-## radians/s.
+## radians/s, and how much of that on a run.
 const STEER := 1.5
+const RUN_STEER := 0.5
 ## Let go, the drag's strain: 0.1 + DRAG_STRAIN × the pull, the pull
 ## counted up to DRAG_MOST (so at most 0.8: under the line's trembling,
 ## never its limit).
@@ -55,11 +56,11 @@ const WALK_STRAIN := 0.12
 ## jerks the rod; no runs below RUN_ENERGY.
 const RUN_PULL := 2.0
 const REST_PULL := 0.6
-const RUN_GAP := Vector2(2.0, 4.0)
-const RUN_TIME := Vector2(1.0, 2.0)
+const RUN_GAP := Vector2(1.5, 3.0)
+const RUN_TIME := Vector2(1.5, 2.5)
 const RUN_SIDE := Vector2(0.4, 1.2)
-const RUN_JERK := 0.3
-const RUN_ENERGY := 0.1
+const RUN_JERK := 0.5
+const RUN_ENERGY := 0.05
 ## Between runs a fish heads this far off straight away from you,
 ## radians, at most, and turns toward you on one in TOWARD of its turns.
 const RUN_ANGLE := 1.4
@@ -197,7 +198,7 @@ func step(delta: float, tip: Vector2, reeling: bool) -> void:
 		energy = maxf(energy - delta / stamina * (1.0 + TIRE_AGAINST * maxf(pushing, 0.0)) * (RUN_TIRE if running else 1.0), 0.0)
 		# Held against it, the rod turns its head round toward you.
 		if pushing > 0.0:
-			heading = signf(heading) * minf(absf(heading) + STEER * pushing * delta, PI)
+			heading = signf(heading) * minf(absf(heading) + STEER * pushing * delta * (RUN_STEER if running else 1.0), PI)
 	strain = move_toward(strain, aim, EASE * delta)
 	rod = clampf(rod + lat * p * ROD_DRAG * delta, -1.0, 1.0)
 	_snap_timer = _snap_timer + delta if strain >= 1.0 else 0.0
