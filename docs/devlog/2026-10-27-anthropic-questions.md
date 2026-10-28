@@ -40,10 +40,31 @@ terms. They supersede the 2026-10-02 drafts.
 
 ## Sending them
 
-The user sends both. The email goes through a web form that asks for the
-sender's own details, with a screen recording to attach; the issue is
-public under the user's GitHub account. Record the answers in
-`docs/release.md` → Anthropic's terms.
+The email is the user's to send: the contact-sales form wants a
+company, website, job title and phone (a solo developer fills in their
+own name and GitHub profile), and the page now says sales only takes
+large deals, so the user tries its purchasing-agent chat first (it can
+forward to sales). A screen recording goes with it.
+
+The GitHub question went out differently. anthropics/claude-code only
+takes issues through its templates, and the open
+[#82571](https://github.com/anthropics/claude-code/issues/82571)
+("No way for a user to allow third-party channel plugins for inbound
+notifications") already asks for a route onto the allowlist, with other
+channel developers adding their cases. So, with the user's approval, a
+comment there
+([2026-10-27](https://github.com/anthropics/claude-code/issues/82571#issuecomment-6457478814))
+describes our case and asks the draft's first two questions; the third
+was left out. The issue draft below was not posted.
+
+Seen while checking:
+[#105326](https://github.com/anthropics/claude-code/issues/105326)
+(2026-10-27): since 2026-10-25 a Windows Max user's channels, even with
+the development flag, are skipped as "channels feature is not currently
+available", apparently a server-side switch. Ours still registered in
+the user's latest session (2026-10-27, Claude Code's MCP log for
+world-bridge). Record the answers in `docs/release.md` → Anthropic's
+terms.
 
 ## Draft: email to Anthropic (terms questions)
 
@@ -82,7 +103,7 @@ The source will be free and open source (MIT) on GitHub. I plan to sell builds o
 2. For the paid Steam release, is agreeing to your Commercial Terms the right step, and is there anything else you'd need from us?
 3. The app's chat and permission answers depend on its channel, which today runs with `--dangerously-load-development-channels`, since custom channels aren't on the channel allowlist during the research preview. Your docs say an official-marketplace listing is coordinated through an Anthropic partner contact. Could the app's channel be considered for one, packaged as a plugin, and who should I talk to about it?
 
-(A related technical question, whether a released app may rely on the development flag in the meantime, I've raised on the Claude Code GitHub repository, where the channels documentation asks for feedback.)
+(A related technical question, whether a released app may rely on the development flag in the meantime, I've raised on the Claude Code GitHub repository, where the channels documentation asks for feedback: https://github.com/anthropics/claude-code/issues/82571.)
 
 A short screen recording is attached showing a session being started, a chat, a permission prompt answered in the world, and the same session in its terminal. I'm happy to share the source code or more detail.
 
@@ -92,7 +113,7 @@ Kind regards,
 [Your name]
 [Contact email]
 
-## Draft: GitHub issue (the channel flag)
+## Draft: GitHub issue (the channel flag; not posted, see above)
 
 **Where:** https://github.com/anthropics/claude-code/issues/new (pick the feature request or question template if one is offered; public)
 

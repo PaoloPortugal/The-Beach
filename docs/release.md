@@ -34,8 +34,9 @@ of these is decided or done, and reread it before a release.
     Code's own checks decide) is Claude Code's feature, and we don't
     override it. Hooks and channels are documented for this kind of use
     (Anthropic's fakechat demo is a localhost chat UI).
-  - *Ask Anthropic* (to do: the user sends both). Both messages are
-    drafted in the dev log (2026-10-27-anthropic-questions, refreshed
+  - *Ask Anthropic* (the channel question asked 2026-10-27 as a comment
+    on anthropics/claude-code#82571; the email still to send, by the
+    user). Both messages are drafted in the dev log (2026-10-27-anthropic-questions, refreshed
     against the docs and terms that day; they replace the
     2026-10-02-terms-steam drafts); if they wait long, recheck the
     contacts and terms before sending. The routes: the terms questions
