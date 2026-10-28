@@ -6665,13 +6665,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the downtime activities. D01 Fishing's fight (hook
-on the bite, hold to reel, let go on the fish's runs, the mouse moves
-the rod and the view against the fish where an arrow points, lost by
-snapping or slipping) is built on branch `d01-fight` (2026-10-27,
-reworked 2026-10-28 after the user's live check), awaiting the user's
-next live check and review.
-Then the user's species list. D02 Bug
+**Current focus:** the sidecar's start (S01): retrying a start that
+fails in a way that can pass (the user's, 2026-10-28), then restarting
+it if it dies in play, then a loading bar at the game's start that waits
+for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
+fight reworked after three live checks, 2026-10-28; "good enough for a
+v0", the user's); next for it, the user's species list. D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
