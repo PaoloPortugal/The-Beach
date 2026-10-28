@@ -514,6 +514,26 @@ test("restart: an id already in use is refused; that session isn't taken back, i
   } finally { await r.close() }
 })
 
+test("restart: a run folder's id that is an outside session's too: one of them shown, the other refused and logged", async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const f = runFolder(root, { record: { native_id: ID(1), session_id: derivedId('claude', ID(7)) } })
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  transcript(projects, ID(7), cwd, { type: 'user', uuid: 'u1', timestamp: '2026-10-28T10:00:01Z', message: { content: 'hi' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([
+      { sessionId: ID(1), pid: f.program, status: 'idle' },
+      { sessionId: ID(7), pid: 50007, status: 'idle', cwd },
+    ]),
+  })
+  try {
+    assert.deepEqual(r.snapshots.map((s) => s.session), [derivedId('claude', ID(7))])
+    assert.ok(r.log.lines.some((l) => l.includes('in use already')))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close() }
+})
+
 test('restore, read-only: its hook port was taken: read_only, the transcript\'s capabilities only, the notice; its relays, bridge and token aren\'t taken', async () => {
   const root = tempSessionsDir()
   const taken = await occupy()
