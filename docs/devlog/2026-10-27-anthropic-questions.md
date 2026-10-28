@@ -46,6 +46,14 @@ own name and GitHub profile), and the page now says sales only takes
 large deals, so the user tries its purchasing-agent chat first (it can
 forward to sales). A screen recording goes with it.
 
+In the end the user sent it through claude.ai's Product Support chat
+(Get help → Send us a message), the route Anthropic's support assistant
+named for an individual without a company; after some back and forth
+the bot passed it to a human agent, who replies by email. The assistant
+also gave the user a brief to fill in, so what was sent is a shorter
+message (below, "What was sent"), not the email draft; it keeps the
+Commercial Terms question.
+
 The GitHub question went out differently. anthropics/claude-code only
 takes issues through its templates, and the open
 [#82571](https://github.com/anthropics/claude-code/issues/82571)
@@ -134,3 +142,14 @@ That works well for development. The channels docs describe the development flag
 3. Is there a rough expectation of how the flag and the allowlist will work once channels leave the research preview, so apps can plan for it?
 
 Thanks. Channels and the permission relay are exactly what this kind of app needs.
+
+## What was sent (Product Support, 2026-10-27)
+
+Hi, I'm an individual developer on a Claude Pro plan, with no company, asking whether my app is a permitted use of Claude Code.
+
+It's a desktop game where each Claude Code session appears as an island. It launches the user's own installed, unmodified `claude` CLI in a normal terminal window. Users sign in through Claude Code's own flow with their own subscription or API key; the app never sees or stores credentials, and all usage is billed to the user. The app passes hooks in a per-session settings file and talks to the session through a local channel: a stdio MCP server on the same machine, loaded with `--dangerously-load-development-channels`. It only sends what the user types or chooses; nothing is automated. The source will be free on GitHub (MIT), with paid builds on Steam: players buy the app, never Claude usage.
+
+1. Is this a permitted use for Pro and Max users, including the paid Steam release? The legal page says running Claude Code in a product requires the Commercial Terms. Does that apply to an app that launches the user's own install rather than preinstalling it, for the free release, the paid one, or both? If it does, is agreeing to them through a Claude Console account the right step, with players staying on their own Consumer Terms?
+2. During the research preview, is there a path for a third-party channel to be approved beyond the development flag?
+
+Thank you.
