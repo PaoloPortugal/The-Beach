@@ -42,8 +42,9 @@ const WITH_SLOW := 0.8
 ## How fast the rod held fully against a fish turns its head toward you,
 ## radians/s.
 const STEER := 1.5
-## Let go, the drag's strain: 0.1 + DRAG_STRAIN × the pull, at most
-## DRAG_MOST (under the line's trembling, never its limit).
+## Let go, the drag's strain: 0.1 + DRAG_STRAIN × the pull, the pull
+## counted up to DRAG_MOST (so at most 0.8: under the line's trembling,
+## never its limit).
 const DRAG_STRAIN := 0.5
 const DRAG_MOST := 1.4
 ## Walking away while reeling: the strain per m/s, times (0.5 + power).

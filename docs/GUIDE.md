@@ -693,7 +693,8 @@ waiting" count in the corner pulses once; nothing pauses.
 
 **Moving and leaving.** You can walk about while the line is out: it
 pays out up to 30 m. Further than that, you drag the bobber after you,
-and the fish on the line swims off. Taking another tool, opening the
+and the fish on the line swims off (in a fight, see walking away
+above). Taking another tool, opening the
 chat, a menu, the sessions ring or the map, swimming, or riding a
 zipline reels in at once, in a fight too. The only thing you lose is the fish on the
 line: there's no bait, streak or record to lose.
@@ -712,7 +713,8 @@ on what your agents are doing.
 
 Every catch is kept (each species, how many, the biggest and the first)
 for the collection that comes later. The rod, the bobber, the shadows,
-the splash, the meter, the "!" and the card are placeholders.
+the splash, the meter, the "!", the fight's arrow and the card are
+placeholders.
 
 ## Talking to the orchestrator (C01)
 

@@ -49,7 +49,7 @@ PgDn/PgUp scroll this.
    drop-off ~15 s, open sea
    (deep water, e.g. off a
    long bridge's middle)
-   ~20-30 s? Too easy, too
+   ~20-35 s? Too easy, too
    hard, too long?
 8. Mid-fight press 1, open
    the map (M), or Esc: the
