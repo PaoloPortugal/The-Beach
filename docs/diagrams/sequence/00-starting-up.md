@@ -39,6 +39,13 @@ sequenceDiagram
     alt the connection drops, the sidecar still runs
         World->>Sidecar: connect again with the same token
         Sidecar->>World: hello, snapshots, sync.completed
+    else the sidecar dies in play (or a reconnect fails at once)
+        Note over World,Sidecar: Commands waiting get disconnected. Start it again from step 1,<br/>with the same attempts: it takes back the running sessions (S07),<br/>hello, snapshots and sync.completed resync the world<br/>(for now under new ids: islands sink and rise again).<br/>Dead again within 60 s of being up: the next attempt of that start.
+        opt it can't be started again
+            Note over World: A notice covers the world: Quit (through the quit guard)
+        end
+    else the first start fails for good
+        Note over World: A message box says why, then the game quits
     else the game quits or crashes
         Note over World,Sidecar: The pipe closes#59; the sidecar exits.<br/>Sessions it launched keep running in their terminals<br/>and come back at the next start (flow 14).
     end
