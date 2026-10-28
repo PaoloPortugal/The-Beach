@@ -5630,24 +5630,40 @@ agents work, dropped the moment one needs you. Dev logs
 - *Leaving* (opening a chat, switching tool, swimming) or reeling in
   lets the fish on the line go. Nothing else is lost (no bait, no
   streak, no record), so leaving costs only the fish on the line.
-- *A05 during a fight:* moot while there is no fight (user's,
-  2026-10-27). It was: A05's count pulses once and sits next to the
-  catch bar while the fight lasts. Decide again with the fight.
+- *The fight* (user's idea, details my recommendations, chosen
+  2026-10-27): a click on the bite hooks the fish and the fight starts;
+  hold the click to reel it in, land it at the rod's tip.
+  - *The mouse moves the rod, not the view:* the view holds where you
+    looked, drifting after the fish when it swims far to a side; the
+    fish drags the rod's tip toward its side and you push the mouse
+    the other way. Rejected: the mouse turning the view with the rod
+    (leaning against the fish means looking away from it).
+  - *Lost two ways:* the line snaps after a moment at its limit (or
+    when the fish runs out all the line), and the hook slips off after
+    a while slack. So neither holding the click nor letting go is
+    always safe.
+  - *Read from the world, no bar:* the rod bends with the strain, the
+    line goes from sagging to straight to trembling near its limit and
+    points at the fish, the shadow on the line swims where the fish is,
+    splashing as it starts a run, and the view shakes a little near the
+    limit. No colour on the line (a bar by another name).
+  - *Species differ by pull, stamina and temper* (how hard it runs, how
+    long before it tires, how often it turns), in `FishSpecies`'s
+    table; a bigger fish pulls harder. Pulling against it tires it
+    faster.
+  - *Length:* roughly 5-10 s in the shallows, 12-20 s at the drop-off,
+    20-35 s in the open sea, so most fights are easy to drop.
+- *A05 during a fight* (my recommendation, chosen 2026-10-27): the
+  corner count pulses once when an agent starts waiting mid-fight.
+  Nothing pauses and no sound plays in the game (A05); leaving costs
+  only the fish.
 - *The collection* (D03): every catch is recorded now with what D03
   needs: each species caught, its first catch (when and where), how
   many, and its biggest fish's size, kept in `user://` (user's,
   2026-10-27). D03's field guide, which shows them, comes later.
 
-*Open:* a fight of our own, **the next round** (user's, 2026-10-27,
-after the live check), not a catch bar like the games above. The
-user's idea: once hooked, you keep the click held to reel the fish in
-slowly, the fish pulls one way and another, and you move the mouse
-against its pull while holding; read from the world (the line's
-angle and strain, the rod bending), not a bar. Round 2's line, with
-its length and tension, is built for it. To design: how a fish is lost
-(the line snapping, or slipping off), how long a fight lasts, how
-species differ, and A05 during a fight. The real species list (the
-user's). Fish models to replace the shadows.
+*Open:* the real species list (the user's). Fish models to replace the
+shadows.
 
 **How it works** (distances, timings, sizes and the look my picks).
 - `Fishing` (`world/fishing/fishing.gd`, a `Node3D` at the world's
