@@ -1792,6 +1792,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
 	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is up")
+	_restart_chat(world)
 	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	var bridges := islands.bridges
 	var r1 := SessionIslands.region(island)
@@ -2691,6 +2692,53 @@ class _Recorder extends SidecarClient:
 		if on_reply.is_valid():
 			on_reply.call({"type": "error", "message": "recorded"})
 		return "r%d" % sent.size()
+
+
+# Answers session.get_history with the messages given per session.
+class _Histories extends SidecarClient:
+	var histories := {}
+	var asked := []
+
+	func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
+		if type != "session.get_history":
+			return ""
+		asked.append(fields["session"])
+		on_reply.call({"type": "ok", "result": {"messages": histories.get(fields["session"], []), "tools": []}})
+		return "h%d" % asked.size()
+
+
+# S01 restart: the sessions keep their ids, so their islands and chats stay;
+# once the restart has synced, each loaded chat is fetched again (what was
+# said while the sidecar was down), once; an empty history (transcripts
+# off) keeps ours. Stand-ins: the dev fake takes nothing back.
+func _restart_chat(world: Node3D) -> void:
+	var store: SessionStore = world.store
+	var chat: ChatController = world.get_node("ChatController")
+	var real := chat.sidecar
+	var answers := _Histories.new()
+	chat.sidecar = answers
+	var was := chat._history.duplicate()
+	chat._history["h1"] = "loaded"
+	chat._history["h2"] = "loaded"
+	store.apply({"type": "message.started", "session": "h1", "seq": 900, "message": "live1", "agent": "main", "role": "user"})
+	store.apply({"type": "message.started", "session": "h2", "seq": 900, "message": "live2", "agent": "main", "role": "user"})
+	answers.histories["h1"] = [{"message": "t1", "agent": "main", "role": "user", "text": "from the transcript", "at": "2026-09-30T10:00:00Z"}]
+	chat._on_synced()
+	_check(answers.asked.is_empty(), "S01 restart: a sync without a restart fetches nothing")
+	root.get_node("Sidecar").restarting.emit("a test")
+	chat._on_synced()
+	answers.asked.sort()
+	_check(answers.asked == ["h1", "h2"], "S01 restart: each loaded chat fetched again once it synced")
+	_check(store.messages("h1").map(func(m: Dictionary) -> String: return m["message"]) == ["t1"], "S01 restart: the new sidecar's chat replaces ours")
+	_check(store.messages("h2").map(func(m: Dictionary) -> String: return m["message"]) == ["live2"], "S01 restart: an empty history keeps ours")
+	chat._on_synced()
+	_check(answers.asked.size() == 2, "S01 restart: once")
+	chat.sidecar = real
+	chat._history = was
+	answers.free()
+	for id in ["h1", "h2"]:
+		store.begin_chat_replace(id)
+		store.replace_history(id, [])
 
 
 # Records like [_Recorder], refusing on the next frame as the sidecar would,

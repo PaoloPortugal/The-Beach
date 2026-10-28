@@ -1,9 +1,11 @@
 LIVE CHECK: S01 the
 sidecar's start retry
+and restart
   godot --path . -- --checklist
 (the retry itself is tested
 headless on fake sidecars;
-this checks a real start)
+this checks a real start
+and a real restart)
 PgDn/PgUp scroll this.
 
 1. Start the game as usual
@@ -26,7 +28,42 @@ PgDn/PgUp scroll this.
    once it's up? Keep the
    sidecar lines just
    before it: they say why.
-4. Quit: no sidecar left
+4. Restart: with a session
+   of the game's and one
+   started outside it (a
+   claude in a plain
+   terminal), open the
+   game's session's chat.
+   End the sidecar: Task
+   Manager → Details, the
+   node.exe whose Command
+   line has
+   sidecar/src/main.ts
+   (add the column: right-
+   click a column title).
+   Within seconds: both
+   islands stay put (no
+   sinking or rising), the
+   chat stays open?
+5. Then send a message
+   from that chat: the
+   reply comes as before?
+   And something said in
+   its terminal while the
+   sidecar was down shows
+   in the chat?
+6. The notice: end it four
+   times, each within a
+   minute of it coming back
+   (the fourth is past the
+   three tries). A notice
+   covers the world; Quit
+   asks about your running
+   sessions first, and Back
+   to the game brings the
+   notice back? (Headless
+   tests cover it too.)
+7. Quit: no sidecar left
    running (Task Manager:
    no stray node or
    sidecar process)?
