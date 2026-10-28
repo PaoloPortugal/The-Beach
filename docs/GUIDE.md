@@ -1186,10 +1186,16 @@ all, giving it longer each time (a first start after installing or
 rebooting may be slow). Only if the
 last try fails too does the game give up; that can take up to about
 two minutes. If the sidecar file is missing, or doesn't match the game's
-version, the game gives up at once, since trying again wouldn't help. If
-the sidecar stops unexpectedly later, the game notices. For now all of
-this only shows in the game's log, and a message on screen comes with
-the world. The sidecar file ships next to the game's own executable;
+version, the game gives up at once, since trying again wouldn't help.
+
+The game can't run without the sidecar. If it can't start when you
+launch the game, a message says why and the game closes; try starting
+it again. If the sidecar stops while you play, the game starts it again
+on its own and your sessions come back; for now their islands sink and
+rise again, and an open chat closes. If it can't be started
+again, a notice covers the world and asks you to quit: your sessions
+keep running in their terminals and come back when you start the game
+again. The sidecar file ships next to the game's own executable;
 reinstalling the game restores it if it goes missing.
 
 ## Claude Code sessions (S02)

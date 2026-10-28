@@ -121,7 +121,7 @@ slice.
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
 | C16 | Multi-language support                    | designed | —            | — |
-| S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
+| S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `sidecar/src/providers/claude/running.ts`, `world/sessions_menu/` |
@@ -542,7 +542,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -4026,13 +4026,16 @@ alike on every OS; the exact file, `.exe` included), another protocol version, o
 failing. The handshake line is parsed with a `JSON` instance, not
 `JSON.parse_string`, which logs an error for an empty line. A dropped
 connection after the first sync still just reconnects (a reconnect
-that fails at once, or the sidecar dying, still fails; see Not yet).
+that fails at once is a restart, below).
 Each attempt is a new sidecar run, so S02's login-shell lookup for the
 program can start once per attempt (it ends itself after 10 s, inside
 the first attempt's 20 s). Tested in `tests/core/sidecar_client_test.gd` on fake sidecars
 (`tests/core/fake_sidecar.mjs`: slow, exits at once, a bad handshake,
 connections refused, another protocol) and a connect made to fail at
-once, with the attempts shortened.
+once, with the attempts shortened; the restart on the real sidecar
+(killed in play: synced again, a new process; killed again soon after:
+the next attempt) and on the dev fake one killed each time it's up
+(failed once, after three).
 
 **Session store** (`core/sessions/session_store.gd`, `SessionStore`,
 built with S02): a plain class (no autoload) that the world
@@ -4051,9 +4054,43 @@ reconnect, sessions without a snapshot ended meanwhile and are removed;
 the client's `sync_started` signal (on `hello`) marks where a reconnect's
 snapshots begin. It's the Godot handler for `session.notice` and `session.notice_cleared`.
 
-Not yet: the sidecar isn't restarted if it dies (sessions it launched keep
-running, but the world loses them); export presets that copy the executable
-next to the game come with the first export.
+**Restart** (user's decision, 2026-10-28: the sidecar must always be
+running, and a start, first or not, gives up within a minute or two).
+When the sidecar dies in play, or a reconnect fails at once, the client
+emits `restarting` and starts it again with the start's attempts (the
+same waits; about 102 s at most). Commands waiting for a reply get
+`disconnected`. The new sidecar takes back the sessions still running
+(S07) and finds those started outside the game (S08); its `hello`,
+snapshots and `sync.completed` go through the session store's usual
+resync. For now the new sidecar gives every session a new protocol id
+(the registry's `randomUUID`), so each island sinks and rises again
+(W12 keeps its biome and seed, not its spot) and an open chat closes;
+next on this branch, the user's choice (2026-10-28): the sidecar keeps
+each session's id across a restart (kept in its S07 run folder; for an
+outside session, made from provider and Claude's session id), so a
+restart is a plain resync. One
+that dies again within `STEADY_S` (60 s) of being up goes on with the
+attempts of the start that brought it up instead of starting the count
+again, so a sidecar that keeps dying ends in `failed` within the same
+bound instead of restarting forever. A dropped connection to a running
+sidecar still just reconnects. `has_synced` says whether a start ever
+got as far as synced; `failure` keeps the last reason.
+
+**When it can't be started** (`world/sidecar_lost.gd`, `SidecarLost`,
+a placeholder; user's decisions, 2026-10-28: without the sidecar there's
+no game). The first start failing (`failed` before any sync, or already
+failed when the world loads) shows the reason in a native message box
+(`OS.alert`, titled with the project's name), then quits with exit code
+1. A restart in play failing covers the world with a notice: the reason,
+that the world can't follow the sessions without it, and that they keep
+running in their terminals and come back at the next start; its one
+button, Quit, goes through the quit guard (S05), which lists sessions
+still running first ("Back to the game" brings the notice back). The
+controls and keys wait under it (Enter or Space press Quit). Tested in
+`tests/world/world_test.gd` on stand-in clients.
+
+Not yet: export presets that copy the executable next to the game come
+with the first export.
 
 ### S02 Claude provider
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
@@ -6701,8 +6738,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 **Current focus:** the sidecar's start (S01), on branch
 `s01-start-retry`: retrying a start that fails in a way that can pass
-(built, 2026-10-28), then restarting it if it dies in play (its limit
-the user's to set first), then a loading bar at the game's start that waits
+(built, 2026-10-28), then restarting it if it dies in play (built
+2026-10-28: always restarted, within the start's bound; the game quits
+if the first start fails), then a loading bar at the game's start that waits
 for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. D02 Bug
