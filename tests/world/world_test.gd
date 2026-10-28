@@ -390,6 +390,7 @@ func _scene() -> void:
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
 	await _menu_start(world, player)
 	await _loading_cover(world, player)
+	await _sidecar_lost(world, player)
 
 	await _frames(30)
 	_check(player.is_on_floor() and absf(player.global_position.y - 1.0) < 0.2, "lands on the platform")
@@ -1645,6 +1646,79 @@ func _menu_start(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return played[0], MenuCamera.EASE_TIME + 2.0)
 	_check(played[0] and not menu.is_open() and player.controls_enabled and get_root().get_camera_3d() == own, "C14: once there, the player's own camera and the controls")
 	_check(world.usage_limits.visible and world.pointers.visible, "C14: and the HUD back")
+
+
+# S01: the sidecar can't be started (user's decisions, 2026-10-28). The
+# first start failing quits, saying why; a restart in play failing says
+# to quit, its button going through the quit guard. On stand-in clients.
+func _sidecar_lost(world: Node3D, player: Player) -> void:
+	_check(world.sidecar_lost.get_parent() == world and not world.sidecar_lost.is_notifying(), "S01: the notice is in the world, not showing")
+	var guard: QuitGuard = world.quit_guard
+	# The first start fails: a message box, then the game quits.
+	var first := SidecarClient.new()
+	first.status = SidecarClient.Status.STARTING
+	var lost := SidecarLost.new()
+	var said := []
+	var quits := [0]
+	lost.alert = func(text: String) -> void: said.append(text)
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(first, guard, player)
+	first.failed.emit("The sidecar didn't start in time.")
+	_check(quits[0] == 1 and said.size() == 1 and said[0].contains("can't run without its sidecar") and said[0].contains("didn't start in time") and not lost.visible, "S01: the first start fails: says why, then quits")
+	lost.free()
+	first.free()
+	# Failed before the world was there (no program to start): the same.
+	var early := SidecarClient.new()
+	early.status = SidecarClient.Status.FAILED
+	early.failure = "The sidecar is missing from the game folder."
+	lost = SidecarLost.new()
+	said.clear()
+	quits[0] = 0
+	lost.alert = func(text: String) -> void: said.append(text)
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(early, guard, player)
+	await _frames(1)
+	_check(quits[0] == 1 and said.size() == 1 and said[0].contains("missing from the game folder"), "S01: failed before the world was up: says why, then quits")
+	lost.free()
+	early.free()
+	# A restart in play fails: the notice, the controls held, keys wait.
+	var in_play := SidecarClient.new()
+	in_play.status = SidecarClient.Status.STARTING
+	in_play.has_synced = true
+	lost = SidecarLost.new()
+	quits[0] = 0
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(in_play, guard, player)
+	var controls_before := player.controls_enabled
+	var mouse_before := Input.mouse_mode
+	in_play.failed.emit("The sidecar stopped.")
+	_check(lost.visible and lost.shown_text().contains("couldn't be started again") and lost.shown_text().contains("The sidecar stopped.") and quits[0] == 0 and not player.controls_enabled, "S01: a restart in play fails: the notice says to quit, the game stays, controls held")
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open(), "S01: keys wait under it")
+	# Quit goes through the guard: with sessions running it asks; back to
+	# the game, the notice again.
+	var guard_quits := [0]
+	var guard_quit_before: Callable = guard.quit
+	guard.quit = func() -> void: guard_quits[0] += 1
+	world.store.sessions["lost1"] = _snapshot("lost1")
+	lost.quit_button().pressed.emit()
+	_check(guard.is_asking() and not lost.visible and guard_quits[0] == 0, "S01: Quit: the quit guard lists the sessions still running first")
+	# Back to the game, as the dialog's button does.
+	guard.dialog().hide()
+	guard.dialog().canceled.emit()
+	_check(lost.visible and not player.controls_enabled, "S01: back to the game from it: the notice again")
+	world.store.sessions.erase("lost1")
+	lost.quit_button().pressed.emit()
+	_check(guard_quits[0] == 1 and quits[0] == 0, "S01: with none running, Quit quits")
+	guard.quit = guard_quit_before
+	lost.free()
+	in_play.free()
+	player.controls_enabled = controls_before
+	Input.mouse_mode = mouse_before
 
 
 # S07's cover isn't in the world any more (C14 shows the menu instead);
