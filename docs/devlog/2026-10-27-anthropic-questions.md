@@ -145,7 +145,7 @@ Thanks. Channels and the permission relay are exactly what this kind of app need
 
 ## What was sent (Product Support, 2026-10-27)
 
-Hi, I'm an individual developer on a Claude Pro plan, with no company, asking whether my app is a permitted use of Claude Code.
+Hi, I'm an individual developer [plan and company details left out of this copy], asking whether my app is a permitted use of Claude Code.
 
 It's a desktop game where each Claude Code session appears as an island. It launches the user's own installed, unmodified `claude` CLI in a normal terminal window. Users sign in through Claude Code's own flow with their own subscription or API key; the app never sees or stores credentials, and all usage is billed to the user. The app passes hooks in a per-session settings file and talks to the session through a local channel: a stdio MCP server on the same machine, loaded with `--dangerously-load-development-channels`. It only sends what the user types or chooses; nothing is automated. The source will be free on GitHub (MIT), with paid builds on Steam: players buy the app, never Claude usage.
 
