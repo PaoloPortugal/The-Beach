@@ -746,7 +746,9 @@ first; a `history_tool` is a tool call with its `status`, `result`,
 with the answer. An event whose `seq` is not above the last one Godot
 has for that session (e.g. from a snapshot) is stale and ignored.
 
-**IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
+**IDs.** The sidecar makes an opaque `session` ID; a session still
+running keeps it when the sidecar starts again (S01 → Restart, S07,
+S08). The provider's own ID
 (e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
 `app` (started here) or `external` (started elsewhere and only watched,
 always `read_only`: S08, 2026-10-22). Agents are keyed by
@@ -4062,13 +4064,31 @@ same waits; about 102 s at most). Commands waiting for a reply get
 `disconnected`. The new sidecar takes back the sessions still running
 (S07) and finds those started outside the game (S08); its `hello`,
 snapshots and `sync.completed` go through the session store's usual
-resync. For now the new sidecar gives every session a new protocol id
-(the registry's `randomUUID`), so each island sinks and rises again
-(W12 keeps its biome and seed, not its spot) and an open chat closes;
-next on this branch, the user's choice (2026-10-28): the sidecar keeps
-each session's id across a restart (kept in its S07 run folder; for an
-outside session, made from provider and Claude's session id), so a
-restart is a plain resync. One
+resync. **Sessions keep their ids** (user's choice, 2026-10-28; at first
+the registry gave each a new `randomUUID`, so every island sank and
+rose again and an open chat closed): a session the game launched has
+its protocol id in its run folder's `session.json` (`session_id`,
+written at launch, S07), and the sidecar that takes it back adopts it
+under that id; one started outside the game (S08, no run folder) gets
+an id made from its provider and Claude's session id (`derivedId`: a
+UUID from SHA-256, the same on every run). The registry refuses an id
+already in use (that session isn't taken back, logged; its folder
+stays for a later start); a run folder from before ids were kept, or
+whose `session_id` isn't a UUID, gets a new one, then written there. So
+a restart is a plain resync: no island sinks or rises, chats, cards
+and W12's entries stay, and an open chat stays open. Neither id says
+anything the snapshot doesn't (`native_id` is in it; Security rules).
+What was said while the sidecar was down only the new one has (from
+the transcript), so once a restart has synced each chat the world had
+loaded is fetched again (`session.get_history`) and replaces ours,
+keeping what arrived since, as for a switch of conversation; an empty
+answer (transcripts off) keeps ours (`ChatController`,
+`SessionStore.begin_chat_replace`, `keep_chat`). A prompt or question
+open at the restart stays in the terminal, as for S07, and its card
+goes with the resync. Not kept: an outside session that switched
+conversations (`/clear`, `/resume`) since its island came up gets a new
+id at the restart, from its new Claude id, so its island sinks and
+rises again. One
 that dies again within `STEADY_S` (60 s) of being up goes on with the
 attempts of the start that brought it up instead of starting the count
 again, so a sidecar that keeps dying ends in `failed` within the same
@@ -5218,7 +5238,8 @@ Each session's private folder lives in the user's app data folder
 working name: Conventions → Renaming the project), named `session-`
 and six random characters. It holds, besides the relay files:
 `session.json` (Claude's session id, the project, the hook port and
-token it was launched with, its start time; rewritten when `/clear` or
+token it was launched with, its start time, the protocol's id for it,
+`session_id`, so a later sidecar keeps it, S01 → Restart; rewritten when `/clear` or
 `/resume` switches the id), the launcher's and `claude`'s process ids
 (written by the launcher), `bridge.json` and `holder.pid` (below). The
 folders outlive the sidecar: one is deleted when its session ends, by
@@ -5286,7 +5307,8 @@ start, and a session found after that arrives on its own as a
   token, and a later start tries again; `holder.pid` may stay this
   sidecar's until it exits, and a relay already pointed here is refused,
   its token let go, so Claude Code carries on). Adopted into the
-  registry: a
+  registry under its `session_id` (S01 → Restart; one in use is refused,
+  and a record without one gets a new id, written back): a
   `session.snapshot` with its `started_at`, the chat so far from its
   transcript (as for a resume, S04), and its state from `agents`
   (`busy` working, `waiting` waiting for input, `idle`) until its next
@@ -5437,14 +5459,17 @@ model, found later and read from its start), waiting from `agents`,
 `/clear` and `/resume` through `agents` (never another project's), one
 `agents` at a time for all, one session failing on its answer logged
 and skipped, none once they end or the provider shuts down; relays
-pointed back on the kept port, a takeover that fails to write a file), `bridge.test.ts`
+pointed back on the kept port, a takeover that fails to write a file;
+the protocol id kept in `session.json` and across two sidecar runs,
+also for an outside session, an old folder's new id written back, one
+in use refused), `bridge.test.ts`
 (reconnect, spent tokens, nothing acted on before `welcome`, the
 welcome's proof), `permissions.test.ts` (whole and cut-short previews),
 `process.test.ts` (the tests' own sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text, the read-only
 notice and chat panel),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
-after it), `tests/core/sidecar_client_test.gd` (the suites' own
+after it; a restart's resync with the same ids), `tests/core/sidecar_client_test.gd` (the suites' own
 sessions folder: Running it).
 
 ### S08 Read-only islands for sessions started outside the game
@@ -5565,6 +5590,9 @@ mark's look, the wording and the toggle the user's own):*
   transcript not written yet; `/clear` and `/resume` followed per
   `pid`; waiting on the user from `status`), with no run folder, no
   launcher and no hook token: nothing of it is written anywhere. Its
+  protocol id is made from the provider and Claude's session id
+  (`derivedId`), so it's the same after a sidecar restart (S01 →
+  Restart). Its
   state at first is the entry's `status` (`busy` working, `waiting`
   waiting for input, else idle).
 - *It ends* (`session.ended`, reason `exited`; the island sinks, W04)
@@ -6740,7 +6768,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 `s01-start-retry`: retrying a start that fails in a way that can pass
 (built, 2026-10-28), then restarting it if it dies in play (built
 2026-10-28: always restarted, within the start's bound; the game quits
-if the first start fails), then a loading bar at the game's start that waits
+if the first start fails; sessions keep their ids, so a restart is a
+plain resync), then a loading bar at the game's start that waits
 for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. D02 Bug
