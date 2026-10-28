@@ -4015,6 +4015,10 @@ bar's stages and retry text, the wait for the first island and its
 cap, a failure, `TIMEOUT_S`, and none for a sidecar already failed. Looks, the fades and the skip by
 hand are the live check's.
 
+*Live check (2026-10-28, the user):* "It looks good". The light
+background is a bit hard on the eyes; a proper background comes later
+(user's), with the rest of the UI.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
