@@ -34,16 +34,22 @@ of these is decided or done, and reread it before a release.
     Code's own checks decide) is Claude Code's feature, and we don't
     override it. Hooks and channels are documented for this kind of use
     (Anthropic's fakechat demo is a localhost chat UI).
-  - *Ask Anthropic before the public release* (to do; user's decision,
-    2026-10-02: not now). Both messages are drafted in the dev log
-    (2026-10-02-terms-steam); before sending, confirm the contacts
-    below are still the right ones and refresh the drafts against the
-    terms. The planned routes: the terms questions (is the
-    subscription use fine, free and paid; is the Commercial Terms step
-    the right one) go by email through the contact-sales form, which the
-    legal page names for "questions about permitted authentication
-    methods". The channel-flag question (Channels are a research
-    preview, in NOTES.md → Watch items) goes as a public issue on
+  - *Ask Anthropic* (the channel question asked 2026-10-27 as a comment
+    on anthropics/claude-code#82571; the terms questions sent by the user
+    the same day through claude.ai's Product Support chat, Get help →
+    Send us a message, and passed to a human agent, who answers by
+    email; waiting). Not contact sales: its form wants a company, and
+    sales now only takes large deals. Both messages are drafted in the dev log (2026-10-27-anthropic-questions, refreshed
+    against the docs and terms that day; they replace the
+    2026-10-02-terms-steam drafts); if they wait long, recheck the
+    contacts and terms before sending. The routes: the terms questions
+    (is the subscription use fine, free and paid; is the Commercial
+    Terms step the right one) and asking for an official-marketplace
+    listing for our channel go by email through the contact-sales form,
+    which the legal page names for "questions about permitted
+    authentication methods" and which is where a partner contact comes
+    from. The channel-flag question (Channels are a research preview,
+    in NOTES.md → Watch items) goes as a public issue on
     anthropics/claude-code,
     where the channels docs ask for feedback; no terms questions there.
     Other contacts found: support@anthropic.com (account help, not
