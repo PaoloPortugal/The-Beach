@@ -1180,9 +1180,10 @@ It keeps things private and safe:
   runs and how to reach it, never what's said), so the session can come
   back after a restart; the folder goes when the session ends.
 
-If the sidecar is slow to start or stops while starting, the game tries
-again on its own, up to three times in all, giving it longer each time
-(the first start after installing or rebooting can be slow). Only if the
+If the sidecar is slow to start, stops while starting, or the game
+can't connect to it, the game tries again on its own: three tries in
+all, giving it longer each time (a first start after installing or
+rebooting may be slow). Only if the
 last try fails too does the game give up; that can take up to about
 two minutes. If the sidecar file is missing, or doesn't match the game's
 version, the game gives up at once, since trying again wouldn't help. If

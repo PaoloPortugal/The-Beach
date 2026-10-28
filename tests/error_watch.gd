@@ -5,6 +5,8 @@ extends Logger
 ## caller carries on), so without this a suite could print PASS with checks
 ## skipped. On the first error it quits with 1 at once; the suite's PASS
 ## line checks `ok()` too, for an error in a suite's last, synchronous steps.
+## A check that logs an error on purpose calls `expect(text)` first; `ok()`
+## fails if an expected error never came.
 ##
 ##   const ErrorWatch := preload("res://tests/error_watch.gd")
 ##   var _errors := ErrorWatch.new(self)
@@ -58,12 +60,16 @@ func expect(text: String) -> void:
 	_mutex.unlock()
 
 
-## False if an error was logged.
+## False if an error was logged, or an expected one never was (so a
+## leftover can't hide a later real error).
 func ok() -> bool:
 	_mutex.lock()
 	var count := _count
+	var left := _expected.duplicate()
 	_mutex.unlock()
-	return count == 0
+	if not left.is_empty():
+		printerr("FAIL an expected error was never logged: %s" % ", ".join(left))
+	return count == 0 and left.is_empty()
 
 
 func _log_error(_function: String, _file: String, _line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
