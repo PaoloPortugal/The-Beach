@@ -3313,7 +3313,7 @@ func _fish_species() -> void:
 
 # D01: the fight on its own, stepped at 60 frames a second: how the
 # strain, the rod and the line answer, the ways a fish is lost, and
-# whole fights by three ways of playing, with fixed seeds.
+# whole fights by four ways of playing, with fixed seeds.
 func _fish_fight() -> void:
 	var dt := 1.0 / 60.0
 	# A fresh fish [param dist] metres out, the line taut unless [param slack].
@@ -3575,7 +3575,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	_check(fishing.state == Fishing.State.BITE and hud.bite_mark() and fishing._splash.visible, "D01: it comes, nibbles and bites: the \"!\" and the splash")
 	fishing.wait = Vector2(0.2, 0.3)
 	# The click on the bite hooks it, and held, reels: the fight. The
-	# mouse moves the rod, not the view.
+	# mouse moves the rod, and the view turns with it.
 	_mouse_left(true)
 	await _settle()
 	_check(fishing.state == Fishing.State.FIGHT and fishing.reeling and player.look_held and world.attention.busy.call() and caught.is_empty() and not hud.bite_mark(), "D01: a click on the bite hooks it: the fight, reeling while held, the view held (%s)" % Fishing.State.keys()[fishing.state])
@@ -3647,7 +3647,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	drop = fishing.catches.entry("drop_off_fish")
 	_check(drop["count"] == 2 and drop["biggest_cm"] == maxi(caught[1][1], caught[2][1]) and not caught[2][2] and not hud.card_text().ends_with("New"), "D01: a second catch counts, keeps the biggest, not New")
 
-	# Lost in a fight: held into a hard run, the line snaps; let go while it
+	# Lost in a fight: held into a hard pull straight away, the line snaps; let go while it
 	# swims at you, the hook slips; leaving lets it go.
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
@@ -3664,7 +3664,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 		shook["seen"] = shook["seen"] or (fishing.fighting() and absf(camera.h_offset) + absf(camera.v_offset) > 0.0)
 		return fishing.state != Fishing.State.FIGHT, 5.0)
 	_mouse_left(false)
-	_check(fishing.state == Fishing.State.IDLE and hud.said() == "The line snapped" and not player.look_held and camera.h_offset == 0.0 and camera.v_offset == 0.0 and shook["seen"] and caught.size() == 3, "D01: reeled into a hard run, the view shakes, then the line snaps and the bobber's gone (%s, \"%s\")" % [Fishing.State.keys()[fishing.state], hud.said()])
+	_check(fishing.state == Fishing.State.IDLE and hud.said() == "The line snapped" and not player.look_held and camera.h_offset == 0.0 and camera.v_offset == 0.0 and shook["seen"] and caught.size() == 3, "D01: reeled into a hard pull straight away, the view shakes, then the line snaps and the bobber's gone (%s, \"%s\")" % [Fishing.State.keys()[fishing.state], hud.said()])
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)

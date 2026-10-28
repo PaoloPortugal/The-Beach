@@ -5735,7 +5735,8 @@ shadows.
   the rod's tip, the line pulls it back. It pays out up to 30 m
   (`max_line`, a variable for the tests) as you walk; past it the
   bobber is dragged, and a dragged bobber scares off the fish on the
-  line. Resting, it has 0.6 m of slack (`SLACK`). The line pulls
+  line (in a fight the fish is towed instead, or takes line until it
+  snaps: The fight, below). Resting, it has 0.6 m of slack (`SLACK`). The line pulls
   level, toward the point under the tip, so it doesn't lift the bobber,
   except one snagged in the water (below). Holding the click shortens it 4 m/s
   (`REEL_SPEED`), never below the drop from the tip: the bobber is
@@ -5765,7 +5766,7 @@ shadows.
   `size_for`, the range eased so big fish are rarer (roll to the power
   1.6). Placeholders: Shallows fish 12-30 cm (pull 0.5, stamina 4 s,
   temper 0.7), Drop-off fish 25-60 cm (0.85, 9 s, 0.5), Open sea fish
-  40-120 cm (1.05, 22 s, 0.4), each in its one water, anywhere, any
+  40-120 cm (1.2, 26 s, 0.4), each in its one water, anywhere, any
   time.
 - *A bite:* only to a bobber resting in the water, placed each frame at
   the waves' height (not moved by the physics while it rests). After a
@@ -5871,7 +5872,8 @@ shadows.
   the middle while a fish bites; a short line under it for 2 s; the
   catch card at a quarter of the way down for 3.5 s, "You caught a
   Drop-off fish!" over "34 cm", and "New" in gold on a species' first.
-  The line and card fade out over 0.4 s.
+  The line and card fade out over 0.4 s. In a fight, the arrow (The
+  fight → The arrow).
 - *The catches* (`CatchLog`, `world/fishing/catch_log.gd`):
   `user://catches.json`, `{"version": 1, "species": {id: {"count",
   "biggest_cm", "first": {"at", "biome", "water"}}}}`: "at" the local
@@ -5917,8 +5919,8 @@ drop-off (17-27 m); a full charge 30° up held at the line's longest,
 resting in the water within `max_line`; a tap sideways off the longest
 bridge's side, mid-span, over its rails into the water; the bobber on
 the waves; the card and New; a
-second catch not New, the biggest kept; held into a hard run the view
-shakes and the line snaps; let go while it swims at you the hook slips;
+second catch not New, the biggest kept; held into a hard pull straight away
+the view shakes and the line snaps; let go while it swims at you the hook slips;
 switching tool mid-fight lets it go and gives the view back; a nibble clicked scares it off
 and reels; reeling drags it nearer through the water, never more than
 0.15 m above it; letting go stops reeling, and it rests and waits again; a
