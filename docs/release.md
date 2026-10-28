@@ -85,7 +85,9 @@ of these is decided or done, and reread it before a release.
     so plainly also heads off refunds.
   - *Licences:* MIT allows selling builds. Every asset and dependency
     must allow commercial use (CC0 Kenney packs do; the placeholder
-    Godot icon, CC BY, is replaced before release; `assets/CREDITS.md`).
+    Godot icon, CC BY, is replaced before release; Godot's logo on the
+    opening, C17, CC BY, ships, credited in the main menu's Credits;
+    `assets/CREDITS.md`).
   - *Linux sandboxing:* native Linux games may run inside the Steam Linux
     Runtime container, and Flatpak installs of Steam are sandboxed; either
     may stop the game from seeing or starting the user's terminal and
@@ -135,5 +137,13 @@ of these is decided or done, and reread it before a release.
   it with `--checklist`, but it shouldn't ship (user's, M1 review).
 - **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
   placeholder to replace.
+- **`assets/opening/godot_logo.png`** (C17) is Godot's logo (CC BY 4.0)
+  and ships: its attribution reaches players through the main menu's
+  Credits, which reads `assets/CREDITS.md`, so the export presets must
+  include that file (C14 says so too).
+- **`assets/opening/moofys_logo.png`** is the user's own logo. Before
+  the repo is public, say whether it falls under the MIT licence or is
+  excluded (one line in LICENSE or the README; security review,
+  2026-10-28).
 - **Before making the repo public:** re-run the history scan for secrets,
   personal data and machine paths (dev log 2026-09-29-privacy-check).

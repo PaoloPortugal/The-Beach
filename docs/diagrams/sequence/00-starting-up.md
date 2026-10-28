@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S01, S07, S08, S02, C14). NOTES.md → S01, S07, S08, S02 → The program set by hand, C14, Protocol and Architecture → Security rules.
+> **Status:** Built (S01, S07, S08, S02, C14, C17). NOTES.md → S01, S07, S08, S02 → The program set by hand, C14, C17, Protocol and Architecture → Security rules.
 
 ```mermaid
 sequenceDiagram
@@ -52,8 +52,11 @@ sequenceDiagram
 ```
 
 Meanwhile the game shows the main menu over the world (C14; S07's
-loading cover before it, now unused), and Play isn't held back for
-the sync. Islands of sessions taken back wait for the first
+loading cover before it, now unused), under the opening (C17): the
+logos for at least 2.5 s, then a bar naming the stage until
+`sync.completed` and, if sessions came back, the first island starting
+to rise (at most 5 s after the sync), so the menu shows once the
+start has synced; Play itself never waits. Islands of sessions taken back wait for the first
 `sync.completed`, then come back as they were, from the game's
 `islands.json` (W12, [flow 14](14-reattach-after-restart.md)), rising
 behind the menu once each one's ground is made on a worker thread.

@@ -53,7 +53,7 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 
 | # | Flow | Features |
 |---|------|----------|
-| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07, S08, S02, C14 |
+| 0 | [Starting up](diagrams/sequence/00-starting-up.md) | S01, S07, S08, S02, C14, C17 |
 | 1 | [Create a session](diagrams/sequence/01-create-a-session.md) | S02, S03, C12 |
 | 2 | [A chat turn](diagrams/sequence/02-chat-turn.md) | S02, C02 |
 | 3 | [A permission prompt](diagrams/sequence/03-permission-prompt.md) | S02, C05 |
