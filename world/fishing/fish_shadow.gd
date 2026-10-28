@@ -17,7 +17,7 @@ const GROW := 0.6
 ## How fast it turns toward where it swims, radians/s, and how fast it
 ## rises or sinks, m/s.
 const TURN := 5.0
-const RISE := 3.0
+const RISE := 6.0
 
 static var _mesh: ArrayMesh
 

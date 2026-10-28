@@ -34,8 +34,9 @@ signal caught(id: String, size_cm: int, first: bool)
 
 ## OUT: the bobber is out but not resting in the water (flying is
 ## CASTING): on land, rolling, being reeled or dragged. Nothing comes.
-## FIGHT: a fish on the hook.
-enum State { IDLE, CHARGING, CASTING, OUT, WAITING, APPROACH, NIBBLE, BITE, FIGHT }
+## FIGHT: a fish on the hook. LANDING: won, it's pulled out of the
+## water, then caught.
+enum State { IDLE, CHARGING, CASTING, OUT, WAITING, APPROACH, NIBBLE, BITE, FIGHT, LANDING }
 
 ## Seconds to fill the meter; the throw's speed, m/s, from a tap to a
 ## full meter (about 4 m and 22 m over flat water at eye level), and how
@@ -126,11 +127,10 @@ const ROD_SWING := 30.0
 ## trembles and the view shakes, and the most it shakes, metres.
 const ROD_MOUSE := 2.0
 const VIEW_SWING := 25.0
-## In a fight, near the rod the fish is pulled out of the water: from
-## LIFT_FROM metres off (seen from above) to LIFT_TO, the bobber rises
-## to HANG metres under the rod's tip, the fish hanging under it.
-const LIFT_FROM := 4.5
-const LIFT_TO := 2.0
+## The fight won, the fish is pulled out of the water over LAND_TIME
+## seconds, the bobber rising to HANG metres under the rod's tip, the
+## fish hanging under it; then it's caught.
+const LAND_TIME := 0.8
 const HANG := 0.6
 ## On a run: how far the fish rises toward the surface, metres, and its
 ## spray, a ring every SPRAY_EVERY seconds where it swims, each spreading
@@ -201,7 +201,8 @@ var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
 var _splash_age := INF
 var _view_rod := 0.0 # the rod's tip the view was last turned with, in a fight
-var _pulled_up := 0.0 # how far the bobber is pulled up out of the water, metres
+var _land_from := Vector3.ZERO # where the bobber was when the fight was won
+var _land_age := 0.0
 var _sprays: Array[MeshInstance3D] = [] # a run's rings, oldest first
 var _spray_ages: Array[float] = []
 var _spray_timer := 0.0
@@ -268,9 +269,9 @@ func reel_in() -> void:
 	_end()
 
 
-## Whether a fish is on the hook.
+## Whether a fish is on the hook (or being pulled out).
 func fighting() -> bool:
-	return state == State.FIGHT
+	return state == State.FIGHT or state == State.LANDING
 
 
 ## Whether the bobber is out (flying, on land, in the water).
@@ -335,7 +336,9 @@ func _process(delta: float) -> void:
 	_splash_age += delta
 	_clock += delta
 	if state == State.IDLE or _left():
-		if state != State.IDLE:
+		if state == State.LANDING:
+			_catch() # already won
+		elif state != State.IDLE:
 			reel_in()
 		_place_splash()
 		_place_sprays(delta)
@@ -377,10 +380,12 @@ func _process(delta: float) -> void:
 				_back_to_waiting()
 		State.FIGHT:
 			_fight_step(delta)
+		State.LANDING:
+			_land_step(delta)
 	if state != State.BITE and state != State.FIGHT:
 		_dip = move_toward(_dip, 0.0, DIP_BACK * delta)
 	if _floating():
-		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip + _pulled_up, target.z)
+		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip, target.z)
 	if bobber_out():
 		_draw_line()
 	_place_splash()
@@ -433,7 +438,7 @@ func _move_bobber(delta: float) -> void:
 	if dist > max_line + LOST:
 		reel_in()
 		return
-	if state == State.FIGHT:
+	if state == State.FIGHT or state == State.LANDING:
 		return # the fight moves it
 	if _floating():
 		if dist > max_line:
@@ -572,7 +577,7 @@ func _fish_comes() -> void:
 
 
 # Hooked: the fight starts, the click held reeling it in, the view held
-# so the mouse moves the rod.
+# so the mouse moves the rod, and you kept where you stand.
 func _hook() -> void:
 	_size_cm = FishSpecies.size_for(_species, rng.randf())
 	var tip := _tip.global_position
@@ -584,6 +589,7 @@ func _hook() -> void:
 	state = State.FIGHT
 	reeling = true
 	player.look_held = true
+	player.move_held = true
 	_view_rod = 0.0
 
 
@@ -597,16 +603,10 @@ func _fight_step(delta: float) -> void:
 	fight.step(delta, Vector2(tip.x, tip.z), reeling)
 	target = Vector3(fight.fish.x, Player.WATER_Y, fight.fish.y)
 	_dip = FIGHT_DIP
-	# Near the rod it's pulled up out of the water, hanging from the line.
-	var flat := Vector2(target.x - tip.x, target.z - tip.z).length()
-	var out := clampf((LIFT_FROM - flat) / (LIFT_FROM - LIFT_TO), 0.0, 1.0)
-	out = out * out * (3.0 - 2.0 * out)
-	_pulled_up = maxf(tip.y - HANG - (ocean.height_at(target.x, target.z) - FIGHT_DIP), 0.0) * out
 	line_length = tip.distance_to(_bobber.global_position) + fight.slack(Vector2(tip.x, tip.z))
 	if is_instance_valid(_fish):
 		_fish.swim_to(target, FishFight.SPEED * 4.0)
-		_fish.raised = lerpf(RUN_RISE if fight.running else 0.0, _pulled_up + FishShadow.DEPTH - FIGHT_DIP - 0.1, out)
-		_fish.hang = out
+		_fish.raised = RUN_RISE if fight.running else 0.0
 	if fight.ran:
 		fight.ran = false
 		_splash_age = 0.0
@@ -635,7 +635,9 @@ func _fight_step(delta: float) -> void:
 	camera.v_offset = rng.randf_range(-shake, shake)
 	match fight.outcome:
 		"landed":
-			_catch()
+			state = State.LANDING
+			_land_from = _bobber.global_position
+			_land_age = 0.0
 		"snapped":
 			hud.say("The line snapped")
 			_lose_fish(true)
@@ -644,6 +646,28 @@ func _fight_step(delta: float) -> void:
 			hud.say("It slipped off the hook")
 			_lose_fish(true)
 			_to_out()
+
+
+# Won: the fish pulled up out of the water to hang from the rod's tip,
+# then caught.
+func _land_step(delta: float) -> void:
+	_land_age += delta
+	var t := clampf(_land_age / LAND_TIME, 0.0, 1.0)
+	var eased := t * t * (3.0 - 2.0 * t)
+	var tip := _tip.global_position
+	var at := _land_from.lerp(tip + Vector3.DOWN * HANG, eased)
+	_bobber.global_position = at
+	line_length = tip.distance_to(at)
+	target = Vector3(at.x, Player.WATER_Y, at.z)
+	if is_instance_valid(_fish):
+		_fish.swim_to(target, 20.0)
+		_fish.raised = at.y - 0.1 + FishShadow.DEPTH - Player.WATER_Y
+		_fish.hang = eased
+	var camera := player.get_node("Head/Camera3D") as Camera3D
+	camera.h_offset = 0.0
+	camera.v_offset = 0.0
+	if t >= 1.0:
+		_catch()
 
 
 func _catch() -> void:
@@ -662,8 +686,8 @@ func _stop_fight() -> void:
 	if fight == null:
 		return
 	fight = null
-	_pulled_up = 0.0
 	player.look_held = false
+	player.move_held = false
 	var camera := player.get_node("Head/Camera3D") as Camera3D
 	camera.h_offset = 0.0
 	camera.v_offset = 0.0

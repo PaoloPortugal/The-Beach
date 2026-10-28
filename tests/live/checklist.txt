@@ -42,21 +42,23 @@ PgDn/PgUp scroll this.
    and "It slipped off the
    hook" after a couple of
    seconds?
-6. Walk away while reeling
-   a fresh drop-off fish:
-   the line strains and
-   snaps? A tired small
-   fish tows fine?
+6. In a fight, WASD,
+   Space and Ctrl do
+   nothing: you stay put
+   until it's caught or
+   lost?
 7. Land fish of each water:
    shallows ~10 s,
    drop-off ~20-30 s, open
    sea (deep water, e.g. off
    a long bridge's middle)
    ~40 s? Too easy, too
-   hard, too long? Near
-   you, the fish is pulled
-   up out of the water,
-   hanging from the line?
+   hard, too long? Not
+   lifted while reeled;
+   won, it's pulled up out
+   of the water, hanging
+   from the line, then the
+   card?
 8. Mid-fight press 1, open
    the map (M), or Esc: the
    fish goes, the mouse
