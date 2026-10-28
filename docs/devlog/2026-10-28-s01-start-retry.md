@@ -138,9 +138,9 @@ choice: the sidecar keeps each session's id.
 - A session started outside the game (S08) has no run folder: its id is
   `derivedId(provider, native_id)`, a version-8 UUID from SHA-256 of
   both, the same on every run. Not a secret: `native_id` is in the
-  snapshot already, and no protocol id is a credential (NOTES →
-  Security rules). Hashed rather than used as is so every id looks the
-  same and two providers can't collide. An outside session that
+  snapshot already, and an id opens nothing: every connection needs its
+  token (NOTES → Security rules → Authenticate every connection).
+  Hashed rather than used as is so every id looks the same and two providers can't collide. An outside session that
   switched conversations since its island came up gets a different id
   at the restart (sinks and rises again); left as is.
 - The registry refuses an id already in use: that session isn't taken
@@ -160,8 +160,10 @@ choice: the sidecar keeps each session's id.
 
 `tests/core/sidecar_client_test.gd`: the restart on the real sidecar
 (killed in play: synced again, a new process; killed again soon after:
-the next attempt) and on the dev fake one killed each time it's up
-(failed once, after three). `tests/world/world_test.gd` (`_sidecar_lost`
+the next attempt; a reconnect failing at once while it still runs,
+from the security review: the old process ended before the new one
+appears, ready, no `failed`) and on the dev fake one killed each time
+it's up (failed once, after three). `tests/world/world_test.gd` (`_sidecar_lost`
 on stand-in clients: the message box and quit at a failed first start,
 the notice, Quit through the quit guard, Back to the game; and
 `_restart_chat`: each loaded chat fetched again once, an empty history
@@ -172,3 +174,9 @@ session, an old folder's new id written back, one in use refused, a bad
 resync with the same ids removes and adds nothing and keeps the chat.
 The dev fake has no reattach, so Godot's side is on stand-ins; the
 live checklist has the real restart (kill the sidecar in Task Manager).
+
+Review follow-ups: a restart opens the hook-port gap (Security rules →
+Known gap) for the moment between the old sidecar's death and the new
+one's bind; written down, not closed. Not built (the user's call):
+clearing open cards as soon as `restarting` fires, rather than at the
+resync.
