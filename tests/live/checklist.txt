@@ -11,43 +11,45 @@ PgDn/PgUp scroll this.
    bite, click and keep
    holding: the fight starts
    and the fish comes in?
-2. In a fight, move the
-   mouse: the rod's tip
-   swings, the view stays
-   put? The fish drags the
-   tip to its side, and
-   pushing back feels like
-   holding against it?
-3. The rod bends more the
-   harder it pulls? Near
-   the limit the line goes
-   straight and trembles,
-   and the view shakes a
-   little? Readable enough
-   without a bar?
-4. The shadow and the
-   pulled-under bobber show
-   where the fish is, with
-   a splash as it turns?
-   The view drifts after it
-   when it swims far to a
-   side?
-5. Reel hard into a run
-   (from the platform, the
-   drop-off): "The line
-   snapped"? Let go when it
-   runs, and it's fine?
-6. Let go while it swims at
+2. In a fight, the fish
+   drags the rod's tip to
+   its side and the view
+   turns with it? An arrow
+   by the crosshair points
+   the other way; push the
+   mouse that way: the rod
+   and view come back and
+   the arrow fades?
+3. Hold the rod against
+   it: the fish turns and
+   comes in, clearly faster
+   than leaving the rod be?
+4. Runs: a splash, the rod
+   jerks, it pulls hard.
+   Keep reeling: "The line
+   snapped"? Let go: it
+   takes line, stays on,
+   and tires? Readable
+   enough (the rod bends,
+   the line trembles near
+   the limit, the view
+   shakes a little)?
+5. Let go while it swims at
    you: the line goes slack
    and "It slipped off the
    hook" after a couple of
    seconds?
+6. Walk away while reeling
+   a fresh drop-off fish:
+   the line strains and
+   snaps? A tired small
+   fish tows fine?
 7. Land fish of each water:
    shallows a few seconds,
    drop-off ~15 s, open sea
    (deep water, e.g. off a
    long bridge's middle)
-   ~30 s? Too easy, too
+   ~20-30 s? Too easy, too
    hard, too long?
 8. Mid-fight press 1, open
    the map (M), or Esc: the
