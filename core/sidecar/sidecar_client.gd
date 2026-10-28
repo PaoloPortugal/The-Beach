@@ -65,6 +65,8 @@ var status: Status = Status.STOPPED
 ## Whether a start ever got as far as synced. The world quits if the first
 ## start fails, but only tells the player to quit after one in play does.
 var has_synced := false
+## Why it failed, for the player (the last [signal failed]'s reason).
+var failure := ""
 ## The providers from hello: [code]{provider, name, launch_options,
 ## capabilities, notices, program}[/code], their notices and program kept
 ## up from [code]provider.notice[/code] and [code]provider.program[/code].
@@ -637,6 +639,7 @@ func _drop_pending() -> void:
 
 func _fail(reason: String) -> void:
 	push_error("Sidecar: " + reason)
+	failure = reason
 	status = Status.FAILED
 	failed.emit(reason)
 	stop()

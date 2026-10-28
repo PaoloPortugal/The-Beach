@@ -18,6 +18,8 @@ extends Node3D
 var store := SessionStore.new()
 ## Asks before quitting while sessions run.
 var quit_guard := QuitGuard.new()
+## Quits, or says to, when the sidecar can't be started (S01).
+var sidecar_lost := SidecarLost.new()
 ## Says when sessions wait on you (A05; the beacons are on the agents).
 var attention := Attention.new()
 ## Points to new sessions' islands while they're off-screen (W04).
@@ -98,6 +100,9 @@ func _ready() -> void:
 	_menu.ring.islands = _islands
 	add_child(quit_guard)
 	quit_guard.setup(store, _player)
+	sidecar_lost.name = "SidecarLost"
+	add_child(sidecar_lost)
+	sidecar_lost.setup(Sidecar, quit_guard, _player)
 	add_child(attention)
 	attention.setup(store)
 	add_child(usage_limits)
