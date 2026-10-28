@@ -19,6 +19,7 @@ var sidecar: SidecarClient
 var _open: Orchestrator = null
 var _bubbles := {} # session id → MessageBubble
 var _history := {} # session id → "asking" or "loaded"
+var _restarted := false # the sidecar is starting again (S01): its sync reloads the chats
 
 @onready var _panel: ChatPanel = $Prompt/Panel
 
@@ -45,6 +46,16 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store.session_changed.connect(func(id: String, fields: Array) -> void:
 		if "native_id" in fields:
 			_reload_history(id))
+	# A restart keeps the sessions' ids (S01 -> Restart), so their chats
+	# stay, but what was said while the sidecar was down only the new one
+	# has, read from the transcript: each loaded chat is fetched again.
+	sidecar.restarting.connect(func(_reason: String) -> void:
+		_restarted = true)
+	store.synced.connect(_on_synced)
+	# An id can come back after its session ended (S08's made from Claude's,
+	# listed again): its chat is fetched anew then.
+	store.session_removed.connect(func(id: String, _reason: String) -> void:
+		_history.erase(id))
 
 
 func watch(orchestrator: Orchestrator) -> void:
@@ -78,7 +89,10 @@ func bubble(session_id: String) -> MessageBubble:
 
 # An orchestrator left the world (its session ended).
 func _forget(orchestrator: Orchestrator) -> void:
-	_bubbles.erase(orchestrator.session_id)
+	# Not a newer orchestrator's of the same id (S08: listed again).
+	var bubble: MessageBubble = _bubbles.get(orchestrator.session_id)
+	if bubble != null and bubble.get_parent() == orchestrator:
+		_bubbles.erase(orchestrator.session_id)
 	if _open == orchestrator:
 		close()
 
@@ -134,6 +148,28 @@ func _reload_history(id: String) -> void:
 		if reply.get("type") == "ok":
 			_history[id] = "loaded"
 			store.replace_history(id, reply["result"]["messages"], reply["result"].get("tools", [])))
+
+
+func _on_synced() -> void:
+	if not _restarted:
+		return
+	_restarted = false
+	for id: String in _history.keys():
+		if _history[id] == "loaded" and not store.session(id).is_empty():
+			_reload_after_restart(id)
+
+
+# Like a switch of conversation, ours is replaced, except what arrives from
+# now on; an empty history (transcripts off, S02) keeps ours instead.
+func _reload_after_restart(id: String) -> void:
+	store.begin_chat_replace(id)
+	var sent := sidecar.send_command("session.get_history", {"session": id}, func(reply: Dictionary) -> void:
+		if reply.get("type") == "ok" and not reply["result"]["messages"].is_empty():
+			store.replace_history(id, reply["result"]["messages"], reply["result"].get("tools", []))
+		else:
+			store.keep_chat(id))
+	if sent.is_empty():
+		store.keep_chat(id)
 
 
 ## Whether a session's chat history has been loaded.

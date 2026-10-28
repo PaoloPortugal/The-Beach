@@ -6,6 +6,8 @@ project's author, or CC0 (e.g. Kenney). Never AI-generated.
 | File | Source | Author | License | Notes |
 |------|--------|--------|---------|-------|
 | `assets/audio/attention.ogg` | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds), `question_002.ogg` | Kenney | CC0 | A05's chime. Picked by the user. |
+| `assets/opening/moofys_logo.png` | The developer's logo, given by the user (2026-10-28) | moofys (the user) | All rights reserved (the user's own) | C17's opening. Saved at its native 32×32 from the user's 480×480 (15× blocks; checked lossless). |
+| `assets/opening/godot_logo.png` | [Godot press kit](https://godotengine.org/press/), `logo_large_color_light.png` | Andrea Calabró (Godot logo) | CC BY 4.0 | C17's opening, "Made with" Godot. Not CC0, but Godot's own logo: kept, credited here. |
 | `icon.svg` (repo root) | Godot default project icon | Andrea Calabró (Godot logo) | CC BY 4.0 | Placeholder. Not CC0; replace before release. |
 
 ## Shaders and code-generated visuals
@@ -37,6 +39,7 @@ Every new one Claude writes or rewrites gets a row.
 | `world/minimap.gd`, `world/world_map.gd` | Claude (Claude Code) | Placeholder maps drawn in code (W06, 2026-10-07). |
 | `world/island/read_only_flag.gd` | Claude (Claude Code) | Placeholder read-only mark (S08, 2026-10-22): a grey pennant on a pole from a cylinder and a prism, swaying a little. AI-made (written by Claude), not art by the user or CC0; replace with real art. |
 | `Minimap.draw_read_only` in `world/minimap.gd` | Claude (Claude Code) | Placeholder read-only mark on the minimap and big map (S08, 2026-10-23): a little grey flag drawn from lines. AI-made (written by Claude), not art by the user or CC0; replace with real art. |
+| `world/opening.gd` | Claude (Claude Code) | The opening's card drawn in code (C17, 2026-10-28): a sand background, the bar (two rounded boxes) and its text in Godot's fallback font. The logos are the user's and Godot's (above). |
 | `world/crosshair.gd` | Claude (Claude Code) | The crosshair drawn in code (C11, 2026-10-12): a white ring with a dark outline that grows on what you can use, and the hint under it in Godot's fallback font. |
 | `world/hotbar.gd` | Claude (Claude Code) | The hotbar drawn in code (C15, 2026-10-27, placeholder): a row of see-through dark squares at the bottom, the held one outlined in white, each with its number and its tool's name in Godot's fallback font. |
 | `world/fishing/fishing.gd` | Claude (Claude Code) | Placeholder rod, bobber, line and splash (D01, 2026-10-27): a brown tapering cylinder for the rod (in four pieces since the fight, the same day, bending at their joints with the line's strain), a red ball with a white top for the bobber (a rolling physics ball since round 2, the same day), a 1-pixel strip from the rod's tip for the line, and a flat white ring from a torus for the bite's splash (round 2), and the same rings repeated as a run's spray (2026-10-28), from primitives; in a fight the line trembles near its limit (the fight, the same day). AI-made (written by Claude), not art by the user or CC0; replace with real art. |

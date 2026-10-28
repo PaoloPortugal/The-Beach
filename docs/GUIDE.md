@@ -6,6 +6,7 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
+- [The opening (C17)](#the-opening-c17)
 - [The main menu (C14)](#the-main-menu-c14)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
@@ -43,8 +44,8 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: the game opens on the main menu (below); click **Play** and
-you arrive on a wooden platform in the open sea. Hold Tab and click
+press F5: the game opens on its opening, then the main menu (below);
+click **Play** and you arrive on a wooden platform in the open sea. Hold Tab and click
 the + to start a session.
 
 The game picks its graphics mode by itself. If it won't start or looks
@@ -52,15 +53,30 @@ wrong, you can force the simpler mode by starting it with
 `--rendering-method gl_compatibility`; it looks nearly the same, but
 without the sun's shadows.
 
+## The opening (C17)
+
+The game starts on a card with the developer's logo and name, moofys,
+and "Made with" Godot's logo along the bottom. It stays a couple of
+seconds while the game starts behind it. If the start takes longer, a
+bar under the name says what it's doing: starting the sidecar (and
+which try, if it has to try again), finding your sessions, bringing up
+their islands. Once the game is ready, and the first island of a
+session that came back is rising, the card fades into the main menu.
+It never waits on an island for more than a few seconds.
+
+Press any key or click to skip the card: you go straight to the main
+menu if the game is ready, or to the bar if not. Closing the window
+works as usual (see Quitting the game (S05)).
+
 ## The main menu (C14)
 
-The game opens on the main menu, titled "The Beach" (a working name).
-Behind it the world is already there, dimmed, and the view circles
+After the opening, the game shows the main menu, titled "The Beach"
+(a working name). Behind it the world is already there, dimmed, and the view circles
 slowly high above the islands; sessions come back and their islands
 rise while you're on it.
 
 - **Play** takes you in: the view glides down to your character, and
-  you can move once it's there. You never wait for anything first; an
+  you can move once it's there. Play itself never makes you wait; an
   island still coming back may rise a moment later. If the island you
   stood on sank while you were on the menu (its session ended), Play
   puts you on the platform.
@@ -1180,9 +1196,26 @@ It keeps things private and safe:
   runs and how to reach it, never what's said), so the session can come
   back after a restart; the folder goes when the session ends.
 
-If the sidecar can't start or stops unexpectedly, the game notices; for
-now that only shows in the game's log, and a message on screen comes with
-the world. The sidecar file ships next to the game's own executable;
+If the sidecar is slow to start, stops while starting, or the game
+can't connect to it, the game tries again on its own: three tries in
+all, giving it longer each time (a first start after installing or
+rebooting may be slow). Only if the
+last try fails too does the game give up; that can take up to about
+two minutes. If the sidecar file is missing, or doesn't match the game's
+version, the game gives up at once, since trying again wouldn't help.
+
+The game can't run without the sidecar. If it can't start when you
+launch the game, a message says why and the game closes; try starting
+it again. If the sidecar stops while you play, the game starts it again
+on its own and your sessions come back as they were: their islands
+stay where they are, and an open chat stays open, with anything said
+while the sidecar was down (when Claude Code saves transcripts). One
+exception: a session started outside the game that you `/clear`ed or
+`/resume`d since its island rose comes back as a new island. A
+prompt or question that was waiting moves to its terminal. If it can't be started
+again, a notice covers the world and asks you to quit: your sessions
+keep running in their terminals and come back when you start the game
+again. The sidecar file ships next to the game's own executable;
 reinstalling the game restores it if it goes missing.
 
 ## Claude Code sessions (S02)

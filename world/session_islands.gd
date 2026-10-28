@@ -27,6 +27,9 @@ extends Node3D
 ## hidden past [member draw_distance] ([DrawDistance]).
 
 signal island_added(session_id: String, island: Island, orchestrator: Orchestrator)
+## An island starts rising, its ground made (C17's opening waits for
+## the first).
+signal island_rising(session_id: String)
 ## A new session's island is up (at once for one already running).
 signal island_risen(session_id: String)
 
@@ -396,6 +399,7 @@ func _rise(id: String, i: Island) -> void:
 		_bridge(id)
 		island_risen.emit(id))
 	_rising[id] = tween
+	island_rising.emit(id)
 
 
 func _on_removed(id: String, reason: String) -> void:

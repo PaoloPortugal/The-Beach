@@ -121,7 +121,8 @@ slice.
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
 | C16 | Multi-language support                    | designed | —            | — |
-| S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/` |
+| C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
+| S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
 | S04 | List and resume stored sessions           | built   | S03           | `sidecar/src/providers/claude/store.ts`, `sidecar/src/providers/claude/running.ts`, `world/sessions_menu/` |
@@ -348,7 +349,9 @@ feature that touches them follows these rules, and each is tested:
   ending the sessions does, which is why the quit warning says so (S05,
   with S07). If that program still holds the port when the game starts
   again, the gap stays open while the game runs: the session comes back
-  read-only (S07), and its hooks keep going to that program. The
+  read-only (S07), and its hooks keep going to that program. A restart
+  in play (S01 → Restart) opens the same gap for the moment between the
+  old sidecar's death and the new one's bind. The
   bridge has no such gap: a gone sidecar's token is never offered again,
   and the bridge trusts only a sidecar whose `welcome` carries the
   proof from its own bridge file (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
@@ -542,7 +545,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `opening.gd` (C17: the logos and the bar at start), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -746,7 +749,11 @@ first; a `history_tool` is a tool call with its `status`, `result`,
 with the answer. An event whose `seq` is not above the last one Godot
 has for that session (e.g. from a snapshot) is stale and ignored.
 
-**IDs.** The sidecar makes an opaque `session` ID. The provider's own ID
+**IDs.** The sidecar makes an opaque `session` ID; a session still
+running keeps it when the sidecar starts again (S01 → Restart, S07,
+S08), except an outside session (S08) that switched conversations
+(`/clear`, `/resume`) since its island rose: it comes back under a new
+ID. The provider's own ID
 (e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
 `app` (started here) or `external` (started elsewhere and only watched,
 always `read_only`: S08, 2026-10-22). Agents are keyed by
@@ -2681,7 +2688,9 @@ all of it, so markup in a message shows as written (tested with an injected
 - **History:** the chat so far isn't in the snapshot, so the controller
   asks for `session.get_history` once per session when its orchestrator
   appears (this also fills the bubble). If that fails (an error, or no
-  connection), opening the chat asks again. An older message arriving lays the
+  connection), opening the chat asks again. After a sidecar restart,
+  each chat already loaded is asked for again and replaces ours,
+  keeping what arrived since (S01 → Restart). An older message arriving lays the
   panel out again once, deferred, for the whole batch.
 
 Pending permission prompts and questions show on a card between the
@@ -3653,7 +3662,10 @@ by the user; the ID and scope are my pick):*
   is still starting, the camera eases down straight away and islands
   still to come rise as they arrive, so S07's "standing from
   the first frame" doesn't hold for that start (rejected: Play waiting
-  for the sync, my recommendation, or greyed until it).
+  for the sync, my recommendation, or greyed until it). *Changed by C17
+  (user's, 2026-10-28):* the opening covers the menu until the sync
+  and the first island's rise, so Play is held back in practice; once
+  the opening has lifted, Play still never waits.
 - **Credits:** `assets/CREDITS.md` as it is, read when opened and drawn
   with the chat's Markdown renderer (C03) in a scrolling panel with
   Back, then "Made with Godot Engine" with the engine's own copyright
@@ -3688,7 +3700,8 @@ by the user; the ID and scope are my pick):*
   and its panel style, titled `MainMenu.TITLE` ("The Beach", the one
   place in code: Conventions → Renaming the project), with **Play**,
   **Settings**, **Credits** and **Quit**. `world.gd` opens it at the
-  end of `_ready` (`open_at_start`), where the loading cover was. Open,
+  end of `_ready` (`open_at_start`), where the loading cover was, under
+  the opening (C17) until the game is ready. Open,
   it frees the mouse, turns the player's controls off (so the other
   menus, the crosshair and Esc's pause menu stay shut) and hides the
   usage limits and the new-island arrows; the minimap hides itself
@@ -3703,7 +3716,8 @@ by the user; the ID and scope are my pick):*
   the player's own camera over 2.5 s (position, turn and field of view,
   smoothstep), following it if it moves; there it makes the player's
   camera current, gives back the controls and the mouse and the HUD,
-  and emits `played`. Never held back for the sidecar.
+  and emits `played`. Never held back for the sidecar once the
+  opening (C17) has lifted.
 - *Main menu* in the pause menu calls `open`: the camera starts at the
   player's view and eases up onto the circle. The player stays where
   they were, sessions run on; Play brings them back there, unless the
@@ -3940,6 +3954,71 @@ questions → 11). Checked against Godot's docs (master, raw), not yet
 on 4.7.2 itself: CSV plurals and contexts arrived in 4.6, and loading
 a `.po` from outside `res://` at runtime (for mods) is to confirm.
 
+### C17 Opening
+*Built (2026-10-28, UI placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part (it reads the client's status and
+attempt). The game's opening: the developer's card over the world and
+the main menu while the game starts, and a bar while the start takes
+longer. Step 3 of branch `s01-start-retry`. Dev log
+2026-10-28-c17-opening.
+
+*Decided (user's, 2026-10-28):*
+- **A cover before the menu** (rejected: a bar on the main menu
+  itself, my recommendation, which kept C14's "menu at once").
+- **A real game's opening:** the user's logo and Godot's, using that
+  time to hide the wait, the bar only if still needed. **Both on one
+  card** (the user's idea, my layout): the logo large in the middle,
+  "moofys" (the developer's name) under it, "Made with" and Godot's
+  logo smaller along the bottom (rejected: a card each, one after the
+  other, more generic and longer).
+- **Ready** is the sidecar synced and, if sessions came back (S07,
+  S08), the first island starting to rise, at most 5 s after the sync
+  (rejected: 2 s; every island up). The start keeps its own bound
+  (S01, about 102 s), then S01's message box.
+- *My picks, taken:* the bar names the stage and fills a step per
+  stage (rejected: a sweep; a bar that creeps); a key or click skips
+  the card; the card always shows its time; Godot's boot splash plain,
+  so Godot's logo shows once.
+
+**How it works.** `Opening` (`world/opening.gd`, a `CanvasLayer` on
+layer 9: over the menus and the HUD, under the quit dialog's 10, so
+closing the window still asks), added by `world.gd` right after the
+main menu opens at start (`open_at_start`), so the menu, its circling
+camera and the islands are all there under it. On a sand-coloured
+background (`BACKGROUND`, the logo's black outline needs a light one):
+the logo (`assets/opening/moofys_logo.png`, the user's 32×32 pixel art)
+drawn with nearest filtering in whole steps of its pixels, about a
+third of the window's height; "moofys" (`DEVELOPER`) under it; along
+the bottom "Made with" and Godot's logo (`godot_logo.png`, the press
+kit's colour logo for light backgrounds, 56 px high, mipmapped). It
+fades in over 0.4 s and shows at least `CARD_S` (2.5 s). Once that's
+over (or skipped) and the game isn't ready, a bar shows under the name
+with its stage: "Starting the sidecar…" (or "(try 2 of 3)" on a retry,
+`SidecarClient.attempt()`), "Finding your sessions…" (connecting and
+syncing), "Bringing up your islands…" (synced, waiting for the first
+to rise: `SessionIslands.island_rising`), its fill easing to each
+stage's step. Ready (synced and no sessions back, or the first island
+rising, or `ISLAND_WAIT_S` after the sync; the sidecar failed; or
+`TIMEOUT_S`, the start's longest plus 10 s), it fades out over 0.5 s
+into the main menu. A key, click or pad button skips the card
+(straight to the menu if ready, else to the bar); every key and click
+waits under it. A sidecar already failed or stopped shows none (S01's
+box says why). The main menu going (a dev tool's `close_now`) lifts it
+at once. Godot's own boot splash is the background's colour with no
+image (`application/boot_splash`). S07's `LoadingCover` stays unused.
+
+Tested in `tests/world/world_test.gd` (`_opening`): it opens over the
+main menu, the logo in whole pixel steps, keys wait, closing the
+window asks (the quit dialog over it, Esc reaching the dialog), it
+fades into the menu after its card's time; on stand-in clients the
+bar's stages and retry text, the wait for the first island and its
+cap, a failure, `TIMEOUT_S`, and none for a sidecar already failed. Looks, the fades and the skip by
+hand are the live check's.
+
+*Live check (2026-10-28, the user):* all steps passed; "It looks good". The light
+background is a bit hard on the eyes; a proper background comes later
+(user's), with the rest of the UI.
+
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
 registry and the local WebSocket server Godot connects to, and Godot's
@@ -3996,12 +4075,47 @@ gap sends `session.get_snapshot` once. If the connection drops while the
 sidecar runs, it reconnects, and every command still waiting for a reply
 gets an `error` with code `disconnected` (Godot's own; the command may or
 may not have arrived), so nothing waits forever; if the sidecar dies, it
-reports failure (`failed` signal). It stops the sidecar by closing the pipe, killing it
+starts it again (`restarting`, see Restart), and reports failure
+(`failed` signal) only when that can't be done. It stops the sidecar by closing the pipe, killing it
 only if it hasn't exited after 3 s. stderr is drained continuously so the
 sidecar never stalls on a full pipe. On Windows, Godot starts it without a
 console window. Which sidecar runs: next to the game executable in exports;
 `node sidecar/src/main.ts` in the editor; `-- --sidecar=<path>` or
 `-- --sidecar-dev-fake` override it (see Running it).
+
+**Start retry** (user's decision, 2026-10-28; dev log
+2026-10-28-s01-start-retry). A start that fails in a way that can pass
+is tried again: no handshake in time, the sidecar exiting while starting
+(it reads as an empty handshake line), a bad handshake (port or token),
+or the WebSocket connect failing (at once, or closed, refused say,
+before the first `sync.completed`). Three attempts in all, waiting 20 s,
+then 30 s, then 45 s for the handshake (a cold first start is the likely
+cause of a slow one), with 2 s, then 5 s between them
+(`HANDSHAKE_TIMEOUTS_S`, `RETRY_WAITS_S`; at most `START_TIMEOUT_S`,
+about 102 s, before `failed`; `stop()` between attempts can add a few
+seconds). Each retry stops the attempt's process first (`stop()`: the
+pipe closed, killed after 3 s, at once if it never sent the handshake),
+so there are never two sidecars: one that can't be ended fails the start
+instead; `status` stays
+`STARTING` through the wait, and `stop()` during it cancels the next
+attempt. Retries go to the log only (a warning naming the reason and the
+attempt); `failed` comes once, after the last. Not tried again, failing
+at once as before: no program to start (the exported game's executable
+missing, or nothing at a `--sidecar=<path>`, checked first so it fails
+alike on every OS; the exact file, `.exe` included), another protocol version, or `OS.execute_with_pipe`
+failing. The handshake line is parsed with a `JSON` instance, not
+`JSON.parse_string`, which logs an error for an empty line. A dropped
+connection after the first sync still just reconnects (a reconnect
+that fails at once is a restart, below).
+Each attempt is a new sidecar run, so S02's login-shell lookup for the
+program can start once per attempt (it ends itself after 10 s, inside
+the first attempt's 20 s). Tested in `tests/core/sidecar_client_test.gd` on fake sidecars
+(`tests/core/fake_sidecar.mjs`: slow, exits at once, a bad handshake,
+connections refused, another protocol) and a connect made to fail at
+once, with the attempts shortened; the restart on the real sidecar
+(killed in play: synced again, a new process; killed again soon after:
+the next attempt) and on the dev fake one killed each time it's up
+(failed once, after three).
 
 **Session store** (`core/sessions/session_store.gd`, `SessionStore`,
 built with S02): a plain class (no autoload) that the world
@@ -4020,9 +4134,84 @@ reconnect, sessions without a snapshot ended meanwhile and are removed;
 the client's `sync_started` signal (on `hello`) marks where a reconnect's
 snapshots begin. It's the Godot handler for `session.notice` and `session.notice_cleared`.
 
-Not yet: the sidecar isn't restarted if it dies (sessions it launched keep
-running, but the world loses them); export presets that copy the executable
-next to the game come with the first export.
+**Restart** (user's decision, 2026-10-28: the sidecar must always be
+running, and a start, first or not, gives up within a minute or two).
+When the sidecar dies in play, or a reconnect fails at once, the client
+emits `restarting` and starts it again with the start's attempts (the
+same waits; about 102 s at most). It stops the old process first
+(`stop()`); one that can't be ended fails the restart at once
+(`failed`), so there are never two sidecars. Commands waiting for a reply get
+`disconnected`. The new sidecar takes back the sessions still running
+(S07) and finds those started outside the game (S08); its `hello`,
+snapshots and `sync.completed` go through the session store's usual
+resync. **Sessions keep their ids** (user's choice, 2026-10-28; at first
+the registry gave each a new `randomUUID`, so every island sank and
+rose again and an open chat closed): a session the game launched has
+its protocol id in its run folder's `session.json` (`session_id`,
+written at launch, S07), and the sidecar that takes it back adopts it
+under that id; one started outside the game (S08, no run folder) gets
+an id made from its provider and Claude's session id (`derivedId`: a
+UUID from SHA-256, the same on every run). The registry refuses an id
+already in use (that session isn't taken back, logged; its folder
+stays for a later start); a run folder from before ids were kept, or
+whose `session_id` isn't a UUID, gets a new one, then written there. So
+a restart is a plain resync: no island sinks or rises, chats, cards
+and W12's entries stay, and an open chat stays open. Neither id says
+anything the snapshot doesn't (`native_id` is in it), and an id opens
+nothing: every connection needs its token (Security rules →
+Authenticate every connection).
+What was said while the sidecar was down only the new one has (from
+the transcript), so once a restart has synced each chat the world had
+loaded is fetched again (`session.get_history`) and replaces ours,
+keeping what arrived since, as for a switch of conversation; an empty
+answer (transcripts off) keeps ours (`ChatController`,
+`SessionStore.begin_chat_replace`, `keep_chat`). A prompt or question
+open at the restart stays in the terminal, as for S07, and its card
+goes with the resync. Not kept: an outside session that switched
+conversations (`/clear`, `/resume`) since its island came up gets a new
+id at the restart, from its new Claude id, so its island sinks and
+rises again. One
+that dies again within `STEADY_S` (60 s) of being up goes on with the
+attempts of the start that brought it up instead of starting the count
+again, so a sidecar that keeps dying ends in `failed` within the same
+bound instead of restarting forever. A dropped connection to a running
+sidecar still just reconnects. `has_synced` says whether a start ever
+got as far as synced; `failure` keeps the last reason.
+
+Security: between the old sidecar's death and the new one's bind, the
+kept hook port (S07) is free; a program that takes it then receives the
+running sessions' hooks, and they come back read-only (S07 → A program
+on the kept port). The same gap as after a quit, only shorter (Security
+rules → Known gap).
+
+Tested in `tests/core/sidecar_client_test.gd` (the real sidecar killed
+in play, and killed again soon after; a reconnect failing at once while
+it runs: the old one ended before the new one appears; one that keeps
+dying fails once, after three), `tests/world/world_test.gd`
+(`_restart_chat`: islands and an open chat stay, the chat fetched again)
+and `sidecar/test/reattach.test.ts` (ids kept across runs, from the run
+folder and `derivedId`; an id in use refused).
+
+**When it can't be started** (`world/sidecar_lost.gd`, `SidecarLost`,
+a placeholder; user's decisions, 2026-10-28: without the sidecar there's
+no game). The first start failing (`failed` before any sync, or already
+failed when the world loads) shows the reason in a native message box
+(`OS.alert`, titled with the project's name), then quits with exit code
+1. A restart in play failing covers the world with a notice: the reason,
+that the world can't follow the sessions without it, and that they keep
+running in their terminals and come back at the next start; its one
+button, Quit, goes through the quit guard (S05), which lists sessions
+still running first ("Back to the game" brings the notice back). The
+controls and keys wait under it (Enter or Space press Quit). Tested in
+`tests/world/world_test.gd` on stand-in clients.
+
+*Live check (2026-10-28, the user, real Claude):* the start, the
+restart in play (islands and an open chat stayed, what was said
+meanwhile shown), the notice after four deaths and the quit all
+passed.
+
+Not yet: export presets that copy the executable next to the game come
+with the first export.
 
 ### S02 Claude provider
 *Built (v1). Scope: core* (a provider; sessions declare the `questions`,
@@ -4657,7 +4846,8 @@ notice. For development, what's limited:
   guessing. A world answer to a prompt the terminal already closed is
   dropped by Claude Code, harmlessly.
 - **Chat history** is only what the sidecar saw (as always for a session
-  started here), and it's lost if the sidecar restarts.
+  started here), and it's lost when the game restarts; a sidecar
+  restart keeps what the world had (S01 → Restart).
 - **Resuming** isn't possible, and the session isn't listed (S04).
 - **Attaching** (later) shows nothing from before we joined.
 - **Token usage** (C08) is only the status line's figures: context %
@@ -5150,7 +5340,8 @@ Each session's private folder lives in the user's app data folder
 working name: Conventions → Renaming the project), named `session-`
 and six random characters. It holds, besides the relay files:
 `session.json` (Claude's session id, the project, the hook port and
-token it was launched with, its start time; rewritten when `/clear` or
+token it was launched with, its start time, the protocol's id for it,
+`session_id`, so a later sidecar keeps it, S01 → Restart; rewritten when `/clear` or
 `/resume` switches the id), the launcher's and `claude`'s process ids
 (written by the launcher), `bridge.json` and `holder.pid` (below). The
 folders outlive the sidecar: one is deleted when its session ends, by
@@ -5218,7 +5409,8 @@ start, and a session found after that arrives on its own as a
   token, and a later start tries again; `holder.pid` may stay this
   sidecar's until it exits, and a relay already pointed here is refused,
   its token let go, so Claude Code carries on). Adopted into the
-  registry: a
+  registry under its `session_id` (S01 → Restart; one in use is refused,
+  and a record without one gets a new id, written back): a
   `session.snapshot` with its `started_at`, the chat so far from its
   transcript (as for a resume, S04), and its state from `agents`
   (`busy` working, `waiting` waiting for input, `idle`) until its next
@@ -5232,12 +5424,16 @@ start, and a session found after that arrives on its own as a
 `LoadingCover` (`world/loading_cover.gd`, a placeholder: "Loading…" on
 a dark background, above everything) covers the world and holds the
 player's controls and input until the sidecar's first `sync.completed`,
-its failure, or 30 s (the handshake timeout plus 10 s), so reattached
+its failure, or 112 s (S01's longest start, every attempt and wait,
+plus 10 s), so reattached
 islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads. *Replaced by C14 (user's, 2026-10-26):*
 the game opens on the main menu over the world instead, and islands
 taken back rise behind it once synced (W04, changed after C14's live
-check); Play isn't held back for the sync. `LoadingCover` is kept, unused, its tests on stand-ins (user's
+check); Play isn't held back for the sync. *Then C17 (user's,
+2026-10-28):* an opening covers the menu until the sync and the first
+island's rise, so islands are rising when the menu shows.
+`LoadingCover` is kept, unused, its tests on stand-ins (user's
 choice).
 
 **If the old port is taken** (another program got it while the game was
@@ -5368,14 +5564,17 @@ model, found later and read from its start), waiting from `agents`,
 `/clear` and `/resume` through `agents` (never another project's), one
 `agents` at a time for all, one session failing on its answer logged
 and skipped, none once they end or the provider shuts down; relays
-pointed back on the kept port, a takeover that fails to write a file), `bridge.test.ts`
+pointed back on the kept port, a takeover that fails to write a file;
+the protocol id kept in `session.json` and across two sidecar runs,
+also for an outside session, an old folder's new id written back, one
+in use refused), `bridge.test.ts`
 (reconnect, spent tokens, nothing acted on before `welcome`, the
 welcome's proof), `permissions.test.ts` (whole and cut-short previews),
 `process.test.ts` (the tests' own sessions folder),
 `tests/world/world_test.gd` (the cover, the quit text, the read-only
 notice and chat panel),
 `tests/core/session_store_test.gd` (adopted snapshots, in the sync or
-after it), `tests/core/sidecar_client_test.gd` (the suites' own
+after it; a restart's resync with the same ids), `tests/core/sidecar_client_test.gd` (the suites' own
 sessions folder: Running it).
 
 ### S08 Read-only islands for sessions started outside the game
@@ -5496,6 +5695,9 @@ mark's look, the wording and the toggle the user's own):*
   transcript not written yet; `/clear` and `/resume` followed per
   `pid`; waiting on the user from `status`), with no run folder, no
   launcher and no hook token: nothing of it is written anywhere. Its
+  protocol id is made from the provider and Claude's session id
+  (`derivedId`), so it's the same after a sidecar restart (S01 →
+  Restart). Its
   state at first is the entry's `status` (`busy` working, `waiting`
   waiting for input, else idle).
 - *It ends* (`session.ended`, reason `exited`; the island sinks, W04)
@@ -6186,7 +6388,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: it opens on the main menu (C14), and Play puts you on
+for the world: it opens on the opening (C17), then the main menu
+(C14), and Play puts you on
 the spawn platform; hold Tab for the sessions
 ring and click its + to start a session in a folder you pick or resume a
 stored one, and you're taken to its island to chat with its orchestrator (S03,
@@ -6300,10 +6503,12 @@ installs `tests/error_watch.gd`, a `Logger` (`OS.add_logger`). On any
 logged error (a script error, `push_error` or an engine error, from any
 thread) it quits with 1 at once and prints a FAIL line, and the suite's
 PASS line checks `_errors.ok()` too. Warnings don't count: the sidecar
-client test's reconnect warning is expected. It works the same locally
+client test's reconnect and retry warnings are expected. It works the same locally
 and on CI; the workflow doesn't read the output. A new suite does the
-same (the file's header shows how). No suite causes an error on purpose;
-one that needs to would first have to teach the watch to expect it.
+same (the file's header shows how). A check that causes an error on
+purpose (a fail-safe's own, such as S01's start failing for good) first
+calls `_errors.expect(text)`, which lets the next error containing that
+text pass, once.
 
 **The suites' own sessions folder** (S07, security review 2026-10-13).
 Every suite starts the real sidecar through the `Sidecar` autoload
@@ -6665,12 +6870,18 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the sidecar's start (S01): retrying a start that
-fails in a way that can pass (the user's, 2026-10-28), then restarting
-it if it dies in play, then a loading bar at the game's start that waits
-for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
+**Current focus:** S01's start retry and restart and C17's opening are
+merged (2026-10-28, live check passed): a start that can pass is tried
+again, a sidecar that dies in play is restarted with sessions keeping
+their ids, and the game opens on the user's logo and Godot's, with a
+bar while the start finishes. Later (user's): a proper background for
+the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
-v0", the user's); next for it, the user's species list. D02 Bug
+v0", the user's); next for it, the user's species list. A flaky D01
+check (seen 2026-10-28, about 2 runs in 7): "reeling drags it through
+the water" saw the bobber 0.18-0.24 m above the surface (limit 0.15)
+when a floating one starts being reeled, likely its buoyancy
+overshooting; open, the user's to decide (dev log 2026-10-28-c17-opening). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
