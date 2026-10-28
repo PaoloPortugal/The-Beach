@@ -262,6 +262,7 @@ func apply_settings() -> void:
 	_player.mouse_sensitivity = Player.BASE_SENSITIVITY * settings.value("controls/mouse_sensitivity")
 	(_player.get_node("Head/Camera3D") as Camera3D).fov = settings.value("controls/fov")
 	crosshair.ring_on = settings.value("game/crosshair")
+	Languages.apply(settings.value("game/language"))
 	set_outside_sessions.call(settings.value("game/outside_sessions"))
 	if settings.value("game/outside_sessions") != true:
 		_islands.forget_outside()

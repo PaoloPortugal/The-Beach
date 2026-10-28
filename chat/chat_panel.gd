@@ -123,6 +123,7 @@ var _read_only_hint: Label
 
 
 func _ready() -> void:
+	Languages.content(_title) # the session's title (C16)
 	$Layout/Compose/Send.pressed.connect(send)
 	_read_only_hint = Label.new()
 	_read_only_hint.text = READ_ONLY_TEXT

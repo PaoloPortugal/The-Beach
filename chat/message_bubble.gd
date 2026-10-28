@@ -30,6 +30,7 @@ var _shown := ""
 
 
 func _ready() -> void:
+	Languages.content(_text) # the message, never translated (C16)
 	texture = _viewport.get_texture()
 	visible = false
 	_bbcode.font_size = FONT_SIZE

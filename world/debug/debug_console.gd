@@ -31,6 +31,7 @@ func _ready() -> void:
 	_box.offset_bottom = -16.0
 	_box.alignment = BoxContainer.ALIGNMENT_END
 	add_child(_box)
+	Languages.content(_box) # debug commands stay English (C16)
 	_reply.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_reply.add_theme_color_override("font_outline_color", Color.BLACK)
 	_reply.add_theme_constant_override("outline_size", 4)

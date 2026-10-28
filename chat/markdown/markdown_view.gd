@@ -45,6 +45,7 @@ var _nodes: Array[Control] = []
 
 
 func _init() -> void:
+	Languages.content(self) # never translated (C16), but for Copy
 	add_theme_constant_override("separation", 8)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -209,6 +210,7 @@ func _build_code(block: Dictionary) -> Control:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
 	var copy := Button.new()
+	copy.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_ALWAYS # ours, in content
 	copy.text = "Copy"
 	copy.flat = true
 	head.add_child(copy)

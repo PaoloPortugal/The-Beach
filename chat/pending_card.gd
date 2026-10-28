@@ -188,12 +188,12 @@ func set_note(text: String) -> void:
 
 
 func _render_permission(p: Dictionary) -> void:
-	_body.add_child(_label(p["summary"], 18))
+	_body.add_child(Languages.content(_label(p["summary"], 18)))
 	if p.has("input"):
 		var details := ScrollContainer.new()
 		details.custom_minimum_size = Vector2(0, 140)
 		details.visible = false
-		var raw := _label(JSON.stringify(p["input"], "  "), 15, DIM)
+		var raw := Languages.content(_label(JSON.stringify(p["input"], "  "), 15, DIM)) as Label
 		raw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		details.add_child(raw)
 		var toggle := Button.new()
@@ -210,7 +210,8 @@ func _render_permission(p: Dictionary) -> void:
 	for option: Dictionary in p.get("options", []):
 		var label: String = option["label"]
 		var option_id: String = option["option"]
-		_body.add_child(_list_choice(label, respond.bind("allow", option_id)))
+		# The provider's words (C16: our fixed ones translated by option id later).
+		_body.add_child(Languages.content(_list_choice(label, respond.bind("allow", option_id))))
 	var no := _list_choice("No", func() -> void: set_denying(not denying))
 	no.toggle_mode = true
 	no.set_pressed_no_signal(denying)
@@ -379,15 +380,16 @@ func _render_question(q: Dictionary) -> void:
 	if items.size() > 1:
 		top.add_child(_label("Question %d of %d" % [i + 1, items.size()], 16, DIM, false))
 	if item.get("header", "") != "":
-		top.add_child(_label(item["header"], 16, DIM, false))
+		top.add_child(Languages.content(_label(item["header"], 16, DIM, false)))
 	if top.get_child_count() > 0:
 		_body.add_child(top)
-	_body.add_child(_label(item["text"], 18))
+	_body.add_child(Languages.content(_label(item["text"], 18)))
 	_options.clear()
 	var chosen: Array = p["chosen"][i]
 	for option in item["options"]:
 		var label: String = option["label"]
 		var button: BaseButton
+		# The question's options are the AI tool's words (C16).
 		if item["multi_select"]:
 			var box := CheckBox.new()
 			box.text = label
@@ -403,11 +405,12 @@ func _render_question(q: Dictionary) -> void:
 			b.pressed.connect(choose.bind(label))
 			button = b
 		button.add_theme_font_size_override("font_size", 16)
+		Languages.content(button)
 		_options.append(button)
 		var row := _row()
 		row.add_child(button)
 		if option.get("description", "") != "":
-			var description := _label(option["description"], 15, DIM)
+			var description := Languages.content(_label(option["description"], 15, DIM)) as Label
 			description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(description)
 		_body.add_child(row)

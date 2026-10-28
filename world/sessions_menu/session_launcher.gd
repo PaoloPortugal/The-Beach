@@ -15,7 +15,7 @@ const STILL_STARTING_S := 120.0
 
 ## Our own text for the start notices we know; others show the sidecar's.
 const NOTICE_TEXT := {
-	"confirm_in_terminal": "Confirm in the terminal to start this session.",
+	"confirm_in_terminal": "Confirm in the terminal to start this session.", # TRANSLATE
 }
 
 var store: SessionStore
@@ -28,6 +28,9 @@ var islands: SessionIslands
 var pending := ""
 ## What [signal status_changed] last said.
 var status := ""
+## What it says, untranslated: the English text and its placeholders'
+## values, said again in a new language.
+var _said := ["", {}]
 
 ## A start was sent and its reply hasn't come yet.
 var _asking := false
@@ -49,8 +52,8 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	sidecar.event_received.connect(func(msg: Dictionary) -> void:
 		if msg["type"] == "session.ended" and msg["session"] == pending:
 			pending = ""
-			_say("The session didn't start."))
-	sidecar.failed.connect(func(reason: String) -> void: _say(reason))
+			_say("The session didn't start.")) # TRANSLATE
+	sidecar.failed.connect(func(reason: String) -> void: _say("{reason}", {"reason": reason}))
 
 
 ## Whether a start is under way.
@@ -65,7 +68,7 @@ func stop_waiting() -> void:
 	if pending.is_empty():
 		return
 	pending = ""
-	_say("Stopped waiting. If that session starts later, it joins the sessions ring.")
+	_say("Stopped waiting. If that session starts later, it joins the sessions ring.") # TRANSLATE
 
 
 ## Asks for a new session in the folder [param path], to join
@@ -75,10 +78,10 @@ func stop_waiting() -> void:
 ## the provider's [code]launch_options[/code]; one left out is Default.
 func create(path: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM, launch := {}) -> void:
 	if sidecar.providers.is_empty():
-		_say("Not connected to the sidecar yet.")
+		_say("Not connected to the sidecar yet.") # TRANSLATE
 		return
 	var provider: String = new_session_provider().get("provider", "")
-	_start("session.create", _with_launch({"provider": provider, "project": {"path": path}}, launch), "Couldn't start a session: %s", cluster, biome)
+	_start("session.create", _with_launch({"provider": provider, "project": {"path": path}}, launch), "Couldn't start a session: {reason}", cluster, biome) # TRANSLATE
 
 
 ## The provider a new session uses: the first that can start one (S02:
@@ -95,7 +98,7 @@ func new_session_provider() -> Dictionary:
 ## to join [param cluster], on an island of [param biome], with
 ## [param launch] as for [method create].
 func resume(provider: String, native_id: String, cluster := SessionClusters.AUTOMATIC, biome := Biome.RANDOM, launch := {}) -> void:
-	_start("session.resume", _with_launch({"provider": provider, "native_id": native_id}, launch), "Couldn't resume the session: %s", cluster, biome)
+	_start("session.resume", _with_launch({"provider": provider, "native_id": native_id}, launch), "Couldn't resume the session: {reason}", cluster, biome) # TRANSLATE
 
 
 # Adds the launch choices, if any were made: none is Default throughout.
@@ -107,12 +110,12 @@ static func _with_launch(fields: Dictionary, launch: Dictionary) -> Dictionary:
 
 func _start(command: String, fields: Dictionary, refused: String, cluster: String, biome: int) -> void:
 	if busy():
-		_say("A session is already starting.")
+		_say("A session is already starting.") # TRANSLATE
 		return
 	var id := sidecar.send_command(command, fields, func(reply: Dictionary) -> void:
 		_asking = false
 		if reply.get("type") == "error":
-			_say(refused % reply.get("message", ""))
+			_say(refused, {"reason": reply.get("message", "")})
 			return
 		var result: Dictionary = reply.get("result", {})
 		pending = result.get("session", "")
@@ -124,17 +127,28 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 		_still_said = false
 		var notice: Dictionary = result.get("notice", {})
 		if not notice.is_empty():
-			_say(NOTICE_TEXT.get(notice["code"], notice["message"])))
+			if NOTICE_TEXT.has(notice["code"]):
+				_say(NOTICE_TEXT[notice["code"]])
+			else: # the sidecar's English
+				_say("{reason}", {"reason": notice["message"]}))
 	_asking = not id.is_empty()
-	_say("Starting…" if _asking else "Not connected to the sidecar.")
+	_say("Starting…" if _asking else "Not connected to the sidecar.") # TRANSLATE
 
 
 func _process(_delta: float) -> void:
 	if not pending.is_empty() and not _still_said and Time.get_ticks_msec() / 1000.0 - _asked_at > STILL_STARTING_S:
 		_still_said = true
-		_say("Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +).")
+		_say("Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +).") # TRANSLATE
 
 
-func _say(text: String) -> void:
-	status = text
-	status_changed.emit(text)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and not status.is_empty():
+		_say(_said[0], _said[1])
+
+
+# Says [param text] (English, "" for nothing) translated, its
+# placeholders filled from [param values].
+func _say(text: String, values := {}) -> void:
+	_said = [text, values]
+	status = Languages.fill(tr(text), values) if not text.is_empty() else ""
+	status_changed.emit(status)

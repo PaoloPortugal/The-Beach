@@ -38,13 +38,13 @@ const HEADING_COLOUR := Color(1, 1, 1, 0.55)
 ## The launch selectors (C12), in order: the [code]launch_options[/code] key
 ## and the row's label.
 const LAUNCH_KEYS := ["model", "effort", "mode"]
-const LAUNCH_LABELS := {"model": "Model:", "effort": "Effort:", "mode": "Mode:"}
+const LAUNCH_LABELS := {"model": "Model:", "effort": "Effort:", "mode": "Mode:"} # TRANSLATE
 
 ## The create panel's pages: adding a session, the stored ones.
 enum Page { ADD, RESUME }
 
-const TITLES := {Page.ADD: "Add a session", Page.RESUME: "Resume a session"}
-const CLOSE_HINTS := {Page.ADD: "Tab or Esc to close", Page.RESUME: "Esc to go back, Tab to close"}
+const TITLES := {Page.ADD: "Add a session", Page.RESUME: "Resume a session"} # TRANSLATE
+const CLOSE_HINTS := {Page.ADD: "Tab or Esc to close", Page.RESUME: "Esc to go back, Tab to close"} # TRANSLATE
 
 @export var player: Player
 
@@ -65,8 +65,10 @@ var listings_asked := 0
 
 ## Stored sessions from every provider, newest first.
 var _stored: Array = []
-## "" once listed; else what to say instead of the list.
+## "" once listed; else what to say instead of the list (English, its
+## {reasons} the sidecar's).
 var _stored_status := ""
+var _stored_reasons := ""
 ## Bumped on each page shown and on closing, so a late reply from an
 ## earlier listing is ignored.
 var _listing := 0
@@ -118,6 +120,11 @@ func _ready() -> void:
 	_cluster_row.add_child(label)
 	_cluster.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_cluster.focus_mode = Control.FOCUS_NONE
+	# Selectors that can show content (a cluster's name, a model's) have
+	# auto-translate off, even on their face, and translate their own
+	# choices in code; the biomes' need a context anyway (C16).
+	Languages.translated(_cluster)
+	Languages.translated(_biome)
 	_cluster_row.add_child(_cluster)
 	$Panel/Layout.add_child(_cluster_row)
 	$Panel/Layout.move_child(_cluster_row, _search.get_index() + 1)
@@ -127,11 +134,12 @@ func _ready() -> void:
 	_biome_row.add_child(biome_label)
 	_biome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_biome.focus_mode = Control.FOCUS_NONE
-	_biome.add_item("Random")
+	_biome.add_item("")
 	_biome.set_item_metadata(0, Biome.RANDOM)
 	for kind: int in Biome.NAMES:
-		_biome.add_item(Biome.NAMES[kind])
+		_biome.add_item("")
 		_biome.set_item_metadata(_biome.item_count - 1, kind)
+	_name_biomes()
 	_biome_row.add_child(_biome)
 	$Panel/Layout.add_child(_biome_row)
 	$Panel/Layout.move_child(_biome_row, _cluster_row.get_index() + 1)
@@ -143,7 +151,7 @@ func _ready() -> void:
 		var row_label := Label.new()
 		row_label.text = LAUNCH_LABELS[key]
 		row.add_child(row_label)
-		var option := OptionButton.new()
+		var option := Languages.translated(OptionButton.new()) as OptionButton
 		option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		option.focus_mode = Control.FOCUS_NONE
 		row.add_child(option)
@@ -169,6 +177,7 @@ func _ready() -> void:
 		_dialog.current_dir = home
 		_last_dir = home
 	$Panel/Layout/Waiting/Cancel.pressed.connect(close)
+	Languages.translated(_notice) # the launcher translates it
 	launcher.status_changed.connect(func(text: String) -> void:
 		_notice.text = text
 		_notice.visible = not text.is_empty()
@@ -405,10 +414,27 @@ func choose(text: String) -> void:
 
 
 # Tab let go in another window never reaches the game, so the ring
-# closes without acting when the window loses focus.
+# closes without acting when the window loses focus. A new language
+# names the biomes and fills the page again.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and ring.visible:
 		close()
+	elif what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
+		_name_biomes()
+		for key: String in LAUNCH_KEYS:
+			if _launch[key].item_count > 0:
+				_launch[key].set_item_text(0, tr("Default"))
+		if clusters != null:
+			_fill_clusters()
+		if _open:
+			_fill()
+
+
+# The biome selector's names, translated (the biomes' under their context).
+func _name_biomes() -> void:
+	for i in _biome.item_count:
+		var kind: int = _biome.get_item_metadata(i)
+		_biome.set_item_text(i, tr("Random") if kind == Biome.RANDOM else tr(Biome.NAMES[kind], "biome"))
 
 
 # _input, not _unhandled_input: Tab would otherwise move the focus in the
@@ -490,11 +516,11 @@ func _list_stored() -> void:
 	_listing += 1
 	var run := _listing
 	_stored = []
-	_stored_status = "Loading…"
+	_stored_status = "Loading…" # TRANSLATE
 	var providers: Array = sidecar.providers
 	listings_asked += 1
 	if providers.is_empty():
-		_stored_status = "Not connected to the sidecar yet."
+		_stored_status = "Not connected to the sidecar yet." # TRANSLATE
 		return
 	var left := [providers.size()]
 	var failed: Array[String] = []
@@ -509,10 +535,11 @@ func _list_stored() -> void:
 			left[0] -= 1
 			if left[0] == 0:
 				_stored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["updated_at"] > b["updated_at"])
-				_stored_status = "" if failed.is_empty() else "Couldn't list stored sessions: %s" % "; ".join(failed)
+				_stored_status = "" if failed.is_empty() else "Couldn't list stored sessions: {reasons}" # TRANSLATE
+				_stored_reasons = "; ".join(failed)
 				_fill())
 		if id.is_empty():
-			_stored_status = "Not connected to the sidecar."
+			_stored_status = "Not connected to the sidecar." # TRANSLATE
 			return
 
 
@@ -521,20 +548,21 @@ func _fill() -> void:
 		child.queue_free()
 	match _page:
 		Page.ADD:
-			var new_session := _add_button("+ New session…", _pick_folder)
-			var resume := _add_button("▸ Resume a session…", func() -> void: _show(Page.RESUME))
+			var new_session := _add_button(tr("+ New session…"), _pick_folder)
+			var resume := _add_button(tr("▸ Resume a session…"), func() -> void: _show(Page.RESUME))
 			var why := cannot_start()
 			new_session.disabled = not why.is_empty()
 			resume.disabled = not why.is_empty()
 			if not why.is_empty():
 				var label := Label.new()
 				label.name = "CannotStart"
+				Languages.translated(label)
 				label.text = why
 				label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				label.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
 				_list.add_child(label)
 			if not launcher.pending.is_empty():
-				_add_button("✕ Stop waiting for the session starting", func() -> void:
+				_add_button(tr("✕ Stop waiting for the session starting"), func() -> void:
 					launcher.stop_waiting()
 					_fill())
 		Page.RESUME:
@@ -543,12 +571,12 @@ func _fill() -> void:
 
 func _fill_stored() -> void:
 	if not _stored_status.is_empty():
-		_add_heading(_stored_status)
+		_add_heading(Languages.fill(tr(_stored_status), {"reasons": _stored_reasons}))
 		return
 	var query := _search.text.strip_edges().to_lower()
 	var shown := 0
 	for st in _stored:
-		var label := row(display_title(st.get("title"), "Untitled session"), project_name(st["project"]), _ago(st["updated_at"]))
+		var label := row(display_title(st.get("title"), "Untitled session"), project_name(st["project"]), _ago(st["updated_at"])) # TRANSLATE
 		if not query.is_empty() and not label.to_lower().contains(query):
 			continue
 		shown += 1
@@ -561,7 +589,7 @@ func _fill_stored() -> void:
 		# Its provider's program wasn't found (S02): it can't start.
 		button.disabled = sidecar.startable_providers().all(func(p: Dictionary) -> bool: return p.get("provider") != st["provider"])
 	if shown == 0:
-		_add_heading("Nothing to resume." if query.is_empty() else "No match.")
+		_add_heading(tr("Nothing to resume.") if query.is_empty() else tr("No match."))
 
 
 func _pick_folder() -> void:
@@ -582,7 +610,7 @@ func _pick_folder() -> void:
 
 
 func _show_native(directory: String, callback: Callable) -> Error:
-	return DisplayServer.file_dialog_show("Choose the session's project folder", directory, "", false, DisplayServer.FILE_DIALOG_MODE_OPEN_DIR, PackedStringArray(), callback)
+	return DisplayServer.file_dialog_show(tr("Choose the session's project folder"), directory, "", false, DisplayServer.FILE_DIALOG_MODE_OPEN_DIR, PackedStringArray(), callback)
 
 
 func _on_native_answer(ask: int, ok: bool, paths: PackedStringArray) -> void:
@@ -635,10 +663,10 @@ func _fill_launch() -> void:
 		option.clear()
 		var list: Array = offered.get(key, [])
 		if not list.is_empty():
-			option.add_item("Default")
+			option.add_item(tr("Default"))
 			option.set_item_metadata(0, "")
 			for c: Dictionary in list:
-				option.add_item(c["label"])
+				option.add_item(c["label"]) # the provider's words: a model's name
 				option.set_item_metadata(option.item_count - 1, c["id"])
 			option.select(0)
 		_launch_rows[key].visible = not list.is_empty()
@@ -649,12 +677,12 @@ func _fill_launch() -> void:
 func _fill_clusters() -> void:
 	var keep := cluster_choice()
 	_cluster.clear()
-	_cluster.add_item("Automatic (by repository)")
+	_cluster.add_item(tr("Automatic (by repository)"))
 	_cluster.set_item_metadata(0, SessionClusters.AUTOMATIC)
 	for cid in clusters.ids():
 		_cluster.add_item(clusters.cluster_name(cid))
 		_cluster.set_item_metadata(_cluster.item_count - 1, cid)
-	_cluster.add_item("New cluster")
+	_cluster.add_item(tr("New cluster"))
 	_cluster.set_item_metadata(_cluster.item_count - 1, SessionClusters.NEW)
 	_cluster.select(0)
 	for i in _cluster.item_count:
@@ -664,15 +692,18 @@ func _fill_clusters() -> void:
 		_fill()
 
 
+## A heading in the list: [param text] already translated.
 func _add_heading(text: String) -> void:
-	var label := Label.new()
+	var label := Languages.translated(Label.new()) as Label
 	label.text = text
 	label.add_theme_color_override("font_color", HEADING_COLOUR)
 	_list.add_child(label)
 
 
+## A button in the list: [param text] already translated, or a session's
+## row (its title is content).
 func _add_button(text: String, on_press: Callable) -> Button:
-	var button := Button.new()
+	var button := Languages.translated(Button.new()) as Button
 	button.text = text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -691,8 +722,8 @@ func cannot_start() -> String:
 	var lines: Array[String] = []
 	for p: Dictionary in sidecar.providers:
 		var program: Dictionary = p.get("program", {})
-		var where := "(Settings → Providers)" if program.get("set_by_hand", false) else "Or choose it yourself in Settings → Providers."
-		lines.append("%s %s" % [program.get("message", ""), where])
+		var where := tr("(Settings → Providers)") if program.get("set_by_hand", false) else tr("Or choose it yourself in Settings → Providers.")
+		lines.append("%s %s" % [program.get("message", ""), where]) # the provider's English, then ours
 	return "\n".join(lines)
 
 
@@ -705,12 +736,13 @@ static func row(name: String, project: String, detail: String) -> String:
 	return "%s   ·   %s   ·   %s" % [name, project, detail]
 
 
-## A session's title (S02 -> Titles), or [param none] while it has none: a
-## running one is new until its first message names it.
-static func display_title(t: Variant, none := "New session") -> String:
+## A session's title (S02 -> Titles), or [param none] (English, shown
+## translated) while it has none: a running one is new until its first
+## message names it.
+static func display_title(t: Variant, none := "New session") -> String: # TRANSLATE
 	if t is String and not t.is_empty():
 		return t
-	return none
+	return TranslationServer.translate(none)
 
 
 static func project_name(project: Dictionary) -> String:
@@ -723,12 +755,12 @@ static func project_name(project: Dictionary) -> String:
 static func state_text(activity: String) -> String:
 	match activity:
 		"working":
-			return "working"
+			return TranslationServer.translate("working", "session state")
 		"waiting":
-			return "waiting for you"
+			return TranslationServer.translate("waiting for you", "session state")
 		"error":
-			return "stopped"
-	return "idle"
+			return TranslationServer.translate("stopped", "session state")
+	return TranslationServer.translate("idle", "session state")
 
 
 ## "just now", "5 min", "3 h", "2 d" since an ISO time.
@@ -736,9 +768,13 @@ static func _ago(iso: String) -> String:
 	var then := Time.get_unix_time_from_datetime_string(iso.substr(0, 19))
 	var s := maxf(0.0, Time.get_unix_time_from_system() - then)
 	if s < 60:
-		return "just now"
-	if s < 3600:
-		return "%d min ago" % int(s / 60)
-	if s < 86400:
-		return "%d h ago" % int(s / 3600)
-	return "%d d ago" % int(s / 86400)
+		return TranslationServer.translate("just now")
+	var n := int(s / 86400)
+	if n >= 1:
+		return Languages.fill(TranslationServer.translate_plural("{n} d ago", "{n} d ago", n), {"n": Languages.number(str(n))})
+	n = int(s / 3600)
+	if n >= 1:
+		return Languages.fill(TranslationServer.translate_plural("{n} h ago", "{n} h ago", n), {"n": Languages.number(str(n))})
+	n = int(s / 60)
+	return Languages.fill(TranslationServer.translate_plural("{n} min ago", "{n} min ago", n), {"n": Languages.number(str(n))})
+
