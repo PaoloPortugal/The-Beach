@@ -664,8 +664,9 @@ tires it out faster and turns its head round toward you, so it comes
 in. Leave the rod on the fish's side and your reeling hardly gains,
 and the line strains.
 
-- Now and then the fish makes a **run**: a splash, and it pulls hard
-  away and to a side, dragging the rod and the view. **Let go** of the
+- Every few seconds the fish makes a **run**: it rises near the
+  surface, throwing up spray as it goes, and pulls hard away and to a
+  side, jerking the rod and the view its way. **Let go** of the
   button: the reel gives it line and the line stays tight. A run tires
   the fish fast, more so with the rod held against it, which can turn
   it and end the run sooner. Between runs it pulls weaker: **reel
@@ -683,11 +684,12 @@ and the line strains.
   hook**.
 - If it takes out all your line (30 m), the line snaps too.
 - The **shadow** shows where the fish is, and the bobber is pulled
-  under there.
+  under there. Close to you, the fish is pulled up out of the water,
+  hanging from the line, just before you land it.
 
-Shallows fish are small and quick to land (a few seconds); drop-off
-fish fight harder (about a quarter of a minute); open sea fish are
-strong and tire slowly (half a minute or so). Bigger fish of a kind
+Shallows fish are small and quick to land (about ten seconds); drop-off
+fish fight harder (twenty seconds or more); open sea fish are strong
+and tire slowly (most of a minute). Bigger fish of a kind
 pull harder. If an agent starts waiting during a fight, the "sessions
 waiting" count in the corner pulses once; nothing pauses.
 

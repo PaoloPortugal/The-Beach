@@ -22,9 +22,9 @@ extends RefCounted
 ##   reeled with the rod on its side; on a run it pulls twice as hard),
 ##   how long before it tires, seconds, and how often it turns and runs.
 const SPECIES := [
-	{"id": "shallows_fish", "name": "Shallows fish", "water": ["shallows"], "biomes": [], "hours": [], "weather": [], "size": [12, 30], "weight": 1.0, "pull": 0.5, "stamina": 4.0, "temper": 0.7},
-	{"id": "drop_off_fish", "name": "Drop-off fish", "water": ["drop_off"], "biomes": [], "hours": [], "weather": [], "size": [25, 60], "weight": 1.0, "pull": 0.85, "stamina": 9.0, "temper": 0.5},
-	{"id": "open_sea_fish", "name": "Open sea fish", "water": ["open_sea"], "biomes": [], "hours": [], "weather": [], "size": [40, 120], "weight": 1.0, "pull": 1.2, "stamina": 26.0, "temper": 0.4},
+	{"id": "shallows_fish", "name": "Shallows fish", "water": ["shallows"], "biomes": [], "hours": [], "weather": [], "size": [12, 30], "weight": 1.0, "pull": 0.5, "stamina": 18.0, "temper": 0.7},
+	{"id": "drop_off_fish", "name": "Drop-off fish", "water": ["drop_off"], "biomes": [], "hours": [], "weather": [], "size": [25, 60], "weight": 1.0, "pull": 0.85, "stamina": 30.0, "temper": 0.5},
+	{"id": "open_sea_fish", "name": "Open sea fish", "water": ["open_sea"], "biomes": [], "hours": [], "weather": [], "size": [40, 120], "weight": 1.0, "pull": 1.2, "stamina": 50.0, "temper": 0.4},
 ]
 
 ## The kinds of water, by the depth under the bobber: the islands' shelf
