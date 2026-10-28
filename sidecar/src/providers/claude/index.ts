@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Adopt, Provider, ProviderSession, SessionHost } from '../../provider.ts'
-import { CommandError } from '../../provider.ts'
+import { CommandError, derivedId } from '../../provider.ts'
 import type { History, Launch as LaunchChoice, Notice, Program, Project, StoredSession } from '../../protocol.ts'
 import { LAUNCH_OPTIONS, launchArgs } from './launch-options.ts'
 import { cleanEnv, STORE_CLIENT_VARIABLES } from '../../launch/env.ts'
@@ -344,7 +344,7 @@ export class ClaudeProvider implements Provider {
     // What a later sidecar needs to take the session back (S07).
     const record = {
       native_id: o.nativeId, project: o.project, hook_port: hooks.port, hook_token: session.hookLink.token,
-      started_at: new Date().toISOString(),
+      started_at: new Date().toISOString(), session_id: host.id,
     }
     session.startedAt = record.started_at
     this.followIds(session, record)
@@ -517,6 +517,8 @@ export class ClaudeProvider implements Provider {
         // A fresh one-time token: the bridge, retrying, reads it and connects.
         writeBridgeFile(path.join(f.runDir, BRIDGE_FILE), bridges.port, link)
       }
+      // The id it had (S01 -> Restart): its island stays. A folder from
+      // before ids were kept gets a new one.
       adopt((host) => {
         session = new ClaudeSession(host, launch, f.record.project, stored ? readTitles(stored.file) : NO_TITLES, this.log,
           () => {
@@ -525,7 +527,7 @@ export class ClaudeProvider implements Provider {
           this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
           read?.usage)
         return session
-      })
+      }, f.record.session_id ? { id: f.record.session_id } : {})
     } catch (e) {
       hookLink?.unregister()
       link?.unregister()
@@ -536,9 +538,12 @@ export class ClaudeProvider implements Provider {
     this.runDirs.add(f.runDir)
     s.hookLink = hookLink
     s.link = link
-    const record = { native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token, started_at: f.record.started_at }
+    const record = {
+      native_id: nativeId, project: f.record.project, hook_port: f.record.hook_port, hook_token: f.record.hook_token,
+      started_at: f.record.started_at, session_id: s.host.id,
+    }
     this.followIds(s, record)
-    if (nativeId !== f.record.native_id) this.rewriteRecord(f.runDir, record)
+    if (nativeId !== f.record.native_id || s.host.id !== f.record.session_id) this.rewriteRecord(f.runDir, record)
     const status = entry?.status
     s.restored({
       state: status === 'busy' ? 'working' : status === 'waiting' ? 'waiting' : 'idle',
@@ -720,13 +725,15 @@ export class ClaudeProvider implements Provider {
     // No run folder: nothing of the session is written anywhere.
     const launch: Launch = { runDir: '', nativeId: a.sessionId }
     let session: ClaudeSession | null = null
+    // No run folder to keep its id in: one made from Claude's session id,
+    // the same after a restart (S01 -> Restart).
     this.adoptOutside!((host) => {
       session = new ClaudeSession(host, launch, project, titles, this.log,
         () => { this.outside.delete(a.pid); this.watched.delete(a.pid) },
         this.opts.startupTimeoutMs ?? STARTUP_TIMEOUT_MS, read?.history, undefined, this.opts.hooksCheckMs ?? HOOKS_CHECK_MS,
         read?.usage)
       return session
-    }, { created })
+    }, { created, id: derivedId(this.id, a.sessionId) })
     const s = session as unknown as ClaudeSession
     this.outside.set(a.pid, s)
     this.watched.set(a.pid, s)

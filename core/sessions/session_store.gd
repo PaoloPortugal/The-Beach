@@ -325,6 +325,24 @@ func replace_history(session_id: String, history: Array, tools := []) -> void:
 	messages_replaced.emit(session_id)
 
 
+## From now on, a [method replace_history] for [param session_id] drops the
+## chat and tool calls we have now, keeping only what arrives after this
+## (as after a switch of conversation). [method keep_chat] cancels it.
+func begin_chat_replace(session_id: String) -> void:
+	var s := session(session_id)
+	if s.is_empty():
+		return
+	s["chat_before_switch"] = s["message_order"].duplicate()
+	s["tools_before_switch"] = s["tool_order"].duplicate()
+
+
+## Keeps the chat as it is after all: cancels [method begin_chat_replace].
+func keep_chat(session_id: String) -> void:
+	var s := session(session_id)
+	s.erase("chat_before_switch")
+	s.erase("tools_before_switch")
+
+
 ## Applies one event from the sidecar.
 func apply(msg: Dictionary) -> void:
 	var type: String = msg.get("type", "")
@@ -363,8 +381,7 @@ func apply(msg: Dictionary) -> void:
 			if "native_id" in fields:
 				# Messages from now on belong to the new conversation, whatever
 				# replace_history() brings.
-				s["chat_before_switch"] = s["message_order"].duplicate()
-				s["tools_before_switch"] = s["tool_order"].duplicate()
+				begin_chat_replace(id)
 			session_changed.emit(id, fields)
 		"agent.spawned":
 			s["agents"].append(msg["agent"])

@@ -1,6 +1,7 @@
 // The generic provider interface. A provider translates one AI tool into the
 // protocol's generic vocabulary (NOTES.md -> Multi-provider rules). The core
 // never names a specific tool; providers never touch the WebSocket.
+import crypto from 'node:crypto'
 import type {
   Agent, Choice, EndReason, ErrorCode, ExtensionCommand, History, Id, Launch, LaunchOptions, Notice, Program, Project,
   SessionEvent, StoredSession,
@@ -42,9 +43,11 @@ export interface SessionIntro {
  * host, whose announce sends session.snapshot (it's no new session), and
  * keeps the control `make` returns for the world's commands. `created`:
  * announced as session.created instead (its island rises: S08, outside
- * sessions shown again after being turned off).
+ * sessions shown again after being turned off). `id`: the session's id
+ * from before the restart, so its island stays (S01 -> Restart); one
+ * already in use is refused (throws). Without it, a new one.
  */
-export type Adopt = (make: (host: SessionHost) => ProviderSession, o?: { created?: boolean }) => void
+export type Adopt = (make: (host: SessionHost) => ProviderSession, o?: { created?: boolean; id?: Id }) => void
 
 /** The registry's side of one session, handed to the provider that runs it. */
 export interface SessionHost {
@@ -141,4 +144,19 @@ export interface Provider {
   findProgram?(): Promise<Program>
   /** The sidecar is exiting. Running sessions keep running on their own. */
   shutdown(): Promise<void>
+}
+
+/**
+ * A session id made from its provider and the provider's own id, the same
+ * on every sidecar run: for a session no run folder keeps an id for (S08's,
+ * started outside the game), so a restart finds its island again
+ * (S01 -> Restart). A UUID (version 8) from SHA-256, so it reads like the
+ * others; it says nothing native_id doesn't, which the snapshot carries anyway.
+ */
+export function derivedId(provider: string, nativeId: string): Id {
+  const b = crypto.createHash('sha256').update(`${provider}\0${nativeId.toLowerCase()}`).digest().subarray(0, 16)
+  b[6] = (b[6]! & 0x0f) | 0x80
+  b[8] = (b[8]! & 0x3f) | 0x80
+  const h = b.toString('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }

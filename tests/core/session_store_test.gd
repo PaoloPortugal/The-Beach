@@ -216,6 +216,43 @@ func _by_hand() -> void:
 	_check(store.orchestrator("r1")["state"] == "working" and store.session("r1")["notices"][0]["code"] == "reattached_read_only", "S07: in its state, with its notice")
 	store.apply({"type": "session.ended", "session": "r1", "seq": 2, "reason": "exited"})
 	store.apply({"type": "session.ended", "session": "r2", "seq": 2, "reason": "exited"})
+	# S01 restart: the new sidecar keeps every session's id (stand-ins:
+	# the dev fake takes nothing back), so its sync is a plain resync:
+	# nothing removed or added, the chat kept, its seq from the new one.
+	var outside := _snapshot("k2", 30)
+	outside["origin"] = "external"
+	outside["read_only"] = true
+	store.apply({"type": "session.snapshot", "session": _snapshot("k1", 30)})
+	store.apply({"type": "session.snapshot", "session": outside})
+	store.apply({"type": "message.started", "session": "k1", "seq": 31, "message": "said", "agent": "main", "role": "user"})
+	log.clear()
+	var resynced_ids := []
+	store.session_changed.connect(func(id: String, _fields: Array) -> void:
+		if id != "a":
+			resynced_ids.append(id))
+	client.restarting.emit("the sidecar exited")
+	client.sync_started.emit()
+	var outside_again := _snapshot("k2")
+	outside_again["origin"] = "external"
+	outside_again["read_only"] = true
+	store.apply({"type": "session.snapshot", "session": _snapshot("a", 23)})
+	store.apply({"type": "session.snapshot", "session": _snapshot("k1")})
+	store.apply({"type": "session.snapshot", "session": outside_again})
+	client.synced.emit([])
+	_check(log.is_empty() and store.sessions.has("k1") and store.sessions.has("k2"), "S01 restart: the same ids, nothing removed or added")
+	_check(store.messages("k1").size() == 1 and store.session("k1")["seq"] == 1 and resynced_ids.is_empty(), "S01 restart: the chat kept, the new sidecar's seq, nothing changed")
+	# The chat fetched again after it (ChatController): what was there
+	# goes, what came since stays; an empty history keeps it all.
+	store.begin_chat_replace("k1")
+	store.apply({"type": "message.started", "session": "k1", "seq": 2, "message": "since", "agent": "main", "role": "assistant"})
+	store.replace_history("k1", [{"message": "u-said", "agent": "main", "role": "user", "text": "said", "at": "2026-09-29T09:00:00Z"}])
+	_check(store.messages("k1").map(func(m: Dictionary) -> String: return m["message"]) == ["u-said", "since"], "S01 restart: the history replaces the chat but what came since")
+	store.begin_chat_replace("k1")
+	store.keep_chat("k1")
+	store.replace_history("k1", [])
+	_check(store.messages("k1").size() == 2, "S01 restart: kept, once begun and called off")
+	store.apply({"type": "session.ended", "session": "k1", "seq": 3, "reason": "exited"})
+	store.apply({"type": "session.ended", "session": "k2", "seq": 2, "reason": "exited"})
 	client.free()
 
 	store.apply({"type": "session.ended", "session": "a", "seq": 22, "reason": "user"})
