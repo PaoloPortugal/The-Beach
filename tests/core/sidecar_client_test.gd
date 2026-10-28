@@ -305,6 +305,35 @@ func _start_retries() -> void:
 	_check(no_connect.status == SidecarClient.Status.READY and seen_connect["failed"].is_empty() and seen_connect["pids"].size() == 2 and not seen_connect["two"] and not OS.is_process_running(seen_connect["pids"][0]), "S01 retry: a connect that fails at once: that sidecar ended, the next attempt ready")
 	no_connect.stop()
 	no_connect.queue_free()
+	# S01 restart: a reconnect that fails at once while the sidecar still
+	# runs. That sidecar is ended before a new one starts (never two), and
+	# the new one syncs, no failure said. On the real sidecar.
+	var reconnect := Starting.new()
+	reconnect.handshake_timeouts_s = [20.0, 20.0, 20.0]
+	var seen_reconnect := await _follow_start(reconnect, 30.0)
+	_check(reconnect.status == SidecarClient.Status.READY and seen_reconnect["failed"].is_empty(), "S01 restart: the real sidecar up for a failed reconnect")
+	var reconnect_restarts := []
+	var reconnect_syncs := [0]
+	reconnect.restarting.connect(func(r: String) -> void: reconnect_restarts.append(r))
+	reconnect.synced.connect(func(_p: Array) -> void: reconnect_syncs[0] += 1)
+	var alive_pid: int = reconnect._pid
+	var new_pid := [-1]
+	var old_running_then := [true]
+	reconnect._ready_at -= SidecarClient.STEADY_S # up a while: a fresh start
+	reconnect.connect_errors = 1
+	reconnect._ws.close()
+	var waited := Time.get_ticks_msec()
+	while Time.get_ticks_msec() < waited + 30000 and reconnect_syncs[0] == 0:
+		var now_pid: int = reconnect._pid
+		if new_pid[0] == -1 and now_pid > 0 and now_pid != alive_pid:
+			new_pid[0] = now_pid
+			old_running_then[0] = OS.is_process_running(alive_pid)
+		await process_frame
+	_check(reconnect_restarts.size() == 1 and str(reconnect_restarts[0]).begins_with("Couldn't connect to the sidecar"), "S01 restart: a reconnect that fails at once while the sidecar runs restarts it (%s)" % [reconnect_restarts])
+	_check(new_pid[0] > 0 and not old_running_then[0], "S01 restart: the old sidecar has stopped before the new one appears")
+	_check(reconnect_syncs[0] == 1 and reconnect.status == SidecarClient.Status.READY and seen_reconnect["failed"].is_empty(), "S01 restart: and it ends ready, no failure said")
+	reconnect.stop()
+	reconnect.queue_free()
 	# S01 restart: a sidecar that keeps dying once up fails within the
 	# start's attempts, once, instead of restarting forever.
 	var dying := Starting.new()
