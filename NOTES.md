@@ -2555,7 +2555,8 @@ game isn't in front:
   bottom until then), saved as
   `[attention] sound` in `user://settings.cfg` (Godot's per-user data
   folder). The game's first settings file; later settings go there too.
-- Tested in the world test: count, beacon on and fading out, no cue in
+- Tested in the world test: the pulse in a fishing fight (once per
+  wait, nothing else); count, beacon on and fading out, no cue in
   the game, flash and chime in the background once per wait, a session
   arriving already waiting, the toggle, the setting kept (in a test
   file, never the user's). Screenshots under both renderers from the
@@ -5623,8 +5624,8 @@ picks):*
 - *Agents:* fishing does not depend on them. The catch depends only on
   the world, never on what agents are doing (rarer fish while agents
   work would reward spending the user's tokens to fish).
-- *Leaving* (opening a chat, switching tool, swimming) or reeling in
-  lets the fish on the line go, mid-fight too. Nothing else is lost (no
+- *Leaving* (opening a chat, switching tool, swimming), in a fight
+  too, or reeling the line all the way in lets the fish on the line go. Nothing else is lost (no
   bait, no streak, no record), so leaving costs only the fish on the
   line.
 - *The fight* (user's idea, details my recommendations, chosen
@@ -5773,7 +5774,7 @@ shadows.
   - *The strain* (0 slack, 1 the limit) follows its aim at 5 per
     second. Taut and reeling: 0.25 + power × (the away pull, halved as
     the rod's held against it, + 0.8 × how far it's held on the fish's
-    side). Taut and let go: 0.1 + half the away pull. Slack (over
+    side). Taut and let go: 0.1 + power × half the away pull. Slack (over
     5 cm): 0. Taut, the fish tires: energy falls by 1/stamina a second,
     2.5 times as fast with the rod fully against it.
   - *The end:* at the limit 0.7 s, or the line out past `max_line`,
