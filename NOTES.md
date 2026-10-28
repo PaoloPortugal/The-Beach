@@ -10,6 +10,9 @@ design; keep it current and short.
   each in `docs/diagrams/sequence/` (create a session, chat, permission,
   question, subagent, stop, failure, ...). Derived from this file; update
   together. The component diagram is in Architecture.
+- `docs/release.md`: plans and checks for a public release (Anthropic's
+  terms and branding, code signing, Steam and itch.io, exports). Read
+  before a release or when one of them comes up.
 - `CLAUDE.md`: working rules. `README.md`: pitch and setup.
 - `assets/CREDITS.md`: source and license of every asset.
 
@@ -62,7 +65,7 @@ the collection (D03) and parkour (D04) are designed, not built yet (see Known is
   the terminal asks the question), never to "allowed". See Architecture →
   Security rules.
 - **Public release** is the goal (user's plan, 2026-10-02): free and open
-  source on GitHub, paid on Steam (Watch items → Anthropic's terms,
+  source on GitHub, paid on Steam (`docs/release.md` → Anthropic's terms,
   Steam). Everything must hold up on other people's machines, not just
   the developer's.
 - **Windows, macOS and Linux are all first-class.** Every feature is
@@ -135,7 +138,9 @@ slice.
 ## When a feature lands
 
 - [ ] Update its `### <ID>` section in Systems (planned intent → how it works),
-      including its provider scope.
+      including its provider scope. Fold any "Changed …" history in the
+      sections it touches into the current text (short "rejected: …"
+      notes stay) and move the story to that feature's dev-log entry.
 - [ ] Update its index row: status, guide section, main code.
 - [ ] Add or update its `<ID>` section in `docs/GUIDE.md` in plain language,
       and add it to the guide's table of contents.
@@ -469,7 +474,8 @@ the same `~/.claude` layout. What differs, and how we handle it:
 - **Watching files.** Follow transcripts by polling their size, not with
   OS file-watch events, which behave differently on each platform.
 - **Fonts.** Don't rely on system fonts being present; ship the fonts the
-  UI needs (the Markdown spike's monospace list is a stand-in). Which
+  UI needs (the chat's monospace list, `MONO_FONTS` in
+  `chat/markdown/markdown_view.gd`, is a stand-in). Which
   fonts is open: most good monospace fonts are under the OFL, not CC0, so
   ask before adding one. The UI font for other scripts is decided:
   Noto Sans (OFL), with a fallback per script, once the first
@@ -499,7 +505,7 @@ The game (Godot) follows the same rule:
   `--rendering-driver` / `--rendering-method` command-line flags are the
   escape hatch (goes in the guide once there's something to run). If the
   game ships on Steam, those become Steam launch options (e.g. "Play
-  (OpenGL)") that Steam offers at start (Watch items → Steam).
+  (OpenGL)") that Steam offers at start (`docs/release.md` → Steam).
 - **Shaders** are written in Godot's shading language only, never
   API-specific code, so they work under every driver.
 - **Input.** Movement uses physical key positions (WASD works on AZERTY
@@ -525,8 +531,8 @@ top-level folders sit beside it:
 | `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher, a hook relay (S02) and a status line relay (C08). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
-| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`) and dev log. |
-| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. Left: `markdown/` (Godot, for C03), visible to Godot so its demo scene runs (`claude-cli/`, Node, for S02, deleted 2026-10-22). |
+| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`), dev log and release plans (`release.md`). |
+| `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. None left: `claude-cli/` (Node, for S02) deleted 2026-10-22, `markdown/` (Godot, for C03) 2026-10-27; both in git history. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
 **Godot folders (user's decision: by domain).** Scenes and scripts for a
@@ -2679,7 +2685,7 @@ capability).
 *Built. Scope: core* (it renders the generic `message` text). Godot's
 `RichTextLabel` uses BBCode, not Markdown, so the chat translates.
 Prototyped in the M0 spike (`spikes/markdown/`, dev log
-2026-09-29-markdown-spike, kept there as evidence) and ported to
+2026-09-29-markdown-spike; deleted 2026-10-27, in git history) and ported to
 `chat/markdown/` (dev log 2026-10-01-c03-markdown). The user's decisions,
 verified in the spike:
 - **Converted in Godot by our own GDScript**, from the Markdown the
@@ -5987,8 +5993,8 @@ zipline; the tests.
 - **Provider-specific code** stays in its provider module (sidecar) or UI
   module (Godot); anything shared is named generically.
 - **Privacy in git.** The repo will be public. Never commit secrets,
-  session logs, tokens or machine-specific paths; spike logs and run files
-  are git-ignored for that reason. Commit author emails are the user's
+  session logs, tokens or machine-specific paths (logs and run files are
+  kept out of git for that reason). Commit author emails are the user's
   normal address, public by choice (dev log 2026-09-29-privacy-check).
 - **License.** The project is MIT (`LICENSE`). Third-party parts keep their
   own licenses: `addons/godot_ai/` (MIT, its own `LICENSE`) and the assets in
@@ -6079,7 +6085,7 @@ In `sidecar/`:
 - `npm run package` (this platform) or `npm run package -- --target
   linux-x64` (downloads that platform's Node once): `dist/<target>/`.
   macOS executables must be signed on a Mac before they run
-  (`codesign --sign -`; see Watch items → Code signing).
+  (`codesign --sign -`; see `docs/release.md` → Code signing).
 
 In Godot, the `Sidecar` autoload starts the sidecar from source (`node`
 must be on PATH). Godot's command line after `--` can change that:
@@ -6457,7 +6463,7 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
    custom models,* made by the user and added later; the placeholders
    stay until then. The agents were planned as "logo" models (the AI
    tool's logo on a little PC), but Anthropic's terms don't allow using
-   their logos in a product without permission (Watch items → Claude
+   their logos in a product without permission (`docs/release.md` → Claude
    branding), so a public release needed an original look (A01, A02).
 8. ~~**The M1 world's feel**~~ *Mostly decided (user's, 2026-09-30),
    recorded in W01, W02, W03, A01, C01 and C02:* first-person camera
@@ -6508,383 +6514,14 @@ catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
 `assets/CREDITS.md` in the export filter once exports exist.
-**Merged to `main` (2026-10-27), approved by the user: C16's design**
-(dev log 2026-10-27-c16-localisation-design): Godot's translations
-with gettext PO files and English text as keys, a Language row in
-C10, AI-assisted translations reviewed by a human; the groundwork and
-the conversion of today's strings come step by step, the first real
-language near release. Not built.
-**Merged to `main` (2026-10-27), approved by the user: D04, W13 and
-D05's designs** (dev log 2026-10-27-d04-parkour-design): hand-made
-hub courses with best times, a mantle and a wall run, and a plunger
-gun swinging on anchors, with swing routes beside every bridge. Not
-built.
-**Merged to `main` (2026-10-27), approved by the user: D03's design**
-(dev log 2026-10-27-d03-collection-design): a field guide now; the
-museum is the hub, the user's own model, filling with your catches.
-Not built.
-**Merged to `main` (2026-10-27), approved by the user: D02's design**
-(dev log 2026-10-27-d02-bug-catching-design): stalk and swing with the
-net, crouch to sneak under a noise meter, left click uses the held
-tool. Not built.
-**Merged to `main` (2026-10-27), approved by the user: C15, the hotbar,
-and D01's design** (dev logs 2026-10-27-c15-hotbar and
-2026-10-27-d01-fishing-design): 1 Hands and 2 Rod, picked with the
-number keys or the wheel, shown on a switch and fading out; fishing
-designed around a catch-bar fight, not built. Live check passed.
-**Merged to `main` (2026-10-27), approved by the user: island
-smoothing** (W01, W06, W08, W12; dev log 2026-10-27-island-smoothing):
-islands' main-thread work a step a frame, first-time costs paid by a
-warm-up behind the main menu, bridges, the island memory's writes and
-the seabed's chunks off the main thread, a sync's islands placed one a
-frame. Live check passed with the user; the soft first seconds left
-are the GPU clocking up (Watch items).
-**Merged to `main` (2026-10-26), approved by the user: C14, a main
-menu** (dev log 2026-10-26-c14-main-menu): the game opens on Play,
-Settings, Credits and Quit over the live world, a camera circling the
-islands; the pause menu's Main menu brings it back. After its live
-check: islands made off the main thread, taken-back ones rising, and
-an island ending behind the menu sinking, Play going to the platform.
-**Merged to `main` (2026-10-26), approved by the user: session
-details** (dev log 2026-10-26-session-start-details): no new-island
-beacon for outside sessions (S08), and a quicker bridge after the
-confirm in the terminal (S02 → Starting up; measured live, the bridge
-is up 1.8 s after Claude Code's screen).
-Subagents stay read-only in the world (Open questions → 4).
-**Merged to `main` (2026-10-26), approved by the user: S02, a path to
-`claude` set by hand** (dev log 2026-10-26-s02-program-path): Settings →
-Providers shows the Claude Code found, with Browse…, Look again and
-Reset; the sidecar looks for it at every start, in the background, and
-Add a session is greyed out with why while none can start. Live check
-passed with the user (Windows).
-**Merged to `main` (2026-10-26), approved by the user: C13, the pause
-menu** (dev log 2026-10-22-c13-pause-menu): Esc opens a pause menu with
-Resume, Settings and Quit game; nothing pauses. Live check passed with
-the user. **And a C02 fix: a long chat no longer jitters while it's
-laid out** (dev log 2026-10-26-c02-chat-jitter): the view keeps its
-place in the same frame the rows grow.
-**Merged to `main` (2026-10-23), approved by the user: S08, read-only
-islands for sessions started outside the game** (dev log
-2026-10-22-s08-outside-sessions): every Claude Code session running on
-the machine gets a read-only island with a grey flag (a placeholder),
-kept like the game's own, and a setting to hide them. Live check
-passed with the user.
-**Merged to `main` (2026-10-22), approved by the user: S02, finding
-`claude` through the login shell** (dev log
-2026-10-22-login-shell-path): on macOS and Linux, a `claude` installed
-under a Node version manager is looked for through the user's login
-shell when the game started from the Dock or a menu (checked on Linux
-only; macOS and a Steam launch are Watch items). The path set by hand follows after S08
-(Known issues and next steps → A path to `claude` set by hand).
-**Merged to `main` (2026-10-22), approved by the user: W12, islands
-kept across restarts** (dev log 2026-10-19-w12-islands-kept): a session
-taken back after a restart gets its island back (biome, seed, cluster,
-order; gaps closed), from the game's owner-only `islands.json`.
-Live check passed with the user.
-**Merged to `main` (2026-10-19), approved by the user: S07, reattaching
-to running sessions** (dev log 2026-10-13-s07-reattach): sessions the
-game started come back after a restart, islands standing and chat back;
-with their hook port taken, read-only (user's decision, 2026-10-19).
-Live check passed with the user.
-**Merged to `main` (2026-10-13), approved by the user: C12, model,
-effort and mode at launch** (dev log 2026-10-13-c12-launch-pickers):
-Model, Effort and Mode selectors on the create panel and the Resume
-page, each at Default every time (no flag: Claude Code's own choice),
-reversing C06's "no launch picker"; the chat header shows the model and
-effort beside the mode, the model not followed from the transcript (my
-call, confirmed by the user). Live check passed with the user.
-**Merged to `main` (2026-10-12), approved by the user: S04's sessions
-running elsewhere** (dev log 2026-10-12-live-sessions): the Resume page
-leaves out sessions still running in a terminal (`claude agents
---json`) and refuses to resume them; S07 designed. Live check passed
-with the user; it found a resumed chat showing a reply before its
-message (Watch items, to fix later).
-**Merged to `main` (2026-10-12), approved by the user: A02's report
-throw** (dev log 2026-10-12-report-throw): a done subagent stands up
-and throws its paper in a 0.6 s arc to its caller, which bobs, instead
-of walking it there, so the report lands about 1 s after Claude has it.
-Live check passed with the user; it found the message bubble vanishing
-over the sea (Watch items, to fix later).
-**Merged to `main` (2026-10-12), approved by the user: C11, the
-crosshair** (dev log 2026-10-12-crosshair): a ring in the middle of the
-screen that doubles in size on what you can use within reach, with
-"E  Talk" or "E  Zipline up/down" under it; E acts only on that,
-replacing "Press E to chat" and the zipline's labels; a Game tab toggle
-for the ring. Live check passed with the user (sizes changed after the
-first look).
-**Merged to `main` (2026-10-12), approved by the user: the sessions
-ring** (W07/S03; dev log 2026-10-12-sessions-ring): holding Tab shows
-the running sessions in a ring grouped by cluster, ⌂ at the top, ➕ in
-the middle opening the create panel, with the ring's own pointer held to
-it like on a spring; the ring demo (`tests/live/ring_demo.tscn`) for its
-live check. Live check passed with the user (real Claude and the fake
-provider demo).
-**Merged to `main` (2026-10-12), approved by the user: the sidecar
-without blocking** (dev log 2026-10-12-sidecar-no-blocking): listing
-stored sessions (S04) and asking Windows for short names (C08) no
-longer block the sidecar, and a timed-out answer isn't kept. Live check
-passed with the user.
-**Merged to `main` (2026-10-12), approved by the user: W10's mountain
-bugs** (dev log 2026-10-12-w10-mountain-bugs): a mountain's torches and
-zipline posts stand on the built mesh, and its zipline moves to a
-valley clear of its bridges. Live check: a light look by the user, no
-problems seen.
-**Merged to `main` (2026-10-12), approved by the user: the second
-optimization pass** (dev log 2026-10-12-perf-pass-2): the Mobile
-renderer instead of Forward+ (35-50 % less GPU time on the user's
-machine), the night sky dithered against Mobile's bands, SMAA on by
-default, a smooth sun and moon on a 64 px reflection map, and
-`/time speed 0` stopping the clock. Live check passed with the user.
-**Merged to `main` (2026-10-12), approved by the user: C10 settings
-menu** (dev log 2026-10-12-c10-settings): Esc opens it; Graphics
-(window, vsync, FPS cap, render scale, shadows, MSAA and screen-space
-anti-aliasing, both off by default then (SMAA on since the second
-optimization pass), lightning), Controls, Sound (the
-chime) and Game (being taken to a new island) tabs, applied at once and
-saved. Live check passed with the user.
-**Merged to `main` (2026-10-12), approved by the user: CI only on
-`main`** (dev log 2026-10-12-ci-main-only): runs on pushes to `main`,
-on all three systems, and by hand; a branch is checked locally.
-**Merged to `main` (2026-10-10), approved by the user: W11 crouch and
-slide** (dev log 2026-10-10-w11-crouch-slide): hold Ctrl to crouch
-(1.1 m, 2.5 m/s), slide at a sprint with slopes mattering, slide jumps
-keeping speed. Live check passed with the user.
-**Merged to `main` (2026-10-09), approved by the user: C08's flaky
-short-name tests** (dev log 2026-10-09-c08-askwindows-flaky):
-on a loaded Windows runner PowerShell passed `askWindows`' 10 s, so two
-`usage.test.ts` tests read "no answer"; they now wait up to 30 s, with
-the same checks. The sidecar keeps 10 s (a timed-out answer was then
-kept for the run; no longer since 2026-10-12, C08 → Short names).
-**Merged to `main` (2026-10-09), approved by the user: C09's flaky
-console checks** (dev log 2026-10-09-c09-console-check-flaky): T and Esc
-in the world test waited two physics frames; they now wait on the
-console's state (`_until`).
-**Merged to `main` (2026-10-09), approved by the user: S04's Resume on
-its own page** (dev log 2026-10-09-s04-resume-page): "+ Add session…"
-asks new or resume, Esc goes back a page (waiting for the folder picker
-too), and the sidecar keeps its stored-session listing. Live check
-passed.
-**Merged to `main` with it (2026-10-09): three flaky world-test
-checks** (dev log
-2026-10-09-world-test-waits): the missing-folder refusal queued behind
-the menu's session listings (which blocked the sidecar then; no longer
-since 2026-10-12, S04), the S06 "warning goes" check could read the turn
-just starting, and W04's "facing it" arrow check failed when h3 rolled a
-mountain (W10 starts one about 100 m down). S04, merged with it,
-puts the missing-folder wait back to 5 s, since opening the menu no longer
-lists anything.
-**Merged to `main` (2026-10-09), approved by the user: W05/W06 unbounded
-clusters** (dev log 2026-10-09-w05-unbounded-clusters): 8 near wedges
-growing without limit, a 9th and later cluster far, bridged within but
-not to the platform; the bridges test's crowd (178 sessions on CI, 311
-with `-- --crowd`). The user confirmed my two far-cluster picks; its live
-check (`tests/live/checklist.txt`, with the layout demo) is still to do.
-**Merged to `main` (2026-10-09), approved by the user: W10 island biomes
-and C09 debug commands**, together (dev logs 2026-10-08-w10-biomes and
-2026-10-08-c09-commands): five kinds of island picked in the sessions
-menu, the beach tropical, the mountain a high meadow among 60-70 m
-spires with a zipline (E); debug commands on T (`/time`, `/weather`,
-`/lightning`, `/help`).
-**Merged to `main` (2026-10-08), reviewed by the user: W09 day/night
-cycle and weather** (dev log 2026-10-08-w09-day-night): a 28-minute day
-with the sun and moon, random gentle weather with soft thunderstorms,
-moonlit nights with torches and desk lamps. Live check passed in both
-renderers at the start's mid-morning; the other hours and weathers wait
-for C09's `/time` and `/weather` (user's).
-**Merged to `main` (2026-10-08), reviewed by the user: W08's follow-ups**
-(dev log 2026-10-08-w08-tuning): the dolphin jump, island shelves in the
-sea floor's colours (now a smooth gradient by depth), a warped, spread
-sea floor with mounds; live check passed.
-**Merged to `main` (2026-10-08), reviewed by the user: W08 swimming and
-seabed** (dev log 2026-10-08-w08-swimming): one sea floor everywhere,
-clear water tinted by depth, swimming and diving, islands rising out of
-the seabed, "Platform" in the sessions menu and on the big map; live
-check passed with the fake.
-**Merged to `main` (2026-10-08), reviewed by the user: S06 sign-in
-needed** (dev log 2026-10-08-s06-sign-in): an account error raises a
-notice and the orchestrator waits on `sign_in`; a message the session
-never picks up says so and comes back; opening another session's chat
-empties the message box. Live check passed with the fake (Part A, run
-again after the review fixes) and the real `claude` with an invalid
-key. Still open, kept as is: Open questions → 10's last part; a login
-expiring on its own is a watch item.
-**Merged to `main` (2026-10-08), reviewed by the user: C08 token usage**
-(dev logs 2026-10-03-c08-usage-spike, 2026-10-08-c08-usage): context
-and totals in the chat header, each turn's tokens, the plans' limits in
-the bottom-right corner (a general list per provider), and the status
-line relay; live check passed with the fake and the real `claude`.
-**Merged to `main` (2026-10-08), reviewed by the user: the performance
-pass** (Architecture → Performance, dev log 2026-10-08-perf-pass):
-bridges' far versions, a coarse seabed, nothing drawn past the fog,
-bubbles redrawn only on a change.
-**Merged to `main` (2026-10-08), reviewed by the user: W06 bridges**
-(dev log 2026-10-07-w06-bridges): clusters in wedges from the platform,
-bridges joining each cluster and the platform as a tree, a minimap and
-a big map (M); live check passed with the layout demo, the fake and the
-real `claude`.
-**Merged to `main` (2026-10-08), reviewed by the user: the quit
-warning's list scrolls** (S05, dev log 2026-10-07-s05-quit-scroll): with
-many sessions the Quit button went off screen.
-**Merged to `main` (2026-10-08), reviewed by the user: W04's flaky
-edge-arrow check** (dev log 2026-10-07-w04-arrow-check-flaky): the
-world test read the arrows before `_process` had run; it now waits on
-process frames.
-**Merged to `main` (2026-10-07), reviewed by the user: W04, islands
-rise and sink** (dev log 2026-10-07-w04-rise-sink), with a beacon and an
-edge arrow showing where a new session's island is (placeholders); live
-check passed with the fake and the real `claude`.
-**Merged to `main` (2026-10-03), reviewed by the user: the tool log's
-markup checks cover results and Details** (dev log
-2026-10-03-c04-markup-checks).
-**Merged to `main` (2026-10-03), reviewed by the user: one read budget
-for a resumed history** (dev log 2026-10-03-c04-read-budget): subagent
-transcripts were read with no total limit, which could stall the sidecar
-on `/resume`.
-**Merged to `main` (2026-10-03), reviewed by the user: C04's input limits
-counted in bytes** (dev log 2026-10-03-c04-input-bytes): tool inputs
-measured in characters let a history with CJK or emoji inputs pass
-Godot's 32 MiB, and that chat's history never loaded.
-**Merged to `main` (2026-10-03), reviewed by the user: the Claude Code
-workflow** (Running it → Claude Code workflow): `/verify`, `/land` and
-the `docs-sync` and `security-reviewer` subagents; a trial run of both
-reviewers found real drift and a C04 bug (bytes counted as characters,
-now fixed, above). **Merged to `main` (2026-10-03), reviewed by
-the user: the diagrams restyled** (dev log 2026-10-03-diagrams): one
-file per flow in `docs/diagrams/sequence/`, a component diagram in
-Architecture; five flows that didn't render on GitHub now do.
-**Merged to `main` (2026-10-03), reviewed by the user: any error fails
-a Godot suite** (dev log 2026-10-03-script-errors-fail-tests): a script
-error no longer lets a suite print PASS with checks skipped.
-**Merged to `main` (2026-10-03), reviewed by the user: the world test's
-flaky checks** (dev log 2026-10-03-world-test-flaky): its checks wait on
-conditions, not frame counts.
-**Merged to `main` (2026-10-03), reviewed by the user: C05 reopened, the
-terminal's other prompt options** (live check passed with the fake and
-a real `claude` 2.1.288): Claude's own suggestions,
-worded like the terminal where checked live and never allowing more
-than it; a terminal-style list on the card (Yes, the options, No); a
-general `options` list replacing C06's `modes` (dev logs
-2026-10-03-c05-prompt-options-spike and -build). Accepted at review:
-the option ids `suggested` and `auto`, the plain labels (a stopgap),
-the 1 s wait, unclipped labels, protocol version 1, full-width rows.
-**Merged to `main` (2026-10-03), reviewed by the user: C06 +
-C07, permission modes and plan approval** (live check passed with the
-fake and a real `claude` 2.1.288): the mode in the chat's header, "Allow
-and switch to auto mode" on Bash prompts, plans as their own message
-with the terminal's choices on the card (dev logs 2026-10-02-c06-c07-spike
-and 2026-10-03-c06-c07-build). Accepted at review: message `kind:
-"plan"`, the card's and header's wording, plans in resumed history.
-**Merged to `main` (2026-10-02), reviewed by the user:
-C04, the tool-call log** (live check passed with the fake and a real
-`claude`): the tool calls after each message fold
-into one line in the chat, subagents' calls inside their Agent call,
-history included (C04). The "many
-sessions" milestone is done (W07 merged 2026-10-02). **Merged to `main` (2026-10-02), reviewed by the user:
-A05, the attention cue**, designed with the user and built (a beacon over
-waiting agents, a count in the corner, a taskbar flash and chime when
-the game is in the background; the chime is Kenney's `question_002`,
-the user's pick); **live check passed (2026-10-02)**. **Merged to `main` (2026-10-02), reviewed by the user:
-CI**: GitHub Actions runs every test on Windows and Linux on every push,
-and on macOS too on `main` and by hand (since 2026-10-12, on all three
-only on pushes to `main` and by hand: Running it → Continuous
-integration); read results with `gh`. **Also merged to `main`
-(2026-10-02)**, each live-checked with the user and reviewed: **W05 clusters** (renamed from archipelagos by
-the user), the **start exit** fix (the world stops waiting at once when
-Claude Code closes before a session is up, and the menu can stop
-waiting; S02 → Starting up, S03), **terminal tabs** (sessions open as
-tabs in one Windows Terminal window of their own; Architecture →
-Terminal windows) and **session titles** (sessions named like Claude
-Code names them; S02 → Titles). Also **merged to `main` (2026-10-02)**, reviewed by the user:
-the **sessions menu** (Tab anywhere: new session, jump to a running one,
-resume a stored one; S03, S04, W07; live check passed 2026-10-01) and
-S05: ending sessions from the game is shelved as a watch item (no clean
-way in Claude Code); built instead: the **quit warning** and
-session-wide activity in the Running list (live check passed
-2026-10-02; resuming a session still running from before a restart runs
-it twice: a known issue, for attaching). Both are **placeholders**, like
-all UI for now (user's): they must be properly designed later. Before that: C03 Markdown rendering (chosen by the user as the
-first feature after v1, 2026-10-01) is **built on branch `c03-markdown`**
-and was **live-checked with the user and the real `claude` (2026-10-01)**, and **merged to `main` (2026-10-01)**. What
-comes after it isn't chosen yet (Milestones → After v1); the
-recommendation was "many sessions" next (S04's world side, S05, W05,
-A05, W07). M1 is done and **merged to `main` (2026-10-01)**. M1 in short: S01 and S02 were merged first. On branch `m1-world`: W01–W03, A01 (placeholder), C01, C02 and a quick S03 are
-built: start a session from the spawn platform's post, get taken to its
-island, and chat with its orchestrator (bubble above its head, full panel
-on E). **Live check passed (2026-09-30)** with the user and the real
-`claude` 2.1.284: the picker (after switching to Godot's own), confirming
-in the terminal, the island and teleport, chat both ways with streaming,
-the bubble, a permission waiting in the terminal, and `/exit` taking you
-back to the platform. **Subagents (A02, A04) and minimal state markers
-(A03) are built** (2026-09-30), checked headless (by hand and with the
-fake provider) and in screenshots under both renderers. **Live check
-with the real `claude` (2026-09-30):** two parallel subagents appear,
-work and both walk back and go (after a fix: a walk could stall short
-of its end until the 20 s give-up). It also found that pressing Left in
-the terminal moved the conversation to a new session and cut the world
-off. **Fixed (2026-10-01, live-checked with the user):** that was Claude
-Code's agent view, now off for world sessions, and `/clear` is followed
-on the same island (S02 → Launch, Following the conversation; dev log
-2026-10-01-agent-view-clear). The last M1 feature, answering
-permission prompts and questions in the world (C05 and the `questions`
-capability's UI), is **built (2026-10-01)**, design decided with the
-user, and **live-checked with the user and the real `claude` 2.1.285
-(2026-10-01)**; after the check the note goes with a deny only, like
-Claude Code's prompt (C05). M1 reviewed (below). `/clear` and `/resume`
-now reach the world at once through the `SessionStart` hook (S02 →
-Following the conversation), **live-checked with the user
-(2026-10-01)**; after the check `/clear` also clears the world's chat
-window (re-checked live). Merged to `main` 2026-10-01.
-Still open: props (open question 8), and the
-proper designs for starting sessions (S03) and travel (W06, W07).
+What earlier merges brought: dev log 2026-10-27-merge-log (later ones:
+git's merge commits and their dev-log entries).
+
 **All UI is a placeholder** (user's, 2026-10-01): the chat panel,
 bubble, C05 card, prompts, the sessions menu (Tab) with its hint and
 notice, and the checklist overlay only have to work for now; the whole
 UI is to be designed properly later. The sessions menu especially (the
 user's explicit note): it must be properly designed later.
-
-*M1 review (2026-10-01).* Nothing blocking. Fixed: a failed history fetch
-is retried on opening the chat, and replies lost with a dropped
-connection come back as errors (the C05 card stayed disabled). Then `/resume`
-in the terminal, live-checked: it was taken for `/clear`. A transcript
-check fixed `/resume` but broke `/clear` (re-check); the user chose the
-`SessionStart` hook instead, now built and live-checked (S02 → Following
-the conversation). Open: the bubble re-wraps the whole
-reply on each streamed batch (fine at today's lengths); C05 polish
-(faint checkboxes, Deny's pressed look, Compatibility renderer).
-
-*Handoff (2026-09-30).* The sidecar side of v1 is done: the Claude
-provider (S02), S04's list and resume, the scripted `dev:fake` for
-building the world without `claude`, and Godot's `SessionStore`, the data
-layer the world and chat panel will read. 139 `node:test` checks and 3
-Godot headless tests. `try:claude` drives a real session like the world
-would (NOTES → Running it). Parts can be checked against a real `claude`
-without the user through `claude -p` (dev log
-2026-09-29-s02-relay-questions-stop).
-
-**Checkpoint 1 passed (2026-09-29)** with `npm run try:claude -- <empty
-folder>` from `sidecar/`: a Windows Terminal tab opened with `claude`, a
-world message reached Claude and it replied, `/exit` ended the session,
-and the transcript was written under `~/.claude/projects/` with our
-session ID (so no session markers were inherited). Startup prompts are in
-S02 → Starting up. It first failed on two Windows terminal bugs, now fixed
-(dev log 2026-09-29-windows-terminals).
-
-**Checkpoint 2 passed (2026-09-29)**, a live run with the user at the
-terminal (Claude Code 2.1.284, Windows, the session in default permission
-mode, since the user's usual `auto` mode asks for nothing): a prompt
-reached the world 0.2 s after its tool call and was allowed there (the
-terminal dialog closed); a deny with a note stopped Claude before its next
-command; single-choice, multi-select and free-text answers from the world
-all reached Claude; a stop from the world denied the next call and nothing
-ran after it; Esc during a reply and "No" in the terminal reached the
-world through the transcript; history was complete; `/exit` ended the
-session. One gap found and fixed: a question answered with free text left
-its tool call open (Claude Code sends no hook for it). Re-checked in a
-second session: the stop (the terminal shows "The user stopped this from
-the app."), Esc before any output and mid-reply (after 23 streamed
-batches; the partial message is completed), and "No" on a dialog.
-
-**Next:** see Current focus.
 
 **A path to `claude` set by hand** (S02, Platforms → Finding `claude`;
 promised there). *Decided (user's, 2026-10-22):* its own
@@ -6935,7 +6572,8 @@ most behind a button.
 - **Markdown → BBCode spike (C03).** *Done 2026-09-29: parser and view in
   GDScript, safe escaping (fuzz-tested), code-block panels, streaming by
   line batches. Results in C03 and the dev log (2026-09-29-markdown-spike);
-  code in `spikes/markdown/`.*
+  its code, `spikes/markdown/`, deleted 2026-10-27 (in git history; its
+  checks and samples live on in `tests/chat/`).*
 
 **M1 v1 slice.** *Done, merged to `main` 2026-10-01.* The goal is to prove the Godot ↔ sidecar ↔ `claude` CLI pipeline
 end-to-end with the generic vocabulary, even though only the Claude provider
@@ -6964,7 +6602,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   publicly, since the parts that set the game apart (downtime, the hub,
   the UI) exist only in these notes and would be easy to copy before
   they're built. Groundwork that shows nothing is fine meanwhile: the
-  terms checks (Watch items → Anthropic's terms, Steam), what a trailer
+  terms checks (`docs/release.md` → Anthropic's terms, Steam), what a trailer
   should show.
 - *The name* must be chosen before the reveal (the user's to pick;
   "The Beach" is only the codename). Wanted feel: a vacation or a
@@ -7105,7 +6743,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   packs or plain files such as glTF models and data), whether mods may
   carry scripts (code from strangers running on the player's machine,
   against the Principles and Security rules unless sandboxed or left
-  out), the Workshop's terms and API (Watch items → Anthropic's terms,
+  out), the Workshop's terms and API (`docs/release.md` → Anthropic's terms,
   Steam), and the art rule (mods are the players' own, not ours, so
   never-AI-generated can't be enforced on them; only our assets follow
   it). A mod's translations: C16 → Mods.
@@ -7162,6 +6800,9 @@ Ideas weighed and turned down. Each says what would reopen it.
 
 ### Watch items
 
+Release plans (terms, branding, signing, the stores, exports) are in
+`docs/release.md`.
+
 - **A soft first few seconds at start** (W01; measured 2026-10-27, left
   as it is with the user: further work isn't worth it). On the
   developer's AMD integrated GPU the GPU takes about 4.5 s of load to
@@ -7197,6 +6838,15 @@ Ideas weighed and turned down. Each says what would reopen it.
   (checked by the user). Harmless so far; likely the channel check
   running before our `--mcp-config` server is registered. If chat ever
   fails after a resume, start here.
+- **The message bubble re-laid out on every streamed batch** (C02;
+  open since the M1 review, measured 2026-10-27). `MessageBubble.show_text`
+  parses and lays out the whole reply on each change, for every
+  island's bubble at any distance, though only the last 4 lines show:
+  about 5 ms a batch at 1,000 characters, 21 ms at 2,000, 38 ms at
+  5,000, 95 ms at 10,000 (headless, the developer's machine). The user
+  plans to change the bubble so it shows no text, which ends this; if
+  the text stays, lay out only the reply's last paragraphs (never cut
+  inside a code block) and skip bubbles out of sight.
 - **The message bubble vanishing over the sea** (C02; seen live by the
   user, 2026-10-12, to fix later). Parts of an orchestrator's bubble
   (panel and text) disappear where only sea is behind it, and draw fine
@@ -7372,56 +7022,6 @@ Ideas weighed and turned down. Each says what would reopen it.
   quit dialog would then offer to end the running sessions, warning only
   if some are working (user's wish, 2026-10-01).
 
-- **Anthropic's terms (public release).** *Plan (user's, 2026-10-02):*
-  free and open source (MIT) on GitHub, **paid on Steam** (Principles).
-  Per Claude Code's legal and compliance docs (rechecked 2026-10-02):
-  third parties may not offer claude.ai login, route requests through
-  Free/Pro/Max credentials, or collect, store or intermediate Claude
-  credentials; this doesn't prevent a user signing in to the
-  **unmodified** Claude Code binary with their own subscription. Hence the
-  CLI route (S02): each user installs and signs in to Claude Code
-  themselves; we never bundle, modify or authenticate it. What this means
-  for the paid release:
-  - *Commercial Terms:* "preinstalling or running Claude Code in your
-    products" requires agreeing to Anthropic's Commercial Terms, on two
-    conditions we meet: the binary is unmodified, and each user signs in
-    and pays with their own credentials. A paid Steam app is clearly a
-    product, so expect to agree to them (likely through a Claude Console
-    account) before the Steam release.
-  - *Never intermediate Claude usage:* players buy the app, not Claude.
-    No bundled Claude credit, no edition "with Claude included", no
-    trial on our key: each player pays Anthropic directly.
-  - *Automated access:* the Consumer Terms forbid "automated or
-    non-human means" except with an API key or where Anthropic permits
-    it. Our reading: we add no automation. The user types every message
-    and makes every choice; we never approve anything or pick a
-    permission mode. A mode the user sets (e.g. `auto`, where Claude
-    Code's own checks decide) is Claude Code's feature, and we don't
-    override it. Hooks and channels are documented for this kind of use
-    (Anthropic's fakechat demo is a localhost chat UI).
-  - *Ask Anthropic before the public release* (to do; user's decision,
-    2026-10-02: not now). Both messages are drafted in the dev log
-    (2026-10-02-terms-steam); before sending, confirm the contacts
-    below are still the right ones and refresh the drafts against the
-    terms. The planned routes: the terms questions (is the
-    subscription use fine, free and paid; is the Commercial Terms step
-    the right one) go by email through the contact-sales form, which the
-    legal page names for "questions about permitted authentication
-    methods". The channel-flag question (Channels are a research
-    preview, below) goes as a public issue on anthropics/claude-code,
-    where the channels docs ask for feedback; no terms questions there.
-    Other contacts found: support@anthropic.com (account help, not
-    rulings), marketing@anthropic.com (permission to use their names or
-    logos), notices@anthropic.com (formal legal notices only). Record
-    the answers here. Recheck the terms before each release.
-- **Claude branding.** Same page: a product may say in plain text that it
-  runs Claude Code, but may not use the Claude Code or Anthropic names or
-  logos in its own name or logo, or suggest Anthropic built or endorses it.
-  Other use of their logos needs written permission. This affects the "logo
-  model" agents (A01, A02) in a public release, and the Steam store page:
-  "Requires Claude Code" in plain text is fine; the name, capsule art,
-  logo and trailer must not use their names or logos. The agents get
-  the user's own custom models instead (open question 7, 2026-10-12).
 - **Finding `claude` through the login shell, live** (Platforms →
   Finding `claude`). Checked on Linux only (Arch in WSL, bash, fake
   and real profiles); the fake-shell tests have run on Linux only (CI
@@ -7483,7 +7083,7 @@ Ideas weighed and turned down. Each says what would reopen it.
   onto the allowlist (the plugin directory submission form may be the
   route; our bridge would first have to become a plugin, a design
   change), channels leaving the preview, or Anthropic confirming the flag
-  is fine (Anthropic's terms, above).
+  is fine (`docs/release.md` → Anthropic's terms).
 - **A deny with a message from the channel.** The channel's verdict has
   no message, so a deny's note follows as the user's next chat message
   (S02 → Permissions). *Decided (user's, 2026-10-01):* if Claude Code
@@ -7533,15 +7133,6 @@ Ideas weighed and turned down. Each says what would reopen it.
   launch flow (terminal launcher, finding `claude`, the channel
   confirmation) must be checked on a real Mac and a Linux desktop before a
   release claims them; until then, say so in the README.
-- **Code signing (public release).** macOS blocks apps that aren't signed
-  and notarized (Gatekeeper), which needs an Apple Developer account (99
-  USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
-  to the Godot export and the sidecar executable, and matter most for
-  itch.io's browser downloads. Decide before the first public release.
-  The sidecar is a Node binary with our script injected, which breaks
-  Node's own signature (Windows: "signature seems corrupted"; macOS: won't
-  run until re-signed, which needs a Mac). Release builds should strip it
-  and sign with ours (S01).
 - **Large chat histories.** `session.get_history` answers in one message;
   Godot's client accepts up to 32 MiB (S01). A very long session could
   exceed that; paging the history is the fix if it happens. Tool inputs
@@ -7549,62 +7140,6 @@ Ideas weighed and turned down. Each says what would reopen it.
   not: up to 5000 of them, and a resumed transcript can be up to 64 MiB,
   so a session with very long replies (about 6 KiB each on average)
   could still pass 32 MiB, and its chat history would not load.
-- **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
-  on Steam while the source stays free on GitHub (depots per OS, updates
-  through SteamPipe; the bundled sidecar ships as ordinary game files).
-  Anthropic's side of a paid release is under Anthropic's terms and
-  Channels are a research preview (both above). Things to check before
-  relying on it:
-  - *Third-party account:* the store page must say "Requires 3rd-Party
-    Account": Claude Code with the player's own plan or API key. Saying
-    so plainly also heads off refunds.
-  - *Licences:* MIT allows selling builds. Every asset and dependency
-    must allow commercial use (CC0 Kenney packs do; the placeholder
-    Godot icon, CC BY, is replaced before release; `assets/CREDITS.md`).
-  - *Linux sandboxing:* native Linux games may run inside the Steam Linux
-    Runtime container, and Flatpak installs of Steam are sandboxed; either
-    may stop the game from seeing or starting the user's terminal and
-    `claude`. Needs a test; if it does, the Linux build is offered on
-    itch.io only.
-  - *Environment:* Steam's variables and overlay hooks must not reach the
-    launched terminal and `claude` (Security rules → Clean child
-    environments).
-  - *Proton:* Steam must not run the Windows build through Proton on
-    Linux (it would try to start Windows programs); ship the native Linux
-    build.
-  - *AI disclosure:* Steam's content survey asks about AI, including
-    live-generated content shown in the game; Claude's replies probably
-    count, and the answer must describe our safeguards (the player's own
-    session; nothing approved without them). Since Valve's January 2026
-    form (per developer guides; recheck in Steamworks), coding assistants
-    used while developing need no disclosure, and our art is never
-    AI-generated, so there is no pre-generated content to declare.
-  - *Signing:* games installed by Steam don't trigger SmartScreen; check
-    Valve's current macOS signing and notarization requirements (see Code
-    signing).
-  - *Steam features* (achievements, overlay) are optional; they'd need a
-    GDExtension with builds for all three platforms (e.g. GodotSteam).
-  - *Testing:* nothing Steam-specific is needed while building. Valve
-    reviews the build and store page before release (it launches, matches
-    the page), and Steam Deck Verified is optional. The risks above are
-    tested by installing a build from a private Steam branch on each OS,
-    which needs a Steamworks account (one-time fee per app); the Linux
-    runtime part can be tried earlier, since that runtime is free.
-- **itch.io (certain).** The game will be offered on itch.io, uploaded
-  per OS with itch's `butler` tool (patch updates; the itch app updates
-  players automatically). Nothing itch-specific is needed to build for
-  it, but browser downloads differ from Steam installs:
-  - *Signing matters more:* downloaded files carry the browser's
-    "from the internet" mark, so unsigned Windows builds get SmartScreen's
-    warning and un-notarized macOS builds are blocked by Gatekeeper until
-    the user allows them in System Settings (see Code signing).
-  - *Executable permissions:* macOS and Linux builds, including the
-    sidecar executable, must keep their executable flag. `butler` and the
-    itch app keep it; a zip unpacked by hand may not, so the game should
-    check the sidecar's flag at start and restore it or explain.
-  - *Linux:* a plain download runs outside Steam's sandboxing, so itch.io
-    is the fallback home for the Linux build if Steam's sandboxing blocks
-    launching the terminal and `claude`.
 - **A ring with many clusters** (W07; left to the UI pass, user's,
   2026-10-12). Folding only merges a cluster's sessions, so the ring
   keeps a segment per cluster: past about 12 clusters it has more than
@@ -7639,13 +7174,6 @@ Ideas weighed and turned down. Each says what would reopen it.
   game window as the picker's parent (the X11 window id, or the exported
   Wayland handle). Not yet seen live (Watch items → Untested on macOS
   and Linux).
-- **Export presets (when we make them):** leave out `tests/`, including
-  the live-check checklist overlay (`tests/live/`); `world.gd` only loads
-  it with `--checklist`, but it shouldn't ship (user's, M1 review).
-- **`icon.svg`** is Godot's default icon (CC BY 4.0, not CC0). It is a
-  placeholder to replace.
-- **Before making the repo public:** re-run the history scan for secrets,
-  personal data and machine paths (dev log 2026-09-29-privacy-check).
 - **Godot AI plugin:** its auth doesn't protect against a compromised process
   running as the same user, and on Windows it claims no isolation from other
   local accounts (per its security model). Telemetry is on by default

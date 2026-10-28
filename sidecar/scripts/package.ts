@@ -15,7 +15,7 @@
 // macOS: the injected binary must be signed again before it runs (Apple
 // Silicon refuses unsigned code). That needs `codesign` on a Mac:
 //   codesign --sign - dist/darwin-arm64/sidecar      (ad hoc, for testing)
-// Release signing and notarization: NOTES.md -> Watch items -> Code signing.
+// Release signing and notarization: docs/release.md -> Code signing.
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'

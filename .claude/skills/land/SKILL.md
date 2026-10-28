@@ -35,6 +35,11 @@ edit or say why it doesn't apply. Things that are easy to get wrong:
 - **Systems section**: replace the planned intent with how it works now,
   and state the **provider scope** (core / capability / extension). If the
   scope was never decided, stop and ask the user. Don't pick one.
+  Fold "Changed (user's, date): …" history in each section the branch
+  touches into the current decision; keep short "(rejected: …)" notes,
+  and move the old version to the feature's dev-log entry. Never change
+  what a decision says while folding; if it's unclear which is current,
+  ask.
 - **Index row**: status wording matches the others ("built",
   "built (UI placeholder)", "placeholder built", …), plus guide section and
   main code paths that exist (check them).
