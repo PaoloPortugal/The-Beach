@@ -497,7 +497,7 @@ You see the world through your character's eyes.
 | Chat: look at the orchestrator from close by | E (Esc closes the chat) |
 | Ride a mountain's zipline: look at its post from close by | E |
 | Take a tool from the hotbar (C15) | 1, 2, … or the mouse wheel |
-| Fish, with the rod in hand (D01) | hold left click, let go to cast; hold left click to reel in; left click on the bite |
+| Fish, with the rod in hand (D01) | hold left click, let go to cast; hold left click to reel in; left click on the bite to hook it, then hold to reel and move the mouse against the fish |
 | Debug commands (debug builds only) | T |
 
 The keys follow their position on the keyboard, so on other layouts
@@ -647,20 +647,59 @@ comes to a bobber resting in the water. Its shadow swims up to the
 bobber and nibbles once or a few times, each nibble a small dip of the
 bobber. Then it bites: the bobber plunges under with a splash ring, and
 a gold **!** shows under the crosshair for a second and a half. **Click
-then** to catch it.
+then** to hook it, and keep holding: the fight starts.
 
 - Click on a nibble, or before it gets there, and you scare it off:
   **Too soon: it swam off**. Keep holding and you reel in.
 - Miss the bite and **It got away**; keep waiting and another comes.
 
+**The fight.** Holding the left button reels the fish in; bring it all
+the way to you to land it. While a fish is on the hook the mouse moves
+the rod, and the view turns with the rod (and follows the fish when it
+swims far to a side). The fish drags the tip of your rod, and your view
+with it, toward its side. An **arrow** beside the crosshair points the
+other way: move the mouse that way to hold the rod against the fish.
+The arrow fades as you do. Holding against it takes some of its pull,
+tires it out faster and turns its head round toward you, so it comes
+in. Leave the rod on the fish's side and your reeling hardly gains,
+and the line strains.
+
+- Every few seconds the fish makes a **run**: it rises near the
+  surface, throwing up spray as it goes, and pulls hard away and to a
+  side, jerking the rod and the view its way. **Let go** of the
+  button: the reel gives it line and the line stays tight. A run tires
+  the fish fast, more so with the rod held against it, which can turn
+  it and end the run sooner. Between runs it pulls weaker: **reel
+  then**.
+- The **rod bends** the harder the line pulls. Near its limit the line
+  pulls straight and **trembles**, and the view shakes a little.
+  Reeling into a run, or with the rod on the fish's side, and **The
+  line snapped**: the fish is gone (and so is the bobber, but you get
+  it back for the next cast).
+- When the fish **swims toward you**, the line goes slack: keep
+  reeling. Left slack for a couple of seconds, **It slipped off the
+  hook**.
+- If it takes out all your line (30 m), the line snaps too.
+- The **shadow** shows where the fish is, and the bobber is pulled
+  under there.
+- Bring it to you and you've won: the fish is pulled up out of the
+  water, hanging from the line, and it's yours.
+
+Shallows fish are small and quick to land (about ten seconds); drop-off
+fish fight harder (twenty seconds or more); open sea fish are strong
+and tire slowly (most of a minute). Bigger fish of a kind
+pull harder. If an agent starts waiting during a fight, the "sessions
+waiting" count in the corner pulses once; nothing pauses.
+
 **Moving and leaving.** You can walk about while the line is out: it
 pays out up to 30 m. Further than that, you drag the bobber after you,
-and the fish on the line swims off. Taking another tool, opening the
+and the fish on the line swims off. Once a fish is hooked you stay
+where you stand until it's caught or lost. Taking another tool, opening the
 chat, a menu, the sessions ring or the map, swimming, or riding a
-zipline reels in at once. The only thing you lose is the fish on the
+zipline reels in at once, in a fight too. The only thing you lose is the fish on the
 line: there's no bait, streak or record to lose.
 
-**A catch** shows a card high on the screen with the fish and
+**A catch** (a fish landed) shows a card high on the screen with the fish and
 its size, for example "You caught a Drop-off fish!" and "34 cm", marked
 **New** the first time you catch that species.
 
@@ -674,7 +713,8 @@ on what your agents are doing.
 
 Every catch is kept (each species, how many, the biggest and the first)
 for the collection that comes later. The rod, the bobber, the shadows,
-the splash, the meter, the "!" and the card are placeholders.
+the splash, the meter, the "!", the fight's arrow and the card are
+placeholders.
 
 ## Talking to the orchestrator (C01)
 
@@ -991,6 +1031,9 @@ placeholder.
   macOS its Dock icon bounces) and a short chime plays. While you're in
   the game, there's no flash and no chime: the beacon and the count are
   enough.
+- **While you're fighting a fish** (with the rod), a new wait makes the
+  count pulse once, since your eyes are on the line. Nothing pauses:
+  drop the rod (press 1) to go, and you lose only that fish.
 
 To turn the chime off, open the settings (Esc, then **Settings**), go
 to **Sound** and untick **Sound when waiting**; the game remembers it.

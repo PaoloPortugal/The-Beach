@@ -8,8 +8,16 @@ extends Node3D
 ## nothing ever comes. Hold the click while it's out to reel it in
 ## slowly; let go to stop. A fish comes to a bobber resting in the
 ## water: its shadow swims up, nibbles once or a few times, and bites,
-## the bobber plunging with a splash. A click then catches it; a click
-## on a nibble scares it off. No fight yet (the next round).
+## the bobber plunging with a splash. A click then hooks it (a click on
+## a nibble scares it off) and the fight starts ([FishFight]): hold the
+## click to reel it in between its runs and let go on a run, the reel's
+## drag giving line, and push the mouse, which moves the rod (the view
+## turning with it), against its pull, where the arrow by the crosshair
+## points; it's landed at the rod's tip. The fight is read from the
+## world: the rod bends with the strain, the line goes straight and
+## trembles near its limit, the shadow swims where the fish is, splashing
+## on a run. Too much strain snaps the line; too long slack, the hook
+## slips.
 ##
 ## What comes depends only on the world ([FishSpecies]): the water under
 ## the bobber, the nearest island's biome, the hour and the weather.
@@ -26,7 +34,9 @@ signal caught(id: String, size_cm: int, first: bool)
 
 ## OUT: the bobber is out but not resting in the water (flying is
 ## CASTING): on land, rolling, being reeled or dragged. Nothing comes.
-enum State { IDLE, CHARGING, CASTING, OUT, WAITING, APPROACH, NIBBLE, BITE }
+## FIGHT: a fish on the hook. LANDING: won, it's pulled out of the
+## water, then caught.
+enum State { IDLE, CHARGING, CASTING, OUT, WAITING, APPROACH, NIBBLE, BITE, FIGHT, LANDING }
 
 ## Seconds to fill the meter; the throw's speed, m/s, from a tap to a
 ## full meter (about 4 m and 22 m over flat water at eye level), and how
@@ -101,6 +111,40 @@ const GRIP_FOV := 80.0
 const ROD_TILT := -55.0
 const ROD_CHARGED := -15.0
 const ROD_REELING := -40.0
+## The rod is drawn in ROD_JOINTS pieces, bending forward at each joint
+## after the first, the tip's most, by up to ROD_BEND degrees at the
+## line's limit; in a fight its tip swings ROD_SWING degrees to a side at
+## most.
+const ROD_JOINTS := 4
+const ROD_BEND := 18.0
+const ROD_SWING := 30.0
+## In a fight: how far the rod's tip moves for the view's turn the mouse
+## would have made (radians; the tip goes from -1 to 1); how far the view
+## turns with the rod's tip at either end, degrees; how far under the
+## water the bobber is pulled, metres; past how far off the middle of
+## the view (less the rod's turn), degrees, the view drifts after the
+## fish, and how fast, degrees/s; the strain from which the line
+## trembles and the view shakes, and the most it shakes, metres.
+const ROD_MOUSE := 2.0
+const VIEW_SWING := 25.0
+## The fight won, the fish is pulled out of the water over LAND_TIME
+## seconds, the bobber rising to HANG metres under the rod's tip, the
+## fish hanging under it; then it's caught.
+const LAND_TIME := 0.8
+const HANG := 0.6
+## On a run: how far the fish rises toward the surface, metres, and its
+## spray, a ring every SPRAY_EVERY seconds where it swims, each spreading
+## to SPRAY_SIZE metres over SPRAY_TIME seconds (SPRAYS at once at most).
+const RUN_RISE := 0.35
+const SPRAY_EVERY := 0.15
+const SPRAY_TIME := 0.5
+const SPRAY_SIZE := 1.2
+const SPRAYS := 5
+const FIGHT_DIP := 0.2
+const DRIFT_FROM := 20.0
+const DRIFT_SPEED := 40.0
+const TREMBLE := 0.8
+const SHAKE := 0.012
 const ROD_COLOUR := Color(0.45, 0.30, 0.18)
 const LINE_COLOUR := Color(0.92, 0.92, 0.88)
 
@@ -139,12 +183,15 @@ var target := Vector3.ZERO
 var line_length := 0.0
 ## Whether the click is held to reel in.
 var reeling := false
+## The fight, while a fish is on the hook; else null.
+var fight: FishFight
 
 var _timer := 0.0
 var _nibbles_left := 0
 var _dip := 0.0
 var _fish: FishShadow # the fish on the line: aimed at, coming, nibbling or biting
 var _species := {}
+var _size_cm := 0 # the hooked fish's
 var _where := {} # the bobber's water and biome
 var _release := false # cast on the next physics frame
 var _snag_timer := 0.0
@@ -153,7 +200,15 @@ var _lifting := false # snagged in the water while reeling: the line lifts it
 var _shadow_timer := 0.0
 var _shadows: Array[FishShadow] = [] # wandering, the fish on the line among them
 var _splash_age := INF
+var _view_rod := 0.0 # the rod's tip the view was last turned with, in a fight
+var _land_from := Vector3.ZERO # where the bobber was when the fight was won
+var _land_age := 0.0
+var _sprays: Array[MeshInstance3D] = [] # a run's rings, oldest first
+var _spray_ages: Array[float] = []
+var _spray_timer := 0.0
+var _clock := 0.0
 var _rod := Node3D.new()
+var _joints: Array[Node3D] = [] # the rod's pieces, the first at the grip
 var _tip := Node3D.new()
 var _bobber := RigidBody3D.new()
 var _splash := MeshInstance3D.new()
@@ -214,6 +269,11 @@ func reel_in() -> void:
 	_end()
 
 
+## Whether a fish is on the hook (or being pulled out).
+func fighting() -> bool:
+	return state == State.FIGHT or state == State.LANDING
+
+
 ## Whether the bobber is out (flying, on land, in the water).
 func bobber_out() -> bool:
 	return state != State.IDLE and state != State.CHARGING
@@ -221,6 +281,9 @@ func bobber_out() -> bool:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not usable():
+		return
+	if event is InputEventMouseMotion and state == State.FIGHT:
+		fight.push(event.screen_relative.x * player.mouse_sensitivity * ROD_MOUSE)
 		return
 	if event.is_action_pressed("use"):
 		match state:
@@ -271,10 +334,14 @@ func _process(delta: float) -> void:
 		return
 	_place_rod(delta)
 	_splash_age += delta
+	_clock += delta
 	if state == State.IDLE or _left():
-		if state != State.IDLE:
+		if state == State.LANDING:
+			_catch() # already won
+		elif state != State.IDLE:
 			reel_in()
 		_place_splash()
+		_place_sprays(delta)
 		return
 	match state:
 		State.CHARGING:
@@ -311,13 +378,18 @@ func _process(delta: float) -> void:
 				_lose_fish(true)
 				hud.say("It got away")
 				_back_to_waiting()
-	if state != State.BITE:
+		State.FIGHT:
+			_fight_step(delta)
+		State.LANDING:
+			_land_step(delta)
+	if state != State.BITE and state != State.FIGHT:
 		_dip = move_toward(_dip, 0.0, DIP_BACK * delta)
 	if _floating():
 		_bobber.global_position = Vector3(target.x, ocean.height_at(target.x, target.z) - _dip, target.z)
 	if bobber_out():
 		_draw_line()
 	_place_splash()
+	_place_sprays(delta)
 
 
 # Leaving the rod (D01): the chat or a menu, another tool, swimming or
@@ -334,7 +406,7 @@ func _on_held(_tool: String) -> void:
 # Resting in the water, where fish come: it floats on the waves, placed
 # there each frame, not moved by the physics.
 func _floating() -> bool:
-	return state in [State.WAITING, State.APPROACH, State.NIBBLE, State.BITE]
+	return state in [State.WAITING, State.APPROACH, State.NIBBLE, State.BITE, State.FIGHT]
 
 
 # Thrown along where you look, a little above it, harder the fuller the
@@ -366,6 +438,8 @@ func _move_bobber(delta: float) -> void:
 	if dist > max_line + LOST:
 		reel_in()
 		return
+	if state == State.FIGHT or state == State.LANDING:
+		return # the fight moves it
 	if _floating():
 		if dist > max_line:
 			# Dragged: the fish on the line takes fright.
@@ -502,21 +576,127 @@ func _fish_comes() -> void:
 	state = State.APPROACH
 
 
+# Hooked: the fight starts, the click held reeling it in, the view held
+# so the mouse moves the rod, and you kept where you stand.
 func _hook() -> void:
-	var size := FishSpecies.size_for(_species, rng.randf())
+	_size_cm = FishSpecies.size_for(_species, rng.randf())
+	var tip := _tip.global_position
+	var flat := Vector2(target.x - tip.x, target.z - tip.z).length()
+	fight = FishFight.new(_species, _size_cm, Vector2(target.x, target.z), minf(flat + SLACK, max_line), rng)
+	fight.max_line = max_line
+	fight.back = BACK
+	fight.swimmable = func(at: Vector2) -> bool: return depth_at(Vector3(at.x, 0.0, at.y)) >= MIN_DEPTH
+	state = State.FIGHT
+	reeling = true
+	player.look_held = true
+	player.move_held = true
+	_view_rod = 0.0
+
+
+# The fight's next frame, shown in the world: the fish (its shadow and
+# the bobber pulled under) where it swims, a splash as it starts a run,
+# the line's length, the view turning with the rod, drifting after the
+# fish and shaking near the line's limit. Then landed, snapped or
+# slipped.
+func _fight_step(delta: float) -> void:
+	var tip := _tip.global_position
+	fight.step(delta, Vector2(tip.x, tip.z), reeling)
+	target = Vector3(fight.fish.x, Player.WATER_Y, fight.fish.y)
+	_dip = FIGHT_DIP
+	line_length = tip.distance_to(_bobber.global_position) + fight.slack(Vector2(tip.x, tip.z))
+	if is_instance_valid(_fish):
+		_fish.swim_to(target, FishFight.SPEED * 4.0)
+		_fish.raised = RUN_RISE if fight.running else 0.0
+	if fight.ran:
+		fight.ran = false
+		_splash_age = 0.0
+	# A run throws up spray where the fish swims.
+	if fight.running:
+		_spray_timer -= delta
+		if _spray_timer <= 0.0:
+			_spray_timer = SPRAY_EVERY
+			_spray(target)
+	else:
+		_spray_timer = 0.0
+	# The view turns with the rod's tip, so the fish dragging it pulls
+	# the view its way and pushing back brings it back; past that, it
+	# drifts after the fish.
+	var swing := deg_to_rad(VIEW_SWING)
+	player.rotate_y(-(fight.rod - _view_rod) * swing)
+	_view_rod = fight.rod
+	var look := -player.global_basis.z * Vector3(1, 0, 1)
+	var off := look.signed_angle_to((target - player.global_position) * Vector3(1, 0, 1), Vector3.UP) - fight.rod * swing
+	var from := deg_to_rad(DRIFT_FROM)
+	if absf(off) > from:
+		player.rotate_y(signf(off) * minf(absf(off) - from, deg_to_rad(DRIFT_SPEED) * delta))
+	var camera := player.get_node("Head/Camera3D") as Camera3D
+	var shake := SHAKE * clampf((fight.strain - TREMBLE) / (1.0 - TREMBLE), 0.0, 1.0)
+	camera.h_offset = rng.randf_range(-shake, shake)
+	camera.v_offset = rng.randf_range(-shake, shake)
+	match fight.outcome:
+		"landed":
+			state = State.LANDING
+			_land_from = _bobber.global_position
+			_land_age = 0.0
+		"snapped":
+			hud.say("The line snapped")
+			_lose_fish(true)
+			_end()
+		"slipped":
+			hud.say("It slipped off the hook")
+			_lose_fish(true)
+			_to_out()
+
+
+# Won: the fish pulled up out of the water to hang from the rod's tip,
+# then caught.
+func _land_step(delta: float) -> void:
+	_land_age += delta
+	var t := clampf(_land_age / LAND_TIME, 0.0, 1.0)
+	var eased := t * t * (3.0 - 2.0 * t)
+	var tip := _tip.global_position
+	var at := _land_from.lerp(tip + Vector3.DOWN * HANG, eased)
+	_bobber.global_position = at
+	line_length = tip.distance_to(at)
+	target = Vector3(at.x, Player.WATER_Y, at.z)
+	if is_instance_valid(_fish):
+		_fish.swim_to(target, 20.0)
+		_fish.raised = at.y - 0.1 + FishShadow.DEPTH - Player.WATER_Y
+		_fish.hang = eased
+	var camera := player.get_node("Head/Camera3D") as Camera3D
+	camera.h_offset = 0.0
+	camera.v_offset = 0.0
+	if t >= 1.0:
+		_catch()
+
+
+func _catch() -> void:
 	var biome: int = _where["biome"]
-	var first := catches.record(_species["id"], size, Biome.NAMES[biome] if biome >= 0 else "", _where["water"])
-	hud.show_catch(_species["name"], size, first)
-	caught.emit(_species["id"], size, first)
+	var first := catches.record(_species["id"], _size_cm, Biome.NAMES[biome] if biome >= 0 else "", _where["water"])
+	hud.show_catch(_species["name"], _size_cm, first)
+	caught.emit(_species["id"], _size_cm, first)
 	if is_instance_valid(_fish):
 		_fish.queue_free()
 	_fish = null
 	_end()
 
 
+# The fight over: the view is yours again.
+func _stop_fight() -> void:
+	if fight == null:
+		return
+	fight = null
+	player.look_held = false
+	player.move_held = false
+	var camera := player.get_node("Head/Camera3D") as Camera3D
+	camera.h_offset = 0.0
+	camera.v_offset = 0.0
+
+
 # The fish on the line, if any, swims off: darting away when [param
 # scared], else wandering back off.
 func _lose_fish(scared: bool) -> void:
+	_stop_fight()
 	if is_instance_valid(_fish):
 		if scared:
 			_fish.swim_off(target)
@@ -532,6 +712,7 @@ func _back_to_waiting() -> void:
 
 
 func _end() -> void:
+	_stop_fight()
 	state = State.IDLE
 	charge = 0.0
 	_release = false
@@ -559,6 +740,12 @@ func _place_rod(delta: float) -> void:
 	elif reeling:
 		tilt = ROD_REELING
 	_rod.rotation_degrees.x = move_toward(_rod.rotation_degrees.x, tilt, 400.0 * delta)
+	# In a fight it bends with the strain, the tip most, and swings to
+	# where it's pushed.
+	var strain := fight.strain if fight else 0.0
+	for i in range(1, _joints.size()):
+		_joints[i].rotation_degrees.x = -ROD_BEND * strain * i / (_joints.size() - 1.0)
+	_rod.rotation_degrees.z = move_toward(_rod.rotation_degrees.z, -fight.rod * ROD_SWING if fight else 0.0, 300.0 * delta)
 
 
 # The line: from the rod's tip to the bobber, straight when taut, sagging
@@ -586,6 +773,8 @@ func line_points() -> PackedVector3Array:
 		var t := float(i) / LINE_POINTS
 		var straight := from.lerp(at, t)
 		var p := straight + Vector3.DOWN * sag * 4.0 * t * (1.0 - t)
+		if fight and fight.strain > TREMBLE:
+			p.y += (fight.strain - TREMBLE) / (1.0 - TREMBLE) * 0.04 * sin(_clock * 60.0 + i * 2.0) * sin(PI * t)
 		if i > 0 and i < LINE_POINTS:
 			p.y = maxf(p.y, _ground_y(space, straight, p) + LINE_LIFT)
 		out.append(p)
@@ -614,6 +803,36 @@ func _place_splash() -> void:
 	_splash_material.albedo_color.a = 0.8 * (1.0 - t)
 
 
+# A run's spray: the oldest ring starts again at [param at].
+func _spray(at: Vector3) -> void:
+	var ring: MeshInstance3D = _sprays.pop_front()
+	_spray_ages.pop_front()
+	ring.set_meta("at", Vector2(at.x, at.z))
+	_sprays.append(ring)
+	_spray_ages.append(0.0)
+
+
+# The run's rings spreading on the water, fading out.
+func _place_sprays(delta: float) -> void:
+	for i in _sprays.size():
+		_spray_ages[i] += delta
+		var ring := _sprays[i]
+		var t := _spray_ages[i] / SPRAY_TIME
+		ring.visible = t < 1.0 and bobber_out()
+		if not ring.visible:
+			continue
+		var at: Vector2 = ring.get_meta("at")
+		var r := lerpf(0.15, SPRAY_SIZE, t)
+		ring.scale = Vector3(r, 0.3, r)
+		ring.global_position = Vector3(at.x, ocean.height_at(at.x, at.y) + 0.02, at.y)
+		((ring.mesh as TorusMesh).material as StandardMaterial3D).albedo_color.a = 0.75 * (1.0 - t)
+
+
+## Whether a run's spray shows now.
+func spraying() -> bool:
+	return _sprays.any(func(r: MeshInstance3D) -> bool: return r.visible)
+
+
 # Keeps a few shadows wandering in the shallows round the player.
 func _tend_shadows() -> void:
 	_shadows.assign(_shadows.filter(func(s: Variant) -> bool: return is_instance_valid(s) and not s.leaving()))
@@ -638,30 +857,39 @@ func _add_shadow(at: Vector3) -> FishShadow:
 	return s
 
 
-# A placeholder rod held in the view, bottom right: a tapering stick.
+# A placeholder rod held in the view, bottom right: a tapering stick in
+# a few pieces, each a joint it bends at.
 func _make_rod() -> void:
 	_rod.name = "Rod"
 	_rod.position = GRIP
 	_rod.rotation_degrees.x = ROD_TILT
 	_rod.visible = false
-	var stick := MeshInstance3D.new()
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.007
-	cylinder.bottom_radius = 0.016
-	cylinder.height = ROD_LENGTH
-	cylinder.radial_segments = 6
-	cylinder.rings = 1
 	var m := StandardMaterial3D.new()
 	m.albedo_color = ROD_COLOUR
 	m.roughness = 0.8
-	cylinder.material = m
-	stick.mesh = cylinder
-	stick.position.y = ROD_LENGTH / 2.0
-	stick.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_rod.add_child(stick)
+	var piece := ROD_LENGTH / ROD_JOINTS
+	var parent: Node3D = _rod
+	for i in ROD_JOINTS:
+		var joint := Node3D.new()
+		joint.position.y = 0.0 if i == 0 else piece
+		parent.add_child(joint)
+		_joints.append(joint)
+		var stick := MeshInstance3D.new()
+		var cylinder := CylinderMesh.new()
+		cylinder.bottom_radius = lerpf(0.016, 0.007, float(i) / ROD_JOINTS)
+		cylinder.top_radius = lerpf(0.016, 0.007, float(i + 1) / ROD_JOINTS)
+		cylinder.height = piece
+		cylinder.radial_segments = 6
+		cylinder.rings = 1
+		cylinder.material = m
+		stick.mesh = cylinder
+		stick.position.y = piece / 2.0
+		stick.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		joint.add_child(stick)
+		parent = joint
 	_tip.name = "Tip"
-	_tip.position.y = ROD_LENGTH
-	_rod.add_child(_tip)
+	_tip.position.y = piece
+	parent.add_child(_tip)
 	player.get_node("Head/Camera3D").add_child(_rod)
 
 
@@ -727,3 +955,24 @@ func _make_bobber() -> void:
 	_splash.visible = false
 	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_splash)
+	# A run's spray: rings like the splash, each with its own fade.
+	for i in SPRAYS:
+		var spray := MeshInstance3D.new()
+		spray.name = "Spray%d" % i
+		var torus := TorusMesh.new()
+		torus.inner_radius = 0.8
+		torus.outer_radius = 1.0
+		torus.rings = 24
+		torus.ring_segments = 3
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(1, 1, 1, 0)
+		torus.material = m
+		spray.mesh = torus
+		spray.visible = false
+		spray.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spray.set_meta("at", Vector2.ZERO)
+		add_child(spray)
+		_sprays.append(spray)
+		_spray_ages.append(INF)

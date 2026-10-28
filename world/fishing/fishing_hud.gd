@@ -2,7 +2,9 @@ class_name FishingHud
 extends CanvasLayer
 ## Fishing's bits of screen (D01), drawn in code like the hotbar (C15)
 ## and placeholders like it: the cast's meter under the crosshair while
-## you charge, a "!" under it while a fish bites (time to click), a
+## you charge, a "!" under it while a fish bites (time to click), in a
+## fight an arrow beside it on the side to push the rod (away from the
+## fish's pull, fading as you hold it there), a
 ## short line under it ("It got away"), and the catch card ("You caught
 ## a ...! 34 cm", marked New on a species' first). Hidden without the
 ## controls (the chat, a menu, the sessions ring, the map).
@@ -13,6 +15,12 @@ const METER := Vector2(64, 6)
 const METER_BELOW := 26.0
 ## The bite's "!": its size, pixels.
 const BITE_SIZE := 26
+## The fight's arrow: how far beside the middle of the screen, pixels,
+## its size at its biggest, and the push under which it's hidden (of
+## [method FishFight.hint], 0 to 1).
+const ARROW_OFF := 46.0
+const ARROW_SIZE := 18.0
+const ARROW_FROM := 0.15
 ## Seconds a line and the catch card stay up, then fading out.
 const SAY_TIME := 2.0
 const CARD_TIME := 3.5
@@ -59,6 +67,15 @@ func bite_mark() -> bool:
 	return fishing != null and fishing.state == Fishing.State.BITE and fishing.player.controls_enabled
 
 
+## The fight's arrow now: -1 (push left) to 1 (right) by how hard, 0
+## hidden.
+func arrow() -> float:
+	if fishing == null or fishing.state != Fishing.State.FIGHT or not fishing.player.controls_enabled:
+		return 0.0
+	var h := fishing.fight.hint()
+	return h if absf(h) >= ARROW_FROM else 0.0
+
+
 ## Shows the catch card.
 func show_catch(species_name: String, size_cm: int, first: bool) -> void:
 	var article := "an" if species_name.left(1).to_lower() in ["a", "e", "i", "o", "u"] else "a"
@@ -91,6 +108,9 @@ func _paint() -> void:
 		_canvas.draw_rect(Rect2(rect.position, Vector2(METER.x * fishing.charge, METER.y)), LINE)
 	if bite_mark():
 		_text(font, middle + Vector2(0, METER_BELOW + 8), "!", BITE_SIZE, NEW, 1.0)
+	var push := arrow()
+	if push != 0.0:
+		_arrow(middle, push)
 	var alpha := _alpha(_said_age, SAY_TIME)
 	if alpha > 0.0 and _said != "":
 		_text(font, middle + Vector2(0, METER_BELOW + 30), _said, 15, LINE, alpha)
@@ -106,6 +126,20 @@ func _paint() -> void:
 		_text(font, Vector2(middle.x, top + 56), _card[1], 17, LINE, alpha)
 		if _card[2] != "":
 			_text(font, Vector2(middle.x, top + 80), _card[2], 16, NEW, alpha)
+
+
+# The fight's arrow beside [param middle], pointing the way of [param
+# push] (its sign), bigger and stronger the harder.
+func _arrow(middle: Vector2, push: float) -> void:
+	var side := signf(push)
+	var t := clampf((absf(push) - ARROW_FROM) / (1.0 - ARROW_FROM), 0.0, 1.0)
+	var size := ARROW_SIZE * lerpf(0.6, 1.0, t)
+	var alpha := lerpf(0.45, 1.0, t)
+	var at := middle + Vector2(side * ARROW_OFF, 0)
+	var points := PackedVector2Array([at + Vector2(side * size * 0.6, 0), at + Vector2(-side * size * 0.4, -size * 0.55), at + Vector2(-side * size * 0.4, size * 0.55)])
+	_canvas.draw_colored_polygon(points, Color(LINE, LINE.a * alpha))
+	points.append(points[0])
+	_canvas.draw_polyline(points, Color(OUTLINE, OUTLINE.a * alpha), 2.0, true)
 
 
 # Text centred on [param at]'s x, its baseline at [param at]'s y.

@@ -5,7 +5,8 @@ extends CanvasLayer
 ## says how many. When an agent starts waiting while the game window isn't
 ## focused, the window asks for attention once (taskbar flash, Dock
 ## bounce, urgent hint) and a chime plays, if the sound is on and its file
-## is there. Never while you're in the game. A PLACEHOLDER, like all UI for
+## is there. Never while you're in the game. In a fishing fight (D01),
+## where your eyes are on the line, the corner pulses once instead. A PLACEHOLDER, like all UI for
 ## now.
 
 ## The chime: a CC0 sound the user picked (NOTES → A05). Silent without it.
@@ -19,6 +20,11 @@ var is_focused: Callable = func() -> bool: return get_window().has_focus()
 var request_attention: Callable = func() -> void: DisplayServer.window_request_attention()
 ## Plays the chime; tests replace it.
 var play_chime: Callable = _play_chime
+## Whether something holds your eyes in the game (a fishing fight):
+## a new wait then pulses the corner once. `world.gd` sets it.
+var busy: Callable = func() -> bool: return false
+## How many times the corner has pulsed (for the tests).
+var pulses := 0
 ## Where the sound setting is saved; tests point it elsewhere.
 var settings_path := SETTINGS
 ## Play the chime with the background cue. Saved between runs.
@@ -88,6 +94,8 @@ func _on_agent(session: String, agent_id: String) -> void:
 				request_attention.call()
 				if sound_on:
 					play_chime.call()
+			elif busy.call():
+				_pulse.call_deferred()
 	else:
 		_waiting.erase(key)
 	_refresh()
@@ -107,6 +115,15 @@ func _refresh() -> void:
 	var n := waiting_sessions()
 	_count.visible = n > 0
 	_count.text = "1 session waiting" if n == 1 else "%d sessions waiting" % n
+
+
+# The corner grows and shrinks back once, from its right edge.
+func _pulse() -> void:
+	pulses += 1
+	_count.pivot_offset = Vector2(_count.size.x, _count.size.y / 2.0)
+	var tween := create_tween()
+	tween.tween_property(_count, "scale", Vector2.ONE * 1.4, 0.15)
+	tween.tween_property(_count, "scale", Vector2.ONE, 0.35)
 
 
 func _play_chime() -> void:

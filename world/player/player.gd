@@ -74,6 +74,12 @@ var swimming := false
 ## Carried by something else (W10's zipline), which moves the player:
 ## no walking, falling or swimming, but you can still look round.
 var riding := false
+## The view held by something else (D01's fight, where the mouse moves
+## the rod): mouse movement doesn't turn it.
+var look_held := false
+## Kept in place by something else (D01's fight): no walking, jumping or
+## crouching; you can still fall.
+var move_held := false
 ## Crouched (W11): holding Ctrl, or still under something too low to stand.
 var crouching := false
 ## Sliding on the ground after crouching at a run (W11).
@@ -103,7 +109,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not controls_enabled:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if event is InputEventMouseMotion and captured:
+	if event is InputEventMouseMotion and captured and not look_held:
 		rotate_y(-event.screen_relative.x * mouse_sensitivity)
 		_head.rotation.x = clampf(_head.rotation.x - event.screen_relative.y * mouse_sensitivity, -PI / 2 + 0.01, PI / 2 - 0.01)
 	elif event is InputEventMouseButton and event.pressed and not captured:
@@ -119,7 +125,7 @@ func _physics_process(delta: float) -> void:
 	elif swimming and _grounded and depth < swim_depth - 0.1:
 		swimming = false
 		velocity.y = minf(velocity.y, 0.0) # no hop out of the water
-	if controls_enabled:
+	if controls_enabled and not move_held:
 		_want_crouch = Input.is_action_pressed("crouch")
 	# In the water Ctrl swims down instead.
 	_set_crouching(_want_crouch and not swimming)
@@ -145,14 +151,14 @@ func _physics_process(delta: float) -> void:
 				horizontal = horizontal.normalized() * maxf(horizontal.length(), slide_speed)
 	if sliding and (not crouching or not on_floor):
 		_end_slide(not on_floor)
-	var jump_pressed := controls_enabled and Input.is_action_just_pressed("jump")
+	var jump_pressed := controls_enabled and not move_held and Input.is_action_just_pressed("jump")
 	if _jump.step(delta, on_floor, jump_pressed):
 		velocity.y = jump_velocity
 		if sliding:
 			_end_slide(true) # a slide jump keeps the slide's speed
 
 	var input := Vector2.ZERO
-	if controls_enabled:
+	if controls_enabled and not move_held:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var wish3 := global_basis * Vector3(input.x, 0.0, input.y)
 	var wish := Vector2(wish3.x, wish3.z)
