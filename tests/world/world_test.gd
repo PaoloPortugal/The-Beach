@@ -11,7 +11,8 @@ extends SceneTree
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
 ## attention cue (A05); the day and night and the weather (W09); the
-## debug commands (C09); fishing and its catches (D01).
+## debug commands (C09); fishing and its catches (D01); the opening at
+## the start (C17).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -388,6 +389,7 @@ func _scene() -> void:
 	var player: Player = world.get_node("Player")
 	var spawn := player.spawn_point
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
+	await _opening(world, player)
 	await _menu_start(world, player)
 	await _loading_cover(world, player)
 	await _sidecar_lost(world, player)
@@ -1646,6 +1648,126 @@ func _menu_start(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return played[0], MenuCamera.EASE_TIME + 2.0)
 	_check(played[0] and not menu.is_open() and player.controls_enabled and get_root().get_camera_3d() == own, "C14: once there, the player's own camera and the controls")
 	_check(world.usage_limits.visible and world.pointers.visible, "C14: and the HUD back")
+
+
+# C17: the opening covers the main menu at start, keys waiting under it,
+# for at least its card's time, then fades into the menu. Then on
+# stand-in clients: its bar's stages, the wait for the first island and
+# its cap, a failure, and a sidecar already failed.
+func _opening(world: Node3D, player: Player) -> void:
+	var opening: Opening = world.opening
+	var shown_at := Time.get_ticks_msec()
+	_check(opening.is_covering() and opening.visible and world.main_menu.is_open() and not player.controls_enabled, "C17: the game opens on the opening, over the main menu")
+	_check(not opening.bar_shown() and (opening.find_child("Developer", true, false) as Label).text == Opening.DEVELOPER and (opening.find_child("GodotLogo", true, false) as TextureRect).texture == Opening.GODOT_LOGO, "C17: the logo, the developer's name and Godot's logo, no bar at first")
+	var logo: TextureRect = opening.find_child("Logo", true, false)
+	_check(int(logo.custom_minimum_size.x) % Opening.LOGO.get_width() == 0 and logo.custom_minimum_size.x >= 2 * Opening.LOGO.get_width(), "C17: the logo in whole steps of its pixels (%s)" % logo.custom_minimum_size)
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open() and opening.is_covering(), "C17: keys wait under it (an action isn't a skip)")
+	# Closing the window still asks: the quit dialog over it, Esc reaching
+	# the dialog rather than the opening (security review, 2026-10-28).
+	var guard: QuitGuard = world.quit_guard
+	var guard_quit: Callable = guard.quit
+	var quits := [0]
+	guard.quit = func() -> void: quits[0] += 1
+	world.store.sessions["q1"] = _snapshot("q1")
+	guard.request_quit()
+	await process_frame
+	_check(guard.is_asking() and opening.is_covering() and quits[0] == 0, "C17: closing the window while it covers asks, the quit dialog over it")
+	for pressed in [true, false]:
+		var esc := InputEventKey.new()
+		esc.keycode = KEY_ESCAPE
+		esc.physical_keycode = KEY_ESCAPE
+		esc.pressed = pressed
+		Input.parse_input_event(esc)
+	await _frames(2)
+	_check(not guard.is_asking() and quits[0] == 0, "C17: Esc reaches the dialog: back to the game")
+	world.store.sessions.erase("q1")
+	guard.quit = guard_quit
+	var lifted := [false]
+	opening.lifted.connect(func() -> void: lifted[0] = true, CONNECT_ONE_SHOT)
+	await _until(func() -> bool: return lifted[0], 30.0)
+	var took := (Time.get_ticks_msec() - shown_at) / 1000.0
+	_check(lifted[0] and not opening.is_covering() and not opening.visible and took >= Opening.CARD_S - 0.1, "C17: synced, no sessions back: it fades into the menu after its card's time (%.1f s)" % took)
+	_check(world.main_menu.is_open() and world.main_menu.get_node("Panel").visible, "C17: the main menu under it")
+
+	var store := SessionStore.new()
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	# Still starting: a skip shows the bar at once, naming the stage.
+	var client := SidecarClient.new()
+	client.status = SidecarClient.Status.STARTING
+	var other := Opening.new()
+	root.add_child(other)
+	other.setup(client, store, islands)
+	other.skip()
+	await process_frame
+	await process_frame
+	_check(other.is_covering() and other.bar_shown() and other.stage_text() == "Starting the sidecar…", "C17: skipped while starting: the bar, \"%s\"" % other.stage_text())
+	client._attempt = 1
+	await process_frame
+	_check(other.stage_text() == "Starting the sidecar (try 2 of 3)…", "C17: a retry says which try (%s)" % other.stage_text())
+	var before := other.bar_value()
+	client.status = SidecarClient.Status.SYNCING
+	await _frames(10)
+	_check(other.stage_text() == "Finding your sessions…" and other.bar_value() > before, "C17: connected: finding the sessions, the bar further on")
+	# Synced with sessions back: it waits for the first island to rise.
+	store.sessions["o1"] = _snapshot("o1")
+	client.status = SidecarClient.Status.READY
+	client.synced.emit([])
+	await _frames(5)
+	_check(other.is_covering() and other.stage_text() == "Bringing up your islands…", "C17: synced with sessions back: it waits for their islands")
+	var other_lifted := [false]
+	other.lifted.connect(func() -> void: other_lifted[0] = true, CONNECT_ONE_SHOT)
+	islands.island_rising.emit("o1")
+	await _until(func() -> bool: return other_lifted[0], Opening.FADE_OUT_S + 1.0)
+	_check(other_lifted[0] and not other.is_covering(), "C17: the first island rising lifts it")
+	other.free()
+	# An island that never rises: lifted once the wait is over.
+	var capped := Opening.new()
+	var synced_client := SidecarClient.new()
+	synced_client.status = SidecarClient.Status.SYNCING
+	root.add_child(capped)
+	capped.setup(synced_client, store, islands)
+	capped.skip()
+	synced_client.status = SidecarClient.Status.READY
+	synced_client.synced.emit([])
+	await _frames(5)
+	_check(capped.is_covering(), "C17: no island yet: still covering")
+	capped._synced_at -= Opening.ISLAND_WAIT_S
+	await _until(func() -> bool: return not capped.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not capped.is_covering(), "C17: lifted %d s after the sync without an island" % Opening.ISLAND_WAIT_S)
+	capped.free()
+	store.sessions.clear()
+	# A failure lifts it (S01 says why); one already failed covers nothing.
+	var failing := Opening.new()
+	client.status = SidecarClient.Status.STARTING
+	root.add_child(failing)
+	failing.setup(client, store, islands)
+	failing.skip()
+	client.status = SidecarClient.Status.FAILED
+	await _until(func() -> bool: return not failing.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not failing.is_covering(), "C17: a failed sidecar lifts it")
+	failing.free()
+	# A start stuck past every bound: lifted all the same.
+	var stuck := Opening.new()
+	client.status = SidecarClient.Status.STARTING
+	root.add_child(stuck)
+	stuck.setup(client, store, islands)
+	stuck.skip()
+	await _frames(2)
+	_check(stuck.is_covering() and stuck.bar_shown(), "C17: a start that takes long: the bar")
+	stuck._elapsed = Opening.TIMEOUT_S
+	await _until(func() -> bool: return not stuck.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not stuck.is_covering(), "C17: past %d s it lifts whatever happens" % Opening.TIMEOUT_S)
+	stuck.free()
+	client.status = SidecarClient.Status.FAILED
+	var none := Opening.new()
+	root.add_child(none)
+	none.setup(client, store, islands)
+	_check(not none.is_covering() and not none.visible, "C17: a sidecar already failed: no opening")
+	none.free()
+	client.free()
+	synced_client.free()
 
 
 # S01: the sidecar can't be started (user's decisions, 2026-10-28). The
@@ -3695,7 +3817,11 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	var rod_was := fishing.fight.rod
 	var yaw_was := player.rotation.y
 	_mouse_move(-120.0)
-	await _frames(1)
+	# The rod moves as the event arrives, the view in the fight's next
+	# _process; process_frame comes before _process, so wait for the rod
+	# and then two frames (a physics frame alone came between them).
+	await _until(func() -> bool: return fishing.fight.rod < rod_was - 0.3, 1.0)
+	await _settle()
 	var turn := angle_difference(yaw_was, player.rotation.y)
 	_check(fishing.fight.rod < rod_was - 0.3 and is_equal_approx((player.get_node("Head") as Node3D).rotation.x, head_pitch), "D01: in a fight the mouse moves the rod's tip (%.2f to %.2f), the view only turning with it" % [rod_was, fishing.fight.rod])
 	_check(turn > (rod_was - fishing.fight.rod) * deg_to_rad(Fishing.VIEW_SWING) * 0.5, "D01: the view turns with the rod's tip: pushed left, it turns left (%.1f°)" % rad_to_deg(turn))
