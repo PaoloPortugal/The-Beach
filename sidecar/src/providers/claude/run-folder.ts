@@ -1,6 +1,7 @@
 // What a session's run folder records so a later sidecar can find the
 // session again (NOTES.md -> S07): `session.json` (Claude's session id, the
-// project, the hook port and token it was launched with), and the kept hook
+// project, the hook port and token it was launched with, the world's id for
+// it), and the kept hook
 // port in the folder above the run folders. Run folders are untrusted
 // input: every field is checked on read, and a record that fails any check
 // is not used.
@@ -30,6 +31,12 @@ export interface RunRecord {
   /** The token they carry, fixed at launch too. */
   hook_token: string
   started_at: string
+  /**
+   * The protocol's id for the session, so a later sidecar gives it the same
+   * one and its island stays (S01 -> Restart). Missing from folders written
+   * before, or not a UUID: that sidecar makes a new one.
+   */
+  session_id?: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -61,6 +68,7 @@ export function readRunRecord(runDir: string): RunRecord | null {
   return {
     version: RUN_RECORD_VERSION, native_id: r.native_id, hook_port: r.hook_port, hook_token: r.hook_token,
     started_at: new Date(r.started_at).toISOString(), project: { path: p.path, ...(p.name !== undefined ? { name: p.name } : {}) },
+    ...(typeof r.session_id === 'string' && UUID.test(r.session_id) ? { session_id: r.session_id.toLowerCase() } : {}),
   }
 }
 

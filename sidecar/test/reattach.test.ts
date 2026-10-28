@@ -24,7 +24,7 @@ import { type ClaudeSession, READ_ONLY_ERROR, REATTACHED_READ_ONLY } from '../sr
 import { TranscriptHooks, type Fed } from '../src/providers/claude/transcript-hooks.ts'
 import { TranscriptFollower, type TranscriptSignal } from '../src/providers/claude/transcript.ts'
 import { RESTORE_WAIT_MS, restoreSessions } from '../src/serve.ts'
-import type { CommandError, Provider } from '../src/provider.ts'
+import { derivedId, type CommandError, type Provider } from '../src/provider.ts'
 import { bridgeOf, connect, RecordingLog, tempSessionsDir, testServer, type Msg } from './helpers.ts'
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -85,6 +85,14 @@ test('session.json: written owner-only and read back; any field that fails a che
   // Unknown fields don't come along.
   fs.writeFileSync(path.join(dir, RUN_RECORD_FILE), JSON.stringify({ ...good, extra: 'x', project: { path: os.tmpdir(), evil: 1 } }))
   assert.deepEqual(readRunRecord(dir), { ...good, project: { path: os.tmpdir() } })
+  // The world's id for it (S01 -> Restart): kept when a UUID; anything else
+  // is left out, the record still usable (a new id then, as for an old folder).
+  writeRunRecord(dir, { ...goodRecord(), session_id: ID(5) })
+  assert.deepEqual(readRunRecord(dir), { ...good, session_id: ID(5) })
+  for (const bad of ['../../x', '', 7, null, ID(5) + 'x']) {
+    fs.writeFileSync(path.join(dir, RUN_RECORD_FILE), JSON.stringify({ ...good, session_id: bad }))
+    assert.deepEqual(readRunRecord(dir), good, JSON.stringify(bad))
+  }
 })
 
 test('the kept hook port: read back, anything else is none', () => {
@@ -207,7 +215,10 @@ test('a launched session: its run folder in the sessions folder holds session.js
     assert.equal(fs.readFileSync(path.join(runDir, HOLDER_FILE), 'utf8'), String(process.pid))
     // Its start is the one its folder keeps, so the same after a restart (W12).
     bridge = await bridgeBack(runDir)
-    assert.equal(((await c.next('session.created')).session as { started_at: string }).started_at, record.started_at)
+    const created = (await c.next('session.created')).session as { started_at: string; session: string }
+    assert.equal(created.started_at, record.started_at)
+    // And the world's id for it, so a restart keeps its island (S01 -> Restart).
+    assert.equal(record.session_id, created.session)
   } finally { await c.close(); await s.close(); await p.shutdown() }
   // The game quit: the session runs on, and its folder stays for the next start.
   assert.ok(fs.existsSync(path.join(runDir, RUN_RECORD_FILE)))
@@ -440,6 +451,86 @@ test('restore: /clear while the game was closed is followed: Claude Code\'s id, 
     assert.equal(record.native_id, ID(2))
     assert.equal(record.hook_token, f.record.hook_token, 'the rest kept')
     assert.equal(record.started_at, f.record.started_at)
+  } finally { await r.close() }
+})
+
+test('restart: a session taken back keeps its id across sidecar runs, one launched by the game (its run folder) and one started outside it (made from its own id)', async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const kept = await freePort()
+  writeHookPort(root, kept)
+  // A folder from before ids were kept: no session_id.
+  const f = runFolder(root, { record: { native_id: ID(1), hook_port: kept } })
+  assert.equal(readRunRecord(f.runDir)!.session_id, undefined)
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  transcript(projects, ID(7), cwd, { type: 'user', uuid: 'u1', timestamp: '2026-10-28T10:00:01Z', message: { content: 'hi' } })
+  const opts = {
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([
+      { sessionId: ID(1), pid: f.program, status: 'idle' },
+      { sessionId: ID(7), pid: 50007, status: 'idle', cwd },
+    ]),
+  }
+  const ids = async () => {
+    const r = await restoreAndSync(opts)
+    try {
+      assert.deepEqual(r.c.invalid, [])
+      const by = new Map(r.snapshots.map((s) => [s.native_id, s]))
+      assert.equal(by.get(ID(1))!.origin, 'app')
+      assert.equal(by.get(ID(7))!.origin, 'external')
+      return { app: by.get(ID(1))!.session as string, outside: by.get(ID(7))!.session as string }
+    } finally { await r.close() }
+  }
+  const first = await ids()
+  // The first run gave the old folder a new id and kept it there.
+  assert.equal(readRunRecord(f.runDir)!.session_id, first.app)
+  assert.equal(first.outside, derivedId('claude', ID(7)))
+  assert.notEqual(first.app, first.outside)
+  const second = await ids()
+  assert.deepEqual(second, first, 'the same ids after the restart')
+  // Opaque either way: a UUID, not Claude's id.
+  for (const id of [first.app, first.outside]) assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+  assert.notEqual(first.outside, ID(7))
+  assert.equal(derivedId('claude', ID(7).toUpperCase()), first.outside, "Claude's id read in any case")
+  assert.notEqual(derivedId('other', ID(7)), first.outside, "another provider's session of the same id is another")
+})
+
+test("restart: an id already in use is refused; that session isn't taken back, its folder left for a later start", async () => {
+  const root = tempSessionsDir()
+  const a = runFolder(root, { record: { native_id: ID(1), session_id: ID(60) } })
+  const b = runFolder(root, { record: { native_id: ID(2), hook_token: TOKEN('c'), session_id: ID(60) } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: fs.mkdtempSync(path.join(os.tmpdir(), 'projects-')),
+    runningSessions: agentsListing([
+      { sessionId: ID(1), pid: a.program, status: 'idle' },
+      { sessionId: ID(2), pid: b.program, status: 'idle' },
+    ]),
+  })
+  try {
+    assert.deepEqual(r.snapshots.map((s) => s.session), [ID(60)])
+    assert.ok(r.log.lines.some((l) => l.includes("couldn't take back") && l.includes('in use already')))
+    assert.ok(fs.existsSync(a.runDir) && fs.existsSync(b.runDir))
+    assert.deepEqual(r.c.invalid, [])
+  } finally { await r.close() }
+})
+
+test("restart: a run folder's id that is an outside session's too: one of them shown, the other refused and logged", async () => {
+  const root = tempSessionsDir()
+  const projects = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-'))
+  const f = runFolder(root, { record: { native_id: ID(1), session_id: derivedId('claude', ID(7)) } })
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  transcript(projects, ID(7), cwd, { type: 'user', uuid: 'u1', timestamp: '2026-10-28T10:00:01Z', message: { content: 'hi' } })
+  const r = await restoreAndSync({
+    sessionsDir: root, projectsDir: projects,
+    runningSessions: agentsListing([
+      { sessionId: ID(1), pid: f.program, status: 'idle' },
+      { sessionId: ID(7), pid: 50007, status: 'idle', cwd },
+    ]),
+  })
+  try {
+    assert.deepEqual(r.snapshots.map((s) => s.session), [derivedId('claude', ID(7))])
+    assert.ok(r.log.lines.some((l) => l.includes('in use already')))
+    assert.deepEqual(r.c.invalid, [])
   } finally { await r.close() }
 })
 

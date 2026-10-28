@@ -11,7 +11,8 @@ extends SceneTree
 ## Markdown (C03); subagents'
 ## placement, coming and going, and state markers (A02, A03, A04); the
 ## attention cue (A05); the day and night and the weather (W09); the
-## debug commands (C09); fishing and its catches (D01).
+## debug commands (C09); fishing and its catches (D01); the opening at
+## the start (C17).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -388,8 +389,10 @@ func _scene() -> void:
 	var player: Player = world.get_node("Player")
 	var spawn := player.spawn_point
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
+	await _opening(world, player)
 	await _menu_start(world, player)
 	await _loading_cover(world, player)
+	await _sidecar_lost(world, player)
 
 	await _frames(30)
 	_check(player.is_on_floor() and absf(player.global_position.y - 1.0) < 0.2, "lands on the platform")
@@ -1647,6 +1650,199 @@ func _menu_start(world: Node3D, player: Player) -> void:
 	_check(world.usage_limits.visible and world.pointers.visible, "C14: and the HUD back")
 
 
+# C17: the opening covers the main menu at start, keys waiting under it,
+# for at least its card's time, then fades into the menu. Then on
+# stand-in clients: its bar's stages, the wait for the first island and
+# its cap, a failure, and a sidecar already failed.
+func _opening(world: Node3D, player: Player) -> void:
+	var opening: Opening = world.opening
+	var shown_at := Time.get_ticks_msec()
+	_check(opening.is_covering() and opening.visible and world.main_menu.is_open() and not player.controls_enabled, "C17: the game opens on the opening, over the main menu")
+	_check(not opening.bar_shown() and (opening.find_child("Developer", true, false) as Label).text == Opening.DEVELOPER and (opening.find_child("GodotLogo", true, false) as TextureRect).texture == Opening.GODOT_LOGO, "C17: the logo, the developer's name and Godot's logo, no bar at first")
+	var logo: TextureRect = opening.find_child("Logo", true, false)
+	_check(int(logo.custom_minimum_size.x) % Opening.LOGO.get_width() == 0 and logo.custom_minimum_size.x >= 2 * Opening.LOGO.get_width(), "C17: the logo in whole steps of its pixels (%s)" % logo.custom_minimum_size)
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open() and opening.is_covering(), "C17: keys wait under it (an action isn't a skip)")
+	# Closing the window still asks: the quit dialog over it, Esc reaching
+	# the dialog rather than the opening (security review, 2026-10-28).
+	var guard: QuitGuard = world.quit_guard
+	var guard_quit: Callable = guard.quit
+	var quits := [0]
+	guard.quit = func() -> void: quits[0] += 1
+	world.store.sessions["q1"] = _snapshot("q1")
+	guard.request_quit()
+	await process_frame
+	_check(guard.is_asking() and opening.is_covering() and quits[0] == 0, "C17: closing the window while it covers asks, the quit dialog over it")
+	for pressed in [true, false]:
+		var esc := InputEventKey.new()
+		esc.keycode = KEY_ESCAPE
+		esc.physical_keycode = KEY_ESCAPE
+		esc.pressed = pressed
+		Input.parse_input_event(esc)
+	await _frames(2)
+	_check(not guard.is_asking() and quits[0] == 0, "C17: Esc reaches the dialog: back to the game")
+	world.store.sessions.erase("q1")
+	guard.quit = guard_quit
+	var lifted := [false]
+	opening.lifted.connect(func() -> void: lifted[0] = true, CONNECT_ONE_SHOT)
+	await _until(func() -> bool: return lifted[0], 30.0)
+	var took := (Time.get_ticks_msec() - shown_at) / 1000.0
+	_check(lifted[0] and not opening.is_covering() and not opening.visible and took >= Opening.CARD_S - 0.1, "C17: synced, no sessions back: it fades into the menu after its card's time (%.1f s)" % took)
+	_check(world.main_menu.is_open() and world.main_menu.get_node("Panel").visible, "C17: the main menu under it")
+
+	var store := SessionStore.new()
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	# Still starting: a skip shows the bar at once, naming the stage.
+	var client := SidecarClient.new()
+	client.status = SidecarClient.Status.STARTING
+	var other := Opening.new()
+	root.add_child(other)
+	other.setup(client, store, islands)
+	other.skip()
+	await process_frame
+	await process_frame
+	_check(other.is_covering() and other.bar_shown() and other.stage_text() == "Starting the sidecar…", "C17: skipped while starting: the bar, \"%s\"" % other.stage_text())
+	client._attempt = 1
+	await process_frame
+	_check(other.stage_text() == "Starting the sidecar (try 2 of 3)…", "C17: a retry says which try (%s)" % other.stage_text())
+	var before := other.bar_value()
+	client.status = SidecarClient.Status.SYNCING
+	await _frames(10)
+	_check(other.stage_text() == "Finding your sessions…" and other.bar_value() > before, "C17: connected: finding the sessions, the bar further on")
+	# Synced with sessions back: it waits for the first island to rise.
+	store.sessions["o1"] = _snapshot("o1")
+	client.status = SidecarClient.Status.READY
+	client.synced.emit([])
+	await _frames(5)
+	_check(other.is_covering() and other.stage_text() == "Bringing up your islands…", "C17: synced with sessions back: it waits for their islands")
+	var other_lifted := [false]
+	other.lifted.connect(func() -> void: other_lifted[0] = true, CONNECT_ONE_SHOT)
+	islands.island_rising.emit("o1")
+	await _until(func() -> bool: return other_lifted[0], Opening.FADE_OUT_S + 1.0)
+	_check(other_lifted[0] and not other.is_covering(), "C17: the first island rising lifts it")
+	other.free()
+	# An island that never rises: lifted once the wait is over.
+	var capped := Opening.new()
+	var synced_client := SidecarClient.new()
+	synced_client.status = SidecarClient.Status.SYNCING
+	root.add_child(capped)
+	capped.setup(synced_client, store, islands)
+	capped.skip()
+	synced_client.status = SidecarClient.Status.READY
+	synced_client.synced.emit([])
+	await _frames(5)
+	_check(capped.is_covering(), "C17: no island yet: still covering")
+	capped._synced_at -= Opening.ISLAND_WAIT_S
+	await _until(func() -> bool: return not capped.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not capped.is_covering(), "C17: lifted %d s after the sync without an island" % Opening.ISLAND_WAIT_S)
+	capped.free()
+	store.sessions.clear()
+	# A failure lifts it (S01 says why); one already failed covers nothing.
+	var failing := Opening.new()
+	client.status = SidecarClient.Status.STARTING
+	root.add_child(failing)
+	failing.setup(client, store, islands)
+	failing.skip()
+	client.status = SidecarClient.Status.FAILED
+	await _until(func() -> bool: return not failing.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not failing.is_covering(), "C17: a failed sidecar lifts it")
+	failing.free()
+	# A start stuck past every bound: lifted all the same.
+	var stuck := Opening.new()
+	client.status = SidecarClient.Status.STARTING
+	root.add_child(stuck)
+	stuck.setup(client, store, islands)
+	stuck.skip()
+	await _frames(2)
+	_check(stuck.is_covering() and stuck.bar_shown(), "C17: a start that takes long: the bar")
+	stuck._elapsed = Opening.TIMEOUT_S
+	await _until(func() -> bool: return not stuck.is_covering(), Opening.FADE_OUT_S + 1.0)
+	_check(not stuck.is_covering(), "C17: past %d s it lifts whatever happens" % Opening.TIMEOUT_S)
+	stuck.free()
+	client.status = SidecarClient.Status.FAILED
+	var none := Opening.new()
+	root.add_child(none)
+	none.setup(client, store, islands)
+	_check(not none.is_covering() and not none.visible, "C17: a sidecar already failed: no opening")
+	none.free()
+	client.free()
+	synced_client.free()
+
+
+# S01: the sidecar can't be started (user's decisions, 2026-10-28). The
+# first start failing quits, saying why; a restart in play failing says
+# to quit, its button going through the quit guard. On stand-in clients.
+func _sidecar_lost(world: Node3D, player: Player) -> void:
+	_check(world.sidecar_lost.get_parent() == world and not world.sidecar_lost.is_notifying(), "S01: the notice is in the world, not showing")
+	var guard: QuitGuard = world.quit_guard
+	# The first start fails: a message box, then the game quits.
+	var first := SidecarClient.new()
+	first.status = SidecarClient.Status.STARTING
+	var lost := SidecarLost.new()
+	var said := []
+	var quits := [0]
+	lost.alert = func(text: String) -> void: said.append(text)
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(first, guard, player)
+	first.failed.emit("The sidecar didn't start in time.")
+	_check(quits[0] == 1 and said.size() == 1 and said[0].contains("can't run without its sidecar") and said[0].contains("didn't start in time") and not lost.visible, "S01: the first start fails: says why, then quits")
+	lost.free()
+	first.free()
+	# Failed before the world was there (no program to start): the same.
+	var early := SidecarClient.new()
+	early.status = SidecarClient.Status.FAILED
+	early.failure = "The sidecar is missing from the game folder."
+	lost = SidecarLost.new()
+	said.clear()
+	quits[0] = 0
+	lost.alert = func(text: String) -> void: said.append(text)
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(early, guard, player)
+	await _frames(1)
+	_check(quits[0] == 1 and said.size() == 1 and said[0].contains("missing from the game folder"), "S01: failed before the world was up: says why, then quits")
+	lost.free()
+	early.free()
+	# A restart in play fails: the notice, the controls held, keys wait.
+	var in_play := SidecarClient.new()
+	in_play.status = SidecarClient.Status.STARTING
+	in_play.has_synced = true
+	lost = SidecarLost.new()
+	quits[0] = 0
+	lost.quit = func() -> void: quits[0] += 1
+	root.add_child(lost)
+	lost.setup(in_play, guard, player)
+	var controls_before := player.controls_enabled
+	var mouse_before := Input.mouse_mode
+	in_play.failed.emit("The sidecar stopped.")
+	_check(lost.visible and lost.shown_text().contains("couldn't be started again") and lost.shown_text().contains("The sidecar stopped.") and quits[0] == 0 and not player.controls_enabled, "S01: a restart in play fails: the notice says to quit, the game stays, controls held")
+	_press("sessions_menu")
+	await _frames(2)
+	_check(not world.get_node("SessionsMenu").is_open(), "S01: keys wait under it")
+	# Quit goes through the guard: with sessions running it asks; back to
+	# the game, the notice again.
+	var guard_quits := [0]
+	var guard_quit_before: Callable = guard.quit
+	guard.quit = func() -> void: guard_quits[0] += 1
+	world.store.sessions["lost1"] = _snapshot("lost1")
+	lost.quit_button().pressed.emit()
+	_check(guard.is_asking() and not lost.visible and guard_quits[0] == 0, "S01: Quit: the quit guard lists the sessions still running first")
+	# Back to the game, as the dialog's button does.
+	guard.dialog().hide()
+	guard.dialog().canceled.emit()
+	_check(lost.visible and not player.controls_enabled, "S01: back to the game from it: the notice again")
+	world.store.sessions.erase("lost1")
+	lost.quit_button().pressed.emit()
+	_check(guard_quits[0] == 1 and quits[0] == 0, "S01: with none running, Quit quits")
+	guard.quit = guard_quit_before
+	lost.free()
+	in_play.free()
+	player.controls_enabled = controls_before
+	Input.mouse_mode = mouse_before
+
+
 # S07's cover isn't in the world any more (C14 shows the menu instead);
 # kept, and still tested, in case it's wanted again (user's, 2026-10-26).
 func _loading_cover(world: Node3D, player: Player) -> void:
@@ -1718,6 +1914,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(orchestrator.position.is_equal_approx(Vector3(0, island.height_at(0, 0), 0)), "and stands in the middle of it")
 	_check(player.global_position.distance_to(at) < 0.1, "a session already running doesn't move the player")
 	_check(island.position.y == 0.0 and not islands.is_rising("h1"), "and its island is up")
+	_restart_chat(world)
 	_check(islands.unvisited().is_empty() and not island.has_node("NewBeacon"), "nor marked as new")
 	var bridges := islands.bridges
 	var r1 := SessionIslands.region(island)
@@ -2617,6 +2814,53 @@ class _Recorder extends SidecarClient:
 		if on_reply.is_valid():
 			on_reply.call({"type": "error", "message": "recorded"})
 		return "r%d" % sent.size()
+
+
+# Answers session.get_history with the messages given per session.
+class _Histories extends SidecarClient:
+	var histories := {}
+	var asked := []
+
+	func send_command(type: String, fields: Dictionary = {}, on_reply := Callable()) -> String:
+		if type != "session.get_history":
+			return ""
+		asked.append(fields["session"])
+		on_reply.call({"type": "ok", "result": {"messages": histories.get(fields["session"], []), "tools": []}})
+		return "h%d" % asked.size()
+
+
+# S01 restart: the sessions keep their ids, so their islands and chats stay;
+# once the restart has synced, each loaded chat is fetched again (what was
+# said while the sidecar was down), once; an empty history (transcripts
+# off) keeps ours. Stand-ins: the dev fake takes nothing back.
+func _restart_chat(world: Node3D) -> void:
+	var store: SessionStore = world.store
+	var chat: ChatController = world.get_node("ChatController")
+	var real := chat.sidecar
+	var answers := _Histories.new()
+	chat.sidecar = answers
+	var was := chat._history.duplicate()
+	chat._history["h1"] = "loaded"
+	chat._history["h2"] = "loaded"
+	store.apply({"type": "message.started", "session": "h1", "seq": 900, "message": "live1", "agent": "main", "role": "user"})
+	store.apply({"type": "message.started", "session": "h2", "seq": 900, "message": "live2", "agent": "main", "role": "user"})
+	answers.histories["h1"] = [{"message": "t1", "agent": "main", "role": "user", "text": "from the transcript", "at": "2026-09-30T10:00:00Z"}]
+	chat._on_synced()
+	_check(answers.asked.is_empty(), "S01 restart: a sync without a restart fetches nothing")
+	root.get_node("Sidecar").restarting.emit("a test")
+	chat._on_synced()
+	answers.asked.sort()
+	_check(answers.asked == ["h1", "h2"], "S01 restart: each loaded chat fetched again once it synced")
+	_check(store.messages("h1").map(func(m: Dictionary) -> String: return m["message"]) == ["t1"], "S01 restart: the new sidecar's chat replaces ours")
+	_check(store.messages("h2").map(func(m: Dictionary) -> String: return m["message"]) == ["live2"], "S01 restart: an empty history keeps ours")
+	chat._on_synced()
+	_check(answers.asked.size() == 2, "S01 restart: once")
+	chat.sidecar = real
+	chat._history = was
+	answers.free()
+	for id in ["h1", "h2"]:
+		store.begin_chat_replace(id)
+		store.replace_history(id, [])
 
 
 # Records like [_Recorder], refusing on the next frame as the sidecar would,
@@ -3573,7 +3817,11 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	var rod_was := fishing.fight.rod
 	var yaw_was := player.rotation.y
 	_mouse_move(-120.0)
-	await _frames(1)
+	# The rod moves as the event arrives, the view in the fight's next
+	# _process; process_frame comes before _process, so wait for the rod
+	# and then two frames (a physics frame alone came between them).
+	await _until(func() -> bool: return fishing.fight.rod < rod_was - 0.3, 1.0)
+	await _settle()
 	var turn := angle_difference(yaw_was, player.rotation.y)
 	_check(fishing.fight.rod < rod_was - 0.3 and is_equal_approx((player.get_node("Head") as Node3D).rotation.x, head_pitch), "D01: in a fight the mouse moves the rod's tip (%.2f to %.2f), the view only turning with it" % [rod_was, fishing.fight.rod])
 	_check(turn > (rod_was - fishing.fight.rod) * deg_to_rad(Fishing.VIEW_SWING) * 0.5, "D01: the view turns with the rod's tip: pushed left, it turns left (%.1f°)" % rad_to_deg(turn))

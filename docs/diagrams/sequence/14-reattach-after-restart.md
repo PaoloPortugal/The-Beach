@@ -2,8 +2,9 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S07, W12, C14). NOTES.md → S07 Reattach to running
-> sessions, W12 Islands kept across restarts, C14 Main menu.
+> **Status:** Built (S07, S01, W12, C14, W04). NOTES.md → S07 Reattach to running
+> sessions, S01 → Restart, W12 Islands kept across restarts, C14 Main menu,
+> W04 Island rise / sink.
 
 ```mermaid
 sequenceDiagram
@@ -32,7 +33,7 @@ sequenceDiagram
         Sidecar->>Log: read the conversation so far (chat, tool calls, usage, titles)
         Sidecar->>Sidecar: accept its old hook token#59; write holder.pid (ours now),<br/>relay.json and status.json (our hook port, its old token),<br/>and bridge.json (our bridge port, a fresh one-time token and proof)<br/>all before it's adopted: a file it can't write leaves nothing half taken<br/>(its hooks on another port than ours: only holder.pid, read-only, flow 15)
         Sidecar->>World: stdout ready, then hello
-        Sidecar->>World: session.snapshot (in Claude Code's state, its chat, started_at = its launch time)
+        Sidecar->>World: session.snapshot (its id kept in session.json, in Claude Code's state,<br/>its chat, started_at = its launch time)
         Note over World: Its island waits (W12): the sync's snapshots aren't all in.
         Sidecar->>World: sync.completed
         World->>World: look each up in user://islands.json, read at start<br/>(keyed by provider, started_at, project path#59; or by provider and native_id)
@@ -59,6 +60,12 @@ working, waiting is waiting for input, idle) until its next hook says
 otherwise. A prompt or question open at the restart stays in the
 terminal: its held hook died with the old sidecar, and Claude Code fell
 back to its own dialog.
+
+**Its id** is the one it had: `session.json` keeps it (`session_id`),
+so after a sidecar restart in play (flow 0) the snapshot is a plain
+resync and the island stays; a folder from before ids were kept gets a
+new one, written back, and the registry refuses an id already in use
+(`sidecar/src/registry.ts`; NOTES.md → S01 → Restart).
 
 **`/clear` or `/resume` while the game was closed:** Claude Code lists
 the session under its new id, which the world follows, and the run

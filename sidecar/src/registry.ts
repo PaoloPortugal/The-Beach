@@ -140,10 +140,11 @@ export class Registry {
   /**
    * A session a provider took over at start (S07): no command is answering
    * for it, so no hold, and its announce sends session.snapshot, or
-   * session.created with `created` (S08).
+   * session.created with `created` (S08). `id`: the one it had before the
+   * restart (S01 -> Restart); refused if a session has it already.
    */
-  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession, o: { created?: boolean } = {}): void {
-    const entry = this.add(provider, 0, o.created !== true)
+  adopt(provider: Provider, make: (host: SessionHost) => ProviderSession, o: { created?: boolean; id?: Id } = {}): void {
+    const entry = this.add(provider, 0, o.created !== true, o.id)
     try {
       entry.control = make(entry.host)
     } catch (e) {
@@ -152,8 +153,9 @@ export class Registry {
     }
   }
 
-  private add(provider: Provider, holding: number, adopted: boolean): Entry {
-    const id = crypto.randomUUID()
+  private add(provider: Provider, holding: number, adopted: boolean, given?: Id): Entry {
+    if (given !== undefined && (given === '' || this.sessions.has(given))) throw new Error(`session id ${given || '(empty)'} is in use already or empty`)
+    const id = given ?? crypto.randomUUID()
     const entry: Entry = {
       id, provider, control: null, state: null, ended: false, holding, held: [], adopted,
       host: null as unknown as SessionHost,

@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S01, S07, S08, S02, C14). NOTES.md → S01, S07, S08, S02 → The program set by hand, C14, Protocol and Architecture → Security rules.
+> **Status:** Built (S01, S07, S08, S02, C14, C17). NOTES.md → S01, S07, S08, S02 → The program set by hand, C14, C17, Protocol and Architecture → Security rules.
 
 ```mermaid
 sequenceDiagram
@@ -22,6 +22,10 @@ sequenceDiagram
         World->>Sidecar: WebSocket connect, Authorization: Bearer token
         Sidecar-->>World: accepted (no Origin, right Host and token)
     end
+    opt the start fails in a way that can pass: no handshake in time,<br/>the sidecar exits first, a bad handshake, or the connect fails<br/>or closes before sync.completed
+        World->>Sidecar: end it (close the pipe, kill it after 3 s#59;<br/>at once if it sent no handshake)
+        Note over World,Sidecar: wait 2 s (then 5 s), start it again from step 1:<br/>3 attempts in all, waiting 20, 30, then 45 s for the handshake.<br/>Retries only in the log#59; failed once, after the last.<br/>No program to start, one that can't be started<br/>or another protocol version: failed at once.
+    end
     Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12,<br/>its own capabilities and notices, S08,<br/>and the program it found, once it has looked, S02)
     loop each live session
         Sidecar->>World: session.snapshot
@@ -35,14 +39,24 @@ sequenceDiagram
     alt the connection drops, the sidecar still runs
         World->>Sidecar: connect again with the same token
         Sidecar->>World: hello, snapshots, sync.completed
+    else the sidecar dies in play (or a reconnect fails at once)
+        Note over World,Sidecar: Commands waiting get disconnected. Start it again from step 1,<br/>with the same attempts: it takes back the running sessions (S07),<br/>hello, snapshots and sync.completed resync the world<br/>(the same ids: session.json's session_id, or made from Claude's id<br/>for an outside session, so islands stay#59; each loaded chat fetched again).<br/>Dead again within 60 s of being up: the next attempt of that start.
+        opt it can't be started again
+            Note over World: A notice covers the world: Quit (through the quit guard)
+        end
+    else the first start fails for good
+        Note over World: A message box says why, then the game quits
     else the game quits or crashes
         Note over World,Sidecar: The pipe closes#59; the sidecar exits.<br/>Sessions it launched keep running in their terminals<br/>and come back at the next start (flow 14).
     end
 ```
 
 Meanwhile the game shows the main menu over the world (C14; S07's
-loading cover before it, now unused), and Play isn't held back for
-the sync. Islands of sessions taken back wait for the first
+loading cover before it, now unused), under the opening (C17): the
+logos for at least 2.5 s, then a bar naming the stage until
+`sync.completed` and, if sessions came back, the first island starting
+to rise (at most 5 s after the sync), so the menu shows once the
+start has synced; Play itself never waits. Islands of sessions taken back wait for the first
 `sync.completed`, then come back as they were, from the game's
 `islands.json` (W12, [flow 14](14-reattach-after-restart.md)), rising
 behind the menu once each one's ground is made on a worker thread.

@@ -1,74 +1,104 @@
-LIVE CHECK: D01 fishing,
-the fight
+LIVE CHECK: S01 the
+sidecar's start retry
+and restart; C17 the
+opening
   godot --path . -- --checklist
-  (add --sidecar-dev-fake if
-  you like: no Claude needed)
+(the retry itself is tested
+headless on fake sidecars;
+this checks a real start
+and a real restart)
 PgDn/PgUp scroll this.
 
-1. Play. Press 2 for the
-   rod. By an island, cast
-   into the shallows; on the
-   bite, click and keep
-   holding: the fight starts
-   and the fish comes in?
-2. In a fight, the fish
-   drags the rod's tip to
-   its side and the view
-   turns with it? An arrow
-   by the crosshair points
-   the other way; push the
-   mouse that way: the rod
-   and view come back and
-   the arrow fades?
-3. Hold the rod against
-   it: the fish turns and
-   comes in, clearly faster
-   than leaving the rod be?
-4. Runs (every few
-   seconds): spray where it
-   swims, the shadow near
-   the surface, the rod and
-   view jerk, it pulls hard.
-   Keep reeling: "The line
-   snapped"? Let go: it
-   takes line, stays on,
-   and tires? Readable
-   enough (the rod bends,
-   the line trembles near
-   the limit, the view
-   shakes a little)?
-5. Let go while it swims at
-   you: the line goes slack
-   and "It slipped off the
-   hook" after a couple of
-   seconds?
-6. In a fight, WASD,
-   Space and Ctrl do
-   nothing: you stay put
-   until it's caught or
-   lost?
-7. Land fish of each water:
-   shallows ~10 s,
-   drop-off ~20-30 s, open
-   sea (deep water, e.g. off
-   a long bridge's middle)
-   ~40 s? Too easy, too
-   hard, too long? Not
-   lifted while reeled;
-   won, it's pulled up out
-   of the water, hanging
-   from the line, then the
-   card?
-8. Mid-fight press 1, open
-   the map (M), or Esc: the
-   fish goes, the mouse
-   turns the view again?
-9. With a session (not the
-   fake), an agent starts
-   waiting mid-fight: the
-   corner count pulses once?
-10. The rod's sensitivity:
-   the mouse moves the tip
-   too much or too little?
-   (Settings → mouse
-   sensitivity changes it.)
+1. Start the game as usual
+   (not the fake): the menu
+   comes up and, once
+   synced, your running
+   sessions' islands rise
+   as before?
+2. In the game's output (or
+   its log file), no
+   "Trying again" warning
+   and no "didn't start in
+   time" error?
+3. If a start is ever slow
+   (e.g. the first after a
+   reboot): "Trying again
+   in 2.0 s (attempt 2 of
+   3)" in the output, and
+   the islands still come
+   once it's up? Keep the
+   sidecar lines just
+   before it: they say why.
+4. Restart: with a session
+   of the game's and one
+   started outside it (a
+   claude in a plain
+   terminal), open the
+   game's session's chat.
+   End the sidecar: Task
+   Manager → Details, the
+   node.exe whose Command
+   line has
+   sidecar/src/main.ts
+   (add the column: right-
+   click a column title).
+   Within seconds: both
+   islands stay put (no
+   sinking or rising), the
+   chat stays open?
+5. Then send a message
+   from that chat: the
+   reply comes as before?
+   And something said in
+   its terminal while the
+   sidecar was down shows
+   in the chat?
+6. The notice: end it four
+   times, each within a
+   minute of it coming back
+   (the fourth is past the
+   three tries). A notice
+   covers the world; Quit
+   asks about your running
+   sessions first, and Back
+   to the game brings the
+   notice back? (Headless
+   tests cover it too.)
+7. Quit: no sidecar left
+   running (Task Manager:
+   no stray node or
+   sidecar process)?
+
+C17, the opening (start
+the game again for each):
+8. The window comes up
+   sand-coloured, no
+   Godot splash first;
+   then the card: your
+   logo sharp (square
+   pixels), "moofys"
+   under it, "Made with"
+   Godot's logo at the
+   bottom. Looks right?
+9. With sessions running
+   (one of the game's,
+   one outside): it stays
+   a few seconds, then
+   fades into the menu
+   as their islands
+   start rising?
+10. Press a key during
+   the card: it goes
+   straight to the menu
+   (or to the bar, if
+   not ready)? A click
+   too?
+11. Resize the window
+   during it: the logo
+   stays sharp?
+12. A slow start (first
+   after a reboot, if you
+   get one): the bar with
+   "Starting the
+   sidecar…", then the
+   other stages?

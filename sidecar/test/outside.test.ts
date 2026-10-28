@@ -209,10 +209,11 @@ test('ending: one no longer listed ends (exited) and is never asked about again'
     assert.equal(ended.reason, 'exited')
     assert.equal(((r.p as any).watched as Map<number, unknown>).size, 0)
     assert.equal(((r.p as any).outside as Map<number, unknown>).size, 0)
-    // Listed again (the same process): back as a new island.
+    // Listed again (the same process): back, under the same id (made from
+    // Claude's, S01 -> Restart); the world took it for gone, so a new island.
     l.now = [{ sessionId: ID(1), pid: 50001, status: 'idle', cwd }]
     const back = snapshotOf(await r.c.next('session.snapshot', 3000))
-    assert.notEqual(back.session, id)
+    assert.equal(back.session, id)
   } finally { await r.close() }
 })
 
@@ -418,7 +419,8 @@ test('turned off (client.set_outside_sessions): each ends (user), no more polls,
       // Its notice follows, as an event (a snapshot in the sync has it in its notices).
       assert.ok(r.c.received.some((m) => m.type === 'session.notice' && m.session === s.session && (m.notice as { code: string }).code === OUTSIDE_READ_ONLY.code))
     }
-    assert.notEqual(a.session, id, 'a new island')
+    // The same id (made from Claude's), created again: the world forgot it, a new island.
+    assert.ok([a.session, b.session].includes(id), "its id made from Claude's, as before")
     assert.ok(!r.c.received.some((m) => m.type === 'session.snapshot'))
     assert.deepEqual(r.c.invalid, [])
   } finally { await r.close() }
