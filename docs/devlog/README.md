@@ -120,3 +120,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [W06: an island could rise through a bridge](2026-10-27-w06-island-under-bridge.md) | W06, W12, W05, W10 |
 | 2026-10-27 | [Merge log](2026-10-27-merge-log.md) | docs |
 | 2026-10-27 | [Trimming NOTES.md and the last spike](2026-10-27-docs-trim.md) | docs |
+| 2026-10-27 | [The questions for Anthropic, refreshed](2026-10-27-anthropic-questions.md) | docs |
