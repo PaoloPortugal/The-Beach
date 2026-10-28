@@ -22,6 +22,10 @@ sequenceDiagram
         World->>Sidecar: WebSocket connect, Authorization: Bearer token
         Sidecar-->>World: accepted (no Origin, right Host and token)
     end
+    opt the start fails in a way that can pass: no handshake in time,<br/>the sidecar exits first, a bad handshake or the connect fails
+        World->>Sidecar: end it (close the pipe, kill it after 3 s#59;<br/>at once if it sent no handshake)
+        Note over World,Sidecar: wait 2 s (then 5 s), start it again from step 1:<br/>3 attempts in all, waiting 20, 30, then 45 s for the handshake.<br/>Retries only in the log#59; failed once, after the last.<br/>No program to start or another protocol version: failed at once.
+    end
     Sidecar->>World: hello (protocol version, providers,<br/>each with its launch_options, C12,<br/>its own capabilities and notices, S08,<br/>and the program it found, once it has looked, S02)
     loop each live session
         Sidecar->>World: session.snapshot

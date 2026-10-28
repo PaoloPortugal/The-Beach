@@ -1180,8 +1180,14 @@ It keeps things private and safe:
   runs and how to reach it, never what's said), so the session can come
   back after a restart; the folder goes when the session ends.
 
-If the sidecar can't start or stops unexpectedly, the game notices; for
-now that only shows in the game's log, and a message on screen comes with
+If the sidecar is slow to start or stops while starting, the game tries
+again on its own, up to three times in all, giving it longer each time
+(the first start after installing or rebooting can be slow). Only if the
+last try fails too does the game give up; that can take up to about
+two minutes. If the sidecar file is missing, or doesn't match the game's
+version, the game gives up at once, since trying again wouldn't help. If
+the sidecar stops unexpectedly later, the game notices. For now all of
+this only shows in the game's log, and a message on screen comes with
 the world. The sidecar file ships next to the game's own executable;
 reinstalling the game restores it if it goes missing.
 

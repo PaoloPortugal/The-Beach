@@ -4003,6 +4003,31 @@ console window. Which sidecar runs: next to the game executable in exports;
 `node sidecar/src/main.ts` in the editor; `-- --sidecar=<path>` or
 `-- --sidecar-dev-fake` override it (see Running it).
 
+**Start retry** (user's decision, 2026-10-28; dev log
+2026-10-28-s01-start-retry). A start that fails in a way that can pass
+is tried again: no handshake in time, the sidecar exiting while starting
+(it reads as an empty handshake line), a bad handshake (port or token),
+or the WebSocket connect failing. Three attempts in all, waiting 20 s,
+then 30 s, then 45 s for the handshake (a cold first start is the likely
+cause of a slow one), with 2 s, then 5 s between them
+(`HANDSHAKE_TIMEOUTS_S`, `RETRY_WAITS_S`; at most `START_TIMEOUT_S`,
+102 s, before `failed`). Each retry stops the attempt's process first
+(`stop()`: the pipe closed, killed after 3 s, at once if it never sent
+the handshake), so there are never two sidecars; `status` stays
+`STARTING` through the wait, and `stop()` during it cancels the next
+attempt. Retries go to the log only (a warning naming the reason and the
+attempt); `failed` comes once, after the last. Not tried again, failing
+at once as before: no program to start (the exported game's executable
+missing, or nothing at a `--sidecar=<path>`, checked first so it fails
+alike on every OS), another protocol version, or `OS.execute_with_pipe`
+failing. The handshake line is parsed with a `JSON` instance, not
+`JSON.parse_string`, which logs an error for an empty line. A dropped
+connection to a running sidecar still just reconnects; a failed
+reconnect, or a sidecar dying after the handshake, still fails (see Not
+yet). Tested in `tests/core/sidecar_client_test.gd` on fake sidecars
+(`tests/core/fake_sidecar.mjs`: slow, exits at once, a bad handshake,
+another protocol) with the attempts shortened.
+
 **Session store** (`core/sessions/session_store.gd`, `SessionStore`,
 built with S02): a plain class (no autoload) that the world
 creates and `attach`es to the client. It applies every event to its copy
@@ -5232,7 +5257,8 @@ start, and a session found after that arrives on its own as a
 `LoadingCover` (`world/loading_cover.gd`, a placeholder: "Loading…" on
 a dark background, above everything) covers the world and holds the
 player's controls and input until the sidecar's first `sync.completed`,
-its failure, or 30 s (the handshake timeout plus 10 s), so reattached
+its failure, or 112 s (S01's longest start, every attempt and wait,
+plus 10 s), so reattached
 islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads. *Replaced by C14 (user's, 2026-10-26):*
 the game opens on the main menu over the world instead, and islands
@@ -6300,10 +6326,12 @@ installs `tests/error_watch.gd`, a `Logger` (`OS.add_logger`). On any
 logged error (a script error, `push_error` or an engine error, from any
 thread) it quits with 1 at once and prints a FAIL line, and the suite's
 PASS line checks `_errors.ok()` too. Warnings don't count: the sidecar
-client test's reconnect warning is expected. It works the same locally
+client test's reconnect and retry warnings are expected. It works the same locally
 and on CI; the workflow doesn't read the output. A new suite does the
-same (the file's header shows how). No suite causes an error on purpose;
-one that needs to would first have to teach the watch to expect it.
+same (the file's header shows how). A check that causes an error on
+purpose (a fail-safe's own, such as S01's start failing for good) first
+calls `_errors.expect(text)`, which lets the next error containing that
+text pass, once.
 
 **The suites' own sessions folder** (S07, security review 2026-10-13).
 Every suite starts the real sidecar through the `Sidecar` autoload
@@ -6665,9 +6693,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the sidecar's start (S01): retrying a start that
-fails in a way that can pass (the user's, 2026-10-28), then restarting
-it if it dies in play, then a loading bar at the game's start that waits
+**Current focus:** the sidecar's start (S01), on branch
+`s01-start-retry`: retrying a start that fails in a way that can pass
+(built, 2026-10-28), then restarting it if it dies in play (its limit
+the user's to set first), then a loading bar at the game's start that waits
 for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. D02 Bug
