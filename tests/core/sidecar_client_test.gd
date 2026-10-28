@@ -1,7 +1,9 @@
 extends SceneTree
 ## Headless smoke test for the sidecar client (S01): Godot starts the real
 ## sidecar, connects with the token (so the server's Origin, Host and token
-## checks accept Godot's client), sends commands and stops it again.
+## checks accept Godot's client), sends commands and stops it again. Then
+## the start retry, on fake sidecars that fail to start
+## ([code]fake_sidecar.mjs[/code]; Node on PATH, as for the sidecar itself).
 ##
 ##   godot --headless --path . --script res://tests/core/sidecar_client_test.gd
 ##   ... -- --sidecar-dev-fake      also runs a chat turn with the fake provider
@@ -201,9 +203,120 @@ func _run() -> void:
 	var pid: int = sidecar._pid
 	sidecar.stop()
 	_check(not OS.is_process_running(pid), "sidecar exits when stopped")
+	await _start_retries()
 	if not _failed and _errors.ok():
 		print("PASS sidecar_client_test")
 		quit(0)
+
+
+# A start that fails in a way that can pass is tried again; one that
+# can't, isn't (user's decision, 2026-10-28). On fake sidecars
+# (fake_sidecar.mjs) that are slow, exit early or send a bad handshake,
+# with the attempts' times shortened.
+func _start_retries() -> void:
+	_check(SidecarClient.START_TIMEOUT_S == 20.0 + 2.0 + 30.0 + 5.0 + 45.0 and LoadingCover.TIMEOUT_S > SidecarClient.START_TIMEOUT_S, "S01 retry: the longest start counts every attempt and wait, and the loading cover waits past it")
+	var reasons := {
+		"slow": "The sidecar didn't start in time.",
+		"exit": "The sidecar stopped while starting.",
+		"bad": "The sidecar sent a bad handshake.",
+	}
+	for mode: String in reasons:
+		var client := Starting.new()
+		client.commands = [_fake(mode)]
+		if mode != "slow":
+			# Its failure, not the short timeout, on a slow machine.
+			client.handshake_timeouts_s = [10.0, 10.0, 10.0]
+		_errors.expect("Sidecar: " + reasons[mode])
+		var seen := await _follow_start(client, 15.0)
+		_check(client.status == SidecarClient.Status.FAILED and seen["failed"] == [reasons[mode]], "S01 retry (%s): failed once, after the last attempt (%s)" % [mode, seen["failed"]])
+		_check(seen["pids"].size() == 3, "S01 retry (%s): three attempts (%d)" % [mode, seen["pids"].size()])
+		_check(not seen["two"] and not seen["pids"].any(func(p: int) -> bool: return OS.is_process_running(p)), "S01 retry (%s): each attempt's sidecar ended before the next; none left" % mode)
+		if mode == "slow":
+			# Each attempt waits its own time, with the waits between them.
+			_check(seen["seconds"] >= 0.5 + 0.2 + 0.7 + 0.3 + 0.9, "S01 retry: each attempt waits longer, with a wait between them (%.1f s)" % seen["seconds"])
+		client.free()
+
+	# Stopped while waiting to try again: no attempt after it.
+	var halted := Starting.new()
+	halted.commands = [_fake("exit")]
+	halted.handshake_timeouts_s = [10.0, 10.0, 10.0]
+	halted.retry_waits_s = [0.5, 0.5]
+	root.add_child(halted)
+	await _until(func() -> bool: return halted._retry_at > 0.0, 10.0)
+	halted.stop()
+	await _until(func() -> bool: return false, 1.0)
+	_check(halted._retry_at == 0.0 and halted._pid == -1 and halted.status == SidecarClient.Status.STOPPED, "S01 retry: stopped while waiting to try again: nothing started after")
+	halted.queue_free()
+
+	# Not tried again: another protocol version, or no sidecar at the given path.
+	var old := Starting.new()
+	old.commands = [_fake("old")]
+	_errors.expect("Sidecar: The sidecar speaks a different protocol version")
+	var seen_old := await _follow_start(old, 10.0)
+	_check(old.status == SidecarClient.Status.FAILED and seen_old["pids"].size() == 1 and seen_old["failed"].size() == 1, "S01 retry: a protocol version mismatch fails at once")
+	old.free()
+	var missing := Starting.new()
+	missing.args = PackedStringArray(["--sidecar=" + OS.get_user_data_dir().path_join("no-such-sidecar")])
+	_errors.expect("Sidecar: There's no sidecar at")
+	var seen_missing := await _follow_start(missing, 5.0)
+	_check(missing.status == SidecarClient.Status.FAILED and seen_missing["pids"].is_empty() and seen_missing["failed"].size() == 1 and str(seen_missing["failed"][0]).begins_with("There's no sidecar at"), "S01 retry: --sidecar=<path> with nothing there fails at once")
+	missing.free()
+
+	# A retry that works: ready, and nothing failed.
+	var flaky := Starting.new()
+	flaky.handshake_timeouts_s = [20.0, 20.0, 20.0]
+	flaky.commands = [_fake("exit"), ["node", ProjectSettings.globalize_path("res://sidecar/test/dev-fake.ts"), "serve", "--no-outside-sessions"]]
+	var seen_flaky := await _follow_start(flaky, 30.0)
+	_check(flaky.status == SidecarClient.Status.READY and seen_flaky["failed"].is_empty() and seen_flaky["pids"].size() == 2 and not seen_flaky["two"], "S01 retry: a start that fails once is ready on the next attempt, no failure said")
+	var flaky_pid: int = flaky._pid
+	flaky.stop()
+	flaky.queue_free()
+	_check(not OS.is_process_running(flaky_pid), "S01 retry: and stops as usual")
+
+
+func _fake(mode: String) -> Array:
+	return ["node", ProjectSettings.globalize_path("res://tests/core/fake_sidecar.mjs"), mode]
+
+
+# Starts [param client] and follows it until it's ready or has failed:
+# every sidecar it ran, whether one ran while an earlier one still did,
+# its failures and how long it took.
+func _follow_start(client: SidecarClient, timeout_s: float) -> Dictionary:
+	var seen := {"pids": [], "two": false, "failed": []}
+	client.failed.connect(func(reason: String) -> void: seen["failed"].append(reason))
+	var started := Time.get_ticks_msec()
+	root.add_child(client) # _ready starts it
+	while Time.get_ticks_msec() < started + int(timeout_s * 1000):
+		var pid: int = client._pid
+		if pid > 0 and not seen["pids"].has(pid):
+			if seen["pids"].any(func(p: int) -> bool: return OS.is_process_running(p)):
+				seen["two"] = true
+			seen["pids"].append(pid)
+		if client.status in [SidecarClient.Status.READY, SidecarClient.Status.FAILED]:
+			break
+		await process_frame
+	seen["seconds"] = (Time.get_ticks_msec() - started) / 1000.0
+	return seen
+
+
+## Runs [member commands] instead of a sidecar, one per attempt (the last
+## for the rest), with short attempts; or, with none, the usual command
+## from [member args] as Godot's command line.
+class Starting extends SidecarClient:
+	var commands: Array = []
+	var args := PackedStringArray()
+
+	func _init() -> void:
+		handshake_timeouts_s = [0.5, 0.7, 0.9]
+		retry_waits_s = [0.2, 0.3]
+
+	func _sidecar_command() -> Array:
+		if commands.is_empty():
+			return super()
+		return commands[mini(_attempt, commands.size() - 1)]
+
+	func _cmdline_args() -> PackedStringArray:
+		return args
 
 
 # Records commands instead of sending them, as the real one would while

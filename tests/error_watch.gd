@@ -28,6 +28,7 @@ const TEST_SESSIONS_ENV := "SIDECAR_TEST_SESSIONS_DIR"
 var _tree: SceneTree
 var _mutex := Mutex.new()
 var _count := 0
+var _expected: PackedStringArray = []
 
 
 func _init(tree: SceneTree) -> void:
@@ -49,6 +50,14 @@ func _init(tree: SceneTree) -> void:
 	cfg.save(SidecarClient.settings_file)
 
 
+## Lets the next error whose message contains [param text] pass, once: a
+## fail-safe's own error, logged on purpose by the check that tests it.
+func expect(text: String) -> void:
+	_mutex.lock()
+	_expected.append(text)
+	_mutex.unlock()
+
+
 ## False if an error was logged.
 func ok() -> bool:
 	_mutex.lock()
@@ -57,10 +66,15 @@ func ok() -> bool:
 	return count == 0
 
 
-func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String, _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
+func _log_error(_function: String, _file: String, _line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
 	if error_type == ERROR_TYPE_WARNING:
 		return
 	_mutex.lock()
+	for i in _expected.size():
+		if code.contains(_expected[i]) or rationale.contains(_expected[i]):
+			_expected.remove_at(i)
+			_mutex.unlock()
+			return
 	_count += 1
 	var first := _count == 1
 	_mutex.unlock()
