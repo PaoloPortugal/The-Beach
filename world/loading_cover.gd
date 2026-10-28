@@ -11,8 +11,9 @@ extends CanvasLayer
 ## main menu over the world instead; kept in case it's wanted again
 ## (user's, 2026-10-26).
 
-## Past the client's own handshake timeout, plus the sync: never stuck.
-const TIMEOUT_S := SidecarClient.HANDSHAKE_TIMEOUT_S + 10.0
+## Past the client's longest start (every attempt and the waits between
+## them), plus the sync: never stuck.
+const TIMEOUT_S := SidecarClient.START_TIMEOUT_S + 10.0
 
 signal lifted
 

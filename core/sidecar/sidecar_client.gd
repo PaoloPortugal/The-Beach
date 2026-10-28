@@ -34,7 +34,16 @@ signal providers_changed
 enum Status { STOPPED, STARTING, CONNECTING, SYNCING, READY, FAILED }
 
 const PROTOCOL_VERSION := 1
-const HANDSHAKE_TIMEOUT_S := 20.0
+## A start that fails in a way that can pass is tried again (user's
+## decision, 2026-10-28): three attempts, each waiting longer for the
+## handshake (a cold first start is the likely cause of a slow one), with
+## these waits between them. [signal failed] comes once, after the last.
+const HANDSHAKE_TIMEOUTS_S: Array[float] = [20.0, 30.0, 45.0]
+const RETRY_WAITS_S: Array[float] = [2.0, 5.0]
+## The longest a start can take before [signal failed], every attempt and
+## wait included (the connect and sync after the handshake aren't).
+const START_TIMEOUT_S: float = HANDSHAKE_TIMEOUTS_S[0] + RETRY_WAITS_S[0] \
+		+ HANDSHAKE_TIMEOUTS_S[1] + RETRY_WAITS_S[1] + HANDSHAKE_TIMEOUTS_S[2]
 ## Largest message Godot accepts. Chat history comes in one message; the
 ## default (64 KiB) would drop a long reply.
 const INBOUND_BUFFER := 32 * 1024 * 1024
@@ -59,7 +68,13 @@ var outside_sessions := true
 ## settings file's [code][programs][/code] section, and given to the
 ## sidecar at start ([code]serve --program-path[/code]).
 var program_paths := {}
+## [constant HANDSHAKE_TIMEOUTS_S] and [constant RETRY_WAITS_S] as used;
+## the suites shorten them.
+var handshake_timeouts_s := HANDSHAKE_TIMEOUTS_S
+var retry_waits_s := RETRY_WAITS_S
 
+var _attempt := 0 # this start's attempt, from 0
+var _retry_at := 0.0 # > 0: waiting to try again at this time (s)
 var _pid := -1
 var _stdio: FileAccess
 var _stderr: FileAccess
@@ -96,7 +111,11 @@ func _process(_delta: float) -> void:
 	_drain_stderr()
 	match status:
 		Status.STARTING:
-			_check_handshake()
+			if _retry_at <= 0.0:
+				_check_handshake()
+			elif _now() >= _retry_at:
+				_retry_at = 0.0
+				_launch()
 		Status.CONNECTING, Status.SYNCING, Status.READY:
 			_poll_socket()
 
@@ -232,9 +251,18 @@ func send_command(type: String, fields: Dictionary = {}, on_reply := Callable())
 	return id
 
 
+## Starts the sidecar, trying again if a start fails in a way that can
+## pass ([constant HANDSHAKE_TIMEOUTS_S]). Does nothing while one runs or
+## is starting.
 func start() -> void:
 	if status != Status.STOPPED and status != Status.FAILED:
 		return
+	_attempt = 0
+	_launch()
+
+
+# One attempt. Not being able to start a process at all isn't tried again.
+func _launch() -> void:
 	var cmd := _sidecar_command()
 	if cmd.is_empty():
 		return
@@ -247,7 +275,7 @@ func start() -> void:
 	_stderr = result["stderr"]
 	_handshake_done = false
 	_handshake_line = ""
-	_started_at = Time.get_ticks_msec() / 1000.0
+	_started_at = _now()
 	status = Status.STARTING
 	# Blocking reads, one thread per pipe. stderr must be drained all the
 	# time, or the sidecar could stall writing its log.
@@ -288,19 +316,26 @@ func stop() -> void:
 	_pending.clear()
 	_seq.clear()
 	_resyncing.clear()
+	_retry_at = 0.0
 	if status != Status.FAILED:
 		status = Status.STOPPED
 
 
 func _sidecar_command() -> Array:
-	var user_args := OS.get_cmdline_user_args()
+	var user_args := _cmdline_args()
 	for arg in user_args:
 		if arg.begins_with("--sidecar="):
 			# Relative paths are relative to the working directory.
 			var given := arg.trim_prefix("--sidecar=")
 			if given.is_relative_path():
 				given = DirAccess.open(".").get_current_dir().path_join(given)
-			return [given.simplify_path()] + _serve_args()
+			given = given.simplify_path()
+			# Checked here, as below: on Linux and macOS a missing program
+			# would only show as a sidecar that stopped while starting.
+			if not FileAccess.file_exists(given):
+				_fail("There's no sidecar at %s." % given)
+				return []
+			return [given] + _serve_args()
 	if OS.has_feature("editor"):
 		var dir := ProjectSettings.globalize_path("res://sidecar")
 		var entry := "test/dev-fake.ts" if "--sidecar-dev-fake" in user_args else "src/main.ts"
@@ -311,6 +346,11 @@ func _sidecar_command() -> Array:
 		_fail("The sidecar is missing from the game folder. Reinstalling the game should fix this.")
 		return []
 	return [path] + _serve_args()
+
+
+# Godot's command line after "--" (the suites give their own).
+func _cmdline_args() -> PackedStringArray:
+	return OS.get_cmdline_user_args()
 
 
 # The server mode's arguments: the player's outside-sessions setting (S08),
@@ -377,12 +417,15 @@ func _check_handshake() -> void:
 	var line := _handshake_line
 	_mutex.unlock()
 	if not done:
-		if Time.get_ticks_msec() / 1000.0 - _started_at > HANDSHAKE_TIMEOUT_S:
-			_fail("The sidecar didn't start in time.")
+		if _now() - _started_at > handshake_timeouts_s[_attempt]:
+			_start_failed("The sidecar didn't start in time.")
 		return
-	var hs = JSON.parse_string(line)
+	# Empty if it exited first. Parsed without JSON.parse_string, which logs
+	# an error for that (a start that's tried again isn't one).
+	var json := JSON.new()
+	var hs: Variant = json.data if json.parse(line) == OK else null
 	if typeof(hs) != TYPE_DICTIONARY or hs.get("type") != "ready":
-		_fail("The sidecar stopped while starting.")
+		_start_failed("The sidecar stopped while starting.")
 		return
 	if int(hs.get("protocol", 0)) != PROTOCOL_VERSION:
 		_fail("The sidecar speaks a different protocol version; reinstall the game.")
@@ -390,21 +433,38 @@ func _check_handshake() -> void:
 	_port = int(hs.get("port", 0))
 	_token = str(hs.get("token", ""))
 	if _port <= 0 or _port > 65535 or _token.length() != 64:
-		_fail("The sidecar sent a bad handshake.")
+		_start_failed("The sidecar sent a bad handshake.")
 		return
-	_connect()
+	var err := _connect()
+	if err != OK:
+		_start_failed("Couldn't connect to the sidecar (error %d)." % err)
 
 
-func _connect() -> void:
+# An attempt failed in a way that can pass: the next one after a wait, or,
+# after the last, [method _fail]. Its process is ended first (stop() kills
+# it if it won't exit), so there are never two sidecars.
+func _start_failed(reason: String) -> void:
+	if _attempt + 1 >= handshake_timeouts_s.size():
+		_fail(reason)
+		return
+	var wait := retry_waits_s[_attempt]
+	push_warning("Sidecar: %s Trying again in %s s (attempt %d of %d)." % [reason, wait, _attempt + 2, handshake_timeouts_s.size()])
+	stop()
+	_attempt += 1
+	_retry_at = _now() + wait
+	status = Status.STARTING
+
+
+func _connect() -> Error:
 	_ws = WebSocketPeer.new()
 	_ws.handshake_headers = PackedStringArray(["Authorization: Bearer " + _token])
 	_ws.inbound_buffer_size = INBOUND_BUFFER
 	_ws.outbound_buffer_size = OUTBOUND_BUFFER
 	var err := _ws.connect_to_url("ws://127.0.0.1:%d/" % _port)
 	if err != OK:
-		_fail("Couldn't connect to the sidecar (error %d)." % err)
-		return
+		return err
 	status = Status.CONNECTING
+	return OK
 
 
 # ---- socket ----
@@ -428,7 +488,9 @@ func _poll_socket() -> void:
 			if _pid > 0 and OS.is_process_running(_pid):
 				# The sidecar is alive: connect again (it replaces the old link).
 				push_warning("Sidecar connection closed (code %d); reconnecting." % code)
-				_connect()
+				var err := _connect()
+				if err != OK:
+					_fail("Couldn't connect to the sidecar (error %d)." % err)
 			else:
 				_fail("The sidecar stopped.")
 
@@ -529,3 +591,7 @@ func _fail(reason: String) -> void:
 	status = Status.FAILED
 	failed.emit(reason)
 	stop()
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
