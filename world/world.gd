@@ -12,7 +12,8 @@ extends Node3D
 ## this applies, and quits through the quit guard. The crosshair picks
 ## what E acts on (C11), the hotbar the tool in hand (C15), and the rod fishes (D01). The game opens on the main menu (C14), over the
 ## world as the sidecar takes back the sessions still running from before
-## a restart (S07); Play takes the player in, the pause menu back out.
+## a restart (S07), under the opening's logos and bar (C17); Play takes
+## the player in, the pause menu back out.
 
 ## Godot's copy of the live sessions, fed by the sidecar.
 var store := SessionStore.new()
@@ -56,6 +57,9 @@ var fishing := Fishing.new()
 ## that circles the islands behind it.
 var main_menu := MainMenu.new()
 var menu_camera := MenuCamera.new()
+## The opening over the main menu at start (C17): the logos, and a bar
+## while the start takes longer.
+var opening := Opening.new()
 ## Shows or hides the sessions started outside the game (S08, the
 ## setting); tests replace it, so a suite never shows the user's own.
 var set_outside_sessions: Callable = func(on: bool) -> void: Sidecar.set_outside_sessions(on)
@@ -141,6 +145,11 @@ func _ready() -> void:
 	_setup_settings()
 	store.attach(Sidecar)
 	main_menu.open_at_start()
+	opening.name = "Opening"
+	add_child(opening)
+	opening.setup(Sidecar, store, _islands)
+	# The menu gone (a dev tool straight into the world), the opening too.
+	main_menu.leaving.connect(opening.lift_now)
 	# Dev tool: the current live check's steps, top left (NOTES → Running it).
 	if "--checklist" in OS.get_cmdline_user_args():
 		add_child(load("res://tests/live/checklist.tscn").instantiate())

@@ -240,6 +240,11 @@ func provider_notice(code: String) -> Dictionary:
 	return {}
 
 
+## This start's attempt, from 0 (C17's opening says which).
+func attempt() -> int:
+	return _attempt
+
+
 ## Whether any provider declares that capability of its own (hello).
 func provider_capable(capability: String) -> bool:
 	return providers.any(func(p: Dictionary) -> bool: return p.get("capabilities", {}).has(capability))
