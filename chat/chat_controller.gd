@@ -52,6 +52,10 @@ func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	sidecar.restarting.connect(func(_reason: String) -> void:
 		_restarted = true)
 	store.synced.connect(_on_synced)
+	# An id can come back after its session ended (S08's made from Claude's,
+	# listed again): its chat is fetched anew then.
+	store.session_removed.connect(func(id: String, _reason: String) -> void:
+		_history.erase(id))
 
 
 func watch(orchestrator: Orchestrator) -> void:
@@ -85,7 +89,10 @@ func bubble(session_id: String) -> MessageBubble:
 
 # An orchestrator left the world (its session ended).
 func _forget(orchestrator: Orchestrator) -> void:
-	_bubbles.erase(orchestrator.session_id)
+	# Not a newer orchestrator's of the same id (S08: listed again).
+	var bubble: MessageBubble = _bubbles.get(orchestrator.session_id)
+	if bubble != null and bubble.get_parent() == orchestrator:
+		_bubbles.erase(orchestrator.session_id)
 	if _open == orchestrator:
 		close()
 
