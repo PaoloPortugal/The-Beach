@@ -121,6 +121,7 @@ slice.
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
 | C16 | Multi-language support                    | designed | —            | — |
+| C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
 | S03 | Create session from the world             | built (UI placeholder) | S03 | `world/sessions_menu/sessions_menu.gd`, `world/sessions_menu/session_launcher.gd` |
@@ -544,7 +545,7 @@ removing a provider means deleting its folders.
 | Path | Role |
 |------|------|
 | `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
-| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
+| `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `opening.gd` (C17: the logos and the bar at start), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
@@ -3661,7 +3662,10 @@ by the user; the ID and scope are my pick):*
   is still starting, the camera eases down straight away and islands
   still to come rise as they arrive, so S07's "standing from
   the first frame" doesn't hold for that start (rejected: Play waiting
-  for the sync, my recommendation, or greyed until it).
+  for the sync, my recommendation, or greyed until it). *Changed by C17
+  (user's, 2026-10-28):* the opening covers the menu until the sync
+  and the first island's rise, so Play is held back in practice; once
+  the opening has lifted, Play still never waits.
 - **Credits:** `assets/CREDITS.md` as it is, read when opened and drawn
   with the chat's Markdown renderer (C03) in a scrolling panel with
   Back, then "Made with Godot Engine" with the engine's own copyright
@@ -3696,7 +3700,8 @@ by the user; the ID and scope are my pick):*
   and its panel style, titled `MainMenu.TITLE` ("The Beach", the one
   place in code: Conventions → Renaming the project), with **Play**,
   **Settings**, **Credits** and **Quit**. `world.gd` opens it at the
-  end of `_ready` (`open_at_start`), where the loading cover was. Open,
+  end of `_ready` (`open_at_start`), where the loading cover was, under
+  the opening (C17) until the game is ready. Open,
   it frees the mouse, turns the player's controls off (so the other
   menus, the crosshair and Esc's pause menu stay shut) and hides the
   usage limits and the new-island arrows; the minimap hides itself
@@ -3711,7 +3716,8 @@ by the user; the ID and scope are my pick):*
   the player's own camera over 2.5 s (position, turn and field of view,
   smoothstep), following it if it moves; there it makes the player's
   camera current, gives back the controls and the mouse and the HUD,
-  and emits `played`. Never held back for the sidecar.
+  and emits `played`. Never held back for the sidecar once the
+  opening (C17) has lifted.
 - *Main menu* in the pause menu calls `open`: the camera starts at the
   player's view and eases up onto the circle. The player stays where
   they were, sessions run on; Play brings them back there, unless the
@@ -3947,6 +3953,67 @@ free-form messages; (7) the first real language and its font.
 questions → 11). Checked against Godot's docs (master, raw), not yet
 on 4.7.2 itself: CSV plurals and contexts arrived in 4.6, and loading
 a `.po` from outside `res://` at runtime (for mods) is to confirm.
+
+### C17 Opening
+*Built (2026-10-28, UI placeholder). Scope: core (world only):* no
+provider, protocol or sidecar part (it reads the client's status and
+attempt). The game's opening: the developer's card over the world and
+the main menu while the game starts, and a bar while the start takes
+longer. Step 3 of branch `s01-start-retry`. Dev log
+2026-10-28-c17-opening.
+
+*Decided (user's, 2026-10-28):*
+- **A cover before the menu** (rejected: a bar on the main menu
+  itself, my recommendation, which kept C14's "menu at once").
+- **A real game's opening:** the user's logo and Godot's, using that
+  time to hide the wait, the bar only if still needed. **Both on one
+  card** (the user's idea, my layout): the logo large in the middle,
+  "moofys" (the developer's name) under it, "Made with" and Godot's
+  logo smaller along the bottom (rejected: a card each, one after the
+  other, more generic and longer).
+- **Ready** is the sidecar synced and, if sessions came back (S07,
+  S08), the first island starting to rise, at most 5 s after the sync
+  (rejected: 2 s; every island up). The start keeps its own bound
+  (S01, about 102 s), then S01's message box.
+- *My picks, taken:* the bar names the stage and fills a step per
+  stage (rejected: a sweep; a bar that creeps); a key or click skips
+  the card; the card always shows its time; Godot's boot splash plain,
+  so Godot's logo shows once.
+
+**How it works.** `Opening` (`world/opening.gd`, a `CanvasLayer` on
+layer 9: over the menus and the HUD, under the quit dialog's 10, so
+closing the window still asks), added by `world.gd` right after the
+main menu opens at start (`open_at_start`), so the menu, its circling
+camera and the islands are all there under it. On a sand-coloured
+background (`BACKGROUND`, the logo's black outline needs a light one):
+the logo (`assets/opening/moofys_logo.png`, the user's 32×32 pixel art)
+drawn with nearest filtering in whole steps of its pixels, about a
+third of the window's height; "moofys" (`DEVELOPER`) under it; along
+the bottom "Made with" and Godot's logo (`godot_logo.png`, the press
+kit's colour logo for light backgrounds, 56 px high, mipmapped). It
+fades in over 0.4 s and shows at least `CARD_S` (2.5 s). Once that's
+over (or skipped) and the game isn't ready, a bar shows under the name
+with its stage: "Starting the sidecar…" (or "(try 2 of 3)" on a retry,
+`SidecarClient.attempt()`), "Finding your sessions…" (connecting and
+syncing), "Bringing up your islands…" (synced, waiting for the first
+to rise: `SessionIslands.island_rising`), its fill easing to each
+stage's step. Ready (synced and no sessions back, or the first island
+rising, or `ISLAND_WAIT_S` after the sync; the sidecar failed; or
+`TIMEOUT_S`, the start's longest plus 10 s), it fades out over 0.5 s
+into the main menu. A key, click or pad button skips the card
+(straight to the menu if ready, else to the bar); every key and click
+waits under it. A sidecar already failed or stopped shows none (S01's
+box says why). The main menu going (a dev tool's `close_now`) lifts it
+at once. Godot's own boot splash is the background's colour with no
+image (`application/boot_splash`). S07's `LoadingCover` stays unused.
+
+Tested in `tests/world/world_test.gd` (`_opening`): it opens over the
+main menu, the logo in whole pixel steps, keys wait, closing the
+window asks (the quit dialog over it, Esc reaching the dialog), it
+fades into the menu after its card's time; on stand-in clients the
+bar's stages and retry text, the wait for the first island and its
+cap, a failure, `TIMEOUT_S`, and none for a sidecar already failed. Looks, the fades and the skip by
+hand are the live check's.
 
 ### S01 Sidecar and WebSocket server
 *Built (v1). Scope: core.* The sidecar process that hosts the session
@@ -5354,7 +5421,10 @@ islands are standing from the first frame. Rejected: islands appearing
 a moment after the world loads. *Replaced by C14 (user's, 2026-10-26):*
 the game opens on the main menu over the world instead, and islands
 taken back rise behind it once synced (W04, changed after C14's live
-check); Play isn't held back for the sync. `LoadingCover` is kept, unused, its tests on stand-ins (user's
+check); Play isn't held back for the sync. *Then C17 (user's,
+2026-10-28):* an opening covers the menu until the sync and the first
+island's rise, so islands are rising when the menu shows.
+`LoadingCover` is kept, unused, its tests on stand-ins (user's
 choice).
 
 **If the old port is taken** (another program got it while the game was
@@ -6309,7 +6379,8 @@ names. Add to this list if it ever has to appear anywhere new.
 
 Needs Node **22.21.0** (pinned; packaging refuses any other version) and
 Godot 4.7.2. Open the project in Godot and press F5 (or `godot --path .`)
-for the world: it opens on the main menu (C14), and Play puts you on
+for the world: it opens on the opening (C17), then the main menu
+(C14), and Play puts you on
 the spawn platform; hold Tab for the sessions
 ring and click its + to start a session in a folder you pick or resume a
 stored one, and you're taken to its island to chat with its orchestrator (S03,
@@ -6795,10 +6866,15 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 (built, 2026-10-28), then restarting it if it dies in play (built
 2026-10-28: always restarted, within the start's bound; the game quits
 if the first start fails; sessions keep their ids, so a restart is a
-plain resync), then a loading bar at the game's start that waits
-for the sidecar and the first outside island's rise. D01 Fishing is merged as v0 (the
+plain resync), then the game's opening (C17, built 2026-10-28): the
+user's logo and Godot's on one card over the main menu, and a bar
+while the sidecar starts and the first island rises. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
-v0", the user's); next for it, the user's species list. D02 Bug
+v0", the user's); next for it, the user's species list. A flaky D01
+check (seen 2026-10-28, about 2 runs in 7): "reeling drags it through
+the water" saw the bobber 0.18-0.24 m above the surface (limit 0.15)
+when a floating one starts being reeled, likely its buoyancy
+overshooting; open, the user's to decide (dev log 2026-10-28-c17-opening). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and

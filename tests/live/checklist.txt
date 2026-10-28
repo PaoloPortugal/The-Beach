@@ -1,6 +1,7 @@
 LIVE CHECK: S01 the
 sidecar's start retry
-and restart
+and restart; C17 the
+opening
   godot --path . -- --checklist
 (the retry itself is tested
 headless on fake sidecars;
@@ -67,3 +68,37 @@ PgDn/PgUp scroll this.
    running (Task Manager:
    no stray node or
    sidecar process)?
+
+C17, the opening (start
+the game again for each):
+8. The window comes up
+   sand-coloured, no
+   Godot splash first;
+   then the card: your
+   logo sharp (square
+   pixels), "moofys"
+   under it, "Made with"
+   Godot's logo at the
+   bottom. Looks right?
+9. With sessions running
+   (one of the game's,
+   one outside): it stays
+   a few seconds, then
+   fades into the menu
+   as their islands
+   start rising?
+10. Press a key during
+   the card: it goes
+   straight to the menu
+   (or to the bar, if
+   not ready)? A click
+   too?
+11. Resize the window
+   during it: the logo
+   stays sharp?
+12. A slow start (first
+   after a reboot, if you
+   get one): the bar with
+   "Starting the
+   sidecar…", then the
+   other stages?

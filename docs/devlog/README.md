@@ -125,3 +125,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [D01: the fight](2026-10-27-d01-fight.md) | D01, A05, W03 |
 | 2026-10-28 | [D01: the fight's runs, arrow and view](2026-10-28-d01-fight-runs.md) | D01 |
 | 2026-10-28 | [S01: retrying the sidecar's start, and restarting it](2026-10-28-s01-start-retry.md) | S01 |
+| 2026-10-28 | [C17: the game's opening](2026-10-28-c17-opening.md) | C17, S01, C14 |

@@ -6,6 +6,7 @@ here; each section is labelled with its feature ID.
 ## Contents
 
 - [Running it](#running-it)
+- [The opening (C17)](#the-opening-c17)
 - [The main menu (C14)](#the-main-menu-c14)
 - [The sessions menu (S03, S04, W07)](#the-sessions-menu-s03-s04-w07)
 - [Quitting the game (S05)](#quitting-the-game-s05)
@@ -43,8 +44,8 @@ here; each section is labelled with its feature ID.
 ## Running it
 
 There's no download yet. For now, open the project in Godot 4.7.2 and
-press F5: the game opens on the main menu (below); click **Play** and
-you arrive on a wooden platform in the open sea. Hold Tab and click
+press F5: the game opens on its opening, then the main menu (below);
+click **Play** and you arrive on a wooden platform in the open sea. Hold Tab and click
 the + to start a session.
 
 The game picks its graphics mode by itself. If it won't start or looks
@@ -52,15 +53,30 @@ wrong, you can force the simpler mode by starting it with
 `--rendering-method gl_compatibility`; it looks nearly the same, but
 without the sun's shadows.
 
+## The opening (C17)
+
+The game starts on a card with the developer's logo and name, moofys,
+and "Made with" Godot's logo along the bottom. It stays a couple of
+seconds while the game starts behind it. If the start takes longer, a
+bar under the name says what it's doing: starting the sidecar (and
+which try, if it has to try again), finding your sessions, bringing up
+their islands. Once the game is ready, and the first island of a
+session that came back is rising, the card fades into the main menu.
+It never waits on an island for more than a few seconds.
+
+Press any key or click to skip the card: you go straight to the main
+menu if the game is ready, or to the bar if not. Closing the window
+works as usual (see Quitting the game (S05)).
+
 ## The main menu (C14)
 
-The game opens on the main menu, titled "The Beach" (a working name).
-Behind it the world is already there, dimmed, and the view circles
+After the opening, the game shows the main menu, titled "The Beach"
+(a working name). Behind it the world is already there, dimmed, and the view circles
 slowly high above the islands; sessions come back and their islands
 rise while you're on it.
 
 - **Play** takes you in: the view glides down to your character, and
-  you can move once it's there. You never wait for anything first; an
+  you can move once it's there. Play itself never makes you wait; an
   island still coming back may rise a moment later. If the island you
   stood on sank while you were on the menu (its session ended), Play
   puts you on the platform.
