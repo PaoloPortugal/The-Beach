@@ -1193,7 +1193,9 @@ launch the game, a message says why and the game closes; try starting
 it again. If the sidecar stops while you play, the game starts it again
 on its own and your sessions come back as they were: their islands
 stay where they are, and an open chat stays open, with anything said
-while the sidecar was down (when Claude Code saves transcripts). A
+while the sidecar was down (when Claude Code saves transcripts). One
+exception: a session started outside the game that you `/clear`ed or
+`/resume`d since its island rose comes back as a new island. A
 prompt or question that was waiting moves to its terminal. If it can't be started
 again, a notice covers the world and asks you to quit: your sessions
 keep running in their terminals and come back when you start the game

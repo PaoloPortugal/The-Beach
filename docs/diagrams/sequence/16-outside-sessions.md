@@ -33,7 +33,7 @@ sequenceDiagram
         else no transcript yet (not at start, nor just after turning it on)
             Note over Sidecar: wait one listing (a claude -p writes it at once)
         else a terminal, the desktop app, an IDE, a background session
-            Sidecar->>World: session.snapshot (session.created just after turning it on)<br/>origin external, read_only: true, notices: outside_read_only,<br/>its id made from Claude's (derivedId: the same after a sidecar restart)
+            Sidecar->>World: session.snapshot (session.created just after turning it on)<br/>origin external, read_only: true, notices: outside_read_only,<br/>its id made from Claude's (derivedId in provider.ts: the same after a sidecar restart)
         end
     end
     Note over World: the island in its repository's cluster, with the grey flag#59;<br/>chat: "Read-only: use its own window."

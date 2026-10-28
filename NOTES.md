@@ -348,7 +348,9 @@ feature that touches them follows these rules, and each is tested:
   ending the sessions does, which is why the quit warning says so (S05,
   with S07). If that program still holds the port when the game starts
   again, the gap stays open while the game runs: the session comes back
-  read-only (S07), and its hooks keep going to that program. The
+  read-only (S07), and its hooks keep going to that program. A restart
+  in play (S01 → Restart) opens the same gap for the moment between the
+  old sidecar's death and the new one's bind. The
   bridge has no such gap: a gone sidecar's token is never offered again,
   and the bridge trusts only a sidecar whose `welcome` carries the
   proof from its own bridge file (S07 → The bridge reconnects). Closes if Claude Code lets a hook check its server (Watch
@@ -748,7 +750,9 @@ has for that session (e.g. from a snapshot) is stale and ignored.
 
 **IDs.** The sidecar makes an opaque `session` ID; a session still
 running keeps it when the sidecar starts again (S01 → Restart, S07,
-S08). The provider's own ID
+S08), except an outside session (S08) that switched conversations
+(`/clear`, `/resume`) since its island rose: it comes back under a new
+ID. The provider's own ID
 (e.g. Claude's session UUID) is `native_id`, null until assigned. `origin` is
 `app` (started here) or `external` (started elsewhere and only watched,
 always `read_only`: S08, 2026-10-22). Agents are keyed by
@@ -2683,7 +2687,9 @@ all of it, so markup in a message shows as written (tested with an injected
 - **History:** the chat so far isn't in the snapshot, so the controller
   asks for `session.get_history` once per session when its orchestrator
   appears (this also fills the bubble). If that fails (an error, or no
-  connection), opening the chat asks again. An older message arriving lays the
+  connection), opening the chat asks again. After a sidecar restart,
+  each chat already loaded is asked for again and replaces ours,
+  keeping what arrived since (S01 → Restart). An older message arriving lays the
   panel out again once, deferred, for the whole batch.
 
 Pending permission prompts and questions show on a card between the
@@ -3998,7 +4004,8 @@ gap sends `session.get_snapshot` once. If the connection drops while the
 sidecar runs, it reconnects, and every command still waiting for a reply
 gets an `error` with code `disconnected` (Godot's own; the command may or
 may not have arrived), so nothing waits forever; if the sidecar dies, it
-reports failure (`failed` signal). It stops the sidecar by closing the pipe, killing it
+starts it again (`restarting`, see Restart), and reports failure
+(`failed` signal) only when that can't be done. It stops the sidecar by closing the pipe, killing it
 only if it hasn't exited after 3 s. stderr is drained continuously so the
 sidecar never stalls on a full pipe. On Windows, Godot starts it without a
 console window. Which sidecar runs: next to the game executable in exports;
@@ -4060,7 +4067,9 @@ snapshots begin. It's the Godot handler for `session.notice` and `session.notice
 running, and a start, first or not, gives up within a minute or two).
 When the sidecar dies in play, or a reconnect fails at once, the client
 emits `restarting` and starts it again with the start's attempts (the
-same waits; about 102 s at most). Commands waiting for a reply get
+same waits; about 102 s at most). It stops the old process first
+(`stop()`); one that can't be ended fails the restart at once
+(`failed`), so there are never two sidecars. Commands waiting for a reply get
 `disconnected`. The new sidecar takes back the sessions still running
 (S07) and finds those started outside the game (S08); its `hello`,
 snapshots and `sync.completed` go through the session store's usual
@@ -4077,7 +4086,9 @@ stays for a later start); a run folder from before ids were kept, or
 whose `session_id` isn't a UUID, gets a new one, then written there. So
 a restart is a plain resync: no island sinks or rises, chats, cards
 and W12's entries stay, and an open chat stays open. Neither id says
-anything the snapshot doesn't (`native_id` is in it; Security rules).
+anything the snapshot doesn't (`native_id` is in it), and an id opens
+nothing: every connection needs its token (Security rules →
+Authenticate every connection).
 What was said while the sidecar was down only the new one has (from
 the transcript), so once a restart has synced each chat the world had
 loaded is fetched again (`session.get_history`) and replaces ours,
@@ -4095,6 +4106,20 @@ again, so a sidecar that keeps dying ends in `failed` within the same
 bound instead of restarting forever. A dropped connection to a running
 sidecar still just reconnects. `has_synced` says whether a start ever
 got as far as synced; `failure` keeps the last reason.
+
+Security: between the old sidecar's death and the new one's bind, the
+kept hook port (S07) is free; a program that takes it then receives the
+running sessions' hooks, and they come back read-only (S07 → A program
+on the kept port). The same gap as after a quit, only shorter (Security
+rules → Known gap).
+
+Tested in `tests/core/sidecar_client_test.gd` (the real sidecar killed
+in play, and killed again soon after; a reconnect failing at once while
+it runs: the old one ended before the new one appears; one that keeps
+dying fails once, after three), `tests/world/world_test.gd`
+(`_restart_chat`: islands and an open chat stay, the chat fetched again)
+and `sidecar/test/reattach.test.ts` (ids kept across runs, from the run
+folder and `derivedId`; an id in use refused).
 
 **When it can't be started** (`world/sidecar_lost.gd`, `SidecarLost`,
 a placeholder; user's decisions, 2026-10-28: without the sidecar there's
@@ -4745,7 +4770,8 @@ notice. For development, what's limited:
   guessing. A world answer to a prompt the terminal already closed is
   dropped by Claude Code, harmlessly.
 - **Chat history** is only what the sidecar saw (as always for a session
-  started here), and it's lost if the sidecar restarts.
+  started here), and it's lost when the game restarts; a sidecar
+  restart keeps what the world had (S01 → Restart).
 - **Resuming** isn't possible, and the session isn't listed (S04).
 - **Attaching** (later) shows nothing from before we joined.
 - **Token usage** (C08) is only the status line's figures: context %

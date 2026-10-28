@@ -2,8 +2,9 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S07, W12, C14). NOTES.md → S07 Reattach to running
-> sessions, W12 Islands kept across restarts, C14 Main menu.
+> **Status:** Built (S07, S01, W12, C14, W04). NOTES.md → S07 Reattach to running
+> sessions, S01 → Restart, W12 Islands kept across restarts, C14 Main menu,
+> W04 Island rise / sink.
 
 ```mermaid
 sequenceDiagram
@@ -63,7 +64,8 @@ back to its own dialog.
 **Its id** is the one it had: `session.json` keeps it (`session_id`),
 so after a sidecar restart in play (flow 0) the snapshot is a plain
 resync and the island stays; a folder from before ids were kept gets a
-new one, written back (NOTES.md → S01 → Restart).
+new one, written back, and the registry refuses an id already in use
+(`sidecar/src/registry.ts`; NOTES.md → S01 → Restart).
 
 **`/clear` or `/resume` while the game was closed:** Claude Code lists
 the session under its new id, which the world follows, and the run
