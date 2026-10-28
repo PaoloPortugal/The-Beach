@@ -200,6 +200,27 @@ func _run() -> void:
 	reply = await _command(sidecar, "session.list_stored", {"provider": "nope"})
 	_check(reply.get("code") == "unknown_provider", "commands work after reconnecting")
 
+	# S01 restart: the sidecar dies in play: a new one starts and syncs
+	# (hello, snapshots, sync.completed, so the session store resyncs), no
+	# failure said.
+	var restarts := []
+	var fails := []
+	sidecar.restarting.connect(func(r: String) -> void: restarts.append(r))
+	sidecar.failed.connect(func(r: String) -> void: fails.append(r))
+	var first_pid: int = sidecar._pid
+	sidecar._ready_at -= SidecarClient.STEADY_S # up a while: a fresh start
+	OS.kill(first_pid)
+	await _until(func() -> bool: return syncs[0] == 2, 60.0)
+	_check(syncs[0] == 2 and sidecar.status == SidecarClient.Status.READY and restarts == ["The sidecar stopped."] and fails.is_empty() and sidecar._attempt == 0, "S01 restart: a sidecar that dies in play is started again and synced, no failure said")
+	_check(sidecar._pid != first_pid and not OS.is_process_running(first_pid) and sidecar.has_synced, "S01 restart: a new process")
+	reply = await _command(sidecar, "session.list_stored", {"provider": "nope"})
+	_check(reply.get("code") == "unknown_provider", "S01 restart: commands work after it")
+	# Dead again right after: it goes on with that start's attempts (the
+	# next, after its wait).
+	OS.kill(sidecar._pid)
+	await _until(func() -> bool: return syncs[0] == 3, 90.0)
+	_check(syncs[0] == 3 and sidecar.status == SidecarClient.Status.READY and sidecar._attempt == 1 and restarts.size() == 2 and fails.is_empty(), "S01 restart: dead again soon after: the next attempt of the same start (attempt %d)" % (sidecar._attempt + 1))
+
 	var pid: int = sidecar._pid
 	sidecar.stop()
 	_check(not OS.is_process_running(pid), "sidecar exits when stopped")
@@ -252,6 +273,7 @@ func _start_retries() -> void:
 	# Not tried again: another protocol version, or no sidecar at the given path.
 	var old := Starting.new()
 	old.commands = [_fake("old")]
+	old.handshake_timeouts_s = [10.0, 10.0, 10.0] # its handshake, not the timeout
 	_errors.expect("Sidecar: The sidecar speaks a different protocol version")
 	var seen_old := await _follow_start(old, 10.0)
 	_check(old.status == SidecarClient.Status.FAILED and seen_old["pids"].size() == 1 and seen_old["failed"].size() == 1, "S01 retry: a protocol version mismatch fails at once")
@@ -283,6 +305,21 @@ func _start_retries() -> void:
 	_check(no_connect.status == SidecarClient.Status.READY and seen_connect["failed"].is_empty() and seen_connect["pids"].size() == 2 and not seen_connect["two"] and not OS.is_process_running(seen_connect["pids"][0]), "S01 retry: a connect that fails at once: that sidecar ended, the next attempt ready")
 	no_connect.stop()
 	no_connect.queue_free()
+	# S01 restart: a sidecar that keeps dying once up fails within the
+	# start's attempts, once, instead of restarting forever.
+	var dying := Starting.new()
+	dying.handshake_timeouts_s = [20.0, 20.0, 20.0]
+	dying.commands = [["node", ProjectSettings.globalize_path("res://sidecar/test/dev-fake.ts"), "serve", "--no-outside-sessions"]]
+	var deaths := [0]
+	dying.synced.connect(func(_p: Array) -> void:
+		deaths[0] += 1
+		OS.kill(dying._pid))
+	_errors.expect("Sidecar: The sidecar stopped.")
+	var seen_dying := await _follow_start(dying, 60.0)
+	await _until(func() -> bool: return dying.status == SidecarClient.Status.FAILED, 60.0)
+	_check(dying.status == SidecarClient.Status.FAILED and deaths[0] == 3 and seen_dying["failed"] == ["The sidecar stopped."], "S01 restart: one that keeps dying fails after the start's three attempts, once (%d up)" % deaths[0])
+	_check(not OS.is_process_running(dying._pid) and dying._pid == -1, "S01 restart: none left")
+	dying.queue_free()
 
 
 func _fake(mode: String) -> Array:

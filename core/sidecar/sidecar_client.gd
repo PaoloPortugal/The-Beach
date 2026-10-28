@@ -26,6 +26,9 @@ signal synced(providers: Array)
 signal event_received(msg: Dictionary)
 ## The sidecar can't be used. [param reason] is for the player.
 signal failed(reason: String)
+## The sidecar died in play, or couldn't be reached again: a new one is
+## starting (S01's restart). [signal synced] follows, or [signal failed].
+signal restarting(reason: String)
 ## [member providers] changed: a (re)connect's hello, a provider notice
 ## ([code]provider.notice[/code], e.g. S08's [code]outside_sessions_off[/code]),
 ## or the program a provider found ([code]provider.program[/code], S02).
@@ -42,6 +45,9 @@ const HANDSHAKE_TIMEOUTS_S: Array[float] = [20.0, 30.0, 45.0]
 const RETRY_WAITS_S: Array[float] = [2.0, 5.0]
 ## The longest a start can take before [signal failed], every attempt and
 ## wait included (the connect and sync after the handshake aren't).
+## A sidecar that dies within this long of being up (s) goes on with the
+## attempts of the start that brought it up (S01's restart).
+const STEADY_S := 60.0
 const START_TIMEOUT_S: float = HANDSHAKE_TIMEOUTS_S[0] + RETRY_WAITS_S[0] \
 		+ HANDSHAKE_TIMEOUTS_S[1] + RETRY_WAITS_S[1] + HANDSHAKE_TIMEOUTS_S[2]
 ## Largest message Godot accepts. Chat history comes in one message; the
@@ -56,6 +62,9 @@ const OUTBOUND_BUFFER := 4 * 1024 * 1024
 static var settings_file := "user://settings.cfg"
 
 var status: Status = Status.STOPPED
+## Whether a start ever got as far as synced. The world quits if the first
+## start fails, but only tells the player to quit after one in play does.
+var has_synced := false
 ## The providers from hello: [code]{provider, name, launch_options,
 ## capabilities, notices, program}[/code], their notices and program kept
 ## up from [code]provider.notice[/code] and [code]provider.program[/code].
@@ -75,6 +84,7 @@ var retry_waits_s := RETRY_WAITS_S
 
 var _attempt := 0 # this start's attempt, from 0
 var _starting := false # from start() to the first sync.completed
+var _ready_at := -INF # when the last start was synced (s)
 var _retry_at := 0.0 # > 0: waiting to try again at this time (s)
 var _pid := -1
 var _stdio: FileAccess
@@ -504,9 +514,31 @@ func _poll_socket() -> void:
 				push_warning("Sidecar connection closed (code %d); reconnecting." % code)
 				var err := _connect()
 				if err != OK:
-					_fail("Couldn't connect to the sidecar (error %d)." % err)
+					_restart("Couldn't connect to the sidecar (error %d)." % err)
 			else:
-				_fail("The sidecar stopped.")
+				_restart("The sidecar stopped.")
+
+
+# The sidecar died in play, or can't be reached: started again, with the
+# start's attempts (user's decision, 2026-10-28: it must always be
+# running; a start, first or not, gives up within about two minutes). One
+# that dies again within [constant STEADY_S] of being up goes on with the
+# attempts of the start that brought it up, so one that keeps dying ends
+# in [signal failed] instead of restarting forever.
+func _restart(reason: String) -> void:
+	restarting.emit(reason)
+	_starting = true
+	if _now() - _ready_at < STEADY_S:
+		_start_failed(reason)
+		return
+	var old_pid := _pid
+	stop()
+	if old_pid > 0 and OS.is_process_running(old_pid):
+		_fail(reason)
+		return
+	push_warning("Sidecar: %s Starting it again." % reason)
+	_attempt = 0
+	_launch()
 
 
 func _handle(text: String) -> void:
@@ -527,6 +559,8 @@ func _handle(text: String) -> void:
 		"sync.completed":
 			status = Status.READY
 			_starting = false
+			_ready_at = _now()
+			has_synced = true
 			# Until told, the sidecar takes the window as focused.
 			if not _focused:
 				send_command("client.set_focus", {"focused": false})
