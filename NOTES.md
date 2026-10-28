@@ -138,7 +138,9 @@ slice.
 ## When a feature lands
 
 - [ ] Update its `### <ID>` section in Systems (planned intent → how it works),
-      including its provider scope.
+      including its provider scope. Fold any "Changed …" history in the
+      sections it touches into the current text (short "rejected: …"
+      notes stay) and move the story to that feature's dev-log entry.
 - [ ] Update its index row: status, guide section, main code.
 - [ ] Add or update its `<ID>` section in `docs/GUIDE.md` in plain language,
       and add it to the guide's table of contents.
