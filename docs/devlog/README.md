@@ -121,3 +121,4 @@ reading; look things up by feature ID.
 | 2026-10-27 | [Merge log](2026-10-27-merge-log.md) | docs |
 | 2026-10-27 | [Trimming NOTES.md and the last spike](2026-10-27-docs-trim.md) | docs |
 | 2026-10-27 | [Similar projects (third look)](2026-10-27-similar-projects.md) | docs |
+| 2026-10-27 | [The questions for Anthropic, refreshed](2026-10-27-anthropic-questions.md) | docs |
