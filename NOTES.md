@@ -129,7 +129,7 @@ slice.
 | S06 | Sign-in needed                            | built   | S06           | `sidecar/src/providers/claude/hooks.ts`, `chat/chat_panel.gd` |
 | S07 | Reattach to running sessions              | built   | S07           | `sidecar/src/providers/claude/index.ts` (restore), `sidecar/src/providers/claude/run-folder.ts`, `sidecar/src/providers/claude/transcript-hooks.ts`, `sidecar/src/launch/app-data.ts`, `world/loading_cover.gd` (unused since C14) |
 | S08 | Read-only islands for outside sessions    | built (flag placeholder) | S08, C10 | `sidecar/src/providers/claude/index.ts` (outsideFrom, poll), `sidecar/src/providers/claude/running.ts`, `sidecar/src/providers/claude/store.ts` (findTranscript), `world/island/read_only_flag.gd`, `world/island/island.gd`, `world/minimap.gd` (draw_read_only), `world/world_map.gd`, `world/settings/`, `core/sidecar/sidecar_client.gd` |
-| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/` (the fight: `fish_fight.gd`), `world/ocean/ocean.gd` (height_at), `world/world.gd`, `world/player/player.gd` (look_held), `world/attention.gd` (the pulse), `project.godot` (input, the ground layer); the ground layer in `world/island/island.gd`, `world/bridges/bridge.gd`, `world/seabed/seabed.gd`, `world/platform/spawn_platform.tscn` |
+| D01 | Fishing                                   | built (look placeholder) | D01 | `world/fishing/` (the fight: `fish_fight.gd`), `world/ocean/ocean.gd` (height_at), `world/world.gd`, `world/player/player.gd` (look_held, move_held), `world/attention.gd` (the pulse), `project.godot` (input, the ground layer); the ground layer in `world/island/island.gd`, `world/bridges/bridge.gd`, `world/seabed/seabed.gd`, `world/platform/spawn_platform.tscn` |
 | D02 | Bug catching                              | designed | —            | — |
 | D03 | Collection (field guide)                  | designed | —            | — |
 | D04 | Parkour courses                           | designed | —            | — |
@@ -1127,7 +1127,8 @@ the camera at 1.6 m (FOV 80). No body is drawn.
   AZERTY), Shift to sprint, Space to jump, Ctrl to crouch and slide
   (W11), mouse to look (pitch clamped
   just short of straight up and down; in a fishing fight it moves the
-  rod instead, `look_held`, D01). The mouse is captured at start; Esc
+  rod instead, `look_held`, and you can't walk, jump or crouch,
+  `move_held`, D01). The mouse is captured at start; Esc
   opens the pause menu, which frees it (C13), and a click captures it
   again. The input actions are in
   `project.godot`, written by hand: godot-ai can't bind physical keys (dev
@@ -5659,10 +5660,13 @@ picks):*
     weaker: that's when you reel. As in real fishing (let it run on
     the drag; reeling against a running fish breaks the line). Rejected:
     jumps you must give slack on (a second signal to learn).
-  - *Walking away while reeling* tows the fish and strains the line as
-    reeling harder would (my recommendation, chosen 2026-10-28).
-    Rejected: free towing (walking would land any fish); losing the
-    fish past a distance (an arbitrary limit to find out).
+  - *You stay where you stand* from the hook to the catch (user's,
+    2026-10-28, third live check: walking about once a fish has bitten
+    "is more work to develop than it's worth"); you can still look by
+    the rod, but not walk, jump or crouch. Replaces walking away while
+    reeling tows the fish and strains the line (chosen earlier the same
+    day). Rejected before: free towing; losing the fish past a
+    distance.
   - *Lost two ways:* the line snaps after a moment at its limit (or
     when the fish runs out all the line), and the hook slips off after
     a while slack. So neither holding the click nor letting go is
@@ -5682,9 +5686,10 @@ picks):*
     the shore): played well, at the usual distances (6 m, 12 m, 18 m),
     roughly 8-15 s in the shallows, 15-30 s at the drop-off, 30-50 s
     in the open sea; most fights are still easy to drop.
-  - *Pulled out of the water* (user's, 2026-10-28): near the rod the
-    fish rises out of the water, hanging from the line, before it's
-    landed.
+  - *Pulled out of the water* (user's, 2026-10-28): once the fight is
+    won, the fish is pulled up out of the water to hang from the line,
+    then caught. Not while it's being reeled (the third live check:
+    lifting it as it came near "is a bit bugged").
   - *Runs are seen* (2026-10-28; the second live check saw none): spray
     where the fish swims for the whole run, the fish rising near the
     surface, the rod and the view jerked its way. Round 4 had about one
@@ -5746,8 +5751,7 @@ shadows.
   the rod's tip, the line pulls it back. It pays out up to 30 m
   (`max_line`, a variable for the tests) as you walk; past it the
   bobber is dragged, and a dragged bobber scares off the fish on the
-  line (in a fight the fish is towed instead, or takes line until it
-  snaps: The fight, below). Resting, it has 0.6 m of slack (`SLACK`). The line pulls
+  line (in a fight you can't walk: The fight, below). Resting, it has 0.6 m of slack (`SLACK`). The line pulls
   level, toward the point under the tip, so it doesn't lift the bobber,
   except one snagged in the water (below). Holding the click shortens it 4 m/s
   (`REEL_SPEED`), never below the drop from the tip: the bobber is
@@ -5830,8 +5834,7 @@ shadows.
   - *The strain* (0 slack, 1 the limit) follows its aim at 5 per
     second. Taut and reeling: 0.25 + the away pull (power × its share
     away, halved as the rod's held against it) + 0.8 × power × how far
-    it's held on the fish's side + 0.12 × how fast the rod's tip goes
-    away from the fish (walking, m/s, smoothed) × (0.5 + power). Taut
+    it's held on the fish's side. Taut
     and let go: 0.1 + 0.5 × the away pull, at most 0.8 (the drag: never
     the limit). Slack (over 5 cm): 0. Taut, the fish tires: energy falls
     by 1/stamina a second, 2.5 times as fast with the rod fully against
@@ -5850,13 +5853,17 @@ shadows.
     shakes (up to 1.2 cm, its `h_offset` and `v_offset`). The bobber
     is pulled 0.2 m under at the fish, its shadow swimming there, 0.35 m
     nearer the surface on a run (`RUN_RISE`; `FishShadow.raised`, eased
-    at 3 m/s). On a run, spray: a ring every 0.15 s where the fish
+    at 6 m/s). On a run, spray: a ring every 0.15 s where the fish
     swims, spreading to 1.2 m and fading over 0.5 s (five at once at
-    most). From 4.5 m off the rod's tip (seen from above, `LIFT_FROM`)
-    to 2 m (`LIFT_TO`) the bobber is pulled up out of the water, eased,
-    to 0.6 m under the tip (`HANG`), the fish's shadow hanging nose up
-    just under it (`FishShadow.hang`); a fish running off again sinks
-    back.
+    most). The player is held in place (`Player.move_held`: no walking,
+    jumping or crouching; falling still works) from the hook to the
+    catch or the loss.
+  - *Landing:* won (within `BACK`), `Fishing` goes to LANDING: over
+    0.8 s (`LAND_TIME`, eased) the bobber is pulled from where it was
+    up to 0.6 m under the rod's tip (`HANG`), the fish's shadow hanging
+    nose up just under it (`FishShadow.raised` and `hang`); then the
+    catch. Leaving then still catches it (already won); the arrow is
+    gone; `fighting()` stays true (A05).
     `world.gd` gives A05 `Fishing.fighting` (A05's pulse).
 - *Shadows* (`FishShadow`, `world/fishing/fish_shadow.gd`): a dark
   flat fish shape (body and tail, unshaded, 35-60 cm), 0.45 m under the
@@ -5914,8 +5921,7 @@ line, taut, under the limit, the run tiring it; the rod held against
 the fish takes its pull and tires it faster, held on its side strains
 the line and the reel hardly gains; held against a run it turns the
 fish and ends the run; the arrow points away from the fish's side,
-gone with the rod held there; walking away while reeling strains the
-line; the fish drags the rod and the mouse pushes back; snapping
+gone with the rod held there; the fish drags the rod and the mouse pushes back; snapping
 after a moment at the limit and when the line runs out; slipping when
 slack; no swimming onto land; landed at the tip; and whole fights with
 fixed seeds: played well each placeholder is landed, in 7-16 s 6 m
@@ -5930,10 +5936,11 @@ layer only, the props not on it; land and shallows under an island and
 its biome; shadows in the shallows; a tap into the shallows near a
 shadow brings that one; the bite's "!" and splash; a click on the bite
 hooks it (the fight, reeling, the view held, A05 told); the mouse moves
-the rod and the view turns with it; played against its pull it's
-landed, the rod bending, the shadow following, the bobber under, the
-arrow pointing away from the fish's side, pulled out of the water near
-the rod, a run's spray (over three fights); a shallows catch
+the rod and the view turns with it; walking does nothing in a fight;
+played against its pull it's landed, the rod bending, the shadow
+following, the bobber under, the arrow pointing away from the fish's
+side, won and pulled out of the water before the catch, a run's spray
+(over three fights); a shallows catch
 recorded with its biome; a cast onto the platform's deck rests there,
 nothing comes, and holding reels it in; a full charge into the
 drop-off (17-27 m); a full charge 30° up held at the line's longest,

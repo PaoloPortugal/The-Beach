@@ -70,7 +70,7 @@ func bite_mark() -> bool:
 ## The fight's arrow now: -1 (push left) to 1 (right) by how hard, 0
 ## hidden.
 func arrow() -> float:
-	if fishing == null or fishing.fight == null or not fishing.player.controls_enabled:
+	if fishing == null or fishing.state != Fishing.State.FIGHT or not fishing.player.controls_enabled:
 		return 0.0
 	var h := fishing.fight.hint()
 	return h if absf(h) >= ARROW_FROM else 0.0

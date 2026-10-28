@@ -10,9 +10,8 @@ extends RefCounted
 ## drag tires it fast. Reeling into a run snaps the line. The fish drags
 ## the rod's tip toward the side it swims to, and the mouse pushes it
 ## back: held against the fish, the rod takes some of its pull, tires it
-## faster and turns its head round toward you, ending a run. Walking away
-## while reeling tows it, straining the line too. The line snaps after a
-## moment at its limit or when the fish has run out all the line; the
+## faster and turns its head round toward you, ending a run. The line
+## snaps after a moment at its limit or when the fish has run out all the line; the
 ## hook slips off after a while slack. The fish is landed at the rod's
 ## tip. A bigger fish pulls harder; a tired one, less.
 
@@ -48,8 +47,6 @@ const RUN_STEER := 0.5
 ## never its limit).
 const DRAG_STRAIN := 0.5
 const DRAG_MOST := 1.4
-## Walking away while reeling: the strain per m/s, times (0.5 + power).
-const WALK_STRAIN := 0.12
 ## Runs: how much harder it pulls on one and between them; the seconds
 ## between them (divided by 0.5 + temper) and of one (min, max, shorter
 ## tired); how far to a side it heads, radians (min, max); how far it
@@ -93,8 +90,7 @@ var outcome := ""
 var running := false
 ## Set when the fish starts a run (a splash); [Fishing] clears it.
 var ran := false
-## How fast the rod's tip is going away from the fish, m/s (walking).
-var walk := 0.0
+
 ## Whether the fish can swim to a point (x, z): water, not land. Every
 ## point by default.
 var swimmable: Callable = func(_at: Vector2) -> bool: return true
@@ -103,7 +99,6 @@ var _rng: RandomNumberGenerator
 var _size := 1.0 # pull's scale for the fish's size
 var _turn_in := 0.0
 var _run_in := 0.0
-var _tip_was := Vector2(NAN, NAN)
 var _snap_timer := 0.0
 var _slack_timer := 0.0
 
@@ -147,12 +142,6 @@ func against() -> float:
 func step(delta: float, tip: Vector2, reeling: bool) -> void:
 	if outcome != "":
 		return
-	# Walking away from the fish, m/s, smoothed (the rod's tip also sways
-	# with the rod).
-	if not is_nan(_tip_was.x):
-		var walked := (fish.distance_to(tip) - fish.distance_to(_tip_was)) / maxf(delta, 0.0001)
-		walk = lerpf(walk, walked, minf(10.0 * delta, 1.0))
-	_tip_was = tip
 	_run_in -= delta
 	if running:
 		if _run_in <= 0.0 or absf(heading) > PI / 2.0:
@@ -192,7 +181,6 @@ func step(delta: float, tip: Vector2, reeling: bool) -> void:
 		var pulling := maxf(cos(heading), 0.0) * p
 		if reeling:
 			aim = REEL_STRAIN + pulling * (1.0 - 0.5 * maxf(pushing, 0.0)) + 0.8 * p * maxf(-pushing, 0.0)
-			aim += WALK_STRAIN * maxf(walk, 0.0) * (0.5 + p)
 		else:
 			aim = 0.1 + DRAG_STRAIN * minf(pulling, DRAG_MOST)
 		energy = maxf(energy - delta / stamina * (1.0 + TIRE_AGAINST * maxf(pushing, 0.0)) * (RUN_TIRE if running else 1.0), 0.0)

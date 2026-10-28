@@ -676,16 +676,14 @@ and the line strains.
   Reeling into a run, or with the rod on the fish's side, and **The
   line snapped**: the fish is gone (and so is the bobber, but you get
   it back for the next cast).
-- Walking away while you reel tows the fish, and strains the line like
-  reeling harder: fine with a tired fish, a snapped line with one that
-  pulls.
 - When the fish **swims toward you**, the line goes slack: keep
   reeling. Left slack for a couple of seconds, **It slipped off the
   hook**.
 - If it takes out all your line (30 m), the line snaps too.
 - The **shadow** shows where the fish is, and the bobber is pulled
-  under there. Close to you, the fish is pulled up out of the water,
-  hanging from the line, just before you land it.
+  under there.
+- Bring it to you and you've won: the fish is pulled up out of the
+  water, hanging from the line, and it's yours.
 
 Shallows fish are small and quick to land (about ten seconds); drop-off
 fish fight harder (twenty seconds or more); open sea fish are strong
@@ -695,8 +693,8 @@ waiting" count in the corner pulses once; nothing pauses.
 
 **Moving and leaving.** You can walk about while the line is out: it
 pays out up to 30 m. Further than that, you drag the bobber after you,
-and the fish on the line swims off (in a fight, see walking away
-above). Taking another tool, opening the
+and the fish on the line swims off. Once a fish is hooked you stay
+where you stand until it's caught or lost. Taking another tool, opening the
 chat, a menu, the sessions ring or the map, swimming, or riding a
 zipline reels in at once, in a fight too. The only thing you lose is the fish on the
 line: there's no bait, streak or record to lose.
