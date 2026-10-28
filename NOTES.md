@@ -4015,7 +4015,7 @@ bar's stages and retry text, the wait for the first island and its
 cap, a failure, `TIMEOUT_S`, and none for a sidecar already failed. Looks, the fades and the skip by
 hand are the live check's.
 
-*Live check (2026-10-28, the user):* "It looks good". The light
+*Live check (2026-10-28, the user):* all steps passed; "It looks good". The light
 background is a bit hard on the eyes; a proper background comes later
 (user's), with the rest of the UI.
 
@@ -4204,6 +4204,11 @@ button, Quit, goes through the quit guard (S05), which lists sessions
 still running first ("Back to the game" brings the notice back). The
 controls and keys wait under it (Enter or Space press Quit). Tested in
 `tests/world/world_test.gd` on stand-in clients.
+
+*Live check (2026-10-28, the user, real Claude):* the start, the
+restart in play (islands and an open chat stayed, what was said
+meanwhile shown), the notice after four deaths and the quit all
+passed.
 
 Not yet: export presets that copy the executable next to the game come
 with the first export.
@@ -6865,14 +6870,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** the sidecar's start (S01), on branch
-`s01-start-retry`: retrying a start that fails in a way that can pass
-(built, 2026-10-28), then restarting it if it dies in play (built
-2026-10-28: always restarted, within the start's bound; the game quits
-if the first start fails; sessions keep their ids, so a restart is a
-plain resync), then the game's opening (C17, built 2026-10-28): the
-user's logo and Godot's on one card over the main menu, and a bar
-while the sidecar starts and the first island rises. D01 Fishing is merged as v0 (the
+**Current focus:** S01's start retry and restart and C17's opening are
+merged (2026-10-28, live check passed): a start that can pass is tried
+again, a sidecar that dies in play is restarted with sessions keeping
+their ids, and the game opens on the user's logo and Godot's, with a
+bar while the start finishes. Later (user's): a proper background for
+the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. A flaky D01
 check (seen 2026-10-28, about 2 runs in 7): "reeling drags it through

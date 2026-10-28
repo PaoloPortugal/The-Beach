@@ -180,3 +180,8 @@ Known gap) for the moment between the old sidecar's death and the new
 one's bind; written down, not closed. Not built (the user's call):
 clearing open cards as soon as `restarting` fires, rather than at the
 resync.
+
+## Live check (2026-10-28, the user)
+
+Every step passed: the start, the restart in play (islands and an open
+chat stayed), the notice after four deaths, and the quit. Merged.
