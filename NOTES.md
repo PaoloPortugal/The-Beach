@@ -4007,26 +4007,32 @@ console window. Which sidecar runs: next to the game executable in exports;
 2026-10-28-s01-start-retry). A start that fails in a way that can pass
 is tried again: no handshake in time, the sidecar exiting while starting
 (it reads as an empty handshake line), a bad handshake (port or token),
-or the WebSocket connect failing. Three attempts in all, waiting 20 s,
+or the WebSocket connect failing (at once, or closed, refused say,
+before the first `sync.completed`). Three attempts in all, waiting 20 s,
 then 30 s, then 45 s for the handshake (a cold first start is the likely
 cause of a slow one), with 2 s, then 5 s between them
 (`HANDSHAKE_TIMEOUTS_S`, `RETRY_WAITS_S`; at most `START_TIMEOUT_S`,
-102 s, before `failed`). Each retry stops the attempt's process first
-(`stop()`: the pipe closed, killed after 3 s, at once if it never sent
-the handshake), so there are never two sidecars; `status` stays
+about 102 s, before `failed`; `stop()` between attempts can add a few
+seconds). Each retry stops the attempt's process first (`stop()`: the
+pipe closed, killed after 3 s, at once if it never sent the handshake),
+so there are never two sidecars: one that can't be ended fails the start
+instead; `status` stays
 `STARTING` through the wait, and `stop()` during it cancels the next
 attempt. Retries go to the log only (a warning naming the reason and the
 attempt); `failed` comes once, after the last. Not tried again, failing
 at once as before: no program to start (the exported game's executable
 missing, or nothing at a `--sidecar=<path>`, checked first so it fails
-alike on every OS), another protocol version, or `OS.execute_with_pipe`
+alike on every OS; the exact file, `.exe` included), another protocol version, or `OS.execute_with_pipe`
 failing. The handshake line is parsed with a `JSON` instance, not
 `JSON.parse_string`, which logs an error for an empty line. A dropped
-connection to a running sidecar still just reconnects; a failed
-reconnect, or a sidecar dying after the handshake, still fails (see Not
-yet). Tested in `tests/core/sidecar_client_test.gd` on fake sidecars
+connection after the first sync still just reconnects (a reconnect
+that fails at once, or the sidecar dying, still fails; see Not yet).
+Each attempt is a new sidecar run, so S02's login-shell lookup for the
+program can start once per attempt (it ends itself after 10 s, inside
+the first attempt's 20 s). Tested in `tests/core/sidecar_client_test.gd` on fake sidecars
 (`tests/core/fake_sidecar.mjs`: slow, exits at once, a bad handshake,
-another protocol) with the attempts shortened.
+connections refused, another protocol) and a connect made to fail at
+once, with the attempts shortened.
 
 **Session store** (`core/sessions/session_store.gd`, `SessionStore`,
 built with S02): a plain class (no autoload) that the world

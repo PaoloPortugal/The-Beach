@@ -74,6 +74,7 @@ var handshake_timeouts_s := HANDSHAKE_TIMEOUTS_S
 var retry_waits_s := RETRY_WAITS_S
 
 var _attempt := 0 # this start's attempt, from 0
+var _starting := false # from start() to the first sync.completed
 var _retry_at := 0.0 # > 0: waiting to try again at this time (s)
 var _pid := -1
 var _stdio: FileAccess
@@ -258,6 +259,7 @@ func start() -> void:
 	if status != Status.STOPPED and status != Status.FAILED:
 		return
 	_attempt = 0
+	_starting = true
 	_launch()
 
 
@@ -447,9 +449,14 @@ func _start_failed(reason: String) -> void:
 	if _attempt + 1 >= handshake_timeouts_s.size():
 		_fail(reason)
 		return
-	var wait := retry_waits_s[_attempt]
-	push_warning("Sidecar: %s Trying again in %s s (attempt %d of %d)." % [reason, wait, _attempt + 2, handshake_timeouts_s.size()])
+	var wait := retry_waits_s[mini(_attempt, retry_waits_s.size() - 1)]
+	var old_pid := _pid
 	stop()
+	if old_pid > 0 and OS.is_process_running(old_pid):
+		# It couldn't be ended: another would make two.
+		_fail(reason)
+		return
+	push_warning("Sidecar: %s Trying again in %s s (attempt %d of %d)." % [reason, wait, _attempt + 2, handshake_timeouts_s.size()])
 	_attempt += 1
 	_retry_at = _now() + wait
 	status = Status.STARTING
@@ -485,7 +492,14 @@ func _poll_socket() -> void:
 			_ws = null
 			# The replies on their way are lost with the connection.
 			_drop_pending()
-			if _pid > 0 and OS.is_process_running(_pid):
+			var alive := _pid > 0 and OS.is_process_running(_pid)
+			if _starting:
+				# Closed (refused, say) before the first sync: this attempt failed.
+				if alive:
+					_start_failed("Couldn't connect to the sidecar (closed, code %d)." % code)
+				else:
+					_start_failed("The sidecar stopped while starting.")
+			elif alive:
 				# The sidecar is alive: connect again (it replaces the old link).
 				push_warning("Sidecar connection closed (code %d); reconnecting." % code)
 				var err := _connect()
@@ -512,6 +526,7 @@ func _handle(text: String) -> void:
 			return
 		"sync.completed":
 			status = Status.READY
+			_starting = false
 			# Until told, the sidecar takes the window as focused.
 			if not _focused:
 				send_command("client.set_focus", {"focused": false})

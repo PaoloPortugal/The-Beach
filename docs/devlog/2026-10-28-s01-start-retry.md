@@ -41,6 +41,19 @@ antivirus scan of a new executable).
   cancels the next attempt.
 - `_connect()` now returns its error: during a start it's a retry,
   while reconnecting to a running sidecar it still fails (step 2's).
+- Until the first `sync.completed`, a closed connection is a failed
+  attempt too (`_starting`). The docs-sync review found the first
+  version retried only `connect_to_url` failing at once, which on
+  127.0.0.1 hardly happens; a refused connection went to the old
+  reconnect branch and looped with no attempt counted.
+- From the security review: a retry whose process can't be ended (a
+  failed kill) fails the start instead of risking two sidecars; the wait
+  is read with its index clamped; and an `expect()` never used up fails
+  the suite, so a leftover can't hide a later real error. Noted, not
+  changed: each attempt is a new sidecar run, so S02's login-shell
+  lookup can start once per attempt (it ends itself after 10 s), and
+  `stop()` can block the main thread up to 3 s per attempt that sent a
+  handshake, as it already could once.
 - `START_TIMEOUT_S` (102 s) is the longest start, a constant folded from
   the two arrays; `LoadingCover.TIMEOUT_S` is it plus 10 s.
 
@@ -70,11 +83,11 @@ antivirus scan of a new executable).
 (`tests/core/fake_sidecar.mjs`, run with Node) with the attempts
 shortened to 0.5, 0.7 and 0.9 s and the waits to 0.2 and 0.3 s:
 slow (three attempts, each waiting its own time, `failed` once), exits
-at once, a bad handshake (each: three attempts, each process ended
+at once, a bad handshake, connections refused (each: three attempts, each process ended
 before the next starts, none left, `failed` once with its reason),
 stopped during the wait (nothing started after), another protocol
 version and nothing at `--sidecar=<path>` (failed at once, no retry),
-and a start that fails once then works (the dev fake sidecar; ready, no
-`failed`). Not covered by a fake: the WebSocket connect failing
-(`connect_to_url` on 127.0.0.1 doesn't fail on demand); it takes the
-same path as a bad handshake.
+a start that fails once then works (the dev fake sidecar; ready, no
+`failed`), and a good handshake whose connect fails at once (the first
+sidecar ended, the next ready). Not covered: a kill that fails (it
+can't be made to on demand).

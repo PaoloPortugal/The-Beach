@@ -219,6 +219,7 @@ func _start_retries() -> void:
 		"slow": "The sidecar didn't start in time.",
 		"exit": "The sidecar stopped while starting.",
 		"bad": "The sidecar sent a bad handshake.",
+		"refuse": "Couldn't connect to the sidecar (closed, code",
 	}
 	for mode: String in reasons:
 		var client := Starting.new()
@@ -228,7 +229,7 @@ func _start_retries() -> void:
 			client.handshake_timeouts_s = [10.0, 10.0, 10.0]
 		_errors.expect("Sidecar: " + reasons[mode])
 		var seen := await _follow_start(client, 15.0)
-		_check(client.status == SidecarClient.Status.FAILED and seen["failed"] == [reasons[mode]], "S01 retry (%s): failed once, after the last attempt (%s)" % [mode, seen["failed"]])
+		_check(client.status == SidecarClient.Status.FAILED and seen["failed"].size() == 1 and str(seen["failed"][0]).begins_with(reasons[mode]), "S01 retry (%s): failed once, after the last attempt (%s)" % [mode, seen["failed"]])
 		_check(seen["pids"].size() == 3, "S01 retry (%s): three attempts (%d)" % [mode, seen["pids"].size()])
 		_check(not seen["two"] and not seen["pids"].any(func(p: int) -> bool: return OS.is_process_running(p)), "S01 retry (%s): each attempt's sidecar ended before the next; none left" % mode)
 		if mode == "slow":
@@ -272,6 +273,16 @@ func _start_retries() -> void:
 	flaky.stop()
 	flaky.queue_free()
 	_check(not OS.is_process_running(flaky_pid), "S01 retry: and stops as usual")
+	# A good handshake whose connect fails at once: that sidecar is ended
+	# (it got as far as the pipe) and the next attempt works.
+	var no_connect := Starting.new()
+	no_connect.handshake_timeouts_s = [20.0, 20.0, 20.0]
+	no_connect.connect_errors = 1
+	no_connect.commands = [["node", ProjectSettings.globalize_path("res://sidecar/test/dev-fake.ts"), "serve", "--no-outside-sessions"]]
+	var seen_connect := await _follow_start(no_connect, 30.0)
+	_check(no_connect.status == SidecarClient.Status.READY and seen_connect["failed"].is_empty() and seen_connect["pids"].size() == 2 and not seen_connect["two"] and not OS.is_process_running(seen_connect["pids"][0]), "S01 retry: a connect that fails at once: that sidecar ended, the next attempt ready")
+	no_connect.stop()
+	no_connect.queue_free()
 
 
 func _fake(mode: String) -> Array:
@@ -305,6 +316,13 @@ func _follow_start(client: SidecarClient, timeout_s: float) -> Dictionary:
 class Starting extends SidecarClient:
 	var commands: Array = []
 	var args := PackedStringArray()
+	var connect_errors := 0 # the first this many connects fail at once
+
+	func _connect() -> Error:
+		if connect_errors > 0:
+			connect_errors -= 1
+			return ERR_CANT_CONNECT
+		return super()
 
 	func _init() -> void:
 		handshake_timeouts_s = [0.5, 0.7, 0.9]
