@@ -153,6 +153,11 @@ hotbar_9={
 ]
 }
 
+[internationalization]
+
+locale/fallback="en"
+locale/translations=PackedStringArray()
+
 [layer_names]
 
 3d_physics/layer_3="ground"

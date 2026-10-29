@@ -143,7 +143,8 @@ func toggle_godot_licences() -> void:
 		_licences.add_child(_plain(Engine.get_license_text()))
 		_licences.add_child(_plain(_godot_components()))
 	_licences.visible = not _licences.visible
-	_buttons["Godot licences"].text = "Hide Godot licences" if _licences.visible else "Show Godot licences" # TRANSLATE
+	var toggle: Button = _buttons["Godot licences"]
+	toggle.text = "Hide Godot licences" if _licences.visible else "Show Godot licences" # TRANSLATE
 
 
 func godot_licences_shown() -> bool:

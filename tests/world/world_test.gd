@@ -12,7 +12,7 @@ extends SceneTree
 ## placement, coming and going, and state markers (A02, A03, A04); the
 ## attention cue (A05); the day and night and the weather (W09); the
 ## debug commands (C09); fishing and its catches (D01); the opening at
-## the start (C17).
+## the start (C17); the menus in a made-up language (C16).
 ##
 ##   godot --headless --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
@@ -20,6 +20,8 @@ extends SceneTree
 ##                                spawns subagents
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
+const LocaleTest := preload("res://tests/locale/locale_test.gd")
+const Pot := preload("res://tests/locale/pot.gd")
 
 var _failed := false
 ## What the world asked the sidecar for sessions started outside the game (S08).
@@ -380,6 +382,10 @@ func _scene() -> void:
 	# Never the developer's own settings file, nor another run's (C10, A05).
 	var settings_file := "user://world_test_settings_%d.cfg" % OS.get_process_id()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings_file))
+	# In English whatever the system's language (C16).
+	var pinned := ConfigFile.new()
+	pinned.set_value("game", "language", "en")
+	pinned.save(settings_file)
 	world.settings.path = settings_file
 	world.attention.settings_path = settings_file
 	# Never the user's own running sessions (S08): the setting is recorded, not sent.
@@ -422,6 +428,7 @@ func _scene() -> void:
 	await _pause(world, player)
 	await _main_menu(world, player)
 	await _settings(world, player)
+	await _languages(world, player)
 	await _biome_island(world, player)
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
 		await _live(world, player)
@@ -774,6 +781,125 @@ func _settings(world: Node3D, player: Player) -> void:
 	_check(settings.value("controls/fov") == 80.0 and camera.fov == 80.0 and Engine.max_fps == 0 and world.get_viewport().msaa_3d == Viewport.MSAA_DISABLED and world.get_viewport().screen_space_aa == smaa and world.weather.lightning_enabled and sun.shadow_enabled == menu.shadows_available and world.attention.sound_on and world.crosshair.ring_on, "C10: Reset to defaults puts every setting back, the chime and the crosshair too")
 	_check((menu.control("controls/fov") as HSlider).value == 80.0 and menu.sound_toggle().button_pressed, "C10: and the menu shows them")
 	menu.close()
+
+
+# C16: the Language row, then every menu in a made-up language where
+# every string is ⟦English⟧: shown text without the brackets is text the
+# template misses, or not translated, unless it's content (a session
+# titled "Settings" still says so) or has no letters.
+func _languages(world: Node3D, player: Player) -> void:
+	var settings: Settings = world.settings
+	var menu: SettingsMenu = world.settings_menu
+	var main: MainMenu = world.main_menu
+	var pause: PauseMenu = world.pause_menu
+	var sessions: SessionsMenu = world.get_node("SessionsMenu")
+	var guard: QuitGuard = world.quit_guard
+	_check(settings.value("game/language") == Languages.AUTOMATIC and TranslationServer.get_locale() == "en", "C16: the Language setting is Automatic, and the game in English")
+	settings.set_value("game/language", "en") # pinned again after the reset
+	var row: OptionButton = menu.control("game/language")
+	menu.open()
+	menu.show_tab("Game")
+	await _settle()
+	var items := []
+	for i in row.item_count:
+		items.append(row.get_item_text(i))
+	_check(row.is_visible_in_tree() and items == ["Automatic", "English"] and row.selected == 1, "C16: Game's first row, Language: Automatic, then English (%s)" % [items])
+	menu.close()
+
+	var pseudo := LocaleTest.pseudo_translation()
+	TranslationServer.add_translation(pseudo)
+	settings.set_value("game/language", Pot.PSEUDO_LOCALE)
+	await _settle()
+	_check(TranslationServer.get_locale() == Pot.PSEUDO_LOCALE, "C16: a language chosen applies at once")
+	var bad := []
+	main.open()
+	await _settle()
+	bad.append_array(_untranslated(main, "main menu"))
+	main.open_credits()
+	await _settle()
+	bad.append_array(_untranslated(main, "credits"))
+	main.close_credits()
+	main.close_now()
+	await _settle()
+	pause.open()
+	await _settle()
+	bad.append_array(_untranslated(pause, "pause"))
+	# The walk itself: text the template lacks is found, content isn't.
+	var stray := Label.new()
+	stray.text = "Not in the template"
+	var title := Languages.content(Label.new()) as Label
+	title.text = "A session's title"
+	pause.add_child(stray)
+	pause.add_child(title)
+	var found := _untranslated(pause, "pause")
+	_check(found.size() == 1 and found[0].contains("Not in the template"), "C16: (the check finds untranslated text, and leaves content: %s)" % [found])
+	stray.free()
+	title.free()
+	pause.close()
+	menu.open()
+	for t: String in SettingsMenu.TABS:
+		menu.show_tab(t)
+		await _settle()
+		bad.append_array(_untranslated(menu, "settings: " + t))
+	_check(row.get_item_text(0) == "⟦Automatic⟧" and row.get_item_text(row.selected).begins_with("⟦"), "C16: the Language row in the language too, and it under its own name")
+	menu.close()
+	await _open_create(sessions)
+	bad.append_array(_untranslated(sessions, "sessions: add"))
+	sessions._show(SessionsMenu.Page.RESUME)
+	await _settle()
+	bad.append_array(_untranslated(sessions, "sessions: resume"))
+	sessions.close()
+	await _settle()
+	var quits := [0]
+	var quit_before := guard.quit
+	guard.quit = func() -> void: quits[0] += 1
+	var titled := _snapshot("l1")
+	titled["title"] = "Settings"
+	world.store.apply({"type": "session.snapshot", "session": titled})
+	await _frames(1)
+	guard.request_quit()
+	await _settle()
+	bad.append_array(_untranslated(guard, "quit"))
+	var listed: String = guard._list.text
+	_check(guard.is_asking() and listed.contains("Settings   ·") and not listed.contains("⟦Settings⟧"), "C16: a session titled \"Settings\" still says \"Settings\" (%s)" % listed)
+	guard.dialog().get_cancel_button().pressed.emit()
+	guard.quit = quit_before
+	world.store.apply({"type": "session.ended", "session": "l1", "seq": 2, "reason": "exited"})
+	_check(bad.is_empty(), "C16: every menu's text is translated, content aside (not: %s)" % [bad])
+
+	settings.set_value("game/language", "en")
+	TranslationServer.remove_translation(pseudo)
+	await _settle()
+	_check(TranslationServer.get_locale() == "en" and pause.button("Resume").text == "Resume", "C16: back in English")
+	_check(quits[0] == 0 and player.controls_enabled, "C16: (nothing quit, the player free)")
+
+
+# The text [param node] and the nodes under it show, as in
+# [method _languages], that is neither bracketed nor content: "where: text".
+func _untranslated(node: Node, where: String) -> Array:
+	var out := []
+	if (node is CanvasItem and not node.is_visible_in_tree()) or (node is Window and not node.visible):
+		return out
+	if not Languages.is_content(node):
+		var shown := []
+		if node is Label or node is Button or node is RichTextLabel:
+			shown.append(node.text)
+		if (node is LineEdit or node is TextEdit) and node.text.is_empty():
+			shown.append(node.placeholder_text)
+		if node is TabBar:
+			for i in node.tab_count:
+				shown.append(node.get_tab_title(i))
+		if node is Window:
+			shown.append(node.title)
+		if node is Control and not node.tooltip_text.is_empty():
+			shown.append(node.tooltip_text)
+		for text: String in shown:
+			var seen := node.atr(text)
+			if Pot._has_letter(seen) and not seen.contains(Pot.OPEN):
+				out.append("%s: %s \"%s\"" % [where, node.name, seen])
+	for child in node.get_children(true):
+		out.append_array(_untranslated(child, where))
+	return out
 
 
 # W11: crouching and sliding, on test ground high above the world so the

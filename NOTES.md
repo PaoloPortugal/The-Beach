@@ -6465,6 +6465,7 @@ godot --headless --path . --script res://tests/world/clusters_test.gd
 godot --headless --path . --script res://tests/world/bridges_test.gd
 godot --headless --path . --script res://tests/world/performance_test.gd
 godot --headless --path . --script res://tests/chat/markdown_test.gd
+godot --headless --path . --script res://tests/locale/locale_test.gd
 ```
 
 Dev flags for the day and the weather (W09), after `--` like the

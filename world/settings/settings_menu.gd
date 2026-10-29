@@ -22,7 +22,7 @@ const NAMES := {
 	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen", # TRANSLATE
 	"off": "Off", "low": "Low", "high": "High", # TRANSLATE
 	0: "Off", 30: "30", 60: "60", 120: "120", 144: "144", 240: "240",
-	"2x": "2×", "4x": "4×", "8x": "8×", "fxaa": "FXAA", "smaa": "SMAA",
+	"2x": "2×", "4x": "4×", "8x": "8×", "fxaa": "FXAA", "smaa": "SMAA", # TRANSLATE
 }
 
 var settings: Settings

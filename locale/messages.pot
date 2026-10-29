@@ -1,0 +1,646 @@
+# The game's text in English: the template each locale/<lang>.po
+# translates (NOTES.md → C16). Written by tests/locale/write_pot.gd
+# from the code; don't edit it by hand.
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8-bit\n"
+
+#: chat/chat_panel.gd
+msgid "Open link?"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Open in browser"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Plan"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Your message hasn't reached the session. Check its terminal, then send it again."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Working…"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Waiting for a permission: answer it above or in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Waiting for an answer: answer the question above or in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Waiting for you to approve the plan: answer it above or in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Waiting for you to sign in, in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Waiting for you in the terminal."
+msgstr ""
+
+#: chat/chat_panel.tscn
+msgid "Esc to close"
+msgstr ""
+
+#: chat/chat_panel.tscn
+msgid "Message (Enter to send, Shift+Enter for a new line)"
+msgstr ""
+
+#: chat/chat_panel.tscn
+msgid "Send"
+msgstr ""
+
+#: chat/markdown/markdown_view.gd
+msgid "Copy"
+msgstr ""
+
+#: chat/markdown/markdown_view.gd
+msgid "Copied"
+msgstr ""
+
+#: chat/pending_card.gd
+#: chat/tool_fold.gd
+msgid "Details"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Other…"
+msgstr ""
+
+#: chat/pending_card.gd
+#: world/main_menu.gd
+msgid "Back"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Next"
+msgstr ""
+
+#. your language's own name, as the settings list it: "Deutsch", "日本語".
+#: core/locale/languages.gd
+msgctxt "language"
+msgid "This language's name, in this language"
+msgstr ""
+
+#: world/island/biome.gd
+msgctxt "biome"
+msgid "Beach"
+msgstr ""
+
+#: world/island/biome.gd
+msgctxt "biome"
+msgid "Forest"
+msgstr ""
+
+#: world/island/biome.gd
+msgctxt "biome"
+msgid "Mountain"
+msgstr ""
+
+#: world/island/biome.gd
+msgctxt "biome"
+msgid "Snowy"
+msgstr ""
+
+#: world/island/biome.gd
+msgctxt "biome"
+msgid "Desert"
+msgstr ""
+
+#: world/loading_cover.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "Loading…"
+msgstr ""
+
+#: world/main_menu.gd
+msgid "Play"
+msgstr ""
+
+#: world/main_menu.gd
+#: world/pause_menu.gd
+#: world/settings/settings_menu.gd
+msgid "Settings"
+msgstr ""
+
+#: world/main_menu.gd
+msgid "Credits"
+msgstr ""
+
+#: world/main_menu.gd
+#: world/quit_guard.gd
+#: world/sidecar_lost.gd
+msgid "Quit"
+msgstr ""
+
+#: world/main_menu.gd
+msgid "Hide Godot licences"
+msgstr ""
+
+#: world/main_menu.gd
+msgid "Show Godot licences"
+msgstr ""
+
+#: world/main_menu.gd
+msgid "The credits file couldn't be read ({file})."
+msgstr ""
+
+#: world/main_menu.gd
+msgid "Made with Godot Engine"
+msgstr ""
+
+#: world/opening.gd
+msgid "Bringing up your islands…"
+msgstr ""
+
+#: world/opening.gd
+msgid "Finding your sessions…"
+msgstr ""
+
+#: world/opening.gd
+msgid "Starting the sidecar (try {try} of {tries})…"
+msgstr ""
+
+#: world/opening.gd
+msgid "Starting the sidecar…"
+msgstr ""
+
+#: world/opening.gd
+msgid "Made with"
+msgstr ""
+
+#: world/pause_menu.gd
+msgid "Resume"
+msgstr ""
+
+#: world/pause_menu.gd
+msgid "Main menu"
+msgstr ""
+
+#: world/pause_menu.gd
+msgid "Quit game"
+msgstr ""
+
+#: world/pause_menu.gd
+msgid "Paused"
+msgstr ""
+
+#: world/pause_menu.gd
+msgid "Esc to resume"
+msgstr ""
+
+#: world/quit_guard.gd
+msgid ""
+"Quitting won't end them: they keep running in their terminals, and come back when you start the game again. To end one, type /exit in its terminal.\n"
+"\n"
+"On a computer shared with other accounts, end them with /exit before quitting: while the game is closed, another account could reach them."
+msgstr ""
+
+#: world/quit_guard.gd
+msgid "Back to the game"
+msgstr ""
+
+#: world/quit_guard.gd
+msgid "No sessions are running any more."
+msgstr ""
+
+#: world/quit_guard.gd
+msgid "{n} session is still running:"
+msgid_plural "{n} sessions are still running:"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "Confirm in the terminal to start this session."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "The session didn't start."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "Stopped waiting. If that session starts later, it joins the sessions ring."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "Not connected to the sidecar yet."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "Couldn't start a session: {reason}"
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "Couldn't resume the session: {reason}"
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "A session is already starting."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Starting…"
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "Not connected to the sidecar."
+msgstr ""
+
+#: world/sessions_menu/session_launcher.gd
+msgid "Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +)."
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Model:"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Effort:"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Mode:"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Add a session"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Resume a session"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Tab or Esc to close"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Esc to go back, Tab to close"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Cluster:"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Biome:"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Default"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Random"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Couldn't list stored sessions: {reasons}"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "+ New session…"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "▸ Resume a session…"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "✕ Stop waiting for the session starting"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Untitled session"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Nothing to resume."
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "No match."
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Choose the session's project folder"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Automatic (by repository)"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "New cluster"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "(Settings → Providers)"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "Or choose it yourself in Settings → Providers."
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "New session"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgctxt "session state"
+msgid "working"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgctxt "session state"
+msgid "waiting for you"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgctxt "session state"
+msgid "stopped"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgctxt "session state"
+msgid "idle"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "just now"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "{n} d ago"
+msgid_plural "{n} d ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "{n} h ago"
+msgid_plural "{n} h ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/sessions_menu/sessions_menu.gd
+msgid "{n} min ago"
+msgid_plural "{n} min ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Hold Tab for sessions"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Sessions"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Choose the project folder in the window that opened. Can't see it? It may be behind the game: switch to it, or press Cancel."
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Cancel"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Search by title or project"
+msgstr ""
+
+#: world/sessions_menu/sessions_menu.tscn
+msgid "Select This Folder"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Graphics"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Controls"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Sound"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Game"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Providers"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Windowed"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Borderless fullscreen"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Fullscreen"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Off"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Low"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "High"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "FXAA"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "SMAA"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Window"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Vsync"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "FPS cap"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Render scale"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "{percent} %"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Shadows"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Anti-aliasing (MSAA)"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Screen-space anti-aliasing"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Lightning in storms"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Mouse sensitivity"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "{times}x"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Field of view"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "{degrees}°"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid ""
+"Sound when waiting\n"
+"(while you're in another window)"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Language"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Take me to a new session's island"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Crosshair"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Show sessions started outside the game"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Nothing to set for the AI tools in use."
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Reset to defaults"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Esc to go back"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Automatic"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Checking…"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Not changed: {reason}"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Looking…"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Couldn't look: {reason}"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Looking for it…"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid ""
+"{path}\n"
+"version {version}"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "  ·  set by hand"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Browse…"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Look again"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Look for it now, e.g. after installing it"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Reset"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Find it as usual"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Programs"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Choose {program}"
+msgstr ""
+
+#: world/settings/settings_menu.gd
+msgid "Off under the Compatibility renderer"
+msgstr ""
+
+#: world/sidecar_lost.gd
+msgid ""
+"The game can't run without its sidecar, which couldn't start:\n"
+"{reason}\n"
+"\n"
+"Try starting the game again. If it keeps happening, reinstalling the game may fix it; the game's log says more."
+msgstr ""
+
+#: world/sidecar_lost.gd
+msgid ""
+"The sidecar stopped and couldn't be started again:\n"
+"{reason}\n"
+"\n"
+"The world can't follow your sessions without it. Quit, and start the game again: your sessions keep running in their terminals and come back then."
+msgstr ""
