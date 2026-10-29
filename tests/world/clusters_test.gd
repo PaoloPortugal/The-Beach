@@ -6,7 +6,7 @@ extends SceneTree
 ## W12: islands kept across restarts (IslandMemory, and SessionIslands
 ## bringing them back after a sync).
 ##
-##   godot --headless --path . --script res://tests/world/clusters_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/world/clusters_test.gd
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
 
