@@ -1064,6 +1064,17 @@ func _huds(world: Node3D, player: Player) -> void:
 	world.hotbar.select(world.hotbar.held_slot())
 	await _settle()
 	_check(Array(world.hotbar.drawn) == bracketed.call(["Hands", "Rod"]), "C16: the hotbar's names (%s)" % [world.hotbar.drawn])
+	# Step 5: D01's text, the species under "fish".
+	var fish_hud: FishingHud = world.fishing.hud
+	fish_hud.say("It got away")
+	fish_hud.show_catch(FishSpecies.SPECIES[1]["name"], 34, true)
+	await _settle()
+	_check(Array(fish_hud.drawn) == ["⟦It got away⟧", "⟦Caught: ⟦Drop-off fish⟧!⟧", "⟦34 cm⟧", "⟦New⟧"], "C16: fishing's line and catch card, the species translated (%s)" % [fish_hud.drawn])
+	fish_hud.say("")
+	fish_hud.show_catch("Settings {n}", 12, false) # not a species: shown as written
+	await _settle()
+	_check(fish_hud.card_text() == "⟦Caught: Settings {n}!⟧ ⟦12 cm⟧", "C16: a name the template lacks as written (%s)" % fish_hud.card_text())
+	fish_hud._card_age = INF
 
 	var to := islands.island("l3").global_position - player.global_position
 	player.rotation.y = atan2(-to.x, -to.z) + PI # facing away
@@ -4262,7 +4273,7 @@ func _fishing(world: Node3D, player: Player, island: Island) -> void:
 	fought = await _land(fishing)
 	sprayed = sprayed or fought["spray"]
 	var drop: Dictionary = fishing.catches.entry("drop_off_fish")
-	_check(caught.size() == 2 and caught[1][2] and drop["count"] == 1 and drop["first"]["biome"] == "" and hud.card_text() == "You caught a Drop-off fish! %d cm · New" % caught[1][1], "D01: the card: \"%s\"" % hud.card_text())
+	_check(caught.size() == 2 and caught[1][2] and drop["count"] == 1 and drop["first"]["biome"] == "" and hud.card_text() == "Caught: Drop-off fish! %d cm · New" % caught[1][1], "D01: the card: \"%s\"" % hud.card_text())
 	await _cast(1.0)
 	await _until(func() -> bool: return fishing.state == Fishing.State.BITE, 5.0)
 	_mouse_left(true)
