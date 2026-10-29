@@ -536,6 +536,51 @@ msgid_plural "{n} sessions waiting"
 msgstr[0] ""
 msgstr[1] ""
 
+#: world/fishing/fish_species.gd
+msgctxt "fish"
+msgid "Shallows fish"
+msgstr ""
+
+#: world/fishing/fish_species.gd
+msgctxt "fish"
+msgid "Drop-off fish"
+msgstr ""
+
+#: world/fishing/fish_species.gd
+msgctxt "fish"
+msgid "Open sea fish"
+msgstr ""
+
+#: world/fishing/fishing.gd
+msgid "Too soon: it swam off"
+msgstr ""
+
+#: world/fishing/fishing.gd
+msgid "It got away"
+msgstr ""
+
+#: world/fishing/fishing.gd
+msgid "The line snapped"
+msgstr ""
+
+#: world/fishing/fishing.gd
+msgid "It slipped off the hook"
+msgstr ""
+
+#: world/fishing/fishing_hud.gd
+msgid "Caught: {species}!"
+msgstr ""
+
+#: world/fishing/fishing_hud.gd
+msgid "{n} cm"
+msgstr ""
+
+#. on the catch card, the first of its species.
+#: world/fishing/fishing_hud.gd
+msgctxt "catch"
+msgid "New"
+msgstr ""
+
 #: world/hotbar.gd
 msgctxt "hotbar"
 msgid "Hands"

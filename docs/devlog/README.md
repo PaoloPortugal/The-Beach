@@ -131,3 +131,4 @@ reading; look things up by feature ID.
 | 2026-10-29 | [D01: reeling no faster than the line comes in](2026-10-29-d01-reel-speed.md) | D01 |
 | 2026-10-29 | [C16: the drawn HUDs](2026-10-29-c16-huds.md) | C16, C08, C11, C15, A05, W04, W06, W07 |
 | 2026-10-29 | [C16: the chat panel's chrome](2026-10-29-c16-chat.md) | C16, C02, C04, C05, C06, C07, C08, C12 |
+| 2026-10-29 | [C16: D01's text](2026-10-29-c16-d01-text.md) | C16, D01 |

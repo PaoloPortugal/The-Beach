@@ -297,7 +297,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_hook()
 			State.APPROACH, State.NIBBLE:
 				_lose_fish(true)
-				hud.say("Too soon: it swam off")
+				hud.say("Too soon: it swam off") # TRANSLATE
 				_to_out()
 				reeling = true
 			State.WAITING:
@@ -376,7 +376,7 @@ func _process(delta: float) -> void:
 			_timer -= delta
 			if _timer <= 0.0:
 				_lose_fish(true)
-				hud.say("It got away")
+				hud.say("It got away") # TRANSLATE
 				_back_to_waiting()
 		State.FIGHT:
 			_fight_step(delta)
@@ -644,11 +644,11 @@ func _fight_step(delta: float) -> void:
 			_land_from = _bobber.global_position
 			_land_age = 0.0
 		"snapped":
-			hud.say("The line snapped")
+			hud.say("The line snapped") # TRANSLATE
 			_lose_fish(true)
 			_end()
 		"slipped":
-			hud.say("It slipped off the hook")
+			hud.say("It slipped off the hook") # TRANSLATE
 			_lose_fish(true)
 			_to_out()
 

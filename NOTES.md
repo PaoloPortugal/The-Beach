@@ -120,7 +120,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
-| C16 | Multi-language support                    | groundwork, menus, HUDs and chat chrome built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/`, `project.godot` (internationalization) |
+| C16 | Multi-language support                    | groundwork, menus, HUDs, chat chrome and D01's text built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/`, `project.godot` (internationalization) |
 | C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
@@ -3829,9 +3829,9 @@ good"). macOS and Linux unchecked.
 
 ### C16 Multi-language support
 *Groundwork and menus built (2026-10-29: steps 1-2 of the migration
-order below), the drawn HUDs too (step 3, 2026-10-29), and the chat
-panel's chrome (step 4, 2026-10-29); the rest designed (user's,
-2026-10-27). Scope: core,*
+order below), the drawn HUDs too (step 3, 2026-10-29), the chat
+panel's chrome (step 4, 2026-10-29) and D01's text (step 5,
+2026-10-29); the rest designed (user's, 2026-10-27). Scope: core,*
 mostly on the world side:
 every provider's sessions show the same game text, no protocol event is
 added, and a provider's own strings live in its own folders (below).
@@ -3839,7 +3839,8 @@ The game's text in more languages than English, made so that adding
 text (species, hints, menus) and adding a language both scale. Dev log
 2026-10-27-c16-localisation-design; the first part,
 2026-10-29-c16-localisation-groundwork; the HUDs, 2026-10-29-c16-huds;
-the chat's chrome, 2026-10-29-c16-chat.
+the chat's chrome, 2026-10-29-c16-chat; D01's text,
+2026-10-29-c16-d01-text.
 
 *Decided (user's, 2026-10-28), for the first part:*
 - **This branch is the groundwork and the menus** (steps 1-2 below);
@@ -3912,10 +3913,11 @@ the chat's chrome, 2026-10-29-c16-chat.
 - *Debug commands* (C09) stay English: a developer tool.
 - *Species and other data:* each row keeps a stable `id` and an
   English `name` (later its hints), translated under the row's context.
-  The user's species list only adds rows; the template picks them up.
+  The user's species list only adds rows; the template picks them up
+  (each row's line marked `# TRANSLATE: fish`, step 5).
   Text never builds English grammar in code: no "a/an" picked by code
-  (D01's catch card, built on branch `d01-fishing`, becomes e.g.
-  "Caught: {species}!") and no plurals by `if n == 1` (A05's
+  (D01's catch card says "Caught: {species}!" since step 5, user's
+  2026-10-29) and no plurals by `if n == 1` (A05's
   "1 session waiting" was one, `tr_n` since step 3).
 - *Mods* (Deferred ideas → Mod support, undesigned): a mod would ship
   its own `locale/*.po`, loaded at runtime with
@@ -4090,6 +4092,26 @@ slot numbers, which name the keys 1 to 9):
   2026-10-29: on its own branch, as the migration order has it).
 - *Live check (2026-10-29, the user):* all steps passed.
 
+**How D01's text works** (step 5, 2026-10-29). `FishingHud` keeps its
+text in English and translates it as it paints, every frame, so a new
+language shows at once; it keeps `drawn` like the other HUDs.
+- *The catch card:* "Caught: {species}!" (user's, 2026-10-29; rejected:
+  "You caught: {species}!", and the name alone), so no article is
+  picked in code; "{n} cm", the digits through `Languages.number`; and
+  "New" under the context "catch". The species' English `name` in
+  `FishSpecies.SPECIES` is translated under "fish": each row's line is
+  marked `# TRANSLATE: fish` (its other strings look like keys, so only
+  the name is taken), and a new row needs the same mark.
+- *The lines under the crosshair:* "Too soon: it swam off", "It got
+  away", "The line snapped", "It slipped off the hook", each marked
+  `# TRANSLATE` where `Fishing` says it; `FishingHud.said()` gives the
+  translated line. The bite's "!" needs none.
+- *Tests:* the world test's `_huds`, in `zz`: a line and a catch card
+  (a first, so "New" shows), all bracketed, the species too; a name the
+  template lacks stays as written. D01's own test checks the English
+  card, "Caught: Drop-off fish! … cm · New".
+- *Live check (2026-10-29, the user):* all steps passed.
+
 **How the chat's chrome works** (step 4, 2026-10-29). The chat panel's
 own words go through `tr()` / `tr_n()` and `Languages.fill`, on labels
 marked `Languages.translated`, and are said again on
@@ -4153,12 +4175,7 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,
 the tests, auto-translate off on content; (2) the menus; (3) the drawn
-HUDs; (4) the chat panel's chrome; (5) D01's text once D01 is merged
-(the species names in `FishSpecies.SPECIES` under `"fish"`; the catch
-card's line, today "You caught a/an {species}!" with the article
-picked in code, its "{n} cm" and "New"; and the HUD's lines "Too
-soon: it swam off" and "It got away", all in `world/fishing/`; the
-bite's "!" needs none); (6) codes for the sidecar's
+HUDs; (4) the chat panel's chrome; (5) D01's text (above); (6) codes for the sidecar's
 free-form messages; (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
@@ -5995,7 +6012,9 @@ provider, protocol or sidecar part; it never reads sessions or agents.
 The first downtime activity (Concept → Downtime): something to do while
 agents work, dropped the moment one needs you. Dev logs
 2026-10-27-d01-fishing-design, 2026-10-27-d01-fishing,
-2026-10-27-d01-fight and 2026-10-28-d01-fight-runs.
+2026-10-27-d01-fight, 2026-10-28-d01-fight-runs,
+2026-10-29-d01-reel-speed and 2026-10-29-c16-d01-text (its text
+translated).
 
 *Decided (user's, 2026-10-27; the numbers in "How it works" are my
 picks):*
@@ -6312,8 +6331,9 @@ shadows.
   code like the hotbar; hidden without the controls): the meter (64 by
   6 px, 26 px under the middle) while charging; a gold "!" just under
   the middle while a fish bites; a short line under it for 2 s; the
-  catch card at a quarter of the way down for 3.5 s, "You caught a
-  Drop-off fish!" over "34 cm", and "New" in gold on a species' first.
+  catch card at a quarter of the way down for 3.5 s, "Caught: Drop-off
+  fish!" over "34 cm", and "New" in gold on a species' first (C16: in
+  the game's language; it said "You caught a …" before).
   The line and card fade out over 0.4 s. In a fight, the arrow (The
   fight → The arrow).
 - *The catches* (`CatchLog`, `world/fishing/catch_log.gd`):
@@ -7108,8 +7128,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's groundwork, menus, drawn HUDs and chat chrome
-(steps 1-4) are merged (2026-10-29, live checks passed). Next for it, D01's text (step 5), on its own branch. The headless suites run with
+**Current focus:** C16's steps 1-5 (groundwork, menus, drawn HUDs,
+chat chrome, D01's text) are merged (2026-10-29, live checks passed). Next for it, codes for the
+sidecar's free-form messages (step 6). The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried

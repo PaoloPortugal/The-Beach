@@ -7,7 +7,8 @@ extends RefCounted
 ##
 ## Each species:
 ## - id: kept in the collection's file (CatchLog); never change one.
-## - name: as the catch card shows it.
+## - name: as the catch card shows it, in English; translated under the
+##   context "fish" (C16), so each row's line ends `# TRANSLATE: fish`.
 ## - water: the kinds of water it lives in: "shallows", "drop_off",
 ##   "open_sea" (see [method water_at]).
 ## - biomes: the islands it lives by ([enum Biome.Kind]); [] anywhere,
@@ -22,9 +23,9 @@ extends RefCounted
 ##   reeled with the rod on its side; on a run it pulls twice as hard),
 ##   how long before it tires, seconds, and how often it turns and runs.
 const SPECIES := [
-	{"id": "shallows_fish", "name": "Shallows fish", "water": ["shallows"], "biomes": [], "hours": [], "weather": [], "size": [12, 30], "weight": 1.0, "pull": 0.5, "stamina": 18.0, "temper": 0.7},
-	{"id": "drop_off_fish", "name": "Drop-off fish", "water": ["drop_off"], "biomes": [], "hours": [], "weather": [], "size": [25, 60], "weight": 1.0, "pull": 0.85, "stamina": 30.0, "temper": 0.5},
-	{"id": "open_sea_fish", "name": "Open sea fish", "water": ["open_sea"], "biomes": [], "hours": [], "weather": [], "size": [40, 120], "weight": 1.0, "pull": 1.2, "stamina": 50.0, "temper": 0.4},
+	{"id": "shallows_fish", "name": "Shallows fish", "water": ["shallows"], "biomes": [], "hours": [], "weather": [], "size": [12, 30], "weight": 1.0, "pull": 0.5, "stamina": 18.0, "temper": 0.7}, # TRANSLATE: fish
+	{"id": "drop_off_fish", "name": "Drop-off fish", "water": ["drop_off"], "biomes": [], "hours": [], "weather": [], "size": [25, 60], "weight": 1.0, "pull": 0.85, "stamina": 30.0, "temper": 0.5}, # TRANSLATE: fish
+	{"id": "open_sea_fish", "name": "Open sea fish", "water": ["open_sea"], "biomes": [], "hours": [], "weather": [], "size": [40, 120], "weight": 1.0, "pull": 1.2, "stamina": 50.0, "temper": 0.4}, # TRANSLATE: fish
 ]
 
 ## The kinds of water, by the depth under the bobber: the islands' shelf
