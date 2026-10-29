@@ -3,7 +3,7 @@ extends SceneTree
 ## and links (NOTES.md → Security rules, with a fuzz test), emphasis, blocks,
 ## lists, and the view streaming to the same result as a full render.
 ##
-##   godot --headless --path . --script res://tests/chat/markdown_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/chat/markdown_test.gd
 ## Exit code 0 = all passed.
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
