@@ -1,68 +1,35 @@
-LIVE CHECK: C16 the
-chat panel's chrome
-through translation
+LIVE CHECK: C16 D01's
+text through translation
   godot --path . -- --checklist
 (the text and the made-up
 language are tested
 headless; this checks that
-nothing looks different
-in English)
+fishing reads right in
+English)
 PgDn/PgUp scroll this.
 
-1. Start the game, start a
-   Claude session and open
-   its chat (walk up to the
-   orchestrator, E). The
-   header reads as before:
-   "Mode: Manual" (or your
-   mode), the model and
-   "High effort" (or your
-   level), and "Context
-   N% · ↑ … in · ↓ … out"?
-   Hover the usage: the
-   exact figures, one per
-   line?
-2. Send a message that
-   makes it run a command.
-   While it works: the
-   status says "Working…",
-   the tool line "▸ 1 tool
-   call (1 running)", then
-   after it "▸ N tool
-   calls"? Click it: each
-   row says "ok" (or
-   "failed"), Details shows
-   "Tool: …" and "Agent: …"?
-3. At the turn's end, a dim
-   "↓ … tokens" under it?
-4. A permission prompt: the
-   card says "The
-   orchestrator asks to use
-   Bash:", lists Yes, the
-   provider's options, No;
-   the note says "Press No
-   to add a note"? The
-   status: "Waiting for a
-   permission: …"?
-5. Two prompts at once (or
-   a question with several
-   items): "1 of 2 waiting"
-   / "Question 1 of 2"?
-6. In plan mode, a plan to
-   approve: "The
-   orchestrator has a plan
-   for you to approve:",
-   the "Yes, …" choices and
-   "No, keep planning"?
-7. Close the chat. Settings
-   → Game → Language: pick
-   Automatic, then English.
-   Open the chat again: it
-   reads as in step 1,
-   nothing blank?
-8. Nowhere a leftover
+1. Start the game, play.
+   Take the rod (2) and
+   cast into the water.
+2. Click while it only
+   nibbles: "Too soon: it
+   swam off" under the
+   crosshair?
+3. Let a bite pass: "It got
+   away"?
+4. Catch a fish: the card
+   says "Caught: <fish>!"
+   (no "a"/"an"), its size
+   "34 cm" under it, and
+   "New" in gold on a
+   species' first?
+5. Lose one in a fight
+   (pull hard, or let the
+   line go slack): "The
+   line snapped" / "It
+   slipped off the hook"?
+6. Nowhere a leftover
    placeholder in braces
-   ({n}, {tool}, {mode}),
-   and no new error or
-   warning in the game's
-   output?
+   ({species}, {n}), and no
+   new error or warning in
+   the game's output?

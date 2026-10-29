@@ -716,7 +716,7 @@ zipline reels in at once, in a fight too. The only thing you lose is the fish on
 line: there's no bait, streak or record to lose.
 
 **A catch** (a fish landed) shows a card high on the screen with the fish and
-its size, for example "You caught a Drop-off fish!" and "34 cm", marked
+its size, for example "Caught: Drop-off fish!" and "34 cm", marked
 **New** the first time you catch that species.
 
 **What bites** depends on where and when you fish: the water under the
@@ -1141,7 +1141,8 @@ puts everything back.
   island's arrow) are ready for other languages, and so is the chat
   panel's own text (its status line and notices, the mode, effort and
   usage in its header, the card where you answer, the tool calls'
-  lines). Your chats, session titles, folder names, tool names, model
+  lines), and fishing's (the fish's names, the catch card, the lines
+  under the crosshair). Your chats, session titles, folder names, tool names, model
   names and the AI tool's own wording (its permission options, its
   effort levels) stay as they are. Then, whether starting a
   session takes you to its island. Turned
