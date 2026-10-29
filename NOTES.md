@@ -7049,10 +7049,9 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's drawn HUDs (step 3) are built on branch
-`c16-huds`, live check passed (2026-10-29), waiting for the user's
-review; the groundwork and menus are merged (2026-10-29). Next for it,
-the chat's chrome and D01's text, each on its own branch. The headless suites run with
+**Current focus:** C16's groundwork, menus and drawn HUDs (steps 1-3)
+are merged (2026-10-29, live checks passed). Next for it, the chat's
+chrome and D01's text, each on its own branch. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried
