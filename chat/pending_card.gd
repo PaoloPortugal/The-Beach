@@ -33,7 +33,8 @@ var session_id := ""
 
 var _shown := "" # key ("permission:<id>" / "question:<id>" / "plan:<id>") of the request on the card
 var _busy := "" # key of the request whose answer is on its way
-var _error := "" # why the last answer was refused, for the request on the card
+var _error := "" # why the last answer was refused, for the request on the card: in English, translated when shown (C16)
+var _error_reason := "" # the sidecar's words in it, as they are
 # Kept while the chat is closed, keyed by session and request id.
 var _notes := {} # "<session>/<permission or plan>" → the note typed so far
 var _denying := {} # "<session>/<permission or plan>" → true once Deny (or "No, keep planning") is pressed: the note unlocked
@@ -62,19 +63,25 @@ func _init() -> void:
 	_box.add_theme_constant_override("separation", 8)
 	add_child(_box)
 	var header := HBoxContainer.new()
-	# Tool and subagent names inside our words (C16): auto-translate off;
-	# the chat's chrome step translates the words.
+	# Tool and subagent names inside our words, translated in code (C16).
 	_who = Languages.translated(_label("", 18)) as Label
 	_who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_count = _label("", 16, DIM, false)
+	_count = Languages.translated(_label("", 16, DIM, false)) as Label
 	header.add_child(_who)
 	header.add_child(_count)
 	_box.add_child(header)
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 8)
 	_box.add_child(_body)
-	_error_label = Languages.content(_label("", 16, ERROR)) as Label # the sidecar's message
+	_error_label = Languages.translated(_label("", 16, ERROR)) as Label # ours, with the sidecar's reason
 	_box.add_child(_error_label)
+
+
+# Our words are translated in code (C16): lay the card out again in the
+# new language. Notes typed and choices made are kept.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and store != null:
+		refresh(true)
 
 
 ## Connects to the store. Call once.
@@ -112,7 +119,7 @@ func count_text() -> String:
 
 
 func error_text() -> String:
-	return _error
+	return _error_label.text if _error_label.visible else ""
 
 
 ## Lays the card out again if the request on it changed (or [param force]).
@@ -122,7 +129,8 @@ func refresh(force := false) -> void:
 		all = store.pending(session_id)
 		_forget_answered(all)
 	visible = not all.is_empty()
-	_count.text = "1 of %d waiting" % all.size() if all.size() > 1 else ""
+	# TRANSLATORS: the card shows the first of {n} requests waiting (never fewer than 2).
+	_count.text = Languages.fill(tr_n("1 of {n} waiting", "1 of {n} waiting", all.size()), {"n": Languages.number(str(all.size()))}) if all.size() > 1 else ""
 	if all.is_empty():
 		_shown = ""
 		return
@@ -208,18 +216,18 @@ func _render_permission(p: Dictionary) -> void:
 	var id: String = p["permission"]
 	var denying := _denying.has(_k(id))
 	# One choice per line, as the terminal lists them.
-	_body.add_child(_list_choice("Yes", respond.bind("allow")))
+	_body.add_child(_list_choice("Yes", respond.bind("allow"))) # TRANSLATE
 	for option: Dictionary in p.get("options", []):
 		var label: String = option["label"]
 		var option_id: String = option["option"]
 		# The provider's words (C16: our fixed ones translated by option id later).
 		_body.add_child(Languages.content(_list_choice(label, respond.bind("allow", option_id))))
-	var no := _list_choice("No", func() -> void: set_denying(not denying))
+	var no := _list_choice("No", func() -> void: set_denying(not denying)) # TRANSLATE
 	no.toggle_mode = true
 	no.set_pressed_no_signal(denying)
 	_body.add_child(no)
 	_note_row(id, denying,
-		"Optional: what to do instead (sent as your next message)", "Press No to add a note",
+		"Optional: what to do instead (sent as your next message)", "Press No to add a note", # TRANSLATE
 		respond.bind("deny"))
 
 
@@ -235,7 +243,7 @@ func _note_row(id: String, denying: bool, hint: String, locked_hint: String, sen
 	note.add_theme_font_size_override("font_size", 16)
 	note.text_changed.connect(func(t: String) -> void: _notes[_k(id)] = t)
 	row.add_child(note)
-	var send := _answer_button("Send", send_action)
+	var send := _answer_button("Send", send_action) # TRANSLATE
 	send.disabled = send.disabled or not denying
 	row.add_child(send)
 	_body.add_child(row)
@@ -269,21 +277,21 @@ func keep_planning() -> void:
 
 
 func _render_plan(p: Dictionary) -> void:
-	_body.add_child(_label("Would you like to proceed? The plan is above, in the chat.", 18))
+	_body.add_child(_label("Would you like to proceed? The plan is above, in the chat.", 18)) # TRANSLATE
 	var id: String = p["plan"]
 	var denying := _denying.has(_k(id))
 	# One choice per line, in the provider's order, as the terminal lists them.
 	for mode in p["modes"]:
-		var b := _answer_button(PermissionModes.plan_choice(mode), approve_plan.bind(mode))
+		var b := Languages.translated(_answer_button(PermissionModes.plan_choice(mode), approve_plan.bind(mode))) as Button
 		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		_body.add_child(b)
-	var no := _answer_button("No, keep planning", func() -> void: set_denying(not denying))
+	var no := _answer_button("No, keep planning", func() -> void: set_denying(not denying)) # TRANSLATE
 	no.toggle_mode = true
 	no.set_pressed_no_signal(denying)
 	no.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_body.add_child(no)
 	_note_row(id, denying,
-		"Optional: what to change in the plan", "Press \"No, keep planning\" to say what to change",
+		"Optional: what to change in the plan", "Press \"No, keep planning\" to say what to change", # TRANSLATE
 		keep_planning)
 
 
@@ -380,7 +388,8 @@ func _render_question(q: Dictionary) -> void:
 	var item: Dictionary = items[i]
 	var top := _row()
 	if items.size() > 1:
-		top.add_child(_label("Question %d of %d" % [i + 1, items.size()], 16, DIM, false))
+		top.add_child(Languages.translated(_label(Languages.fill(tr("Question {n} of {total}"), {
+			"n": Languages.number(str(i + 1)), "total": Languages.number(str(items.size()))}), 16, DIM, false)))
 	if item.get("header", "") != "":
 		top.add_child(Languages.content(_label(item["header"], 16, DIM, false)))
 	if top.get_child_count() > 0:
@@ -434,7 +443,7 @@ func _render_question(q: Dictionary) -> void:
 		_next.text = "Next"
 		_next.pressed.connect(next)
 	else:
-		_next = _answer_button("Send", send_answers)
+		_next = _answer_button("Send", send_answers) # TRANSLATE
 	nav.add_child(_next)
 	_body.add_child(nav)
 	_update_nav()
@@ -491,7 +500,7 @@ func _render() -> void:
 	_options.clear()
 	_next = null
 	var c := current()
-	_error_label.text = _error
+	_error_label.text = Languages.fill(tr(_error), {"reason": _error_reason}) if not _error.is_empty() else ""
 	_error_label.visible = not _error.is_empty()
 	if c.is_empty():
 		return
@@ -515,11 +524,12 @@ func _send(type: String, fields: Dictionary) -> void:
 		if _busy == key:
 			_busy = ""
 		if _shown == key:
-			_error = "Couldn't answer: %s" % reply.get("message", "")
+			_error = "Couldn't answer: {reason}" # TRANSLATE
+			_error_reason = str(reply.get("message", ""))
 			_render())
 	if sent.is_empty():
 		_busy = ""
-		_error = "Not connected to the sidecar."
+		_error = "Not connected to the sidecar." # TRANSLATE
 	_render()
 
 
@@ -535,17 +545,35 @@ func _forget_answered(all: Array[Dictionary]) -> void:
 		_busy = ""
 
 
+# Who asks, and for what, as whole sentences (C16): the tool's and the
+# subagent's names as they are.
 func _who_text(c: Dictionary) -> String:
 	var a := store.agent(session_id, c["item"]["agent"])
-	var who := "The orchestrator"
+	var who := "orchestrator"
 	if a.get("role") == "subagent":
-		who = "Subagent %s" % a["name"] if a.get("name", "") != "" else "A subagent"
-	match c["kind"]:
-		"permission":
-			return "%s asks to use %s:" % [who, c["item"]["tool"]]
-		"plan":
-			return "%s has a plan for you to approve:" % who
-	return "%s asks:" % who
+		who = "named" if a.get("name", "") != "" else "subagent"
+	var values := {"name": a.get("name", ""), "tool": c["item"].get("tool", "")}
+	var text := ""
+	match [who, c["kind"]]:
+		["orchestrator", "permission"]:
+			text = tr("The orchestrator asks to use {tool}:")
+		["named", "permission"]:
+			text = tr("Subagent {name} asks to use {tool}:")
+		["subagent", "permission"]:
+			text = tr("A subagent asks to use {tool}:")
+		["orchestrator", "plan"]:
+			text = tr("The orchestrator has a plan for you to approve:")
+		["named", "plan"]:
+			text = tr("Subagent {name} has a plan for you to approve:")
+		["subagent", "plan"]:
+			text = tr("A subagent has a plan for you to approve:")
+		["orchestrator", _]:
+			text = tr("The orchestrator asks:")
+		["named", _]:
+			text = tr("Subagent {name} asks:")
+		_:
+			text = tr("A subagent asks:")
+	return Languages.fill(text, values)
 
 
 # A button that answers the session: no keyboard focus, so only a click

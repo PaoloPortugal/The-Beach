@@ -8,19 +8,22 @@ extends RefCounted
 ## A token count, compact: as is under 1,000, then one decimal under 10k
 ## (1.2k), whole thousands under a million (34k), one decimal under 10M
 ## (1.1M), then whole millions (12M). A trailing ".0" is dropped (1k).
+## Digits in the language's own (C16); "k" and "M" stay, as in the terminal.
 static func tokens(n: int) -> String:
 	if n < 1000:
-		return str(maxi(n, 0))
+		return Languages.number(str(maxi(n, 0)))
 	if n < 9950:
-		return _decimal(n / 1000.0) + "k"
+		return Languages.number(_decimal(n / 1000.0)) + "k"
 	if n < 999500:
-		return "%dk" % roundi(n / 1000.0)
+		return Languages.number(str(roundi(n / 1000.0))) + "k"
 	if n < 9950000:
-		return _decimal(n / 1000000.0) + "M"
-	return "%dM" % roundi(n / 1000000.0)
+		return Languages.number(_decimal(n / 1000000.0)) + "M"
+	return Languages.number(str(roundi(n / 1000000.0))) + "M"
 
 
-## A count with thousands separators, for the exact figures (12,345).
+## A count with thousands separators, for the exact figures (12,345). The
+## "," is English's: the language's own separator is left for the first
+## real language (C16, step 7).
 static func exact(n: int) -> String:
 	var digits := str(absi(n))
 	var out := ""
@@ -34,7 +37,7 @@ static func exact(n: int) -> String:
 ## is a % when the provider says (the status line), else a token count,
 ## and left out until known. In counts input, cache reads and cache
 ## writes; out, output; both left out while nothing is counted. ""
-## without usage, or with nothing to show yet.
+## without usage, or with nothing to show yet. Translated (C16).
 static func header(usage) -> String:
 	if not usage is Dictionary:
 		return ""
@@ -42,15 +45,19 @@ static func header(usage) -> String:
 	var context = usage.get("context")
 	if context is Dictionary:
 		if context.get("percent") != null:
-			parts.append("Context %d%%" % roundi(context["percent"]))
+			# TRANSLATORS: how full the model's context window is.
+			parts.append(Languages.fill(TranslationServer.translate("Context {percent}%"), {"percent": Languages.number(str(roundi(context["percent"])))}))
 		else:
-			parts.append("Context %s" % tokens(int(context["tokens"])))
+			# TRANSLATORS: how many tokens the model's context holds ("34k").
+			parts.append(Languages.fill(TranslationServer.translate("Context {tokens}"), {"tokens": tokens(int(context["tokens"]))}))
 	var t: Dictionary = usage["tokens"]
 	var sent := int(t["input"]) + int(t["cache_read"]) + int(t["cache_write"])
 	# Nothing counted yet (before the first call, or transcripts off).
 	if sent > 0 or int(t["output"]) > 0:
-		parts.append("↑ %s in" % tokens(sent))
-		parts.append("↓ %s out" % tokens(int(t["output"])))
+		# TRANSLATORS: tokens sent to the model so far ("2.1M").
+		parts.append(Languages.fill(TranslationServer.translate("↑ {tokens} in"), {"tokens": tokens(sent)}))
+		# TRANSLATORS: tokens the model wrote so far ("48k").
+		parts.append(Languages.fill(TranslationServer.translate("↓ {tokens} out"), {"tokens": tokens(int(t["output"]))}))
 	return " · ".join(parts)
 
 
@@ -61,21 +68,23 @@ static func header_details(usage) -> String:
 	var lines: PackedStringArray = []
 	var context = usage.get("context")
 	if context is Dictionary:
-		var line := "Context: %s tokens" % exact(int(context["tokens"]))
+		var n := exact(int(context["tokens"]))
 		if context.get("window") != null:
-			line += " of %s" % exact(int(context["window"]))
-		lines.append(line)
+			lines.append(Languages.fill(TranslationServer.translate("Context: {n} tokens of {window}"), {"n": n, "window": exact(int(context["window"]))}))
+		else:
+			lines.append(Languages.fill(TranslationServer.translate("Context: {n} tokens"), {"n": n}))
 	var t: Dictionary = usage["tokens"]
-	lines.append("Input: %s" % exact(int(t["input"])))
-	lines.append("Cache reads: %s" % exact(int(t["cache_read"])))
-	lines.append("Cache writes: %s" % exact(int(t["cache_write"])))
-	lines.append("Output: %s" % exact(int(t["output"])))
+	lines.append(Languages.fill(TranslationServer.translate("Input: {n}"), {"n": exact(int(t["input"]))}))
+	lines.append(Languages.fill(TranslationServer.translate("Cache reads: {n}"), {"n": exact(int(t["cache_read"]))}))
+	lines.append(Languages.fill(TranslationServer.translate("Cache writes: {n}"), {"n": exact(int(t["cache_write"]))}))
+	lines.append(Languages.fill(TranslationServer.translate("Output: {n}"), {"n": exact(int(t["output"]))}))
 	return "\n".join(lines)
 
 
 ## A turn's hint: "↓ 1.2k tokens" (its output tokens).
 static func turn(output_tokens: int) -> String:
-	return "↓ %s tokens" % tokens(output_tokens)
+	# TRANSLATORS: the tokens the model wrote this turn; {n} is compact ("1.2k").
+	return Languages.fill(TranslationServer.translate_plural("↓ {n} token", "↓ {n} tokens", output_tokens), {"n": tokens(output_tokens)})
 
 
 ## The short day and month names, translated under [constant WEEKDAY] and

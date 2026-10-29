@@ -1138,8 +1138,12 @@ puts everything back.
   For now the game only comes in English; the menus and the words drawn
   on screen (the crosshair's hint, the hotbar, the sessions ring, the
   big map, the waiting count, the usage limits and their times, the new
-  island's arrow) are ready for other languages. Your chats, session titles, folder names and
-  model names always stay as they are. Then, whether starting a
+  island's arrow) are ready for other languages, and so is the chat
+  panel's own text (its status line and notices, the mode, effort and
+  usage in its header, the card where you answer, the tool calls'
+  lines). Your chats, session titles, folder names, tool names, model
+  names and the AI tool's own wording (its permission options, its
+  effort levels) always stay as they are. Then, whether starting a
   session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
   screen's edge show where it rose. And **Crosshair**: off hides the

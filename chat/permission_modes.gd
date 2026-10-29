@@ -4,35 +4,33 @@ extends RefCounted
 ## capability) and for the choices that switch to them (C07's plan card; a
 ## permission prompt's switch is one of its options, worded by the provider,
 ## C05). The protocol carries the provider's own mode ids; ids we don't know
-## show as they are.
+## show as they are. Ours are translated (C16): by id, with literal strings
+## (the ids look like keys, so a [code]# TRANSLATE[/code] line would skip them).
 
-## The modes' names, by id.
-const NAMES := {
-	"default": "Manual",
-	"acceptEdits": "Accept edits",
-	"plan": "Plan",
-	"auto": "Auto",
-}
-
-## Approving a plan and switching to a mode, in the words of Claude Code's
-## own plan prompt.
-const PLAN_CHOICES := {
-	"auto": "Yes, and use auto mode",
-	"acceptEdits": "Yes, auto-accept edits",
-	"default": "Yes, manually approve edits",
-}
-
-
-## A mode's name: ours for the ids we know, else the id.
+## A mode's name: ours for the ids we know, translated under "permission
+## mode", else the id.
 static func name_of(mode: String) -> String:
-	return NAMES.get(mode, mode)
+	match mode:
+		"default":
+			return TranslationServer.translate("Manual", "permission mode")
+		"acceptEdits":
+			return TranslationServer.translate("Accept edits", "permission mode")
+		"plan":
+			return TranslationServer.translate("Plan", "permission mode")
+		"auto":
+			return TranslationServer.translate("Auto", "permission mode")
+	return mode
 
 
-## The button that approves a plan and switches to [param mode].
+## The button that approves a plan and switches to [param mode], in the
+## words of Claude Code's own plan prompt where it has them.
 static func plan_choice(mode: String) -> String:
-	return PLAN_CHOICES.get(mode, "Yes, and switch to %s" % _mode_words(mode))
-
-
-# "auto mode", "accept edits mode"; an unknown id as it is, plus "mode".
-static func _mode_words(mode: String) -> String:
-	return "%s mode" % (NAMES[mode].to_lower() if NAMES.has(mode) else mode)
+	match mode:
+		"auto":
+			return TranslationServer.translate("Yes, and use auto mode")
+		"acceptEdits":
+			return TranslationServer.translate("Yes, auto-accept edits")
+		"default":
+			return TranslationServer.translate("Yes, manually approve edits")
+	# TRANSLATORS: approving a plan and switching to a permission mode: our name for it ("Plan"), or the provider's id as it is.
+	return Languages.fill(TranslationServer.translate("Yes, and switch to {mode} mode"), {"mode": name_of(mode)})

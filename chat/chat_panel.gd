@@ -151,6 +151,14 @@ func _ready() -> void:
 	add_child(_link_dialog)
 
 
+# The chrome is translated in code (C16): say it again in the new language.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready() and not session_id.is_empty():
+		_refresh_header()
+		_refresh_status()
+		_refresh_hints()
+
+
 ## Connects to the store. Call once, before opening.
 func setup(p_store: SessionStore, p_sidecar: SidecarClient) -> void:
 	store = p_store
@@ -282,6 +290,11 @@ func mode_text() -> String:
 ## shown (C12).
 func model_text() -> String:
 	return _model.text if _model.visible else ""
+
+
+## The notices' text, one per line, or "" when there are none.
+func notices_text() -> String:
+	return _notices.text if _notices.visible else ""
 
 
 ## The header's usage text ("Context 34% · ↑ 2.1M in · ↓ 48k out"), or ""
