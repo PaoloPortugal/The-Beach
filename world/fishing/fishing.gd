@@ -476,6 +476,11 @@ func _move_bobber(delta: float) -> void:
 		if away < 0.0:
 			v -= to_tip * away
 		v += to_tip * (dist - line_length) * 8.0
+		# Reeled, it comes no faster than the line comes in: unchecked, the
+		# pull built up past 15 m/s and skipped it over the waves.
+		var toward := v.dot(to_tip)
+		if reeling and toward > REEL_SPEED:
+			v -= to_tip * (toward - REEL_SPEED)
 		_unsnag(flat.length(), to_tip, under > 0.0, delta)
 	else:
 		_snag_timer = 0.0

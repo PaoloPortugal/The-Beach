@@ -5957,7 +5957,9 @@ shadows.
   level, toward the point under the tip, so it doesn't lift the bobber,
   except one snagged in the water (below). Holding the click shortens it 4 m/s
   (`REEL_SPEED`), never below the drop from the tip: the bobber is
-  dragged back through the water or rolls over land, and it's back
+  dragged back through the water or rolls over land, never faster than
+  that toward the tip (unchecked, the line's pull built up past 15 m/s
+  and skipped it over the waves: dev log 2026-10-29-d01-reel-speed), and it's back
   once within 1.5 m of the tip, seen from above (`BACK`). A taut bobber
   coming less than 5 cm nearer (seen from above) in 0.5 s while reeled
   is snagged: on land it hops up 2.5 m/s and toward you; in the water
@@ -6897,11 +6899,10 @@ their ids, and the game opens on the user's logo and Godot's, with a
 bar while the start finishes. Later (user's): a proper background for
 the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
-v0", the user's); next for it, the user's species list. A flaky D01
-check (seen 2026-10-28, about 2 runs in 7): "reeling drags it through
-the water" saw the bobber 0.18-0.24 m above the surface (limit 0.15)
-when a floating one starts being reeled, likely its buoyancy
-overshooting; open, the user's to decide (dev log 2026-10-28-c17-opening). D02 Bug
+v0", the user's); next for it, the user's species list. The flaky D01
+check "reeling drags it through the water" was a game bug, the reel
+speeding the bobber past 15 m/s; fixed on `d01-reel-speed`, for review
+(dev log 2026-10-29-d01-reel-speed). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
