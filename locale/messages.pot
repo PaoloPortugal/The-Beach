@@ -13,11 +13,81 @@ msgid "Talk"
 msgstr ""
 
 #: chat/chat_panel.gd
+msgid "Read-only: use its terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Read-only: use its own window."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session isn't saving transcripts, so parts of it may not show here."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session isn't reporting what it does. Chat still works."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session switched to an earlier conversation (/resume). The chat now shows that conversation."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session was started outside the game, so it's read-only here. Use its own window to chat with it."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: a usage or rate limit was reached. See the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service is overloaded. Try again in a moment."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service had an error. Try again in a moment."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service refused the request. See the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the model isn't available. Pick another in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the reply reached its length limit."
+msgstr ""
+
+#: chat/chat_panel.gd
 msgid "Open link?"
 msgstr ""
 
 #: chat/chat_panel.gd
 msgid "Open in browser"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Couldn't send: {reason}"
+msgstr ""
+
+#: chat/chat_panel.gd
+#: world/sessions_menu/session_launcher.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "Not connected to the sidecar."
 msgstr ""
 
 #: chat/chat_panel.gd
@@ -50,6 +120,19 @@ msgstr ""
 
 #: chat/chat_panel.gd
 msgid "Waiting for you in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Mode: {mode}"
+msgstr ""
+
+#. the model's effort level: the provider's own word for it ("High"), as it is.
+#: chat/chat_panel.gd
+msgid "{effort} effort"
 msgstr ""
 
 #: chat/chat_panel.tscn
@@ -414,11 +497,6 @@ msgstr ""
 #: world/sessions_menu/session_launcher.gd
 #: world/sessions_menu/sessions_menu.tscn
 msgid "Starting…"
-msgstr ""
-
-#: world/sessions_menu/session_launcher.gd
-#: world/sessions_menu/sessions_menu.gd
-msgid "Not connected to the sidecar."
 msgstr ""
 
 #: world/sessions_menu/session_launcher.gd

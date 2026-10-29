@@ -23,10 +23,10 @@ const AGENT_COLOUR := Color(0.15, 0.17, 0.22)
 const PLAN_BORDER := Color(0.45, 0.55, 0.7)
 const DIM := Color(0.6, 0.64, 0.7)
 ## What a read-only session shows instead of the message box (S07; the user's choice, 2026-10-19).
-const READ_ONLY_TEXT := "Read-only: use its terminal."
+const READ_ONLY_TEXT := "Read-only: use its terminal." # TRANSLATE
 ## And a session started outside the game (S08), which may be in an app or
 ## an IDE rather than a terminal (the user's choice, 2026-10-22).
-const OUTSIDE_READ_ONLY_TEXT := "Read-only: use its own window."
+const OUTSIDE_READ_ONLY_TEXT := "Read-only: use its own window." # TRANSLATE
 const FONT_SIZE := 18
 ## Time spent building older messages per frame when a chat is laid out.
 ## Rendering Markdown costs tens of milliseconds per message (C03), so the
@@ -36,17 +36,18 @@ const BUILD_BUDGET_USEC := 8000
 ## wrapped text settles its height.
 const SETTLE_FRAMES := 4
 
-## Our own text for the notices we know; others show the sidecar's message.
+## Our own text for the notices we know, translated (C16); others show
+## the sidecar's message as it is.
 const NOTICE_TEXT := {
-	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.",
-	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.",
-	"conversation_cleared": "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.",
-	"conversation_resumed": "This session switched to an earlier conversation (/resume). The chat now shows that conversation.",
-	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.",
+	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.", # TRANSLATE
+	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.", # TRANSLATE
+	"conversation_cleared": "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal.", # TRANSLATE
+	"conversation_resumed": "This session switched to an earlier conversation (/resume). The chat now shows that conversation.", # TRANSLATE
+	"conversation_moved": "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it.", # TRANSLATE
 	# S07: deliberately general (user's wording), so it never goes out of date.
-	"reattached_read_only": "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control.",
+	"reattached_read_only": "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control.", # TRANSLATE
 	# S08 (user's wording, 2026-10-22).
-	"outside_read_only": "This session was started outside the game, so it's read-only here. Use its own window to chat with it.",
+	"outside_read_only": "This session was started outside the game, so it's read-only here. Use its own window to chat with it.", # TRANSLATE
 }
 
 ## Notices about the session switching conversations.
@@ -57,12 +58,12 @@ const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 ## sign_in_needed notice has no text of ours: the provider's message says
 ## what to do in its own window (S06).
 const STOP_TEXT := {
-	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.",
-	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.",
-	"server_error": "Stopped: the AI service had an error. Try again in a moment.",
-	"invalid_request": "Stopped: the AI service refused the request. See the terminal.",
-	"model_not_found": "Stopped: the model isn't available. Pick another in the terminal.",
-	"max_output_tokens": "Stopped: the reply reached its length limit.",
+	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.", # TRANSLATE
+	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.", # TRANSLATE
+	"server_error": "Stopped: the AI service had an error. Try again in a moment.", # TRANSLATE
+	"invalid_request": "Stopped: the AI service refused the request. See the terminal.", # TRANSLATE
+	"model_not_found": "Stopped: the model isn't available. Pick another in the terminal.", # TRANSLATE
+	"max_output_tokens": "Stopped: the reply reached its length limit.", # TRANSLATE
 }
 
 var store: SessionStore
@@ -92,7 +93,8 @@ var _from_end := 0.0
 var _keeping := false # the scroll is being set by _keep_place
 var _link_dialog: ConfirmationDialog
 var _link_url := ""
-var _send_error := ""
+var _send_error := "" # in English, translated when shown (C16)
+var _send_reason := "" # the sidecar's words, as they are
 ## How long a sent message may take to show up in the chat before the
 ## panel says it wasn't picked up (S06). A var for tests.
 var pickup_timeout := 15.0
@@ -124,10 +126,10 @@ var _read_only_hint: Label
 
 func _ready() -> void:
 	Languages.content(_title) # the session's title (C16)
-	Languages.content(_model) # the provider's model and effort names
-	# The sidecar's message where we have no text of our own; the chat's
-	# chrome step translates NOTICE_TEXT in code.
-	Languages.translated(_notices)
+	# The provider's model and effort names in our words, the usage, and the
+	# sidecar's messages where we have none: translated in code.
+	for label: Label in [_model, _mode, _usage, _notices, _status]:
+		Languages.translated(label)
 	$Layout/Compose/Send.pressed.connect(send)
 	_read_only_hint = Label.new()
 	_read_only_hint.text = READ_ONLY_TEXT
@@ -315,13 +317,14 @@ func send() -> void:
 				_not_picked_up[sent_to] = text
 				_given_back.erase(sent_to)
 				return
-			_send_error = "Couldn't send: %s" % reply.get("message", "")
+			_send_error = "Couldn't send: {reason}" # TRANSLATE
+			_send_reason = str(reply.get("message", ""))
 			# Give the text back, unless something new was typed meanwhile.
 			if _input.text.is_empty():
 				_input.text = text
 			_refresh_status())
 	if id.is_empty():
-		_send_error = "Not connected to the sidecar."
+		_send_error = "Not connected to the sidecar." # TRANSLATE
 		_refresh_status()
 		return
 	_send_error = ""
@@ -564,7 +567,7 @@ func _add_row(m: Dictionary, at := -1) -> void:
 	var fold := _new_fold(_tree["after"].get_or_add(m["message"], []))
 	row.add_child(fold)
 	_folds[m["message"]] = fold
-	var hint := Label.new()
+	var hint := Languages.translated(Label.new()) as Label # tr_n in code (C16)
 	hint.add_theme_font_size_override("font_size", 14)
 	hint.add_theme_color_override("font_color", DIM)
 	hint.visible = false
@@ -633,33 +636,33 @@ func _refresh_status() -> void:
 	for n in notices:
 		if n["code"] in SWITCH_NOTICES and n != switches.back():
 			continue
-		lines.append(NOTICE_TEXT.get(n["code"], n["message"]))
+		lines.append(tr(NOTICE_TEXT[n["code"]]) if NOTICE_TEXT.has(n["code"]) else n["message"])
 	_notices.text = "\n".join(lines)
 	_notices.visible = not lines.is_empty()
 	if not _send_error.is_empty():
-		_status.text = _send_error
+		_status.text = Languages.fill(tr(_send_error), {"reason": _send_reason})
 		return
 	if _not_picked_up.has(session_id):
-		_status.text = "Your message hasn't reached the session. Check its terminal, then send it again."
+		_status.text = tr("Your message hasn't reached the session. Check its terminal, then send it again.")
 		return
 	var agent := store.orchestrator(session_id)
 	match agent.get("state", ""):
 		"working":
-			_status.text = "Working…"
+			_status.text = tr("Working…")
 		"waiting":
 			match agent.get("reason"):
 				"permission":
-					_status.text = "Waiting for a permission: answer it above or in the terminal."
+					_status.text = tr("Waiting for a permission: answer it above or in the terminal.")
 				"question":
-					_status.text = "Waiting for an answer: answer the question above or in the terminal."
+					_status.text = tr("Waiting for an answer: answer the question above or in the terminal.")
 				"plan":
-					_status.text = "Waiting for you to approve the plan: answer it above or in the terminal."
+					_status.text = tr("Waiting for you to approve the plan: answer it above or in the terminal.")
 				"sign_in":
-					_status.text = "Waiting for you to sign in, in the terminal."
+					_status.text = tr("Waiting for you to sign in, in the terminal.")
 				_:
-					_status.text = "Waiting for you in the terminal."
+					_status.text = tr("Waiting for you in the terminal.")
 		"error":
-			_status.text = STOP_TEXT.get(agent.get("reason"), "Stopped.")
+			_status.text = tr(STOP_TEXT.get(agent.get("reason"), "Stopped.")) # TRANSLATE
 		_:
 			_status.text = ""
 
@@ -672,7 +675,7 @@ func _refresh_header() -> void:
 	_title.text = _session_title(s)
 	var mode = s.get("mode")
 	_mode.visible = s.get("capabilities", {}).has("permission_modes") and mode is String
-	_mode.text = "Mode: %s" % PermissionModes.name_of(mode) if _mode.visible else ""
+	_mode.text = Languages.fill(tr("Mode: {mode}"), {"mode": PermissionModes.name_of(mode)}) if _mode.visible else ""
 	_model.text = model_words(s.get("model"), s.get("effort")) if s.get("capabilities", {}).has("model_info") else ""
 	_model.visible = not _model.text.is_empty()
 	_compose.visible = not _read_only()
@@ -726,13 +729,16 @@ func _refresh_hints() -> void:
 
 
 ## A model and effort level (protocol choices, or null) in the header's
-## words: "Opus 5.5 · High effort", either alone, or "" with neither.
+## words: "Opus 5.5 · High effort", either alone, or "" with neither. The
+## provider's labels as they are, ours around them (C16, user's
+## 2026-10-29).
 static func model_words(model: Variant, effort: Variant) -> String:
 	var parts: Array[String] = []
 	if model is Dictionary:
 		parts.append(str(model.get("label", "")))
 	if effort is Dictionary:
-		parts.append("%s effort" % str(effort.get("label", "")))
+		# TRANSLATORS: the model's effort level: the provider's own word for it ("High"), as it is.
+		parts.append(Languages.fill(TranslationServer.translate("{effort} effort"), {"effort": str(effort.get("label", ""))}))
 	return " · ".join(parts)
 
 
