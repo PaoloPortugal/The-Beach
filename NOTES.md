@@ -6011,7 +6011,9 @@ provider, protocol or sidecar part; it never reads sessions or agents.
 The first downtime activity (Concept → Downtime): something to do while
 agents work, dropped the moment one needs you. Dev logs
 2026-10-27-d01-fishing-design, 2026-10-27-d01-fishing,
-2026-10-27-d01-fight and 2026-10-28-d01-fight-runs.
+2026-10-27-d01-fight, 2026-10-28-d01-fight-runs,
+2026-10-29-d01-reel-speed and 2026-10-29-c16-d01-text (its text
+translated).
 
 *Decided (user's, 2026-10-27; the numbers in "How it works" are my
 picks):*

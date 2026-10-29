@@ -20,7 +20,8 @@ PgDn/PgUp scroll this.
 4. Catch a fish: the card
    says "Caught: <fish>!"
    (no "a"/"an"), its size
-   "34 cm" under it, and
+   under it (e.g. "34 cm"),
+   and
    "New" in gold on a
    species' first?
 5. Lose one in a fight
