@@ -1062,8 +1062,8 @@ because your login expired, you signed out, or there's a problem with
 the account or its billing, the game tells you and points you to the
 terminal:
 
-- **In the chat,** a notice at the top in Claude Code's own words, such
-  as "Claude Code needs you to sign in again: run /login in its
+- **In the chat,** a notice at the top saying what to do, such as
+  "Claude Code needs you to sign in again: run /login in its
   terminal.", and the line above the box says "Waiting for you to sign
   in, in the terminal."
 - **In the world,** the orchestrator waits for you like for a
@@ -1142,9 +1142,13 @@ puts everything back.
   panel's own text (its status line and notices, the mode, effort and
   usage in its header, the card where you answer, the tool calls'
   lines), and fishing's (the fish's names, the catch card, the lines
-  under the crosshair). Your chats, session titles, folder names, tool names, model
-  names and the AI tool's own wording (its permission options, its
-  effort levels) stay as they are. Then, whether starting a
+  under the crosshair), and what the sidecar tells you (why something
+  was refused, why Claude Code wasn't found, the sign-in notice, the
+  permission options in the terminal's words). Your chats, session
+  titles, folder names, tool names, model names and the AI tool's own
+  wording (its rule patterns and folders inside those options, a
+  permission option the game doesn't know, its effort levels) stay as
+  they are. Then, whether starting a
   session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
   screen's edge show where it rose. And **Crosshair**: off hides the

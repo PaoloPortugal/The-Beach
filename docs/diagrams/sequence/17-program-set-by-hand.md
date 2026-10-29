@@ -22,12 +22,12 @@ sequenceDiagram
         World->>Sidecar: start it with serve
         Note over Sidecar: ready at once#59; looks for claude in the background<br/>(PATH, install folders, on macOS and Linux the login shell last)<br/>none under a test suite
         Sidecar->>Claude: --version
-        Sidecar->>World: provider.program {provider, program: {path, version, set_by_hand: false}<br/>or {path: null, set_by_hand: false, message}}
+        Sidecar->>World: provider.program {provider, program: {path, version, set_by_hand: false}<br/>or {path: null, set_by_hand: false, message, reason, details}}
         Note over World: until then the row says "Looking for it…"
     end
     Note over World: Settings → Providers: a row per provider with program_path#59;<br/>its program from hello or provider.program (path and version, or why not)
     opt no provider's program found
-        Note over World: sessions menu: "+ New session…" and "▸ Resume a session…" greyed out,<br/>the message in red and "Or choose it yourself in Settings → Providers."
+        Note over World: sessions menu: "+ New session…" and "▸ Resume a session…" greyed out,<br/>why in red (worded by its reason, else the message)<br/>and "Or choose it yourself in Settings → Providers."
     end
     opt Look again
         User->>World: Look again
@@ -70,7 +70,7 @@ sequenceDiagram
         World->>Sidecar: session.create
         Note over Sidecar: the same checks on this file only:<br/>no PATH, no install folders, no login shell
         Sidecar-->>World: error provider_error "The Claude Code set in Settings doesn't work: … Choose it again, or reset it."
-        Sidecar->>World: provider.program {path: null, set_by_hand: true, message}
+        Sidecar->>World: provider.program {path: null, set_by_hand: true, message,<br/>reason: set_path_broken, details: {why, ...}}
         Note over World: the row shows why, in red#59; no other claude is used
     end
 ```

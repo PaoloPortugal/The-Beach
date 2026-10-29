@@ -36,8 +36,9 @@ const BUILD_BUDGET_USEC := 8000
 ## wrapped text settles its height.
 const SETTLE_FRAMES := 4
 
-## Our own text for the notices we know, translated (C16); others show
-## the sidecar's message as it is.
+## Our own text for the notices we know, translated (C16); others are
+## worded by SidecarText (sign_in_needed by its reason), else the
+## sidecar's message as it is.
 const NOTICE_TEXT := {
 	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.", # TRANSLATE
 	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.", # TRANSLATE
@@ -55,8 +56,8 @@ const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 
 ## What stopped a turn, for the error reasons any provider may report
 ## (Protocol → state_reason); any other says only "Stopped.". The
-## sign_in_needed notice has no text of ours: the provider's message says
-## what to do in its own window (S06).
+## sign_in_needed notice says what to do in the provider's own window
+## (S06), worded by its reason (SidecarText).
 const STOP_TEXT := {
 	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.", # TRANSLATE
 	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.", # TRANSLATE

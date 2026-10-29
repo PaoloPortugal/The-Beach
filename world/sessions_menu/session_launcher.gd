@@ -150,9 +150,9 @@ func _notification(what: int) -> void:
 
 
 # Says [param text] (English, "" for nothing) translated, its
-# placeholders filled from [param values].
-## A value may be a Callable, called each time it's said (text worded
-## from the sidecar's reasons follows the language too).
+# placeholders filled from [param values]. A value may be a Callable,
+# called each time it's said (so text worded from the sidecar's reasons
+# follows the language too).
 func _say(text: String, values := {}) -> void:
 	_said = [text, values]
 	var shown := {}

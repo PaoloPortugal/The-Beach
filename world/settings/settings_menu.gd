@@ -212,7 +212,7 @@ func _build() -> void:
 	_outside_off.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_outside_off.custom_minimum_size.x = 300.0
 	_outside_off.visible = false
-	# The provider's own English, until notices are translated by their code (C16).
+	# Ours by the notice's code, the provider's own words in it (C16 step 6).
 	Languages.translated(_outside_off)
 	game.add_child(_outside_off)
 	game.add_child(Control.new())

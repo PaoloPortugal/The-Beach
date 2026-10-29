@@ -292,6 +292,7 @@ msgstr ""
 
 #. approving a plan and switching to a permission mode: our name for it ("Plan"), or the provider's id as it is.
 #: chat/permission_modes.gd
+#: core/sidecar/sidecar_text.gd
 msgid "Yes, and switch to {mode} mode"
 msgstr ""
 
@@ -528,6 +529,177 @@ msgstr ""
 #: core/locale/languages.gd
 msgctxt "language"
 msgid "This language's name, in this language"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} needs you to sign in again: run {command} in its terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Your organization doesn't allow this account in {provider}: run {command} in its terminal to sign in with another."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} couldn't load your cloud provider's credentials: check its terminal."
+msgstr ""
+
+#. {account}: the provider's name for the account, e.g. "Claude".
+#: core/sidecar/sidecar_text.gd
+msgid "Your {account} account is on hold: check {provider}'s terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} reports a billing problem with your account: check its terminal."
+msgstr ""
+
+#. {setting}: the provider's own name for a setting of its, e.g. "agent view".
+#: core/sidecar/sidecar_text.gd
+msgid "Sessions started outside the game can't be shown: {setting} is off in {provider}."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and switch to auto mode"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and don't ask again for: {commands}"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and allow access to {folders} during this session"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, allow reading from {folders} during this session"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and allow access to {folders} and {commands} commands"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and don't ask again for {domain}"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Yes, and don't ask again for Web Search commands in {folder}"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The sidecar isn't running."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "the connection to the sidecar dropped, so it may not have arrived."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "This session is read-only here; use its terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "This conversation moved to another {provider} session; continue it in the terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The world can't reach this conversation right now (its channel to {provider} is closed); use the terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "This prompt can't be answered that way right now. Answer Yes or No, or answer in the terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The question is no longer waiting for an answer."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The plan is no longer waiting for an answer."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "End the session with /exit in its terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That session is already open."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That session is still running in a terminal. Continue it there, or type /exit in it and resume it again."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That session wasn't found. {provider} may have deleted it."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Its project folder no longer exists: {path}"
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "No terminal window could be opened to run {provider}."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The project's path isn't a full path."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The project's folder doesn't exist."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The project's path isn't a folder."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That isn't a full path."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Choose a file on a drive of this computer (like C:\\...), not a network path."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "There's no program at that path."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "Pick {program}.exe itself: a .cmd or other wrapper can't be started without a shell."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That program didn't answer as {provider} ({program} --version)."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} {version} is too old; version {minimum} or newer is needed. Run `{program} update`."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} for Windows wasn't found. Install it from {site} (the Windows version, not inside WSL) and sign in once in a terminal."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "{provider} wasn't found. Install it from {site} and sign in once in a terminal."
+msgstr ""
+
+#. {why}: the reason it doesn't work, a whole sentence.
+#: core/sidecar/sidecar_text.gd
+msgid "The {provider} set in Settings doesn't work: {why} Choose it again, or reset it."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "That session has ended."
+msgstr ""
+
+#: core/sidecar/sidecar_text.gd
+msgid "The session hasn't come up yet."
 msgstr ""
 
 #: world/attention.gd

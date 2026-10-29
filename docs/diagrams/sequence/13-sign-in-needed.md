@@ -33,9 +33,9 @@ sequenceDiagram
         Claude->>Sidecar: StopFailure (error "authentication_failed")
         Sidecar-->>Claude: nothing to add
         alt an account error
-            Sidecar->>World: session.notice sign_in_needed, unless the same one is up<br/>(the provider's message: "… run /login in its terminal.")
+            Sidecar->>World: session.notice sign_in_needed, unless the same one is up<br/>(reason, e.g. signed_out {command: /login}, and the English message:<br/>"… run /login in its terminal.")
             Sidecar->>World: agent.state_changed orchestrator → waiting (sign_in)
-            Note over World: The chat shows the notice as sent and "Waiting for you<br/>to sign in, in the terminal."; the "!", beacon and count show.
+            Note over World: The chat shows the notice worded by its reason (else its message)<br/>and "Waiting for you to sign in, in the terminal."#59; the "!", beacon and count show.
         else any other error
             Sidecar->>World: agent.state_changed orchestrator → error<br/>(its type if generic, else unknown)
             Note over World: The chat says what stopped the turn, else "Stopped."
