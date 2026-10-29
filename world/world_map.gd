@@ -301,7 +301,8 @@ func _draw_titles(shown: Array[Island]) -> void:
 			continue
 		var s := store.session(id)
 		var activity := store.activity(id)
-		var text := "%s · %s" % [SessionsMenu.display_title(s.get("title")), SessionsMenu.state_text(activity)]
+		# TRANSLATORS: under an island on the big map: the session's title, then its state ("working").
+		var text := Languages.fill(tr("{title} · {state}"), {"title": SessionsMenu.display_title(s.get("title")), "state": SessionsMenu.state_text(activity)})
 		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var at := to_map(i.global_position) + Vector2(-width / 2.0 + 6.0, i.generator.radius * zoom + 16.0)
 		if not _room(Rect2(at + Vector2(-16.0, -14.0), Vector2(width + 16.0, 18.0))):

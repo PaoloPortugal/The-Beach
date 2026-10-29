@@ -961,7 +961,7 @@ func _chat_content(world: Node3D) -> void:
 # crosshair's hint, the hotbar, the sessions ring, the big map, A05's
 # count, C08's limits and W04's arrow, with a session whose title,
 # project and limit names are the menus' words ("Settings", "Back",
-# "Resume"), shown as written. Back in English, the corners follow.
+# "Resume") or hold placeholders ("{n}", "{when}"), shown as written. Back in English, the corners follow.
 func _huds(world: Node3D, player: Player) -> void:
 	var store: SessionStore = world.store
 	var islands: SessionIslands = world.get_node("SessionIslands")
@@ -975,13 +975,13 @@ func _huds(world: Node3D, player: Player) -> void:
 	corner.now = func() -> float: return now
 	var snap := _snapshot("l3")
 	snap["title"] = "Settings"
-	snap["project"] = {"path": "/p", "name": "Back"}
+	snap["project"] = {"path": "/p", "name": "Back {n}"} # placeholders in content stay
 	snap["capabilities"] = {"usage": {}}
 	snap["agents"][0]["state"] = "waiting"
 	var limit := func(label: String, hours: float) -> Dictionary:
 		return {"id": label, "label": label, "used_percent": 50, "resets_at": Time.get_datetime_string_from_unix_time(int(now + hours * 3600.0)) + "Z"}
 	snap["usage"] = {"tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "context": null,
-		"turn": {"message": null, "output_tokens": 0}, "limits": [limit.call("Resume", 0.02), limit.call("Back", 72.0), limit.call("Settings", 480.0)]}
+		"turn": {"message": null, "output_tokens": 0}, "limits": [limit.call("Resume", 0.02), limit.call("Back", 72.0), limit.call("Settings", 480.0), limit.call("{when} {percent}", 1.0)]}
 	store.apply({"type": "session.created", "session": snap}) # new: W04 points to it
 	await _islands_up(islands)
 	var as_written := func(texts: Array) -> bool:
@@ -994,7 +994,7 @@ func _huds(world: Node3D, player: Player) -> void:
 	var clock := limits.contains("⟦AM⟧") or limits.contains("⟦PM⟧")
 	var weekday: bool = bracketed.call(UsageText.WEEKDAYS).any(func(w: String) -> bool: return limits.contains(w))
 	var month: bool = bracketed.call(UsageText.MONTHS).any(func(m: String) -> bool: return limits.contains(m))
-	_check(limits.begins_with("⟦Resume 50% · resets ⟦") and limits.contains("Back 50%") and limits.contains("Settings 50%") and clock and weekday and month and as_written.call([limits]), "C16: C08's limits, their times, days and months, the limits' names as written (%s)" % limits)
+	_check(limits.begins_with("⟦Resume 50% · resets ⟦") and limits.contains("Back 50%") and limits.contains("Settings 50%") and limits.contains("{when} {percent} 50%") and clock and weekday and month and as_written.call([limits]), "C16: C08's limits, their times, days and months, the limits' names as written (%s)" % limits)
 
 	var talk := Interactable.new("Talk", 3.0, 0.5)
 	root.get_camera_3d().add_child(talk)
@@ -1012,7 +1012,7 @@ func _huds(world: Node3D, player: Player) -> void:
 	await _settle()
 	var arrow := world.pointers.arrow("l3") as Node2D
 	var label: String = arrow.get_node("Label").text if arrow and arrow.visible else ""
-	_check(label.begins_with("⟦Back · ") and label.ends_with(" m⟧"), "C16: W04's arrow, its project as written (%s)" % label)
+	_check(label.begins_with("⟦Back {n} · ") and label.ends_with(" m⟧"), "C16: W04's arrow, its project as written (%s)" % label)
 
 	_hold("sessions_menu")
 	await _until(func() -> bool: return menu.ring_open(), 2.0)
@@ -1022,7 +1022,7 @@ func _huds(world: Node3D, player: Player) -> void:
 	_check(menu.ring_open() and "⟦Release Tab to go  ·  click + for a new session  ·  Esc to cancel⟧" in drawn and ("⟦New session (click)⟧" in drawn or "⟦New session⟧" in drawn), "C16: the ring's own words (%s)" % [drawn])
 	menu.point_at(ring.position_of("session", "l3"))
 	await _settle()
-	_check(ring.centre_text() == PackedStringArray(["Settings", "Back", "⟦waiting for you⟧"]) and "Settings" in Array(ring.drawn), "C16: pointing at a session: its title and project as written, its state translated (%s)" % [ring.centre_text()])
+	_check(ring.centre_text() == PackedStringArray(["Settings", "Back {n}", "⟦waiting for you⟧"]) and "Settings" in Array(ring.drawn), "C16: pointing at a session: its title and project as written, its state translated (%s)" % [ring.centre_text()])
 	menu.point_at(ring.position_of("platform", ""))
 	await _settle()
 	_check(ring.centre_text() == PackedStringArray(["⟦Platform⟧", "⟦the spawn platform⟧"]), "C16: and at the platform (%s)" % [ring.centre_text()])
@@ -1037,7 +1037,7 @@ func _huds(world: Node3D, player: Player) -> void:
 	big.centre = Vector2(at.x, at.z)
 	await _settle()
 	drawn = Array(big.drawn)
-	_check("Settings · ⟦waiting for you⟧" in drawn and as_written.call(drawn), "C16: the big map: the title as written, the state translated (%s)" % [drawn])
+	_check("⟦Settings · ⟦waiting for you⟧⟧" in drawn and as_written.call(drawn), "C16: the big map: the title as written, the state translated (%s)" % [drawn])
 	big.close()
 	player.controls_enabled = true
 

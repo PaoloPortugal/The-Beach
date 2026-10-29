@@ -839,3 +839,8 @@ msgstr ""
 #: world/usage_limits.gd
 msgid "{provider}: {limits}"
 msgstr ""
+
+#. under an island on the big map: the session's title, then its state ("working").
+#: world/world_map.gd
+msgid "{title} · {state}"
+msgstr ""
