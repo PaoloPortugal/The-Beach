@@ -20,7 +20,7 @@ var providers: Callable = func() -> Array: return []
 ## The time now in Unix seconds; tests replace it.
 var now: Callable = func() -> float: return Time.get_unix_time_from_system()
 
-var _text := Label.new()
+var _text := Languages.translated(Label.new()) as Label # in code (C16)
 var _timer := Timer.new()
 
 
@@ -63,6 +63,11 @@ func text() -> String:
 	return _text.text if _text.visible else ""
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		refresh()
+
+
 func refresh() -> void:
 	if store == null:
 		return
@@ -83,7 +88,7 @@ func refresh() -> void:
 			parts.append(UsageText.limit(str(l["label"]), float(l["used_percent"]),
 				SessionStore.unix_time(l["resets_at"]), t))
 		var line := "   ".join(parts)
-		lines.append(line if order.size() == 1 else "%s: %s" % [_name(offered, provider), line])
+		lines.append(line if order.size() == 1 else Languages.fill(tr("{provider}: {limits}"), {"provider": _name(offered, provider), "limits": line}))
 	_text.text = "\n".join(lines)
 	_text.visible = not lines.is_empty()
 

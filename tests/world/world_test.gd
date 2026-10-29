@@ -899,6 +899,7 @@ func _languages(world: Node3D, player: Player) -> void:
 	world.store.apply({"type": "session.ended", "session": "l1", "seq": 2, "reason": "exited"})
 	_check(bad.is_empty(), "C16: every menu's text is translated, content aside (not: %s)" % [bad])
 	await _chat_content(world)
+	await _huds(world, player)
 
 	settings.set_value("game/language", "en")
 	TranslationServer.remove_translation(pseudo)
@@ -953,6 +954,99 @@ func _chat_content(world: Node3D) -> void:
 	_check(wrong.is_empty() and card.header_text().contains("Settings") and ["Settings", "Back", "Resume"].all(func(t: String) -> bool: return t in question), "C16: a question's header, text, options and descriptions as written, and the subagent's name (bracketed: %s)" % [wrong])
 	panel.close()
 	store.apply({"type": "session.ended", "session": "l2", "seq": 10, "reason": "exited"})
+	await _settle()
+
+
+# C16: in the made-up language, the drawn HUDs and the corners: the
+# crosshair's hint, the hotbar, the sessions ring, the big map, A05's
+# count, C08's limits and W04's arrow, with a session whose title,
+# project and limit names are the menus' words ("Settings", "Back",
+# "Resume"), shown as written. Back in English, the corners follow.
+func _huds(world: Node3D, player: Player) -> void:
+	var store: SessionStore = world.store
+	var islands: SessionIslands = world.get_node("SessionIslands")
+	var menu: SessionsMenu = world.get_node("SessionsMenu")
+	var attention: Attention = world.attention
+	var corner: UsageLimits = world.usage_limits
+	var focused := attention.is_focused
+	attention.is_focused = func() -> bool: return true # no flash or chime
+	var now := SessionStore.unix_time("2026-10-08T12:00:00Z")
+	var now_before := corner.now
+	corner.now = func() -> float: return now
+	var snap := _snapshot("l3")
+	snap["title"] = "Settings"
+	snap["project"] = {"path": "/p", "name": "Back"}
+	snap["capabilities"] = {"usage": {}}
+	snap["agents"][0]["state"] = "waiting"
+	var limit := func(label: String, hours: float) -> Dictionary:
+		return {"id": label, "label": label, "used_percent": 50, "resets_at": Time.get_datetime_string_from_unix_time(int(now + hours * 3600.0)) + "Z"}
+	snap["usage"] = {"tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "context": null,
+		"turn": {"message": null, "output_tokens": 0}, "limits": [limit.call("Resume", 0.02), limit.call("Back", 72.0), limit.call("Settings", 480.0)]}
+	store.apply({"type": "session.created", "session": snap}) # new: W04 points to it
+	await _islands_up(islands)
+	var as_written := func(texts: Array) -> bool:
+		return texts.all(func(t: String) -> bool: return not (t.contains("⟦Settings⟧") or t.contains("⟦Back⟧") or t.contains("⟦Resume⟧")))
+	var bracketed := func(words: Array) -> Array:
+		return words.map(func(w: String) -> String: return "⟦%s⟧" % w)
+
+	_check(attention.count_text() == "⟦1 session waiting⟧", "C16: A05's count (%s)" % attention.count_text())
+	var limits := corner.text()
+	var clock := limits.contains("⟦AM⟧") or limits.contains("⟦PM⟧")
+	var weekday: bool = bracketed.call(UsageText.WEEKDAYS).any(func(w: String) -> bool: return limits.contains(w))
+	var month: bool = bracketed.call(UsageText.MONTHS).any(func(m: String) -> bool: return limits.contains(m))
+	_check(limits.begins_with("⟦Resume 50% · resets ⟦") and limits.contains("Back 50%") and limits.contains("Settings 50%") and clock and weekday and month and as_written.call([limits]), "C16: C08's limits, their times, days and months, the limits' names as written (%s)" % limits)
+
+	var talk := Interactable.new("Talk", 3.0, 0.5)
+	root.get_camera_3d().add_child(talk)
+	talk.position = Vector3(0, 0, -1.0)
+	await _frames(3)
+	await _settle()
+	_check(world.crosshair.hint_text().ends_with("  ⟦Talk⟧") and Array(world.crosshair.drawn) == [world.crosshair.hint_text()], "C16: the crosshair's hint (%s)" % [world.crosshair.drawn])
+	talk.free()
+	world.hotbar.select(world.hotbar.held_slot())
+	await _settle()
+	_check(Array(world.hotbar.drawn) == bracketed.call(["Hands", "Rod"]), "C16: the hotbar's names (%s)" % [world.hotbar.drawn])
+
+	var to := islands.island("l3").global_position - player.global_position
+	player.rotation.y = atan2(-to.x, -to.z) + PI # facing away
+	await _settle()
+	var arrow := world.pointers.arrow("l3") as Node2D
+	var label: String = arrow.get_node("Label").text if arrow and arrow.visible else ""
+	_check(label.begins_with("⟦Back · ") and label.ends_with(" m⟧"), "C16: W04's arrow, its project as written (%s)" % label)
+
+	_hold("sessions_menu")
+	await _until(func() -> bool: return menu.ring_open(), 2.0)
+	var ring := menu.ring
+	await _settle()
+	var drawn := Array(ring.drawn)
+	_check(menu.ring_open() and "⟦Release Tab to go  ·  click + for a new session  ·  Esc to cancel⟧" in drawn and ("⟦New session (click)⟧" in drawn or "⟦New session⟧" in drawn), "C16: the ring's own words (%s)" % [drawn])
+	menu.point_at(ring.position_of("session", "l3"))
+	await _settle()
+	_check(ring.centre_text() == PackedStringArray(["Settings", "Back", "⟦waiting for you⟧"]) and "Settings" in Array(ring.drawn), "C16: pointing at a session: its title and project as written, its state translated (%s)" % [ring.centre_text()])
+	menu.point_at(ring.position_of("platform", ""))
+	await _settle()
+	_check(ring.centre_text() == PackedStringArray(["⟦Platform⟧", "⟦the spawn platform⟧"]), "C16: and at the platform (%s)" % [ring.centre_text()])
+	menu.point_at(ring.centre())
+	_release("sessions_menu")
+	await _until(func() -> bool: return not menu.is_open(), 2.0)
+
+	var big: WorldMap = world.world_map
+	big.open()
+	big.zoom = WorldMap.MAX_ZOOM
+	var at := islands.island("l3").global_position
+	big.centre = Vector2(at.x, at.z)
+	await _settle()
+	drawn = Array(big.drawn)
+	_check("Settings · ⟦waiting for you⟧" in drawn and as_written.call(drawn), "C16: the big map: the title as written, the state translated (%s)" % [drawn])
+	big.close()
+	player.controls_enabled = true
+
+	world.settings.set_value("game/language", "en")
+	await _settle()
+	_check(attention.count_text() == "1 session waiting" and corner.text().begins_with("Resume 50% · resets "), "C16: the corners follow the language back (%s; %s)" % [attention.count_text(), corner.text()])
+	store.apply({"type": "session.ended", "session": "l3", "seq": 2, "reason": "exited"})
+	attention.is_focused = focused
+	corner.now = now_before
 	await _settle()
 
 
@@ -1725,7 +1819,7 @@ func _ring(world: Node3D, player: Player) -> void:
 	await _frames(2)
 	_check(shown.call() == [["platform", ""], ["fold", c1]], "W07: past the most segments, a busy cluster folds into one: %s" % [shown.call()])
 	menu.point_at(ring.position_of("fold", c1))
-	_check(ring.fanned() == "", "W07: not fanned out at once")
+	_check(ring.fanned() == "" and ring.centre_text()[1] == "2 sessions", "W07: not fanned out at once; the middle counts its sessions (%s)" % [ring.centre_text()])
 	await _until(func() -> bool: return ring.fanned() == c1, 2.0)
 	_check(ring.fanned() == c1 and shown.call().count(["session", "h1"]) == 1 and shown.call().count(["session", "h2"]) == 1, "W07: pointing at it a moment fans its sessions out")
 	menu.point_at(ring.position_of("session", "h1"))

@@ -53,6 +53,8 @@ var islands: SessionIslands
 var launcher: SessionLauncher
 ## Most segments for sessions before clusters fold (tests lower it).
 var max_segments := MAX_SEGMENTS
+## The text it painted last, in order (for tests; C16).
+var drawn := PackedStringArray()
 
 ## The segments, clockwise from the top: dictionaries with "kind"
 ## ("platform", "session", "fold", "starting"), "id" (a session's or a
@@ -175,11 +177,11 @@ func centre_text() -> PackedStringArray:
 			var s: Dictionary = store.session(_pointed["id"])
 			return PackedStringArray([SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(s.get("project", {})), SessionsMenu.state_text(store.activity(_pointed["id"]))])
 		"platform":
-			return PackedStringArray(["Platform", "the spawn platform"])
+			return PackedStringArray([tr("Platform"), tr("the spawn platform")])
 		"fold":
 			var n := clusters.sessions(_pointed["id"]).size()
-			return PackedStringArray([clusters.cluster_name(_pointed["id"]), "%d sessions" % n])
-	return PackedStringArray(["New session", "click"])
+			return PackedStringArray([clusters.cluster_name(_pointed["id"]), Languages.fill(tr_n("{n} session", "{n} sessions", n), {"n": Languages.number(str(n))})])
+	return PackedStringArray([tr("New session"), tr("click")])
 
 
 ## Where the middle is, in the ring's coordinates.
@@ -253,6 +255,11 @@ func _point_at(at: Vector2) -> void:
 	if _pointed.get("kind") != before.get("kind") or _pointed.get("id") != before.get("id"):
 		_fold_time = 0.0
 	queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		queue_redraw()
 
 
 func _process(delta: float) -> void:
@@ -371,6 +378,7 @@ func _fan_radii() -> Vector2:
 
 
 func _draw() -> void:
+	drawn.clear()
 	var c := centre()
 	var r := radii()
 	var font := ThemeDB.fallback_font
@@ -411,8 +419,8 @@ func _draw() -> void:
 			_text(font, lines[2], c + Vector2(0, r.z * 0.34), 15, colour, r.z * 1.8)
 	else:
 		RingIcons.plus(self, c + Vector2(0, -r.z * 0.12), r.z * 0.8, TEXT if on_centre else TEXT_DIM)
-		_text(font, "New session (click)" if on_centre else "New session", c + Vector2(0, r.z * 0.52), 15, TEXT_DIM, r.z * 1.8)
-	_text(font, "Release Tab to go  ·  click + for a new session  ·  Esc to cancel", c + Vector2(0, r.x + 70.0), 15, TEXT_DIM, size.x)
+		_text(font, tr("New session (click)") if on_centre else tr("New session"), c + Vector2(0, r.z * 0.52), 15, TEXT_DIM, r.z * 1.8)
+	_text(font, tr("Release Tab to go  ·  click + for a new session  ·  Esc to cancel"), c + Vector2(0, r.x + 70.0), 15, TEXT_DIM, size.x)
 	# The pointer.
 	draw_circle(_pointer, 7.0, OUTLINE)
 	draw_circle(_pointer, 5.0, TEXT)
@@ -453,7 +461,7 @@ func _draw_segment(s: Dictionary, inner: float, outer: float, pulse: float) -> v
 			RingIcons.biome(self, island.biome if island != null else Biome.Kind.BEACH, at, icon)
 		"fold":
 			var n := clusters.sessions(s["id"]).size()
-			_text(ThemeDB.fallback_font, "%d ▸" % n, at, 20, TEXT, icon * 2.0)
+			_text(ThemeDB.fallback_font, "%s ▸" % Languages.number(str(n)), at, 20, TEXT, icon * 2.0)
 		"starting":
 			RingIcons.dots(self, at, icon, TEXT_DIM)
 
@@ -475,6 +483,7 @@ func _state(s: Dictionary) -> String:
 
 
 func _text(font: Font, text: String, at: Vector2, font_size: int, colour: Color, width: float) -> void:
+	drawn.append(text)
 	var baseline := at + Vector2(-width / 2.0, font_size * 0.35)
 	draw_string_outline(font, baseline, text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, 6, OUTLINE)
 	draw_string(font, baseline, text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, colour)

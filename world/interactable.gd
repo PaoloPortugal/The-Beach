@@ -9,7 +9,9 @@ extends Node3D
 ## E was pressed with the crosshair on it.
 signal used(player: Player)
 
-## What the hint under the crosshair says after the key ("Talk").
+## What the hint under the crosshair says after the key ("Talk"), in
+## English: the crosshair translates it under the context "hint" (C16;
+## mark the string [code]# TRANSLATE: hint[/code]).
 var hint := ""
 ## How far from the camera it can be used, metres.
 var reach := 3.0

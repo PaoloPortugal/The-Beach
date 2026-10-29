@@ -34,7 +34,7 @@ var sound_on := true:
 		_save()
 
 var _waiting := {} # "session\nagent" → true, for every agent waiting now
-var _count := Label.new()
+var _count := Languages.translated(Label.new()) as Label # tr_n in code (C16)
 var _player := AudioStreamPlayer.new()
 
 
@@ -114,7 +114,12 @@ func _scan(session: String) -> void:
 func _refresh() -> void:
 	var n := waiting_sessions()
 	_count.visible = n > 0
-	_count.text = "1 session waiting" if n == 1 else "%d sessions waiting" % n
+	_count.text = Languages.fill(tr_n("{n} session waiting", "{n} sessions waiting", n), {"n": Languages.number(str(n))})
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and store != null:
+		_refresh()
 
 
 # The corner grows and shrinks back once, from its right edge.
