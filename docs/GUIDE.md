@@ -1132,7 +1132,12 @@ puts everything back.
 - **Controls:** mouse sensitivity and field of view.
 - **Sound:** the chime when something waits on you while you're in
   another window (see When something waits for you (A05)).
-- **Game:** whether starting a session takes you to its island. Turned
+- **Game:** first, **Language**: **Automatic** (the default) shows the
+  game in your computer's language if the game has it, else in English;
+  or pick a language, listed under its own name. It changes at once.
+  For now the game only comes in English, and only the menus are ready
+  for other languages. Your chats, session titles, folder names and
+  model names always stay as they are. Then, whether starting a session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
   screen's edge show where it rose. And **Crosshair**: off hides the
   ring in the middle of the screen; what E does still shows when you
