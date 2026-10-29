@@ -7,6 +7,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8-bit\n"
 
+#: agents/orchestrator/orchestrator.gd
+msgctxt "hint"
+msgid "Talk"
+msgstr ""
+
 #: chat/chat_panel.gd
 msgid "Open link?"
 msgstr ""
@@ -85,10 +90,154 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Sun"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Mon"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Tue"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Wed"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Thu"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Fri"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "weekday, short"
+msgid "Sat"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Jan"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Feb"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Mar"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Apr"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "May"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Jun"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Jul"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Aug"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Sep"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Oct"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Nov"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "month, short"
+msgid "Dec"
+msgstr ""
+
+#. a plan's usage limit: the provider's own name for it ("5-hour"), how much is used, and when it resets ("3:40 PM", "Fri 3:40 PM", "Oct 15").
+#: chat/usage_text.gd
+msgid "{limit} {percent}% · resets {when}"
+msgstr ""
+
+#. a time of day. {hour12} is 1 to 12 with {am_pm}, {hour24} is 00 to 23 (use one of them), {minute} is 00 to 59.
+#: chat/usage_text.gd
+msgctxt "time"
+msgid "{hour12}:{minute} {am_pm}"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "time"
+msgid "AM"
+msgstr ""
+
+#: chat/usage_text.gd
+msgctxt "time"
+msgid "PM"
+msgstr ""
+
+#. a time within the coming week: a short day name ("Fri"), then the time of day.
+#: chat/usage_text.gd
+msgctxt "time"
+msgid "{weekday} {time}"
+msgstr ""
+
+#. a date: a short month name ("Oct"), then the day of the month.
+#: chat/usage_text.gd
+msgctxt "time"
+msgid "{month} {day}"
+msgstr ""
+
 #. your language's own name, as the settings list it: "Deutsch", "日本語".
 #: core/locale/languages.gd
 msgctxt "language"
 msgid "This language's name, in this language"
+msgstr ""
+
+#: world/attention.gd
+msgid "{n} session waiting"
+msgid_plural "{n} sessions waiting"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/hotbar.gd
+msgctxt "hotbar"
+msgid "Hands"
+msgstr ""
+
+#: world/hotbar.gd
+msgctxt "hotbar"
+msgid "Rod"
 msgstr ""
 
 #: world/island/biome.gd
@@ -114,6 +263,16 @@ msgstr ""
 #: world/island/biome.gd
 msgctxt "biome"
 msgid "Desert"
+msgstr ""
+
+#: world/island/zipline.gd
+msgctxt "hint"
+msgid "Zipline up"
+msgstr ""
+
+#: world/island/zipline.gd
+msgctxt "hint"
+msgid "Zipline down"
 msgstr ""
 
 #: world/loading_cover.gd
@@ -155,6 +314,11 @@ msgstr ""
 
 #: world/main_menu.gd
 msgid "Made with Godot Engine"
+msgstr ""
+
+#. a new island's arrow: its project's name, then how far it is in metres.
+#: world/new_island_pointers.gd
+msgid "{project} · {n} m"
 msgstr ""
 
 #: world/opening.gd
@@ -261,6 +425,37 @@ msgstr ""
 msgid "Still starting; check the terminal, or stop waiting in the sessions menu (hold Tab, click +)."
 msgstr ""
 
+#: world/sessions_menu/session_ring.gd
+msgid "Platform"
+msgstr ""
+
+#: world/sessions_menu/session_ring.gd
+msgid "the spawn platform"
+msgstr ""
+
+#: world/sessions_menu/session_ring.gd
+msgid "{n} session"
+msgid_plural "{n} sessions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: world/sessions_menu/session_ring.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "New session"
+msgstr ""
+
+#: world/sessions_menu/session_ring.gd
+msgid "click"
+msgstr ""
+
+#: world/sessions_menu/session_ring.gd
+msgid "New session (click)"
+msgstr ""
+
+#: world/sessions_menu/session_ring.gd
+msgid "Release Tab to go  ·  click + for a new session  ·  Esc to cancel"
+msgstr ""
+
 #: world/sessions_menu/sessions_menu.gd
 msgid "Model:"
 msgstr ""
@@ -353,10 +548,6 @@ msgstr ""
 
 #: world/sessions_menu/sessions_menu.gd
 msgid "Or choose it yourself in Settings → Providers."
-msgstr ""
-
-#: world/sessions_menu/sessions_menu.gd
-msgid "New session"
 msgstr ""
 
 #: world/sessions_menu/sessions_menu.gd
@@ -643,4 +834,13 @@ msgid ""
 "{reason}\n"
 "\n"
 "The world can't follow your sessions without it. Quit, and start the game again: your sessions keep running in their terminals and come back then."
+msgstr ""
+
+#: world/usage_limits.gd
+msgid "{provider}: {limits}"
+msgstr ""
+
+#. under an island on the big map: the session's title, then its state ("working").
+#: world/world_map.gd
+msgid "{title} · {state}"
 msgstr ""

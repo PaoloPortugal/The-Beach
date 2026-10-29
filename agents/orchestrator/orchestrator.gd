@@ -11,7 +11,7 @@ extends Node3D
 var session_id := ""
 ## What the crosshair aims at to talk to it (C11): its body and head,
 ## from as far as its chat zone used to reach (C01).
-var talk := Interactable.new("Talk", 3.5, 0.7)
+var talk := Interactable.new("Talk", 3.5, 0.7) # TRANSLATE: hint
 
 var _bob: Tween
 @onready var _body_y: float = $Body.position.y

@@ -55,6 +55,8 @@ var minimap: Minimap
 ## The world point (x, z) at the map's middle, and its pixels a metre.
 var centre := Vector2.ZERO
 var zoom := START_ZOOM
+## The text it painted last, in order (for tests; C16).
+var drawn := PackedStringArray()
 
 var _map := Control.new()
 var _open := false
@@ -255,6 +257,7 @@ func _place() -> void:
 
 
 func _draw_map() -> void:
+	drawn.clear()
 	var view := Rect2(Vector2.ZERO, _map.size)
 	_map.draw_rect(view, SEA)
 	Minimap.draw_platform(_map, to_map)
@@ -298,12 +301,14 @@ func _draw_titles(shown: Array[Island]) -> void:
 			continue
 		var s := store.session(id)
 		var activity := store.activity(id)
-		var text := "%s · %s" % [SessionsMenu.display_title(s.get("title")), SessionsMenu.state_text(activity)]
+		# TRANSLATORS: under an island on the big map: the session's title, then its state ("working").
+		var text := Languages.fill(tr("{title} · {state}"), {"title": SessionsMenu.display_title(s.get("title")), "state": SessionsMenu.state_text(activity)})
 		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var at := to_map(i.global_position) + Vector2(-width / 2.0 + 6.0, i.generator.radius * zoom + 16.0)
 		if not _room(Rect2(at + Vector2(-16.0, -14.0), Vector2(width + 16.0, 18.0))):
 			continue
 		_map.draw_circle(at + Vector2(-10.0, -5.0), 5.0, STATE_COLOURS.get(activity, STATE_COLOURS["idle"]))
+		drawn.append(text)
 		_map.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, OUTLINE)
 		_map.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TITLE_COLOUR)
 
@@ -329,6 +334,7 @@ func _draw_cluster_names() -> void:
 		var at := Vector2(middle.x - width / 2.0, top - 8.0)
 		if not _room(Rect2(at + Vector2(0.0, -18.0), Vector2(width, 22.0))):
 			continue
+		drawn.append(text)
 		_map.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, OUTLINE)
 		_map.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, NAME_COLOUR)
 

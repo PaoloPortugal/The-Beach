@@ -19,6 +19,8 @@ const OUTLINE := Color(0, 0, 0, 0.6)
 var player: Player
 ## Whether the ring shows (the setting); the hint shows either way.
 var ring_on := true
+## The text it painted last, in order (for tests; C16).
+var drawn := PackedStringArray()
 
 var _target: Interactable
 var _grow := 0.0
@@ -39,11 +41,12 @@ func target() -> Interactable:
 	return _target
 
 
-## The hint shown under the ring, or "".
+## The hint shown under the ring, or "": the key, then what it does in
+## the game's language (C16; the key's name is the keyboard's own).
 func hint_text() -> String:
 	if _target == null or not shown():
 		return ""
-	return "%s  %s" % [_key_name(), _target.hint]
+	return "%s  %s" % [_key_name(), tr(_target.hint, "hint")]
 
 
 ## Whether the crosshair shows at all (you have the controls).
@@ -133,6 +136,7 @@ static func _key_name() -> String:
 
 
 func _paint() -> void:
+	drawn.clear()
 	if not shown():
 		return
 	var c := _canvas.size / 2.0
@@ -142,6 +146,7 @@ func _paint() -> void:
 		_canvas.draw_arc(c, r, 0.0, TAU, 32, LINE, 1.5, true)
 	var text := hint_text()
 	if not text.is_empty():
+		drawn.append(text)
 		var font := ThemeDB.fallback_font
 		var width := 400.0
 		var at := c + Vector2(-width / 2.0, GROWN + 26.0)

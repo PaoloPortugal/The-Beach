@@ -120,7 +120,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
-| C16 | Multi-language support                    | groundwork and menus built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `project.godot` (internationalization) |
+| C16 | Multi-language support                    | groundwork, menus and HUDs built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/usage_text.gd`, `project.godot` (internationalization) |
 | C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
@@ -3829,14 +3829,15 @@ good"). macOS and Linux unchecked.
 
 ### C16 Multi-language support
 *Groundwork and menus built (2026-10-29: steps 1-2 of the migration
-order below); the rest designed (user's, 2026-10-27). Scope: core,*
+order below), the drawn HUDs too (step 3, 2026-10-29); the rest
+designed (user's, 2026-10-27). Scope: core,*
 mostly on the world side:
 every provider's sessions show the same game text, no protocol event is
 added, and a provider's own strings live in its own folders (below).
 The game's text in more languages than English, made so that adding
 text (species, hints, menus) and adding a language both scale. Dev log
 2026-10-27-c16-localisation-design; the first part,
-2026-10-29-c16-localisation-groundwork.
+2026-10-29-c16-localisation-groundwork; the HUDs, 2026-10-29-c16-huds.
 
 *Decided (user's, 2026-10-28), for the first part:*
 - **This branch is the groundwork and the menus** (steps 1-2 below);
@@ -3913,7 +3914,7 @@ text (species, hints, menus) and adding a language both scale. Dev log
   Text never builds English grammar in code: no "a/an" picked by code
   (D01's catch card, built on branch `d01-fishing`, becomes e.g.
   "Caught: {species}!") and no plurals by `if n == 1` (A05's
-  "1 session waiting" in `world/attention.gd` today).
+  "1 session waiting" was one, `tr_n` since step 3).
 - *Mods* (Deferred ideas → Mod support, undesigned): a mod would ship
   its own `locale/*.po`, loaded at runtime with
   `TranslationServer.add_translation`. Its text is untrusted: each
@@ -4009,8 +4010,9 @@ text (species, hints, menus) and adding a language both scale. Dev log
   line, as above; a scene's same properties, but for a node with
   auto-translate off. `# NO_TRANSLATE` skips a line; a
   `# TRANSLATORS: …` comment becomes the note for translators on the
-  next line's entries. Text without a letter ("…", "30", "{reason}") is
-  never taken. Each entry lists its files, no line numbers (my pick, so
+  next line's entries. Text without a letter ("…", "30") is never
+  taken; a placeholder's name counts, so a layout of placeholders
+  ("{month} {day}", "{percent} %") is, for a language to reorder. Each entry lists its files, no line numbers (my pick, so
   moving code doesn't change it); no project name in its header.
 - *Tests.* `tests/locale/locale_test.gd`: the extractor on made-up
   code (each rule, escapes, raw and long strings, scenes); the template
@@ -4045,6 +4047,49 @@ text (species, hints, menus) and adding a language both scale. Dev log
   provider text (the card's "who" line, the notices) have
   auto-translate off, and the status line keeps it: its only provider
   text, "Couldn't send: …", can't be a whole key.
+
+**How the drawn HUDs work** (step 3, 2026-10-29). Text painted with
+`draw_string`, and the corners' Labels, go through `tr()` / `tr_n()` and
+`Languages.fill`, digits through `Languages.number` (but the hotbar's
+slot numbers, which name the keys 1 to 9):
+- *The crosshair's hint:* the key's name (the keyboard's own, as
+  before), then the `Interactable`'s English `hint` translated under the
+  context "hint" ("Talk", "Zipline up", "Zipline down", each marked
+  `# TRANSLATE: hint`). The hotbar's names under "hotbar".
+- *The sessions ring:* "Platform", "the spawn platform", "New session",
+  "click", "New session (click)", the footer, a folded cluster's
+  "{n} session(s)" (`tr_n`); session titles, project and cluster names
+  as they are. *The big map's* titles: "{title} · {state}", the state
+  already translated (step 2); cluster names as they are. Content that
+  holds a placeholder ("{n}", "{when}") stays as written: `fill` is one
+  pass.
+- *A05's count:* "{n} session(s) waiting" (`tr_n`), so no plural is
+  picked by `n == 1` any more. *W04's arrow:* "{project} · {n} m", its
+  Label marked translated (no longer content: our "m" is in it).
+- *C08's limits* (`UsageText.limit`, `when`): "{limit} {percent}% ·
+  resets {when}", the provider's label as it is; one provider's line
+  of several, "{provider}: {limits}". The time is "{hour12}:{minute}
+  {am_pm}" under "time" (a language can use `{hour24}`), "AM" and "PM"
+  under "time", "{weekday} {time}" and "{month} {day}" under "time", the
+  short day and month names under "weekday, short" and "month, short"
+  (my picks; "Sun" and "May" need a context). The chat header's usage
+  line and turn hints are step 4's.
+- *Redrawn:* the ring and the corners (A05, C08) on
+  `NOTIFICATION_TRANSLATION_CHANGED`; the crosshair, hotbar, big map and
+  arrows repaint every frame anyway.
+- *Tests:* each drawing HUD keeps `drawn`, the text it painted last
+  (my pick, so the walk sees exactly what's on screen). The world test's
+  `_huds`, in `zz`, with a new session titled "Settings", its project
+  "Back {n}" and limits named "Resume", "Back", "Settings" and
+  "{when} {percent}": A05's count,
+  C08's line with a time, a day and a month all bracketed and the names
+  as written, the crosshair's hint, the hotbar, W04's arrow, the ring's
+  words, its middle on the session (title and project as written, state
+  translated) and on the platform, the big map's title; then back in
+  English, the corners follow. The W07 test checks a fold's "2 sessions".
+- *Not this step:* the fishing HUD's text (D01's, step 5, user's
+  2026-10-29: on its own branch, as the migration order has it).
+- *Live check (2026-10-29, the user):* all steps passed.
 
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,
@@ -7004,9 +7049,10 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's groundwork and menus are merged (2026-10-29,
-live check passed); next for it, the drawn HUDs, the chat's chrome and
-D01's text, each on its own branch. The headless suites run with
+**Current focus:** C16's drawn HUDs (step 3) are built on branch
+`c16-huds`, live check passed (2026-10-29), waiting for the user's
+review; the groundwork and menus are merged (2026-10-29). Next for it,
+the chat's chrome and D01's text, each on its own branch. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried

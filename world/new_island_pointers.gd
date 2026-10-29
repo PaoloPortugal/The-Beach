@@ -65,7 +65,8 @@ func _process(_delta: float) -> void:
 		var label: Label = a.get_node("Label")
 		var s := store.session(id) if store else {}
 		var metres := Vector2(target.x - camera.global_position.x, target.z - camera.global_position.z).length()
-		label.text = "%s · %d m" % [SessionsMenu.project_name(s.get("project", {})), roundi(metres)]
+		# TRANSLATORS: a new island's arrow: its project's name, then how far it is in metres.
+		label.text = Languages.fill(tr("{project} · {n} m"), {"project": SessionsMenu.project_name(s.get("project", {})), "n": Languages.number(str(roundi(metres)))})
 		# The label sits on the screen's side of the arrow, kept on screen.
 		var size := get_viewport().get_visible_rect().size
 		var at: Vector2 = place[0] - Vector2.from_angle(place[1]) * 34.0 - label.size / 2.0
@@ -106,7 +107,7 @@ func _make_arrow() -> Node2D:
 	tip.polygon = PackedVector2Array([Vector2(18, 0), Vector2(-10, -13), Vector2(-4, 0), Vector2(-10, 13)])
 	tip.color = SessionIslands.NEW_COLOUR
 	a.add_child(tip)
-	var label := Languages.content(Label.new()) as Label # the project's name (C16)
+	var label := Languages.translated(Label.new()) as Label # the project's name and ours, in code (C16)
 	label.name = "Label"
 	label.add_theme_font_size_override("font_size", 18)
 	label.add_theme_color_override("font_color", SessionIslands.NEW_COLOUR)

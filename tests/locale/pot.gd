@@ -21,8 +21,10 @@ extends RefCounted
 ## A line marked [code]# NO_TRANSLATE[/code] gives nothing. A
 ## [code]# TRANSLATORS: …[/code] comment (its own line, or the line's)
 ## becomes the entry's [code]#.[/code] comment for the next line's
-## strings. Text without a letter ("…", "30", "{reason}") is never taken:
-## there is nothing to translate.
+## strings. Text without a letter ("…", "30") is never taken: there is
+## nothing to translate. A placeholder's name counts, so a layout of
+## placeholders ("{month} {day}", "{percent} %") is: a language may
+## reorder or space them.
 ##
 ## The template lists each entry's files ([code]#: world/x.gd[/code]),
 ## without line numbers, so moving code doesn't change it.

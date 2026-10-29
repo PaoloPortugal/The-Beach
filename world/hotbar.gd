@@ -10,9 +10,10 @@ extends CanvasLayer
 
 signal held_changed(tool: String)
 
-## The tools, in slot order, and what each slot says.
+## The tools, in slot order, and what each slot says (in English: shown
+## translated under the context "hotbar", C16).
 const TOOLS: Array[String] = ["hands", "rod"]
-const NAMES := {"hands": "Hands", "rod": "Rod"}
+const NAMES := {"hands": "Hands", "rod": "Rod"} # TRANSLATE: hotbar
 ## Number keys 1 to 9 are bound (hotbar_1 to hotbar_9); one past the last
 ## tool does nothing.
 const SLOT_KEYS := 9
@@ -33,6 +34,8 @@ const HELD := Color(1, 1, 1, 0.95)
 const OUTLINE := Color(0, 0, 0, 0.6)
 
 var player: Player
+## The text it painted last, in order (for tests; C16).
+var drawn := PackedStringArray()
 
 var _held := 0
 # Seconds since the last switch; starts past the fade, so it starts hidden.
@@ -112,6 +115,7 @@ static func _slot_key(event: InputEvent) -> int:
 
 
 func _paint() -> void:
+	drawn.clear()
 	var alpha := shown()
 	if alpha <= 0.0:
 		return
@@ -128,7 +132,8 @@ func _paint() -> void:
 		var corner := rect.position + Vector2(5, 15)
 		_canvas.draw_string_outline(font, corner, number, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, _faded(OUTLINE, alpha))
 		_canvas.draw_string(font, corner, number, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, _faded(HELD, alpha))
-		var name: String = NAMES[TOOLS[i]]
+		var name := tr(NAMES[TOOLS[i]], "hotbar")
+		drawn.append(name)
 		var at := rect.position + Vector2(0, SLOT / 2.0 + 9)
 		_canvas.draw_string_outline(font, at, name, HORIZONTAL_ALIGNMENT_CENTER, SLOT, 14, 4, _faded(OUTLINE, alpha))
 		_canvas.draw_string(font, at, name, HORIZONTAL_ALIGNMENT_CENTER, SLOT, 14, _faded(HELD if held else LINE, alpha))

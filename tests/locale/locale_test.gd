@@ -63,6 +63,7 @@ func _extractor() -> void:
 		"\tvar long := tr(\"\"\"Several",
 		"lines\"\"\")",
 		"\tvar u := tr(\"Snow \\u2744\")",
+		"\tvar w := tr(\"{month} {day}\", \"time\")",
 	])
 	var tscn := "\n".join([
 		"[gd_scene format=3]",
@@ -88,12 +89,12 @@ func _extractor() -> void:
 		Pot.key_of("", "Esc \"quoted\"\nnext"): "", Pot.key_of("", "Shown"): "",
 		Pot.key_of("", "Tip"): "", Pot.key_of("", "Item"): "",
 		Pot.key_of("", "raw \\\" stays"): "", Pot.key_of("", "Several\nlines"): "",
-		Pot.key_of("", "Snow ❄"): "",
+		Pot.key_of("", "Snow ❄"): "", Pot.key_of("time", "{month} {day}"): "",
 		Pot.key_of("", "From a scene"): "", Pot.key_of("", "Two\nlines \"quoted\""): "",
 	}
 	var missing := want.keys().filter(func(k: String) -> bool: return not got.has(k)).map(func(k: String) -> String: return k.replace("\u0004", "|"))
 	var extra := got.keys().filter(func(k: String) -> bool: return not want.has(k)).map(func(k: String) -> String: return k.replace("\u0004", "|"))
-	_check(missing.is_empty(), "the extractor takes tr/tr_n/atr/translate_plural literals with contexts and plurals, shown properties, add_item, marked lines (key-like strings left out), escapes, raw and long strings, and scene text (missing: %s)" % [missing])
+	_check(missing.is_empty(), "the extractor takes tr/tr_n/atr/translate_plural literals with contexts and plurals, shown properties, add_item, marked lines (key-like strings left out), escapes, raw and long strings, scene text, and placeholders to order (missing: %s)" % [missing])
 	_check(extra.is_empty(), "and nothing else: no variables, joined strings, unknown contexts, conditionals, locals, comparisons, unmarked strings, node paths, NO_TRANSLATE lines, text without letters or nodes with auto-translate off (extra: %s)" % [extra])
 	var plural_ok := want.keys().all(func(k: String) -> bool: return not got.has(k) or got[k]["plural"] == want[k])
 	_check(plural_ok, "each with its plural")

@@ -60,7 +60,7 @@ func _ready() -> void:
 	mi.material_override = IslandProps.material()
 	add_child(mi)
 	for k in 2:
-		var end := Interactable.new("Zipline up" if k == 0 else "Zipline down", REACH, 0.6)
+		var end := Interactable.new("Zipline up" if k == 0 else "Zipline down", REACH, 0.6) # TRANSLATE: hint
 		end.name = "End%d" % k
 		end.position = (low if k == 0 else high) + Vector3(0, 1.3, 0)
 		end.used.connect(func(player: Player) -> void:
