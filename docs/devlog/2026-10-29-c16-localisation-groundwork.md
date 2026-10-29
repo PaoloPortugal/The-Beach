@@ -102,3 +102,10 @@ CI) and the world test's `_languages`; NOTES → C16 lists what each
 checks. What they can't: how the menus look in a longer language
 (pseudolocalization, by eye, later) and the real fonts for other
 scripts (step 7).
+
+## Live check (2026-10-29, the user)
+
+"Everything looks good": the Language row (Automatic, English), the
+menus unchanged in English, the chat's content as written. Merged,
+with main's `--fixed-fps 60` and D01 reel fix merged in first (all ten
+suites passed on the merged tree).

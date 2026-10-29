@@ -7004,10 +7004,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's groundwork and menus are built on branch
-`c16-localisation` (2026-10-29), awaiting the full test run, the
-reviews and the user's review; the drawn HUDs, the chat's chrome and
-D01's text come on later branches. Before that: S01's start retry and restart and C17's opening are
+**Current focus:** C16's groundwork and menus are merged (2026-10-29,
+live check passed); next for it, the drawn HUDs, the chat's chrome and
+D01's text, each on its own branch. The headless suites run with
+`--fixed-fps 60` (about 4 minutes in all; dev log
+2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried
 again, a sidecar that dies in play is restarted with sessions keeping
 their ids, and the game opens on the user's logo and Godot's, with a
@@ -7016,8 +7017,8 @@ the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. The flaky D01
 check "reeling drags it through the water" was a game bug, the reel
-speeding the bobber past 15 m/s; fixed on `d01-reel-speed`, for review
-(dev log 2026-10-29-d01-reel-speed). D02 Bug
+speeding the bobber past 15 m/s; fixed and merged (dev log
+2026-10-29-d01-reel-speed). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and
