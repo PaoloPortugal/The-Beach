@@ -112,28 +112,28 @@ jobs:
       # The commands in NOTES.md -> Running it, each failing the job on its own.
       - name: Sidecar client
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/core/sidecar_client_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/core/sidecar_client_test.gd'
       - name: Sidecar client (fake provider)
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake'
       - name: Session store (fake provider)
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake'
       - name: World
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/world/world_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/world/world_test.gd'
       - name: World (fake provider)
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake'
       - name: Clusters
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/world/clusters_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/world/clusters_test.gd'
       - name: Bridges
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/world/bridges_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd'
       - name: Performance
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/world/performance_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/world/performance_test.gd'
       - name: Markdown
         timeout-minutes: 8
-        run: '"$GODOT" --headless --path . --script res://tests/chat/markdown_test.gd'
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/chat/markdown_test.gd'

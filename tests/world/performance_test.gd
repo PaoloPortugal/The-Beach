@@ -9,7 +9,7 @@ extends SceneTree
 ## Headless Godot draws nothing, so what's checked is how each is set up;
 ## the drawing itself was measured in a window (NOTES → Performance).
 ##
-##   godot --headless --path . --script res://tests/world/performance_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/world/performance_test.gd
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
 

@@ -2,7 +2,7 @@ extends SceneTree
 ## Headless test for the session store: events applied by hand, then (with
 ## the scripted fake) a live session through the real sidecar.
 ##
-##   godot --headless --path . --script res://tests/core/session_store_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/core/session_store_test.gd
 ##   ... -- --sidecar-dev-fake      also drives the fake provider's scenarios
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
