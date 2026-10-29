@@ -4110,6 +4110,7 @@ language shows at once; it keeps `drawn` like the other HUDs.
   (a first, so "New" shows), all bracketed, the species too; a name the
   template lacks stays as written. D01's own test checks the English
   card, "Caught: Drop-off fish! … cm · New".
+- *Live check (2026-10-29, the user):* all steps passed.
 
 **How the chat's chrome works** (step 4, 2026-10-29). The chat panel's
 own words go through `tr()` / `tr_n()` and `Languages.fill`, on labels
@@ -7127,9 +7128,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's D01 text (step 5) built on branch
-`c16-d01-text` (2026-10-29), awaiting the user's live check and review;
-steps 1-4 are merged (live checks passed). Next for it, codes for the
+**Current focus:** C16's steps 1-5 (groundwork, menus, drawn HUDs,
+chat chrome, D01's text) are merged (2026-10-29, live checks passed). Next for it, codes for the
 sidecar's free-form messages (step 6). The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
