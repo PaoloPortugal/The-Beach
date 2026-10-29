@@ -3866,7 +3866,13 @@ text (species, hints, menus) and adding a language both scale. Dev log
   working. Changing English wording marks its translations fuzzy
   (Godot skips those), so they show English until a translator
   checks them. Rejected: stable ids (`SETTINGS_TITLE`), which need
-  an English file of their own and hide the text from the code.
+  an English file of their own and hide the text from the code;
+  numeric ids (`1042`) worse still, as translators' tools then show
+  no English either (user's, 2026-10-29). The alternative should a
+  need arise (e.g. mods referring to the game's strings by a key that
+  survives rewording): symbolic keys like `QUIT_NO_SESSIONS`, with an
+  `en.po` holding the English and the extractor and checker reading
+  keys instead of text.
 - *Timing:* the groundwork and the conversion now, step by step, so
   new text (D01-D05) is translatable from the start; the **first real
   language waits until the UI stops being a placeholder**, near the
@@ -3931,7 +3937,7 @@ text (species, hints, menus) and adding a language both scale. Dev log
   which also redraws it when the language changes. Text that is
   formatted or drawn (`draw_string` in the crosshair, hotbar, ring, map
   and fishing HUD) goes through `tr()` / `tr_n()` with named
-  placeholders (`tr("Caught: {species}!").format(...)`, so a language
+  placeholders (`Languages.fill(tr("Caught: {species}!"), ...)`, so a language
   can reorder them), and its node redraws on
   `NOTIFICATION_TRANSLATION_CHANGED`.
 - *Content is never auto-translated.* No control sets
@@ -4010,7 +4016,8 @@ text (species, hints, menus) and adding a language both scale. Dev log
   code (each rule, escapes, raw and long strings, scenes); the template
   up to date, without the codename or the debug commands; every
   top-level folder read for text or listed as holding none
-  (`pot.gd`'s `NOT_GAME`); the PO checker on made-up files (good, stale,
+  (`pot.gd`'s `NOT_GAME`); the PO checker on made-up files (good, the
+  same with Windows line endings, stale,
   placeholders lost, added or renamed, plural forms against the
   header's `nplurals`; a plural's earlier forms may drop a placeholder
   but not the last; untranslated and fuzzy entries are coverage,
@@ -4027,7 +4034,17 @@ text (species, hints, menus) and adding a language both scale. Dev log
   ones too): text, placeholders, tab titles, tooltips and window titles
   must show the brackets unless they're content or have no letters (a
   check first shows the walk finds text the template lacks); a session
-  titled "Settings" still says "Settings" in the quit warning.
+  titled "Settings" still says "Settings" in the quit warning. Then
+  (`_chat_content`, security review 2026-10-29) a chat whose content is
+  the menus' words ("Settings", "Resume", "Back"): its title, model,
+  a notice of the sidecar's, a message, a tool row, and the card's
+  permission (summary, options, tool) and question (header, text,
+  options, descriptions, the subagent's name) all show as written,
+  while the card's own "Details" is translated. Until the chat's
+  chrome is converted (step 4), its labels that mix our words with
+  provider text (the card's "who" line, the notices) have
+  auto-translate off, and the status line keeps it: its only provider
+  text, "Couldn't send: …", can't be a whole key.
 
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,

@@ -1,104 +1,53 @@
-LIVE CHECK: S01 the
-sidecar's start retry
-and restart; C17 the
-opening
+LIVE CHECK: C16 the
+language setting and
+the menus through
+translation
   godot --path . -- --checklist
-(the retry itself is tested
-headless on fake sidecars;
-this checks a real start
-and a real restart)
+(the text, the template and
+the setting are tested
+headless; this checks that
+nothing looks different)
 PgDn/PgUp scroll this.
 
-1. Start the game as usual
-   (not the fake): the menu
-   comes up and, once
-   synced, your running
-   sessions' islands rise
-   as before?
-2. In the game's output (or
-   its log file), no
-   "Trying again" warning
-   and no "didn't start in
-   time" error?
-3. If a start is ever slow
-   (e.g. the first after a
-   reboot): "Trying again
-   in 2.0 s (attempt 2 of
-   3)" in the output, and
-   the islands still come
-   once it's up? Keep the
-   sidecar lines just
-   before it: they say why.
-4. Restart: with a session
-   of the game's and one
-   started outside it (a
-   claude in a plain
-   terminal), open the
-   game's session's chat.
-   End the sidecar: Task
-   Manager → Details, the
-   node.exe whose Command
-   line has
-   sidecar/src/main.ts
-   (add the column: right-
-   click a column title).
-   Within seconds: both
-   islands stay put (no
-   sinking or rising), the
-   chat stays open?
-5. Then send a message
-   from that chat: the
-   reply comes as before?
-   And something said in
-   its terminal while the
-   sidecar was down shows
-   in the chat?
-6. The notice: end it four
-   times, each within a
-   minute of it coming back
-   (the fourth is past the
-   three tries). A notice
-   covers the world; Quit
-   asks about your running
-   sessions first, and Back
-   to the game brings the
-   notice back? (Headless
-   tests cover it too.)
-7. Quit: no sidecar left
-   running (Task Manager:
-   no stray node or
-   sidecar process)?
-
-C17, the opening (start
-the game again for each):
-8. The window comes up
-   sand-coloured, no
-   Godot splash first;
-   then the card: your
-   logo sharp (square
-   pixels), "moofys"
-   under it, "Made with"
-   Godot's logo at the
-   bottom. Looks right?
-9. With sessions running
-   (one of the game's,
-   one outside): it stays
-   a few seconds, then
-   fades into the menu
-   as their islands
-   start rising?
-10. Press a key during
-   the card: it goes
-   straight to the menu
-   (or to the bar, if
-   not ready)? A click
-   too?
-11. Resize the window
-   during it: the logo
-   stays sharp?
-12. A slow start (first
-   after a reboot, if you
-   get one): the bar with
-   "Starting the
-   sidecar…", then the
-   other stages?
+1. Start the game as usual.
+   The opening, then the
+   main menu: same words,
+   same layout as before?
+2. Settings → Game: the
+   first row is Language,
+   showing Automatic?
+3. Open it: two choices,
+   Automatic and English?
+4. Pick English, close
+   Settings and open it
+   again: still English?
+   Then back to Automatic.
+5. Walk the menus: every
+   Settings tab, the pause
+   menu, the sessions menu
+   (Tab, and its + to start
+   one: the folder and
+   resume lists), Quit's
+   "sessions are running"
+   prompt (then Back): all
+   in English as before, no
+   cut-off or overlapping
+   text, and no leftover
+   placeholder in braces
+   (like {count} or
+   {name}) anywhere?
+6. Open a session's chat:
+   its title, your
+   messages, tool names
+   and folder names show
+   exactly as before? If
+   you can, rename a
+   session to a menu word
+   ("Settings"): it keeps
+   that title?
+7. In the game's output,
+   no new error or
+   warning (anything
+   naming locale,
+   translation or
+   Languages)?

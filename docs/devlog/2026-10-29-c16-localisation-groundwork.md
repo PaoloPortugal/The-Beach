@@ -26,6 +26,13 @@ until the UI stops being a placeholder (the 2026-10-27 design).
    user picked this after asking for the trade-offs against `tr()` at
    every place the text is used.
 4. **No `en.po`:** the template is the English base.
+5. **The English text stays the key** (2026-10-29). The user asked
+   whether to move to numeric ids: about 150 strings and 34 `tr()`
+   calls, so not much work, but English would need its own file, a
+   missing string would show a number, the code and translators'
+   tools would lose the text, and `msgctxt` and fuzzy marking already
+   cover what ids fix. Symbolic keys (`QUIT_NO_SESSIONS`) are noted in
+   NOTES → C16 as the alternative should a need arise.
 
 ## My picks (said so in NOTES)
 
@@ -76,6 +83,17 @@ until the UI stops being a placeholder (the 2026-10-27 design).
   user's own sessions folder (it showed one of theirs read-only before
   it was stopped). `write_pot.gd` now installs `tests/error_watch.gd`
   like the suites.
+
+- The security review found the chat's content untested in another
+  language, and a few labels showing provider text (the card's "who"
+  line and error, the notices, the model, the new-island arrows'
+  project name) still auto-translated: now marked, and the world test's
+  `_chat_content` checks them. It also found `pot.gd`'s line-ending
+  conversion doing nothing: its `"\r\n"` had been written as a real
+  line break, which `.gitattributes` (`eol=lf`) turns into a plain
+  newline on commit. Now escapes, with a checker test on a CRLF file.
+- Docs-sync: the locale test had the codename in it, outside the rename
+  list; it now reads the project's name.
 
 ## Tests
 
