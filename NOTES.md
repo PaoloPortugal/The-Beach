@@ -4050,7 +4050,8 @@ text (species, hints, menus) and adding a language both scale. Dev log
 
 **How the drawn HUDs work** (step 3, 2026-10-29). Text painted with
 `draw_string`, and the corners' Labels, go through `tr()` / `tr_n()` and
-`Languages.fill`, digits through `Languages.number`:
+`Languages.fill`, digits through `Languages.number` (but the hotbar's
+slot numbers, which name the keys 1 to 9):
 - *The crosshair's hint:* the key's name (the keyboard's own, as
   before), then the `Interactable`'s English `hint` translated under the
   context "hint" ("Talk", "Zipline up", "Zipline down", each marked
@@ -4059,7 +4060,9 @@ text (species, hints, menus) and adding a language both scale. Dev log
   "click", "New session (click)", the footer, a folded cluster's
   "{n} session(s)" (`tr_n`); session titles, project and cluster names
   as they are. *The big map's* titles: "{title} · {state}", the state
-  already translated (step 2); cluster names as they are.
+  already translated (step 2); cluster names as they are. Content that
+  holds a placeholder ("{n}", "{when}") stays as written: `fill` is one
+  pass.
 - *A05's count:* "{n} session(s) waiting" (`tr_n`), so no plural is
   picked by `n == 1` any more. *W04's arrow:* "{project} · {n} m", its
   Label marked translated (no longer content: our "m" is in it).
@@ -4077,7 +4080,8 @@ text (species, hints, menus) and adding a language both scale. Dev log
 - *Tests:* each drawing HUD keeps `drawn`, the text it painted last
   (my pick, so the walk sees exactly what's on screen). The world test's
   `_huds`, in `zz`, with a new session titled "Settings", its project
-  "Back" and limits named "Resume", "Back" and "Settings": A05's count,
+  "Back {n}" and limits named "Resume", "Back", "Settings" and
+  "{when} {percent}": A05's count,
   C08's line with a time, a day and a month all bracketed and the names
   as written, the crosshair's hint, the hotbar, W04's arrow, the ring's
   words, its middle on the session (title and project as written, state
