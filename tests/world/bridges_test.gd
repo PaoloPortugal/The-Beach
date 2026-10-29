@@ -14,8 +14,8 @@ extends SceneTree
 ## clusters of varied sizes, the same: 178 sessions, or with -- --crowd
 ## the full 311 (too slow to run on every push).
 ##
-##   godot --headless --path . --script res://tests/world/bridges_test.gd
-##   godot --headless --path . --script res://tests/world/bridges_test.gd -- --crowd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd -- --crowd
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
 const LayoutDemo := preload("res://tests/world/layout_demo.gd")

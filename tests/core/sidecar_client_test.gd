@@ -5,7 +5,7 @@ extends SceneTree
 ## the start retry, on fake sidecars that fail to start
 ## ([code]fake_sidecar.mjs[/code]; Node on PATH, as for the sidecar itself).
 ##
-##   godot --headless --path . --script res://tests/core/sidecar_client_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/core/sidecar_client_test.gd
 ##   ... -- --sidecar-dev-fake      also runs a chat turn with the fake provider
 ##   ... -- --sidecar=<executable>  tests a packaged sidecar
 
