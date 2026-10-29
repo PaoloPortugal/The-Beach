@@ -64,13 +64,13 @@ Time runs top to bottom; each arrow is one message, numbered in order.
 | 8 | [Resuming a stored session](diagrams/sequence/08-resume-stored-session.md) | S04, C12 |
 | 9 | [/clear or /resume: another conversation in the session](diagrams/sequence/09-clear-or-resume.md) | S02 |
 | 10 | [A plan to approve](diagrams/sequence/10-plan-approval.md) | C07, S02 |
-| 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06 |
+| 11 | [A prompt's other options](diagrams/sequence/11-prompt-options.md) | C05, C06, C16 |
 | 12 | [Token usage: the transcript and the status line relay](diagrams/sequence/12-token-usage.md) | C08, S02, C12 |
-| 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02 |
+| 13 | [Sign-in needed](diagrams/sequence/13-sign-in-needed.md) | S06, S02, C16 |
 | 14 | [Coming back after a restart](diagrams/sequence/14-reattach-after-restart.md) | S07, S01, W12, C14, W04 |
 | 15 | [A session back with its hook port taken (read-only)](diagrams/sequence/15-read-only-mode.md) | S07 |
 | 16 | [Sessions started outside the game (read-only)](diagrams/sequence/16-outside-sessions.md) | S08, C10, W12 |
-| 17 | [Choosing Claude Code by hand](diagrams/sequence/17-program-set-by-hand.md) | S02, C10, S03 |
+| 17 | [Choosing Claude Code by hand](diagrams/sequence/17-program-set-by-hand.md) | S02, C10, S03, C16 |
 
 **Adding a flow:** a new file `diagrams/sequence/NN-<slug>.md` starting
 with `# NN. Title`, the link back here and the status line, then the

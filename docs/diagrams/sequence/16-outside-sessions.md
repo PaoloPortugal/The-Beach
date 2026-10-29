@@ -62,9 +62,9 @@ sequenceDiagram
     opt agent view is off
         Sidecar->>Agents: which sessions run?
         Agents-->>Sidecar: refused: "… is disabled by …"
-        Sidecar->>World: provider.notice outside_sessions_off (once#59; in hello afterwards)
+        Sidecar->>World: provider.notice outside_sessions_off, details {setting: agent view}<br/>(once#59; in hello afterwards)
         Note over Sidecar: outside sessions end#59; no more looking this launch
-        Note over World: Settings: the toggle greyed out, shown off, the notice in red#59;<br/>the saved choice kept
+        Note over World: Settings: the toggle greyed out, shown off, the notice in red<br/>(Godot's words, the setting's name as sent)#59; the saved choice kept
     end
 ```
 

@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (S06, S02). NOTES.md → S06; S02 → Seeing the session.
+> **Status:** Built (S06, S02, C16). NOTES.md → S06; S02 → Seeing the session.
 
 ```mermaid
 sequenceDiagram
@@ -29,7 +29,7 @@ sequenceDiagram
     Sidecar->>World: message.started / .completed (role user),<br/>orchestrator → working
     Note over Claude: The API call fails: the login expired or was signed out<br/>(401), the account is on hold, billing, ...
     rect rgba(255,193,7,0.18)
-        Note over Sidecar,Claude: providers/claude/hooks.ts (SIGN_IN_ERRORS)<br/>Godot: chat/chat_panel.gd, agents/state_marker.gd,<br/>agents/attention_beacon.gd, world/attention.gd
+        Note over Sidecar,Claude: providers/claude/hooks.ts (SIGN_IN_ERRORS)<br/>Godot: chat/chat_panel.gd, core/sidecar/sidecar_text.gd, agents/state_marker.gd,<br/>agents/attention_beacon.gd, world/attention.gd
         Claude->>Sidecar: StopFailure (error "authentication_failed")
         Sidecar-->>Claude: nothing to add
         alt an account error

@@ -3928,10 +3928,12 @@ the chat's chrome, 2026-10-29-c16-chat; D01's text,
   a notice or error by its `code`, and the sidecar's English `message`
   is the fallback for a code it doesn't know (as `NOTICE_TEXT` does
   already). The sidecar's free-form reasons (refusals, "not found",
-  sign-in) get codes over time. No locale is sent to the sidecar.
+  sign-in) have codes since step 6 (How the codes work, below). No
+  locale is sent to the sidecar.
 - *Permission choices* (C05-C07): our fixed wording ("Yes, and use
-  auto mode") is translated by its option id; the AI tool's own parts
-  (a rule pattern, a tool name) stay word for word. Rejected: keeping
+  auto mode") is translated (the plan's by mode id; a prompt's options
+  by their `kind` since step 6, not their option id); the AI tool's own
+  parts (a rule pattern, a tool name) stay word for word. Rejected: keeping
   them English to match the terminal exactly.
 - *Debug commands* (C09) stay English: a developer tool.
 - *Species and other data:* each row keeps a stable `id` and an
@@ -4216,8 +4218,9 @@ the player carries a code Godot words:
 - *Placeholders:* `{provider}` is the provider's name from hello
   (`SidecarClient.provider(id)`), `{program}` its
   `capabilities.program_path.program`; the details and parts (paths,
-  versions, a command such as `/login`, rule patterns, folders, a
-  domain) fill the rest, in one pass (`Languages.fill`), so a path
+  versions, the provider's commands such as `/login` or `claude update`,
+  rule patterns, folders, a domain) fill the rest (security review: a
+  provider's command lines are details, never Godot's text), in one pass (`Languages.fill`), so a path
   holding "{n}" stays as written. A list part is joined with ", "; the
   commands beside folders (`allow_folders_and_commands`) are each
   JSON-quoted, as the terminal shows them. A `switch_mode` to a mode
@@ -4239,7 +4242,7 @@ the player carries a code Godot words:
 - *Tests:* `locale_test.gd`'s `_sidecar_text`: in English each reason,
   program reason, sign-in reason and option kind reads exactly as the
   sidecar's message or label (copied from its source and
-  `prompt-options.test.ts`); unknown reasons, kinds and why, a missing
+  `prompt-options.test.ts`), but for the whole sentences above; unknown reasons, kinds and why, a missing
   detail, a missing provider name or program, odd parts: the sidecar's
   words; a detail or part holding a placeholder as written; in `zz`,
   ours bracketed and the provider's words as written. The world test:
@@ -5555,7 +5558,8 @@ rules), so the world only points there.
   error sends `session.notice` `sign_in_needed` whose `message` is the
   provider's own English text, pointing to the terminal (e.g. "Claude
   Code needs you to sign in again: run /login in its terminal.";
-  `SIGN_IN_ERRORS`), and sets the orchestrator `waiting` with reason
+  `SIGN_IN_ERRORS`), with the `reason` and `details` Godot words it by
+  (C16 step 6: `signed_out` {command: `/login`}, ...), and sets the orchestrator `waiting` with reason
   `sign_in`. Any other error sets `error` with its type as the reason
   when it's one of the generic ones (`STOP_REASONS`), else `unknown`. Failing again the same way keeps the notice that is up;
   another account error replaces its text. The notice goes
@@ -6785,6 +6789,9 @@ godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test
 After changing the game's text, write C16's template again (the locale
 test fails until it's done):
 `godot --headless --path . --script res://tests/locale/write_pot.gd`.
+After adding a script with a new `class_name`, refresh Godot's class
+cache once, or every script using it fails to parse ("Identifier not
+declared"): `godot --headless --path . --import` (CI does this first).
 
 **`--fixed-fps 60`** (user's choice, 2026-10-29; dev log
 2026-10-29-test-speed): each frame is one 1/60 s step of game time and

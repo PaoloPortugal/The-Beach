@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (C05, C06). NOTES.md → S02 → Prompt options.
+> **Status:** Built (C05, C06, C16). NOTES.md → S02 → Prompt options.
 
 The terminal's prompts offer more than Yes and No ("Yes, and don't ask
 again for: npm test \*", "Yes, and switch to auto mode", ...). The world
