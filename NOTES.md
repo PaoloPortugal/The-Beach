@@ -7367,6 +7367,25 @@ the user's vision first; others using the MIT code afterwards is fine.
   way; untested). Built-ins with a launch-time equivalent could be offered
   at session creation or resume. Other built-ins stay terminal-only (S02),
   and the world should say so instead of sending them to Claude as text.
+- **An embedded terminal** (user's idea, 2026-10-29; worth exploring,
+  user's). The session's own terminal shown in the game, beside the chat
+  panel (a "Terminal" view per session), not replacing it. It would give
+  everything the terminal has that the world doesn't: mode switching,
+  built-in commands (`/exit`, `/clear`, …), quitting, every new Claude
+  Code feature on its first day, and exactly vanilla's wording. The world
+  (islands, agents, cues, usage) still comes from the sidecar's events.
+  To weigh before building: the game must own the process through a
+  pseudo-terminal (ConPTY on Windows), so sessions no longer outlive the
+  game (S05, S07) unless they can be detached and taken back; a native
+  pty module in the sidecar (node-pty?) against Few, pinned
+  dependencies and the single executable; a terminal emulator in Godot
+  good enough for Claude Code's interface (colours, Unicode widths,
+  resizing, mouse; godot-xterm's Windows support to check); keys going to
+  the terminal instead of the game's controls; no translation (C16) and
+  no gamepad in it; sessions started outside the game (S08) can't be
+  embedded; and Anthropic's terms on showing Claude Code's interface in
+  the game (docs/release.md). Cheapest first step: a spike of
+  godot-xterm with a pty on Windows running `claude`.
 - **Mod support** (user's idea, 2026-10-12). Things that let players
   customize the game: custom agent models, parkour maps, biomes, and
   more the user will add later. Steam Workshop is the main way to get
