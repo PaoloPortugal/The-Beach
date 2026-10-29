@@ -982,6 +982,28 @@ func _chat_content(world: Node3D) -> void:
 	wrong = question.filter(func(t: String) -> bool: return t.contains("⟦Settings⟧") or t.contains("⟦Resume⟧") or t.contains("⟦Back⟧"))
 	_check(wrong.is_empty() and card.header_text().contains("Settings") and ["Settings", "Back", "Resume"].all(func(t: String) -> bool: return t in question), "C16: a question's header, text, options and descriptions as written, and the subagent's name (bracketed: %s)" % [wrong])
 	_check(card.header_text() == "⟦Subagent Settings asks:⟧" and card.count_text() == "" and "⟦Send⟧" in question, "C16: a subagent's question, its name as written (%s)" % card.header_text())
+	# Content holding placeholders, where our words wrap it (security
+	# review): the sidecar's reasons, a mode id, a subagent's name.
+	panel._send_error = "Couldn't send: {reason}"
+	panel._send_reason = "Settings {reason}"
+	panel._refresh_status()
+	_check(panel.status_text() == "⟦Couldn't send: Settings {reason}⟧", "C16: a send refused, the sidecar's reason as written (%s)" % panel.status_text())
+	panel._send_error = ""
+	panel._refresh_status()
+	card._error = "Couldn't answer: {reason}"
+	card._error_reason = "Settings {reason}"
+	card._render()
+	_check(card.error_text() == "⟦Couldn't answer: Settings {reason}⟧", "C16: an answer refused, the sidecar's reason as written (%s)" % card.error_text())
+	card._error = ""
+	card._render()
+	store.apply({"type": "session.updated", "session": "l2", "seq": 15, "mode": "{mode}"})
+	_check(panel.mode_text() == "⟦Mode: {mode}⟧" and PermissionModes.plan_choice("{mode}") == "⟦Yes, and switch to {mode} mode⟧" and PermissionModes.plan_choice("plan") == "⟦Yes, and switch to ⟦Plan⟧ mode⟧", "C16: an unknown mode id as written, in the header and a plan's choice (%s)" % panel.mode_text())
+	store.apply({"type": "session.updated", "session": "l2", "seq": 16, "mode": "auto"})
+	var named := _agent("s2", "main", "working")
+	named["name"] = "{tool}"
+	store.apply({"type": "agent.spawned", "session": "l2", "seq": 17, "agent": named})
+	var asking: String = card._who_text({"kind": "permission", "item": {"agent": "s2", "tool": "Back {tool}"}})
+	_check(asking == "⟦Subagent {tool} asks to use Back {tool}:⟧", "C16: a subagent named \"{tool}\" asking for a tool, both as written (%s)" % asking)
 	# Back in English, the chrome is said again at once.
 	TranslationServer.set_locale("en")
 	await _settle()
@@ -989,7 +1011,7 @@ func _chat_content(world: Node3D) -> void:
 	TranslationServer.set_locale(Pot.PSEUDO_LOCALE)
 	await _settle()
 	panel.close()
-	store.apply({"type": "session.ended", "session": "l2", "seq": 14, "reason": "exited"})
+	store.apply({"type": "session.ended", "session": "l2", "seq": 30, "reason": "exited"})
 	await _settle()
 
 
