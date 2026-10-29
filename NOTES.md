@@ -4145,7 +4145,8 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
   send and answer, an unknown mode id in the header and a plan's choice,
   and a subagent named "{tool}" asking for a tool, all as written
   (security review); then back in English, the header, status, turn
-  hint, card and fold said again at once. The English checks elsewhere ("The orchestrator asks
+  hint, card and fold said again at once.
+- *Live check (2026-10-29, the user):* all steps passed. The English checks elsewhere ("The orchestrator asks
   to use Bash:", "1 of 2 waiting", "Context 31% · ↑ 61k in · ↓ 1.2k
   out") are unchanged.
 
@@ -7107,10 +7108,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's chat chrome (step 4) built on branch
-`c16-chat` (2026-10-29), awaiting the user's live check and review; its
-groundwork, menus and drawn HUDs (steps 1-3) are merged (live checks
-passed). Next for it, D01's text (step 5), on its own branch. The headless suites run with
+**Current focus:** C16's groundwork, menus, drawn HUDs and chat chrome
+(steps 1-4) are merged (2026-10-29, live checks passed). Next for it, D01's text (step 5), on its own branch. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried
