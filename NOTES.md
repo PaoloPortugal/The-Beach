@@ -6064,7 +6064,9 @@ shadows.
   level, toward the point under the tip, so it doesn't lift the bobber,
   except one snagged in the water (below). Holding the click shortens it 4 m/s
   (`REEL_SPEED`), never below the drop from the tip: the bobber is
-  dragged back through the water or rolls over land, and it's back
+  dragged back through the water or rolls over land, never faster than
+  that toward the tip (unchecked, the line's pull built up past 15 m/s
+  and skipped it over the waves: dev log 2026-10-29-d01-reel-speed), and it's back
   once within 1.5 m of the tip, seen from above (`BACK`). A taut bobber
   coming less than 5 cm nearer (seen from above) in 0.5 s while reeled
   is snagged: on land it hops up 2.5 m/s and toward you; in the water
@@ -6563,21 +6565,40 @@ must be on PATH). Godot's command line after `--` can change that:
 executable). Headless smoke test, from the repo root:
 
 ```
-godot --headless --path . --script res://tests/core/sidecar_client_test.gd
-godot --headless --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
-godot --headless --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
-godot --headless --path . --script res://tests/world/world_test.gd
-godot --headless --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
-godot --headless --path . --script res://tests/world/clusters_test.gd
-godot --headless --path . --script res://tests/world/bridges_test.gd
-godot --headless --path . --script res://tests/world/performance_test.gd
-godot --headless --path . --script res://tests/chat/markdown_test.gd
-godot --headless --path . --script res://tests/locale/locale_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/core/sidecar_client_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/core/sidecar_client_test.gd -- --sidecar-dev-fake
+godot --headless --fixed-fps 60 --path . --script res://tests/core/session_store_test.gd -- --sidecar-dev-fake
+godot --headless --fixed-fps 60 --path . --script res://tests/world/world_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/world/world_test.gd -- --sidecar-dev-fake
+godot --headless --fixed-fps 60 --path . --script res://tests/world/clusters_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/world/performance_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/chat/markdown_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test.gd
 ```
 
 After changing the game's text, write C16's template again (the locale
 test fails until it's done):
 `godot --headless --path . --script res://tests/locale/write_pot.gd`.
+
+**`--fixed-fps 60`** (user's choice, 2026-10-29; dev log
+2026-10-29-test-speed): each frame is one 1/60 s step of game time and
+the next starts at once, instead of waiting for the wall clock. The
+world's animations, timers and physics see the same frames as in real
+time; only the waiting goes: all the suites take about 4 minutes
+instead of 12 (the world test about 40 s plain and 80 s with the fake
+provider, from 4-5 minutes). A check that times something the game
+animates reads the game's clock (`_game_ms()` in the world test), not
+`Time.get_ticks_msec()`, which under this flag usually runs slower
+than the game. Likewise the world test's `_until` bounds its wait in
+game time, so a slower fallback can't pass for what a check waits on;
+`_until_wall` bounds waits on work outside the game's clock (the real
+sidecar, an island's ground made on a worker thread) in real seconds.
+The sidecar's own timeouts keep the wall clock, but the chat's pickup
+timeout (S06) is a game timer, so in its live section, where the fake
+provider's turns race that timer, the world test keeps the game's clock
+to the wall clock (`_pace`). The world test prints each section's time
+and frames (`time` lines) to show where a slowdown comes from.
 
 Dev flags for the day and the weather (W09), after `--` like the
 others: `--hour <0-24>` starts at that time (6 sunrise, 18 sunset),
@@ -6591,7 +6612,7 @@ The layout demo (W06), 64 made-up sessions with no sidecar:
 `godot --path . res://tests/world/layout_demo.tscn`. Add `-- --crowd`
 for the crowd (W05: 311 sessions in clusters of varied sizes). The
 bridges test with the full crowd, local only (CI runs a trimmed one):
-`godot --headless --path . --script res://tests/world/bridges_test.gd --
+`godot --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd --
 --crowd`.
 
 The performance test (Architecture → Performance) checks that the coarse
@@ -6786,7 +6807,8 @@ the code bounds gives it more time than the code does (`askWindows`:
 input, a deferred call, a reply or a layout waits on its condition
 (`_until`), never on a number of physics frames: a late iteration runs
 several physics steps before the next input is handled (dev log
-2026-10-03-world-test-flaky). Likewise, state kept up to date in
+2026-10-03-world-test-flaky; headless under `--fixed-fps` one never
+does, but the rule keeps the checks right without the flag). Likewise, state kept up to date in
 `_process` is read after process frames (`_settle`), not physics ones
 (dev log 2026-10-07-w04-arrow-check-flaky). A logged error fails a
 step like a failed check (above).
@@ -6992,11 +7014,10 @@ their ids, and the game opens on the user's logo and Godot's, with a
 bar while the start finishes. Later (user's): a proper background for
 the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
-v0", the user's); next for it, the user's species list. A flaky D01
-check (seen 2026-10-28, about 2 runs in 7): "reeling drags it through
-the water" saw the bobber 0.18-0.24 m above the surface (limit 0.15)
-when a floating one starts being reeled, likely its buoyancy
-overshooting; open, the user's to decide (dev log 2026-10-28-c17-opening). D02 Bug
+v0", the user's); next for it, the user's species list. The flaky D01
+check "reeling drags it through the water" was a game bug, the reel
+speeding the bobber past 15 m/s; fixed on `d01-reel-speed`, for review
+(dev log 2026-10-29-d01-reel-speed). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and

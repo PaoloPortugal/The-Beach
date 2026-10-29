@@ -127,3 +127,5 @@ reading; look things up by feature ID.
 | 2026-10-28 | [S01: retrying the sidecar's start, and restarting it](2026-10-28-s01-start-retry.md) | S01 |
 | 2026-10-28 | [C17: the game's opening](2026-10-28-c17-opening.md) | C17, S01, C14 |
 | 2026-10-29 | [C16: the groundwork and the menus](2026-10-29-c16-localisation-groundwork.md) | C16, C10, C13, C14, C17, S01, S03, S04, S05, W10 |
+| 2026-10-29 | [Faster headless suites: --fixed-fps 60](2026-10-29-test-speed.md) | tooling |
+| 2026-10-29 | [D01: reeling no faster than the line comes in](2026-10-29-d01-reel-speed.md) | D01 |

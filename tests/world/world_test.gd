@@ -14,7 +14,7 @@ extends SceneTree
 ## debug commands (C09); fishing and its catches (D01); the opening at
 ## the start (C17); the menus in a made-up language (C16).
 ##
-##   godot --headless --path . --script res://tests/world/world_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/world/world_test.gd
 ##   ... -- --sidecar-dev-fake    also starts a session from the menu and
 ##                                chats with the fake provider, which
 ##                                spawns subagents
@@ -29,6 +29,10 @@ var _outside_sent: Array[bool] = []
 var _errors := ErrorWatch.new(self)
 ## The world's fishing, for _cast (D01).
 var _rod_user: Fishing
+## A long timer whose time left reads the game's clock, for _game_ms.
+var _clock: SceneTreeTimer
+## Where _pace started: game and wall clock, in ms.
+var _paced_from: Array[int] = [0, 0]
 
 
 func _initialize() -> void:
@@ -37,13 +41,21 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_island()
+	_lap("_island")
 	await _biomes()
+	_lap("_biomes")
 	_jump_assist()
+	_lap("_jump_assist")
 	_placement()
+	_lap("_placement")
 	_fish_species()
+	_lap("_fish_species")
 	_fish_fight()
+	_lap("_fish_fight")
 	_catch_log()
+	_lap("_catch_log")
 	await _scene()
+	_lap("_scene")
 	if not _failed and _errors.ok():
 		print("PASS world_test")
 		quit(0)
@@ -392,13 +404,18 @@ func _scene() -> void:
 	world.set_outside_sessions = func(on: bool) -> void: _outside_sent.append(on)
 	root.add_child(world)
 	await process_frame  # _ready runs once the tree is going
+	_lap("world_load")
 	var player: Player = world.get_node("Player")
 	var spawn := player.spawn_point
 	_check(spawn.is_equal_approx(Vector3(0, 1.1, 3)), "spawns on the platform")
 	await _opening(world, player)
+	_lap("_opening")
 	await _menu_start(world, player)
+	_lap("_menu_start")
 	await _loading_cover(world, player)
+	_lap("_loading_cover")
 	await _sidecar_lost(world, player)
+	_lap("_sidecar_lost")
 
 	await _frames(30)
 	_check(player.is_on_floor() and absf(player.global_position.y - 1.0) < 0.2, "lands on the platform")
@@ -419,19 +436,34 @@ func _scene() -> void:
 	_check(player.global_position.y > start_y + 0.8, "jumps")
 
 	await _crouch_slide(player)
+	_lap("_crouch_slide")
 	await _sky(world, player)
+	_lap("_sky")
 	await _commands(world, player)
+	_lap("_commands")
 	await _swimming(world, player)
+	_lap("_swimming")
 	await _menu(world, player)
+	_lap("_menu")
 	await _sessions(world, player)
+	_lap("_sessions")
 	await _agents(world)
+	_lap("_agents")
 	await _pause(world, player)
+	_lap("_pause")
 	await _main_menu(world, player)
+	_lap("_main_menu")
 	await _settings(world, player)
+	_lap("_settings")
 	await _languages(world, player)
+	_lap("_languages")
 	await _biome_island(world, player)
+	_lap("_biome_island")
 	if "--sidecar-dev-fake" in OS.get_cmdline_user_args():
+		_pace(true)
 		await _live(world, player)
+		_pace(false)
+		_lap("_live")
 
 	world.queue_free()
 	await _frames(1)
@@ -732,7 +764,7 @@ func _settings(world: Node3D, player: Player) -> void:
 		_check(menu._programs.has("claude"), "S02: the real sidecar's Claude Code has a row")
 		menu.choose_program("claude", "claude.exe")
 		_check(menu.program_text("claude") == "Checking…", "S02: Checking… until the sidecar answers")
-		await _until(func() -> bool: return menu.program_error("claude") != "", 10.0)
+		await _until_wall(func() -> bool: return menu.program_error("claude") != "", 10.0)
 		_check(menu.program_error("claude") == "Not changed: That isn't a full path." and menu.program_text("claude") != "Checking…" and not root.get_node("Sidecar").program_paths.has("claude"), "S02: a path that isn't a full one refused by the sidecar, nothing kept")
 	menu.close()
 
@@ -1317,7 +1349,7 @@ func _swimming(world: Node3D, player: Player) -> void:
 	_check(fits and not hit.is_empty() and absf(hit["position"].y - Seabed.height_at(3001, -1999)) < 2.0, "a chunk made on the worker has the floor's shape and collision")
 	player.global_position = was
 	player.velocity = Vector3.ZERO
-	await _until(func() -> bool: return seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty(), 15.0)
+	await _until_wall(func() -> bool: return seabed._missing(Vector2(camera.global_position.x, camera.global_position.z)).is_empty() and seabed._pending.is_empty(), 15.0)
 	_check(Seabed.height_at(0, 0) == Seabed.PLATFORM_FLOOR and Seabed.height_at(5000, 300) <= Seabed.SHALLOWEST and Seabed.height_at(5000, 300) >= Seabed.DEEPEST, "shallow by the platform, deeper out at sea")
 	# Out at sea it stays between SHALLOWEST and DEEPEST (sunk islands and
 	# bridge posts count on it) but uses that range: banks, deeps, mounds.
@@ -1548,7 +1580,7 @@ func _menu(world: Node3D, player: Player) -> void:
 	_check(not menu.is_open() and player.controls_enabled, "Tab closes it from any page")
 	# Choosing a folder ends in the launcher's create().
 	var sidecar: SidecarClient = root.get_node("Sidecar")
-	await _until(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
+	await _until_wall(func() -> bool: return sidecar.status == SidecarClient.Status.READY, 20.0)
 	_check(sidecar.status == SidecarClient.Status.READY, "the sidecar is up")
 
 	# C12: the model, effort and mode selectors, from the provider's lists
@@ -1633,7 +1665,7 @@ func _menu(world: Node3D, player: Player) -> void:
 	answer[0].call(true, PackedStringArray([OS.get_user_data_dir().path_join("no-such-folder")]), 0)
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and player.controls_enabled, "system picker: choosing a folder closes the menu and gives the controls back")
-	await _until(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
+	await _until_wall(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
 	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
 	menu.native_picker = false
 
@@ -1738,7 +1770,7 @@ func _biome_island(world: Node3D, player: Player) -> void:
 	_check(m.biome == Biome.Kind.MOUNTAIN and m.edge_height() > 4.0, "W10: the chosen biome is the island's")
 	_check(m.position.y + m.top() < Seabed.DEEPEST, "W10: a high island rises from all under the sea floor (top %.1f m)" % (m.position.y + m.top()))
 	_check(m.zipline() == null, "W10: its zipline waits for its bridges")
-	await _until(func() -> bool: return not islands.is_rising("m1"), 6.0)
+	await _until_wall(func() -> bool: return not islands.is_rising("m1"), 6.0)
 	var region := SessionIslands.region(m)
 	var ends: Array[Vector3] = []
 	var clear := true
@@ -1832,7 +1864,7 @@ func _menu_start(world: Node3D, player: Player) -> void:
 # its cap, a failure, and a sidecar already failed.
 func _opening(world: Node3D, player: Player) -> void:
 	var opening: Opening = world.opening
-	var shown_at := Time.get_ticks_msec()
+	var shown_at := _game_ms()
 	_check(opening.is_covering() and opening.visible and world.main_menu.is_open() and not player.controls_enabled, "C17: the game opens on the opening, over the main menu")
 	_check(not opening.bar_shown() and (opening.find_child("Developer", true, false) as Label).text == Opening.DEVELOPER and (opening.find_child("GodotLogo", true, false) as TextureRect).texture == Opening.GODOT_LOGO, "C17: the logo, the developer's name and Godot's logo, no bar at first")
 	var logo: TextureRect = opening.find_child("Logo", true, false)
@@ -1862,8 +1894,8 @@ func _opening(world: Node3D, player: Player) -> void:
 	guard.quit = guard_quit
 	var lifted := [false]
 	opening.lifted.connect(func() -> void: lifted[0] = true, CONNECT_ONE_SHOT)
-	await _until(func() -> bool: return lifted[0], 30.0)
-	var took := (Time.get_ticks_msec() - shown_at) / 1000.0
+	await _until_wall(func() -> bool: return lifted[0], 30.0)
+	var took := (_game_ms() - shown_at) / 1000.0
 	_check(lifted[0] and not opening.is_covering() and not opening.visible and took >= Opening.CARD_S - 0.1, "C17: synced, no sessions back: it fades into the menu after its card's time (%.1f s)" % took)
 	_check(world.main_menu.is_open() and world.main_menu.get_node("Panel").visible, "C17: the main menu under it")
 
@@ -2065,7 +2097,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	store.apply({"type": "session.snapshot", "session": _snapshot("h1")})
 	var island := islands.island("h1")
 	_check(island != null and not island.is_built() and island.position.y == SessionIslands.BUILDING_Y and islands.is_rising("h1"), "C14: its ground is made on a worker thread, the island out of sight meanwhile")
-	await _until(func() -> bool: return island.is_built(), 5.0)
+	await _until_wall(func() -> bool: return island.is_built(), 5.0)
 	_check(island.is_built() and island.position.y < -1.0 and islands.is_rising("h1"), "C14: then a session already running's island rises too")
 	# h2 only now: islands made at once finish in any order, and the first
 	# up gets the bridge to the platform (checked below).
@@ -2102,10 +2134,13 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var drawn := minimap.to_map(island.global_position)
 	_check(Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(drawn) and Rect2(Vector2.ZERO, minimap.map_rect().size).has_point(minimap.to_map(player.global_position)), "with its islands and you on it")
 	await _big_map(world, player, islands)
+	_lap("_big_map")
 	await _settle()
 	_check(minimap.shown_cluster() == c1, "the minimap is back once the big map closes")
 	await _quit(world, player)
+	_lap("_quit")
 	await _ring(world, player)
+	_lap("_ring")
 
 	var bubble := chat.bubble("h1")
 	_check(bubble != null and not bubble.visible, "no bubble before the orchestrator says anything")
@@ -2135,10 +2170,13 @@ func _sessions(world: Node3D, player: Player) -> void:
 	_check(player.global_position.distance_to(orchestrator.global_position) < 7.0 and player.is_on_floor(), "teleport: in front of the orchestrator, on its island")
 	player.global_position = orchestrator.global_position + Vector3(0, 0.1, 2.0)
 	await _crosshair(world, player, orchestrator)
+	_lap("_crosshair")
 	await _hotbar(world, player)
+	_lap("_hotbar")
 	await _fishing(world, player, island)
+	_lap("_fishing")
 	# The sidecar doesn't have h1, so fetching its history fails.
-	await _until(func() -> bool: return not chat._history.has("h1"), 5.0)
+	await _until_wall(func() -> bool: return not chat._history.has("h1"), 5.0)
 	_check(not chat._history.has("h1"), "a failed history fetch is forgotten")
 	chat.open(orchestrator)
 	# Checked at once: the retry fails again within a frame or two.
@@ -2183,18 +2221,21 @@ func _sessions(world: Node3D, player: Player) -> void:
 	await _settle()
 	_check(chat.is_open() and panel.link_asked() == "", "Esc closes the question, not the chat")
 	await _tool_log(store, panel)
+	_lap("_tool_log")
 	store.apply({"type": "agent.state_changed", "session": "h1", "seq": 10, "agent": "main", "state": "waiting", "reason": "permission"})
 	_check(panel.status_text().contains("above or in the terminal"), "a permission wait points to the card and the terminal")
 	store.apply({"type": "session.notice", "session": "h1", "seq": 11, "notice": {"code": "transcripts_off", "message": "x"}})
 	_check(panel.get_node("Layout/Notices").visible, "notices show")
 	await _card(store, panel)
+	_lap("_card")
 	await _usage(world, store, panel)
+	_lap("_usage")
 
 	# Sending to a session the sidecar doesn't have: refused, text kept.
 	panel.set_draft("hello")
 	panel.send()
 	_check(panel.draft() == "", "sending clears the box")
-	await _until(func() -> bool: return panel.status_text().begins_with("Couldn't send"), 5.0)
+	await _until_wall(func() -> bool: return panel.status_text().begins_with("Couldn't send"), 5.0)
 	_check(panel.status_text().begins_with("Couldn't send") and panel.draft() == "hello", "a refused message says so and comes back")
 	# One box serves every chat (S06 review): kept while closed, emptied
 	# on opening another session's.
@@ -2317,8 +2358,11 @@ func _sessions(world: Node3D, player: Player) -> void:
 	shown = panel.get_node("Layout/Notices").text
 	_check(panel.shown_messages().is_empty() and shown.contains("(/clear)") and not shown.contains("(/resume)"), "after /clear the chat is empty, with its notice")
 	await _sign_in(world, panel)
+	_lap("_sign_in")
 	await _read_only_marks(world, panel)
+	_lap("_read_only_marks")
 	await _attention(world)
+	_lap("_attention")
 	var on_island := player.global_position
 	store.apply({"type": "session.ended", "session": "h1", "seq": 30, "reason": "exited"})
 	# Waits hold weak references: a lambda can't capture a freed object.
@@ -2351,7 +2395,7 @@ func _sessions(world: Node3D, player: Player) -> void:
 	var pointers: NewIslandPointers = world.pointers
 	# Built (its main-thread part takes a few frames, W01): from then on it
 	# rises from where you'd see it.
-	await _until(h3.is_built, 5.0)
+	await _until_wall(h3.is_built, 5.0)
 	var to_h3 := h3.global_position - player.global_position
 	player.rotation.y = atan2(-to_h3.x, -to_h3.z) # facing it
 	# The arrows follow the camera in _process: wait for process frames, not
@@ -2516,7 +2560,7 @@ func _read_only_marks(world: Node3D, panel: ChatPanel) -> void:
 	# Where it stands only once the ground is in: mid-build, surface_height
 	# already reads the new ground but the flag is re-placed only in the
 	# last step, out of sight (S08 dev log, 2026-10-27).
-	await _until(func() -> bool: return islands.island("o1").is_built() and islands.island("o2").is_built(), 10.0)
+	await _until_wall(func() -> bool: return islands.island("o1").is_built() and islands.island("o2").is_built(), 10.0)
 	for id: String in ["o1", "o2"]:
 		var i := islands.island(id)
 		var flag := i.get_node_or_null("ReadOnlyFlag") as Node3D
@@ -2786,6 +2830,7 @@ func _quit(world: Node3D, player: Player) -> void:
 	await _frames(1)
 	empty.free()
 	await _quit_many(player)
+	_lap("_quit_many")
 
 
 # S05: with more sessions than the window can list, the list scrolls and
@@ -2847,13 +2892,13 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	_check(card.denying() and _note(card).editable and not _button(card, "Send").disabled and card.error_text() == "", "card: No unlocks the note and Send, and answers nothing")
 	card.set_note("not that one")
 	_click(card, "Yes")
-	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	await _until_wall(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer") and card.current()["kind"] == "permission", "card: a refused answer says so and stays")
 	_check(not card.denying() and not _note(card).editable and _note(card).text == "not that one", "card: Yes locks the note again, keeping it")
 	_click(card, "No")
 	_check(_note(card).text == "not that one", "card: No again, the note is still there")
 	_click(card, "Send")
-	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	await _until_wall(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send denies")
 	store.apply({"type": "permission.resolved", "session": "h1", "seq": 15, "permission": "p1", "decision": "allow", "by": "external"})
 	_check(card.header_text() == "Subagent Explore asks:" and card.count_text() == "" and card.error_text() == "", "card: answered in the terminal, the next one shows, naming its agent")
@@ -2874,7 +2919,7 @@ func _card(store: SessionStore, panel: ChatPanel) -> void:
 	panel.open("h1")
 	_check(panel.pending_card().step() == 1, "card: progress survives closing the chat")
 	card.send_answers()
-	await _until(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
+	await _until_wall(func() -> bool: return card.error_text().begins_with("Couldn't answer"), 5.0)
 	_check(card.error_text().begins_with("Couldn't answer"), "card: Send on the last item")
 	store.apply({"type": "question.resolved", "session": "h1", "seq": 16, "question": "q1", "by": "external"})
 	_check(not card.visible, "card: hidden again when nothing waits")
@@ -3218,11 +3263,11 @@ func _agents(world: Node3D) -> void:
 	var s2 := agents.subagent("s2")
 	var s2_slot := s2.slot
 	var paper := s2.get_node("Worker/Paper") as Node3D
-	var thrown_at := Time.get_ticks_msec()
+	var thrown_at := _game_ms()
 	store.apply({"type": "agent.state_changed", "session": "h4", "seq": 5, "agent": "s2", "state": "done", "reason": null})
 	_check(s2.is_leaving() and paper.visible and s2.shown_state() == "", "agents: a done one stands up with its paper")
 	await _until(func() -> bool: return paper.top_level, 1.0)
-	_check(paper.top_level and s2.worker_position().distance_to(s2.global_position) < 0.3, "agents: and throws it from its PC (after %d ms)" % (Time.get_ticks_msec() - thrown_at))
+	_check(paper.top_level and s2.worker_position().distance_to(s2.global_position) < 0.3, "agents: and throws it from its PC (after %d ms)" % (_game_ms() - thrown_at))
 	var across := func() -> float: return Vector2(paper.global_position.x - s1.catch_point().x, paper.global_position.z - s1.catch_point().z).length()
 	var far: float = across.call()
 	await _frames(12)
@@ -3231,7 +3276,7 @@ func _agents(world: Node3D) -> void:
 	await _until(func() -> bool: return s1_worker.position.y > 0.02, 1.5)
 	_check(s1_worker.position.y > 0.02 and not paper.visible, "agents: it bobs as the paper lands")
 	await _until(func() -> bool: return agents.subagent("s2") == null, 2.0)
-	var took := Time.get_ticks_msec() - thrown_at
+	var took := _game_ms() - thrown_at
 	_check(agents.subagent("s2") == null and agents.subagent_count() == 2 and took < 1800, "agents: and the thrower is gone with its PC in about 1.3 s (%d ms)" % took)
 	store.apply({"type": "agent.spawned", "session": "h4", "seq": 6, "agent": _agent("s3", "main", "working")})
 	_check(agents.subagent("s3").slot == s2_slot, "agents: a freed slot is reused")
@@ -3260,13 +3305,13 @@ func _agents(world: Node3D) -> void:
 	# it bobs, and every one of them goes.
 	var body := orchestrator.get_node("Body") as Node3D
 	var body_y := body.position.y
-	thrown_at = Time.get_ticks_msec()
+	thrown_at = _game_ms()
 	for a in ["s0", "s1", "s3"]:
 		store.apply({"type": "agent.state_changed", "session": "h4", "seq": 11, "agent": a, "state": "done", "reason": null})
 	await _until(func() -> bool: return body.position.y > body_y + 0.02, 2.0)
 	_check(body.position.y > body_y + 0.02, "agents: the orchestrator bobs as a paper lands")
 	await _until(func() -> bool: return agents.subagent_count() == 0, 3.0)
-	took = Time.get_ticks_msec() - thrown_at
+	took = _game_ms() - thrown_at
 	_check(agents.subagent_count() == 0 and took < 1800, "agents: all throw to the orchestrator and go, in %d ms (%d left)" % [took, agents.subagent_count()])
 	await _frames(20)
 	_check(is_equal_approx(body.position.y, body_y), "agents: and it settles back")
@@ -3363,6 +3408,7 @@ func _live(world: Node3D, player: Player) -> void:
 	sidecar.send_command("permission.respond", {"session": id, "permission": asked, "decision": "deny"}, func(_r: Dictionary) -> void: pass)
 	await _until(func() -> bool: return world.store.orchestrator(id).get("state") == "idle", 8.0)
 	await _sign_in_pickup(world, chat, id)
+	_lap("_sign_in_pickup")
 	panel.pickup_timeout = 15.0
 	_check(world.store.sessions[id].get("title") == "hello", "live: the first message's first line names the session")
 	panel.set_draft("rename Tidy the notes")
@@ -4260,6 +4306,7 @@ func _land(fishing: Fishing, timeout := 60.0) -> Dictionary:
 	var frames := [0, 0] # all, the bobber under
 	var held := true
 	var start := Time.get_ticks_msec()
+	var game_start := _game_ms()
 	var f := fishing.fight # kept: the fishing lets go of it when the fight ends
 	while fishing.fighting() and Time.get_ticks_msec() - start < timeout * 1000.0:
 		var b := fishing._bobber.global_position
@@ -4293,7 +4340,7 @@ func _land(fishing: Fishing, timeout := 60.0) -> Dictionary:
 		_mouse_left(false)
 	out["outcome"] = f.outcome
 	out["under"] = frames[1] >= frames[0] * 0.9
-	out["time"] = (Time.get_ticks_msec() - start) / 1000.0
+	out["time"] = (_game_ms() - game_start) / 1000.0
 	await _settle()
 	return out
 
@@ -4379,6 +4426,30 @@ func _close(a: Color, b: Color, by: float) -> bool:
 	return absf(a.r - b.r) < by and absf(a.g - b.g) < by and absf(a.b - b.b) < by
 
 
+# Per-section timing: wall time and frames since the last lap.
+var _lap_ms := Time.get_ticks_msec()
+var _lap_phys := 0
+var _lap_proc := 0
+
+
+func _lap(name: String) -> void:
+	var now := Time.get_ticks_msec()
+	var phys := Engine.get_physics_frames()
+	var proc := Engine.get_process_frames()
+	print("  time %-18s %7.2f s  %5d physics  %5d process" % [name, (now - _lap_ms) / 1000.0, phys - _lap_phys, proc - _lap_proc])
+	_lap_ms = now
+	_lap_phys = phys
+	_lap_proc = proc
+
+
+# Milliseconds of game time (what the world's timers and animations run
+# on), which is not the wall clock under --fixed-fps.
+func _game_ms() -> int:
+	if _clock == null:
+		_clock = create_timer(1e6)
+	return int((1e6 - _clock.time_left) * 1000.0)
+
+
 func _frames(n: int) -> void:
 	for i in n:
 		await physics_frame
@@ -4393,15 +4464,43 @@ func _settle() -> void:
 
 
 # Every island's ground made and the island up (C14: those taken back
-# rise too).
+# rise too). The ground is made on a worker thread: real time.
 func _islands_up(islands: SessionIslands, timeout_s := 10.0) -> void:
-	await _until(islands.all_up, timeout_s)
+	await _until_wall(islands.all_up, timeout_s)
 
 
+# Waits for [param cond], at most [param timeout_s] of game time: under
+# --fixed-fps the game runs faster than the clock, and a wall-clock bound
+# would let a slower fallback pass for what a check waits on.
 func _until(cond: Callable, timeout_s: float) -> void:
+	var deadline := _game_ms() + int(timeout_s * 1000)
+	while not cond.call() and _game_ms() < deadline:
+		await process_frame
+
+
+# Like _until, for work outside the game's clock: the real sidecar, a
+# worker thread.
+func _until_wall(cond: Callable, timeout_s: float) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout_s * 1000)
 	while not cond.call() and Time.get_ticks_msec() < deadline:
 		await process_frame
+
+
+# Under --fixed-fps, keeps the game's clock to the wall clock while [param
+# on]: for the fake provider's turns, which race the game's timers (the
+# chat's pickup timeout) as they do when you play.
+func _pace(on: bool) -> void:
+	if on:
+		_paced_from = [_game_ms(), Time.get_ticks_msec()]
+		process_frame.connect(_keep_pace)
+	else:
+		process_frame.disconnect(_keep_pace)
+
+
+func _keep_pace() -> void:
+	var ahead := (_game_ms() - _paced_from[0]) - (Time.get_ticks_msec() - _paced_from[1])
+	if ahead > 0:
+		OS.delay_msec(ahead)
 
 
 # The height of the highest triangle of [param faces] over (x, z), found

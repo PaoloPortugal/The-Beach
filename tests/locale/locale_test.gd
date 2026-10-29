@@ -7,7 +7,7 @@ extends SceneTree
 ## languages, their own names, Automatic, applying one, the Language
 ## setting, content marking and fill.
 ##
-##   godot --headless --path . --script res://tests/locale/locale_test.gd
+##   godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test.gd
 
 const ErrorWatch := preload("res://tests/error_watch.gd")
 const Pot := preload("res://tests/locale/pot.gd")
