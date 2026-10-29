@@ -13,7 +13,7 @@ extends CanvasLayer
 ## The game's name on the menu: the working name (NOTES.md → Conventions
 ## → Renaming the project).
 const TITLE := "The Beach"
-const BUTTONS := ["Play", "Settings", "Credits", "Quit"]
+const BUTTONS := ["Play", "Settings", "Credits", "Quit"] # TRANSLATE
 const CREDITS_FILE := "res://assets/CREDITS.md"
 
 ## Emitted once the camera is back with the player and the controls too.
@@ -39,6 +39,8 @@ var _panel := PanelContainer.new()
 var _credits := PanelContainer.new()
 var _credits_body: VBoxContainer
 var _licences: VBoxContainer # Godot's notices, behind their toggle
+## Said instead of the credits when their file can't be read.
+var _credits_error: RichTextLabel
 var _buttons := {} # text → its Button
 
 
@@ -141,7 +143,8 @@ func toggle_godot_licences() -> void:
 		_licences.add_child(_plain(Engine.get_license_text()))
 		_licences.add_child(_plain(_godot_components()))
 	_licences.visible = not _licences.visible
-	_buttons["Godot licences"].text = ("Hide" if _licences.visible else "Show") + " Godot licences"
+	var toggle: Button = _buttons["Godot licences"]
+	toggle.text = "Hide Godot licences" if _licences.visible else "Show Godot licences" # TRANSLATE
 
 
 func godot_licences_shown() -> bool:
@@ -198,6 +201,12 @@ func _back_from_settings() -> void:
 	_panel.visible = true
 
 
+# The credits' one formatted line, in the new language.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and _credits_error:
+		_credits_error.text = Languages.fill(tr("The credits file couldn't be read ({file})."), {"file": CREDITS_FILE})
+
+
 # Esc leaves the credits; on the menu itself it does nothing (Play or Quit).
 # The settings menu takes its own Esc first.
 func _input(event: InputEvent) -> void:
@@ -209,7 +218,9 @@ func _input(event: InputEvent) -> void:
 func _fill_credits() -> void:
 	var text := FileAccess.get_file_as_string(CREDITS_FILE)
 	if text.is_empty():
-		_credits_body.add_child(_plain("The credits file couldn't be read (%s)." % CREDITS_FILE))
+		_credits_error = Languages.translated(_plain("")) as RichTextLabel
+		_credits_body.add_child(_credits_error)
+		_notification(NOTIFICATION_TRANSLATION_CHANGED)
 	else:
 		var view := MarkdownView.new()
 		view.font_size = 16
@@ -231,6 +242,7 @@ func _fill_credits() -> void:
 	_buttons["Godot licences"] = toggle
 	_licences = VBoxContainer.new()
 	_licences.name = "Licences"
+	Languages.content(_licences) # Godot's legal text, as written
 	_licences.add_theme_constant_override("separation", 14)
 	_licences.visible = false
 	_credits_body.add_child(_licences)
@@ -287,6 +299,7 @@ func _build() -> void:
 	var title := Label.new()
 	title.name = "Title"
 	title.text = TITLE
+	Languages.content(title) # the game's name
 	title.add_theme_font_size_override("font_size", 30)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	layout.add_child(title)

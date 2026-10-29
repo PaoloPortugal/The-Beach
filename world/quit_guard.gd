@@ -18,7 +18,7 @@ const MARGIN := 16.0
 ## What to do, under the list (user's wording). They come back when the
 ## game starts again (S07); the second paragraph says how to close the gap
 ## of hooks that outlive the game (NOTES → Security rules → Known gap).
-const FOOTER := "Quitting won't end them: they keep running in their terminals, and come back when you start the game again. To end one, type /exit in its terminal.\n\nOn a computer shared with other accounts, end them with /exit before quitting: while the game is closed, another account could reach them."
+const FOOTER := "Quitting won't end them: they keep running in their terminals, and come back when you start the game again. To end one, type /exit in its terminal.\n\nOn a computer shared with other accounts, end them with /exit before quitting: while the game is closed, another account could reach them." # TRANSLATE
 
 var store: SessionStore
 var player: Player
@@ -43,6 +43,9 @@ func _init() -> void:
 	_dialog.cancel_button_text = "Back to the game"
 	for l: Label in [_header, _list, _footer]:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Formatted in code: the count, and each session's title and state.
+	Languages.translated(_header)
+	Languages.translated(_list)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(_list)
@@ -78,6 +81,8 @@ func setup(p_store: SessionStore, p_player: Player) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		request_quit()
+	elif what == NOTIFICATION_TRANSLATION_CHANGED and is_asking():
+		_show()
 
 
 ## Quits, or asks first if sessions are running.
@@ -126,10 +131,10 @@ func _show() -> void:
 		lines.append("    " + SessionsMenu.row(SessionsMenu.display_title(s.get("title")), SessionsMenu.project_name(project), SessionsMenu.state_text(store.activity(id))))
 	_list.text = "\n".join(lines)
 	if n == 0:
-		_header.text = "No sessions are running any more."
+		_header.text = tr("No sessions are running any more.")
 		_footer.text = ""
 	else:
-		_header.text = "1 session is still running:" if n == 1 else "%d sessions are still running:" % n
+		_header.text = Languages.fill(tr_n("{n} session is still running:", "{n} sessions are still running:", n), {"n": Languages.number(str(n))})
 		_footer.text = FOOTER
 	_scroll.visible = n > 0
 	_footer.visible = n > 0

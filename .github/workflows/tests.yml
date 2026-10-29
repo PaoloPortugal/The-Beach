@@ -137,3 +137,6 @@ jobs:
       - name: Markdown
         timeout-minutes: 8
         run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/chat/markdown_test.gd'
+      - name: Localisation
+        timeout-minutes: 8
+        run: '"$GODOT" --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test.gd'

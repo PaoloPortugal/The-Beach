@@ -139,7 +139,7 @@ func _make_entry(id: String) -> Dictionary:
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	status.custom_minimum_size.x = 70
 	line.add_child(status)
-	var summary := _label(Color(0.88, 0.9, 0.94))
+	var summary := Languages.content(_label(Color(0.88, 0.9, 0.94))) as Label # the tool's own words (C16)
 	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	line.add_child(summary)
 	var more := Button.new()
@@ -155,9 +155,9 @@ func _make_entry(id: String) -> Dictionary:
 	var below := VBoxContainer.new()
 	below.add_theme_constant_override("separation", 0)
 	indent.add_child(below)
-	var result := _label(DIM)
+	var result := Languages.content(_label(DIM)) as Label
 	below.add_child(result)
-	var details := _label(DIM)
+	var details := Languages.content(_label(DIM)) as Label
 	details.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	details.visible = false
 	below.add_child(details)

@@ -16,13 +16,13 @@ extends CanvasLayer
 ## now, and Reset to find it as usual again. The sidecar checks a path
 ## first; one it refuses is said in red and nothing changes.
 
-const TABS := ["Graphics", "Controls", "Sound", "Game", "Providers"]
+const TABS := ["Graphics", "Controls", "Sound", "Game", "Providers"] # TRANSLATE
 ## What each choice reads as in the menu.
 const NAMES := {
-	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen",
-	"off": "Off", "low": "Low", "high": "High",
+	"windowed": "Windowed", "borderless": "Borderless fullscreen", "fullscreen": "Fullscreen", # TRANSLATE
+	"off": "Off", "low": "Low", "high": "High", # TRANSLATE
 	0: "Off", 30: "30", 60: "60", 120: "120", 144: "144", 240: "240",
-	"2x": "2×", "4x": "4×", "8x": "8×", "fxaa": "FXAA", "smaa": "SMAA",
+	"2x": "2×", "4x": "4×", "8x": "8×", "fxaa": "FXAA", "smaa": "SMAA", # TRANSLATE
 }
 
 var settings: Settings
@@ -60,6 +60,8 @@ var _outside_off := Label.new()
 ## browse, reset, label, box, busy}.
 var _programs := {}
 var _providers: GridContainer
+## The Language row (C16): Automatic, then each shipped language by its own name.
+var _language := OptionButton.new()
 ## Said while no provider has anything to set.
 var _no_providers := Label.new()
 var _file_dialog: FileDialog
@@ -126,6 +128,13 @@ func current_tab() -> String:
 	return TABS[_tabs.current_tab]
 
 
+# Text formatted in code (the sliders' values, the program rows) is
+# translated again in the new language.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_refresh()
+
+
 # _input, so Esc leaves it before anything else (the pause menu) sees it.
 func _input(event: InputEvent) -> void:
 	if _open and event.is_action_pressed("ui_cancel"):
@@ -172,31 +181,39 @@ func _build() -> void:
 		_tabs.add_child(grid)
 
 	var graphics := _tabs.get_child(0)
-	_choice(graphics, "Window", "graphics/window_mode")
-	_toggle(graphics, "Vsync", "graphics/vsync")
-	_choice(graphics, "FPS cap", "graphics/fps_cap")
-	_slider(graphics, "Render scale", "graphics/render_scale", func(v: float) -> String: return "%d %%" % roundi(v * 100.0))
-	_choice(graphics, "Shadows", "graphics/shadows")
-	_choice(graphics, "Anti-aliasing (MSAA)", "graphics/msaa")
-	_choice(graphics, "Screen-space anti-aliasing", "graphics/screen_space_aa")
-	_toggle(graphics, "Lightning in storms", "graphics/lightning")
+	_choice(graphics, "Window", "graphics/window_mode") # TRANSLATE
+	_toggle(graphics, "Vsync", "graphics/vsync") # TRANSLATE
+	_choice(graphics, "FPS cap", "graphics/fps_cap") # TRANSLATE
+	_slider(graphics, "Render scale", "graphics/render_scale", func(v: float) -> String: return Languages.fill(tr("{percent} %"), {"percent": Languages.number(str(roundi(v * 100.0)))})) # TRANSLATE
+	_choice(graphics, "Shadows", "graphics/shadows") # TRANSLATE
+	_choice(graphics, "Anti-aliasing (MSAA)", "graphics/msaa") # TRANSLATE
+	_choice(graphics, "Screen-space anti-aliasing", "graphics/screen_space_aa") # TRANSLATE
+	_toggle(graphics, "Lightning in storms", "graphics/lightning") # TRANSLATE
 	var controls := _tabs.get_child(1)
-	_slider(controls, "Mouse sensitivity", "controls/mouse_sensitivity", func(v: float) -> String: return "%.2fx" % v)
-	_slider(controls, "Field of view", "controls/fov", func(v: float) -> String: return "%d°" % roundi(v))
+	_slider(controls, "Mouse sensitivity", "controls/mouse_sensitivity", func(v: float) -> String: return Languages.fill(tr("{times}x"), {"times": Languages.number("%.2f" % v)})) # TRANSLATE
+	_slider(controls, "Field of view", "controls/fov", func(v: float) -> String: return Languages.fill(tr("{degrees}°"), {"degrees": Languages.number(str(roundi(v)))})) # TRANSLATE
 	var sound := _tabs.get_child(2)
-	_row(sound, "Sound when waiting\n(while you're in another window)", _sound)
+	_row(sound, "Sound when waiting\n(while you're in another window)", _sound) # TRANSLATE
 	_sound.toggled.connect(func(on: bool) -> void:
 		if attention:
 			attention.sound_on = on)
 	var game := _tabs.get_child(3)
-	_toggle(game, "Take me to a new session's island", "game/go_to_new_island")
-	_toggle(game, "Crosshair", "game/crosshair")
-	_toggle(game, "Show sessions started outside the game", "game/outside_sessions")
+	# Off: its face would translate a language's own name; "Automatic" is
+	# translated in code (_refresh_languages).
+	Languages.translated(_language)
+	_language.item_selected.connect(func(i: int) -> void: settings.set_value("game/language", str(_language.get_item_metadata(i))))
+	_controls["game/language"] = _language
+	_row(game, "Language", _language) # TRANSLATE
+	_toggle(game, "Take me to a new session's island", "game/go_to_new_island") # TRANSLATE
+	_toggle(game, "Crosshair", "game/crosshair") # TRANSLATE
+	_toggle(game, "Show sessions started outside the game", "game/outside_sessions") # TRANSLATE
 	_outside_off.name = "OutsideOff"
 	_outside_off.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
 	_outside_off.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_outside_off.custom_minimum_size.x = 300.0
 	_outside_off.visible = false
+	# The provider's own English, until notices are translated by their code (C16).
+	Languages.content(_outside_off)
 	game.add_child(_outside_off)
 	game.add_child(Control.new())
 	_providers = _tabs.get_child(4)
@@ -263,7 +280,7 @@ func _slider(grid: Node, text: String, key: String, shown: Callable) -> void:
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	slider.focus_mode = Control.FOCUS_NONE
-	var value := Label.new()
+	var value := Languages.translated(Label.new()) as Label
 	value.custom_minimum_size.x = 64.0
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(slider)
@@ -283,7 +300,9 @@ func _refresh() -> void:
 	for key: String in _controls:
 		var c: Control = _controls[key]
 		var v: Variant = settings.value(key)
-		if c is OptionButton:
+		if c == _language:
+			_refresh_languages(v)
+		elif c is OptionButton:
 			(c as OptionButton).select(Settings.CHOICES[key].find(v))
 		elif c is CheckButton:
 			(c as CheckButton).set_pressed_no_signal(v)
@@ -306,6 +325,24 @@ func _refresh() -> void:
 	_refresh_programs()
 
 
+# The Language row's choices, rebuilt when the shipped languages differ,
+# and [param choice] selected. A language's own name is never translated.
+func _refresh_languages(choice: String) -> void:
+	var choices := [Languages.AUTOMATIC] + Array(Languages.shipped())
+	var listed := []
+	for i in _language.item_count:
+		listed.append(_language.get_item_metadata(i))
+	if listed != choices:
+		_language.clear()
+		_language.add_item("")
+		_language.set_item_metadata(0, Languages.AUTOMATIC)
+		for locale: String in Languages.shipped():
+			_language.add_item(Languages.own_name(locale))
+			_language.set_item_metadata(_language.item_count - 1, locale)
+	_language.set_item_text(0, tr("Automatic"))
+	_language.select(maxi(choices.find(choice), 0))
+
+
 ## Sets [param provider]'s program by hand, or clears it ([param path]
 ## empty), as Browse… and Reset do (S02). The row says "Checking…" until
 ## the sidecar answers.
@@ -313,13 +350,13 @@ func choose_program(provider: String, path: String) -> void:
 	var row: Dictionary = _programs.get(provider, {})
 	if row.is_empty() or sidecar == null:
 		return
-	row["busy"] = "Checking…"
-	row["error"].text = ""
+	row["busy"] = "Checking…" # TRANSLATE
+	row["refused"] = []
 	_refresh_programs()
 	sidecar.set_program_path(provider, path, func(reply: Dictionary) -> void:
 		row["busy"] = ""
 		if reply.get("type") != "ok":
-			row["error"].text = "Not changed: %s" % reply.get("message", "")
+			row["refused"] = ["Not changed: {reason}", str(reply.get("message", ""))] # TRANSLATE
 		_refresh_programs())
 
 
@@ -329,13 +366,13 @@ func look_again(provider: String) -> void:
 	var row: Dictionary = _programs.get(provider, {})
 	if row.is_empty() or sidecar == null:
 		return
-	row["busy"] = "Looking…"
-	row["error"].text = ""
+	row["busy"] = "Looking…" # TRANSLATE
+	row["refused"] = []
 	_refresh_programs()
 	sidecar.find_program(provider, func(reply: Dictionary) -> void:
 		row["busy"] = ""
 		if reply.get("type") != "ok":
-			row["error"].text = "Couldn't look: %s" % reply.get("message", "")
+			row["refused"] = ["Couldn't look: {reason}", str(reply.get("message", ""))] # TRANSLATE
 		_refresh_programs())
 
 
@@ -369,13 +406,16 @@ func _refresh_programs() -> void:
 		var missing := program.has("path") and program["path"] == null
 		var busy: String = row["busy"]
 		if not busy.is_empty():
-			status.text = busy
+			status.text = tr(busy)
 		elif program.is_empty():
-			status.text = "Looking for it…"
+			status.text = tr("Looking for it…")
 		elif missing:
-			status.text = str(program.get("message", ""))
+			status.text = str(program.get("message", "")) # the provider's English (C16: codes later)
 		else:
-			status.text = "%s\nversion %s%s" % [program.get("path", ""), program.get("version", ""), "  ·  set by hand" if program.get("set_by_hand") else ""]
+			var found := Languages.fill(tr("{path}\nversion {version}"), {"path": program.get("path", ""), "version": program.get("version", "")})
+			status.text = found + (tr("  ·  set by hand") if program.get("set_by_hand") else "")
+		var refused: Array = row["refused"]
+		row["error"].text = Languages.fill(tr(refused[0]), {"reason": refused[1]}) if not refused.is_empty() else ""
 		status.modulate = Color(0.95, 0.35, 0.3) if missing and busy.is_empty() else Color.WHITE
 		row["browse"].disabled = not busy.is_empty()
 		row["look"].disabled = not busy.is_empty()
@@ -386,7 +426,7 @@ func _refresh_programs() -> void:
 # One row: the provider's name; what it found, Browse… and Reset, and why a
 # choice was refused.
 func _program_row(id: String, provider_name: String) -> Dictionary:
-	var label := Label.new()
+	var label := Languages.content(Label.new()) as Label # a product's name
 	label.text = provider_name
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -397,7 +437,7 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	# width of their own: while Providers is a hidden tab they have none, would
 	# wrap at every character, and the panel (as tall as its tallest tab)
 	# would grow past the screen.
-	var status := Label.new()
+	var status := Languages.translated(Label.new()) as Label
 	status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	status.custom_minimum_size.x = 300.0
 	box.add_child(status)
@@ -420,14 +460,14 @@ func _program_row(id: String, provider_name: String) -> Dictionary:
 	reset.pressed.connect(func() -> void: choose_program(id, ""))
 	buttons.add_child(reset)
 	box.add_child(buttons)
-	var error := Label.new()
+	var error := Languages.translated(Label.new()) as Label
 	error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	error.custom_minimum_size.x = 300.0
 	error.add_theme_color_override("font_color", Color(0.95, 0.35, 0.3))
 	box.add_child(error)
 	_providers.add_child(label)
 	_providers.add_child(box)
-	return {"status": status, "error": error, "browse": browse, "look": look, "reset": reset, "label": label, "box": box, "busy": ""}
+	return {"status": status, "error": error, "browse": browse, "look": look, "reset": reset, "label": label, "box": box, "busy": "", "refused": []}
 
 
 # The system's file picker, starting where the current one is.
@@ -444,8 +484,10 @@ func _browse(id: String) -> void:
 	var program: Variant = sidecar.provider_program(id).get("path") if sidecar else null
 	if program is String:
 		_file_dialog.current_dir = (program as String).get_base_dir()
-	_file_dialog.filters = PackedStringArray(["*.exe ; Programs"]) if OS.get_name() == "Windows" else PackedStringArray()
-	_file_dialog.title = "Choose %s" % _programs[id]["label"].text
+	_file_dialog.filters = PackedStringArray(["*.exe ; " + tr("Programs")]) if OS.get_name() == "Windows" else PackedStringArray()
+	# The dialog keeps auto-translate for its own buttons, so the title is
+	# looked up once more: harmless, no key reads "Choose <a program>".
+	_file_dialog.title = Languages.fill(tr("Choose {program}"), {"program": _programs[id]["label"].text})
 	_file_dialog.popup_centered_ratio(0.6)
 
 
@@ -455,4 +497,4 @@ func _grey_out(key: String, available: bool) -> void:
 	button.disabled = not available
 	if not available:
 		button.select(0) # off, whatever is saved
-	button.tooltip_text = "" if available else "Off under the Compatibility renderer"
+	button.tooltip_text = "" if available else "Off under the Compatibility renderer" # TRANSLATE

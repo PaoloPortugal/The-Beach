@@ -144,16 +144,16 @@ func _process(delta: float) -> void:
 
 func _show_stage() -> void:
 	if _synced:
-		_stage.text = "Bringing up your islands…"
+		_stage.text = tr("Bringing up your islands…")
 		_target = 0.85
 	elif _sidecar.status in [SidecarClient.Status.CONNECTING, SidecarClient.Status.SYNCING]:
-		_stage.text = "Finding your sessions…"
+		_stage.text = tr("Finding your sessions…")
 		_target = 0.55
 	elif _sidecar.attempt() > 0:
-		_stage.text = "Starting the sidecar (try %d of %d)…" % [_sidecar.attempt() + 1, _sidecar.handshake_timeouts_s.size()]
+		_stage.text = Languages.fill(tr("Starting the sidecar (try {try} of {tries})…"), {"try": Languages.number(str(_sidecar.attempt() + 1)), "tries": Languages.number(str(_sidecar.handshake_timeouts_s.size()))})
 		_target = 0.25
 	else:
-		_stage.text = "Starting the sidecar…"
+		_stage.text = tr("Starting the sidecar…")
 		_target = 0.25
 
 
@@ -221,6 +221,7 @@ func _build() -> void:
 	var name_label := Label.new()
 	name_label.name = "Developer"
 	name_label.text = DEVELOPER
+	Languages.content(name_label) # a name
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 40)
 	name_label.add_theme_color_override("font_color", INK)
@@ -247,6 +248,7 @@ func _build() -> void:
 	_bar.add_theme_stylebox_override("fill", fill)
 	_status.add_child(_bar)
 	_stage.name = "Stage"
+	Languages.translated(_stage)
 	_stage.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_stage.add_theme_font_size_override("font_size", 16)
 	_stage.add_theme_color_override("font_color", Color(INK, 0.7))

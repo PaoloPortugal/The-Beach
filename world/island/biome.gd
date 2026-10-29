@@ -9,13 +9,14 @@ enum Kind { BEACH, FOREST, MOUNTAIN, SNOWY, DESERT }
 ## The sessions menu's choice for "roll one for this island".
 const RANDOM := -1
 
-## Names as the sessions menu shows them, by [enum Kind].
+## Names as the sessions menu shows them, by [enum Kind]: English,
+## translated under the context "biome" (C16).
 const NAMES := {
-	Kind.BEACH: "Beach",
-	Kind.FOREST: "Forest",
-	Kind.MOUNTAIN: "Mountain",
-	Kind.SNOWY: "Snowy",
-	Kind.DESERT: "Desert",
+	Kind.BEACH: "Beach", # TRANSLATE: biome
+	Kind.FOREST: "Forest", # TRANSLATE: biome
+	Kind.MOUNTAIN: "Mountain", # TRANSLATE: biome
+	Kind.SNOWY: "Snowy", # TRANSLATE: biome
+	Kind.DESERT: "Desert", # TRANSLATE: biome
 }
 
 ## Each kind's shape, colours and props. Heights in metres above the water.

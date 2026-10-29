@@ -120,7 +120,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
-| C16 | Multi-language support                    | designed | —            | — |
+| C16 | Multi-language support                    | groundwork and menus built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `project.godot` (internationalization) |
 | C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
@@ -533,6 +533,7 @@ top-level folders sit beside it:
 | `assets/` | Art and audio, plus `CREDITS.md`. |
 | `sidecar/` | Sidecar, TypeScript on Node 22.21.0, built into one executable per platform that also runs as the channel bridge, the terminal launcher, a hook relay (S02) and a status line relay (C08). Has a `.gdignore` so Godot doesn't scan it. Files below. |
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
+| `locale/` | The game's translations (C16): `messages.pot`, the English template (written from the code by `tests/locale/write_pot.gd`), and one `<lang>.po` per language (none yet). |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
 | `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`), dev log and release plans (`release.md`). |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. None left: `claude-cli/` (Node, for S02) deleted 2026-10-22, `markdown/` (Godot, for C03) 2026-10-27; both in git history. |
@@ -544,12 +545,12 @@ removing a provider means deleting its folders.
 
 | Path | Role |
 |------|------|
-| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. |
+| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. `core/locale/`: `Languages` (C16: the language setting, content marking, placeholders). |
 | `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `opening.gd` (C17: the logos and the bar at start), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
 | `providers/<id>/` | One provider's own UI module (extensions). |
-| `tests/` | Headless test scripts, mirroring the folders above, and `error_watch.gd`, which every suite uses (Running it). Not shipped. |
+| `tests/` | Headless test scripts, mirroring the folders above, and `error_watch.gd`, which every suite uses (Running it); `locale/` also holds C16's template writer and PO checker (`pot.gd`, `write_pot.gd`). Not shipped. |
 
 **Sidecar files** (`sidecar/`):
 
@@ -3379,6 +3380,9 @@ later SMAA default):*
   - *Lightning in storms* (W09's `Weather.lightning_enabled`).
   - *Mouse sensitivity:* 0.25-3x of `Player.BASE_SENSITIVITY` (0.0025
     rad per pixel). *Field of view:* 60-110°, default 80.
+  - *Language* (C16), the Game tab's first row: Automatic (the
+    system's language if shipped, else English) or a shipped language
+    under its own name; it applies at once.
   - *Take me to a new session's island* (W04): off, a session you start
     leaves you where you are (its beacon and edge arrow still show it);
     going there from the sessions menu or the map still takes you.
@@ -3824,12 +3828,30 @@ headless: the live check has it.
 good"). macOS and Linux unchecked.
 
 ### C16 Multi-language support
-*Designed (user's, 2026-10-27); not built. Scope: core,* mostly on the world side:
+*Groundwork and menus built (2026-10-29: steps 1-2 of the migration
+order below); the rest designed (user's, 2026-10-27). Scope: core,*
+mostly on the world side:
 every provider's sessions show the same game text, no protocol event is
 added, and a provider's own strings live in its own folders (below).
 The game's text in more languages than English, made so that adding
 text (species, hints, menus) and adding a language both scale. Dev log
-2026-10-27-c16-localisation-design.
+2026-10-27-c16-localisation-design; the first part,
+2026-10-29-c16-localisation-groundwork.
+
+*Decided (user's, 2026-10-28), for the first part:*
+- **This branch is the groundwork and the menus** (steps 1-2 below);
+  the drawn HUDs, the chat's chrome, D01 and the rest come on later
+  branches.
+- **Our own extractor writes the template** (`locale/messages.pot`):
+  Godot 4.7.2 can't make one headless (its generator is the editor's,
+  and its GDScript parser plugin isn't exposed to scripts; checked). A
+  test fails while the file is out of date.
+- **Marking:** a `# TRANSLATE` comment marks every string on its line
+  (`# TRANSLATE: ctx` gives them a context); there, strings that look
+  like keys are left out (no uppercase letter, no space, nothing outside
+  ASCII: `"graphics/vsync"`). Chosen by the user after the trade-offs
+  against `tr()` at every place the text is used.
+- **No `en.po`:** the template is the English.
 
 *Decided (user's, 2026-10-27; my recommendations, all taken):*
 - *Godot's own translation system* (`TranslationServer`) with
@@ -3844,7 +3866,13 @@ text (species, hints, menus) and adding a language both scale. Dev log
   working. Changing English wording marks its translations fuzzy
   (Godot skips those), so they show English until a translator
   checks them. Rejected: stable ids (`SETTINGS_TITLE`), which need
-  an English file of their own and hide the text from the code.
+  an English file of their own and hide the text from the code;
+  numeric ids (`1042`) worse still, as translators' tools then show
+  no English either (user's, 2026-10-29). The alternative should a
+  need arise (e.g. mods referring to the game's strings by a key that
+  survives rewording): symbolic keys like `QUIT_NO_SESSIONS`, with an
+  `en.po` holding the English and the extractor and checker reading
+  keys instead of text.
 - *Timing:* the groundwork and the conversion now, step by step, so
   new text (D01-D05) is translatable from the start; the **first real
   language waits until the UI stops being a placeholder**, near the
@@ -3909,7 +3937,7 @@ text (species, hints, menus) and adding a language both scale. Dev log
   which also redraws it when the language changes. Text that is
   formatted or drawn (`draw_string` in the crosshair, hotbar, ring, map
   and fishing HUD) goes through `tr()` / `tr_n()` with named
-  placeholders (`tr("Caught: {species}!").format(...)`, so a language
+  placeholders (`Languages.fill(tr("Caught: {species}!"), ...)`, so a language
   can reorder them), and its node redraws on
   `NOTIFICATION_TRANSLATION_CHANGED`.
 - *Content is never auto-translated.* No control sets
@@ -3925,18 +3953,98 @@ text (species, hints, menus) and adding a language both scale. Dev log
 - *Provider text:* a provider's own strings sit in
   `providers/<id>/locale/` (Godot looks through every translation
   loaded for a language), so removing a provider removes them.
-- *Tests* (to build): every constant `tr()` / `tr_n()` string and
-  every auto-translated text is in `messages.pot` (through Godot's
-  template generation if 4.7 runs it headless, else a small extractor
-  in the tests); each `.po` is valid, keeps the English string's
-  placeholders and the right number of plural forms, and has nothing
-  stale (missing translations are reported as coverage, not failures:
-  they fall back to English); the world test loads a made-up language
-  where every string is `⟦English⟧`, opens every menu and HUD, and
-  fails on visible text without the brackets outside content
-  controls; and a session titled "Settings" still says "Settings".
-  Pseudolocalization (`TranslationServer.pseudolocalization_enabled`)
-  for checking by eye that longer text fits.
+- *Tests:* below, built for the menus; each later step adds its HUDs
+  and panels to the world test's walk. Pseudolocalization
+  (`TranslationServer.pseudolocalization_enabled`) for checking by eye
+  that longer text fits.
+
+**How the first part works** (2026-10-29).
+- *The setting.* `game/language` in C10's settings: `"auto"`
+  (Automatic, the default) or a shipped language's code; a value no
+  longer shipped reads as Automatic. `world.gd apply_settings` calls
+  `Languages.apply` (`core/locale/languages.gd`), which resolves it
+  (Automatic: `OS.get_locale_language()`, its region aside; a language
+  not shipped: English) and sets `TranslationServer`'s locale; every
+  node hears `NOTIFICATION_TRANSLATION_CHANGED`. Shipped: English, then
+  each loaded translation (`Languages.shipped()`), listed in the
+  project's `internationalization/locale/translations` (none yet;
+  fallback `en`). The Language row is the Game tab's first: Automatic,
+  then each language under its own name, which is its PO file's entry
+  msgctxt "language", msgid "This language's name, in this language",
+  else Godot's (English) name for it (my pick).
+- *Text set once* (a Label's or Button's text, tab titles, a dialog's
+  buttons) stays English in code and is auto-translated. *Formatted
+  text* goes through `tr()` / `tr_n()` with named placeholders, filled
+  by `Languages.fill` in one pass (my pick, over `String.format`: a
+  session title holding "{n}" stays as it is), digits through
+  `Languages.number`, on a control with auto-translate off
+  (`Languages.translated`), said again on
+  `NOTIFICATION_TRANSLATION_CHANGED`: the settings' sliders and program
+  rows, the quit warning's count and rows (`tr_n`), the sidecar-lost
+  notice, the sessions menu's list, notices and `_ago` ("{n} min ago",
+  `tr_n`), the opening's stages, the credits' error line. Biome names
+  are translated under the context "biome", session states under
+  "session state" (my picks).
+- *Content* is marked by `Languages.content(node)`: auto-translate off
+  and a `content` meta that `Languages.is_content` finds on the node or
+  a parent (a child set to `AUTO_TRANSLATE_MODE_ALWAYS`, like a code
+  block's Copy, is ours again). Marked: Markdown, bubble text, the chat
+  title, the tool log's summaries and results, the pending card's
+  provider text and options, the debug console, Godot's licences (legal
+  text, my pick), the game's title, the developer's name, a provider's
+  name. A selector that can show content (cluster, launch options,
+  language, biome) has auto-translate off and translates its own items
+  in code: an OptionButton's face ignores its items' own mode (probed).
+  The sidecar's English (a reason, a provider's message) is filled in
+  as it is, until codes come (step 6).
+- *The template* (`locale/messages.pot`), written by
+  `godot --headless --path . --script res://tests/locale/write_pot.gd`
+  from `agents/`, `chat/`, `core/` and `world/` (not `world/debug/`),
+  `.gd` and `.tscn` (`tests/locale/pot.gd`, a small GDScript tokenizer).
+  It takes the literal arguments of `tr`, `tr_n`, `atr`, `atr_n`,
+  `translate` and `translate_plural` (with their contexts and plurals);
+  `text`, `title`, `tooltip_text`, `placeholder_text`, `ok_button_text`,
+  `cancel_button_text` and `dialog_text` set to a literal, then the
+  statement's end; `add_item("…")`; every string on a `# TRANSLATE`
+  line, as above; a scene's same properties, but for a node with
+  auto-translate off. `# NO_TRANSLATE` skips a line; a
+  `# TRANSLATORS: …` comment becomes the note for translators on the
+  next line's entries. Text without a letter ("…", "30", "{reason}") is
+  never taken. Each entry lists its files, no line numbers (my pick, so
+  moving code doesn't change it); no project name in its header.
+- *Tests.* `tests/locale/locale_test.gd`: the extractor on made-up
+  code (each rule, escapes, raw and long strings, scenes); the template
+  up to date, without the codename or the debug commands; every
+  top-level folder read for text or listed as holding none
+  (`pot.gd`'s `NOT_GAME`); the PO checker on made-up files (good, the
+  same with Windows line endings, stale,
+  placeholders lost, added or renamed, plural forms against the
+  header's `nplurals`; a plural's earlier forms may drop a placeholder
+  but not the last; untranslated and fuzzy entries are coverage,
+  printed, not failures); every `locale/*.po` listed, loading and
+  passing (none yet), and no `en.po`; the made-up language `zz`, every
+  entry `⟦English⟧`, loaded from a PO file in `user://` at runtime (so
+  a mod's would load too); `Languages` with a language added at
+  runtime ("Deutsch", Automatic and its region, applying it and back);
+  the setting's validation; content marking; `fill`. The world test
+  (`_languages`), its settings pinned to English: the Language row
+  (Automatic, English), then in `zz` the main menu, the credits, the
+  pause menu, every settings tab, the sessions menu's add and resume
+  pages and the quit warning, walking every visible node (internal
+  ones too): text, placeholders, tab titles, tooltips and window titles
+  must show the brackets unless they're content or have no letters (a
+  check first shows the walk finds text the template lacks); a session
+  titled "Settings" still says "Settings" in the quit warning. Then
+  (`_chat_content`, security review 2026-10-29) a chat whose content is
+  the menus' words ("Settings", "Resume", "Back"): its title, model,
+  a notice of the sidecar's, a message, a tool row, and the card's
+  permission (summary, options, tool) and question (header, text,
+  options, descriptions, the subagent's name) all show as written,
+  while the card's own "Details" is translated. Until the chat's
+  chrome is converted (step 4), its labels that mix our words with
+  provider text (the card's "who" line, the notices) have
+  auto-translate off, and the status line keeps it: its only provider
+  text, "Couldn't send: …", can't be a whole key.
 
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,
@@ -3950,9 +4058,8 @@ bite's "!" needs none); (6) codes for the sidecar's
 free-form messages; (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
-questions → 11). Checked against Godot's docs (master, raw), not yet
-on 4.7.2 itself: CSV plurals and contexts arrived in 4.6, and loading
-a `.po` from outside `res://` at runtime (for mods) is to confirm.
+questions → 11). Checked on 4.7.2 (2026-10-29): a `.po` loads from
+`user://` at runtime (the tests' made-up language), so a mod's could.
 
 ### C17 Opening
 *Built (2026-10-28, UI placeholder). Scope: core (world only):* no
@@ -6467,7 +6574,12 @@ godot --headless --fixed-fps 60 --path . --script res://tests/world/clusters_tes
 godot --headless --fixed-fps 60 --path . --script res://tests/world/bridges_test.gd
 godot --headless --fixed-fps 60 --path . --script res://tests/world/performance_test.gd
 godot --headless --fixed-fps 60 --path . --script res://tests/chat/markdown_test.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test.gd
 ```
+
+After changing the game's text, write C16's template again (the locale
+test fails until it's done):
+`godot --headless --path . --script res://tests/locale/write_pot.gd`.
 
 **`--fixed-fps 60`** (user's choice, 2026-10-29; dev log
 2026-10-29-test-speed): each frame is one 1/60 s step of game time and
@@ -6892,7 +7004,11 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** S01's start retry and restart and C17's opening are
+**Current focus:** C16's groundwork and menus are merged (2026-10-29,
+live check passed); next for it, the drawn HUDs, the chat's chrome and
+D01's text, each on its own branch. The headless suites run with
+`--fixed-fps 60` (about 4 minutes in all; dev log
+2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried
 again, a sidecar that dies in play is restarted with sessions keeping
 their ids, and the game opens on the user's logo and Godot's, with a
@@ -6901,8 +7017,8 @@ the opening. D01 Fishing is merged as v0 (the
 fight reworked after three live checks, 2026-10-28; "good enough for a
 v0", the user's); next for it, the user's species list. The flaky D01
 check "reeling drags it through the water" was a game bug, the reel
-speeding the bobber past 15 m/s; fixed on `d01-reel-speed`, for review
-(dev log 2026-10-29-d01-reel-speed). D02 Bug
+speeding the bobber past 15 m/s; fixed and merged (dev log
+2026-10-29-d01-reel-speed). D02 Bug
 catching, D03 Collection, D04 Parkour (with W13's mantle and wall run)
 and D05 Plunger gun are designed; the hub is the user's to model.
 Later (user's): a player-facing credits file for C14's Credits, and

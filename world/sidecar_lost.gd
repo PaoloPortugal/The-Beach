@@ -6,8 +6,8 @@ extends CanvasLayer
 ## world with a notice whose one button quits (through [QuitGuard], so
 ## sessions still running are listed first). A PLACEHOLDER, like all UI.
 
-const FIRST_TEXT := "The game can't run without its sidecar, which couldn't start:\n%s\n\nTry starting the game again. If it keeps happening, reinstalling the game may fix it; the game's log says more."
-const IN_PLAY_TEXT := "The sidecar stopped and couldn't be started again:\n%s\n\nThe world can't follow your sessions without it. Quit, and start the game again: your sessions keep running in their terminals and come back then."
+const FIRST_TEXT := "The game can't run without its sidecar, which couldn't start:\n{reason}\n\nTry starting the game again. If it keeps happening, reinstalling the game may fix it; the game's log says more." # TRANSLATE
+const IN_PLAY_TEXT := "The sidecar stopped and couldn't be started again:\n{reason}\n\nThe world can't follow your sessions without it. Quit, and start the game again: your sessions keep running in their terminals and come back then." # TRANSLATE
 ## The notice's width, unless the window is narrower.
 const WIDTH := 520.0
 
@@ -20,6 +20,8 @@ var _sidecar: SidecarClient
 var _guard: QuitGuard
 var _player: Player
 var _text := Label.new()
+## Why the sidecar couldn't start again, for the notice.
+var _reason := ""
 var _quit_button := Button.new()
 
 
@@ -40,6 +42,7 @@ func _init() -> void:
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	Languages.translated(_text)
 	_text.custom_minimum_size.x = WIDTH
 	box.add_child(_text)
 	_quit_button.text = "Quit"
@@ -78,11 +81,17 @@ func quit_button() -> Button:
 
 func _on_failed(reason: String) -> void:
 	if not _sidecar.has_synced:
-		alert.call(FIRST_TEXT % reason)
+		alert.call(Languages.fill(tr(FIRST_TEXT), {"reason": reason}))
 		quit.call()
 		return
-	_text.text = IN_PLAY_TEXT % reason
+	_reason = reason
+	_text.text = Languages.fill(tr(IN_PLAY_TEXT), {"reason": reason})
 	_show()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_notifying():
+		_text.text = Languages.fill(tr(IN_PLAY_TEXT), {"reason": _reason})
 
 
 func _show() -> void:

@@ -9,7 +9,7 @@ extends CanvasLayer
 ## Nothing pauses: the sessions, the sky and the islands carry on (user's
 ## decision, 2026-10-22). A PLACEHOLDER, like all UI for now.
 
-const BUTTONS := ["Resume", "Settings", "Main menu", "Quit game"]
+const BUTTONS := ["Resume", "Settings", "Main menu", "Quit game"] # TRANSLATE
 
 ## Main menu was pressed; the world opens the main menu (C14).
 signal main_menu_chosen

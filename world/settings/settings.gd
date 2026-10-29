@@ -26,6 +26,8 @@ const DEFAULTS := {
 	"game/crosshair": true,
 	# S08: sessions started outside the game get read-only islands.
 	"game/outside_sessions": true,
+	# C16: Languages.AUTOMATIC or a shipped language's locale.
+	"game/language": Languages.AUTOMATIC,
 }
 
 ## The choices a text or whole-number setting can take, in menu order.
@@ -103,6 +105,8 @@ func _valid(key: String, v: Variant) -> bool:
 		return false
 	if CHOICES.has(key):
 		return v in CHOICES[key]
+	if key == "game/language": # the shipped ones, which a game update may change
+		return v == Languages.AUTOMATIC or v in Languages.shipped()
 	if v is float:
 		return is_finite(v)
 	return true
