@@ -548,8 +548,9 @@ export class HookTranslator {
     if (pick) {
       const [id, call] = pick
       call.permission = r.request_id
-      // Everything but the updates, which never leave the sidecar.
-      const options = (call.options ?? []).map(({ updates: _, ...shown }) => shown)
+      // The fields Godot shows; the updates never leave the sidecar.
+      const options = (call.options ?? []).map(({ option, label, kind, parts }) =>
+        ({ option, label, ...(kind ? { kind } : {}), ...(parts ? { parts } : {}) }))
       permission = {
         permission: r.request_id, agent: call.agent, tool: call.tool, summary: call.summary,
         ...(call.small ? { input: call.input } : {}), ...(options.length > 0 ? { options } : {}),

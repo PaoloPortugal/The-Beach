@@ -348,8 +348,8 @@ func _sidecar_text() -> void:
 		"network_path": ["Choose a file on a drive of this computer (like C:\\...), not a network path.", {}],
 		"no_file": ["There's no program at that path.", {}],
 		"wrapper": ["Pick claude.exe itself: a .cmd or other wrapper can't be started without a shell.", {}],
-		"not_the_program": ["That program didn't answer as Claude Code (claude --version).", {}],
-		"too_old": ["Claude Code 2.0.1 is too old; version 2.1.200 or newer is needed. Run `claude update`.", {"version": "2.0.1", "minimum": "2.1.200"}],
+		"not_the_program": ["That program didn't answer as Claude Code (claude --version).", {"version_command": "claude --version"}],
+		"too_old": ["Claude Code 2.0.1 is too old; version 2.1.200 or newer is needed. Run `claude update`.", {"version": "2.0.1", "minimum": "2.1.200", "update_command": "claude update"}],
 		"not_installed": ["Claude Code for Windows wasn't found. Install it from code.claude.com (the Windows version, not inside WSL) and sign in once in a terminal." if windows \
 			else "Claude Code wasn't found. Install it from code.claude.com and sign in once in a terminal.", {"site": "code.claude.com"}],
 	}
@@ -360,11 +360,12 @@ func _sidecar_text() -> void:
 			all_same = false
 			printerr("  %s: %s" % [reason, said])
 	_check(all_same, "each program reason in English reads as the sidecar's message")
-	_check(prog.call("set_path_broken", {"why": "too_old", "version": "2.0.1", "minimum": "2.1.200"}) \
+	_check(prog.call("set_path_broken", {"why": "too_old", "version": "2.0.1", "minimum": "2.1.200", "update_command": "claude update"}) \
 		== "The Claude Code set in Settings doesn't work: Claude Code 2.0.1 is too old; version 2.1.200 or newer is needed. Run `claude update`. Choose it again, or reset it.",
 		"set_path_broken: around its why, with why's details")
 	_check(prog.call("set_path_broken", {"why": "something_new"}) == "(the sidecar's)" and prog.call("set_path_broken", {"why": "set_path_broken"}) == "(the sidecar's)" \
-		and prog.call("too_old", {"version": "2.0.1"}) == "(the sidecar's)", "an unknown why, a looping one or a missing detail: the message")
+		and prog.call("too_old", {"version": "2.0.1", "minimum": "2.1.200"}) == "(the sidecar's)" and prog.call("not_the_program") == "(the sidecar's)",
+		"an unknown why, a looping one or a missing detail (the provider's command too): the message")
 	_check(SidecarText.program({"path": null, "message": "M", "reason": "wrapper"}, {"name": "Claude Code"}) == "M", "{program} needs the provider's program_path")
 	# Notices (hooks.ts, index.ts).
 	var notices := [

@@ -174,9 +174,11 @@ static func _reason_text(reason: String, details: Dictionary, provider: Dictiona
 		"wrapper":
 			template = TranslationServer.translate("Pick {program}.exe itself: a .cmd or other wrapper can't be started without a shell.")
 		"not_the_program":
-			template = TranslationServer.translate("That program didn't answer as {provider} ({program} --version).")
+			# TRANSLATORS: {version_command}: the provider's own command, e.g. "claude --version".
+			template = TranslationServer.translate("That program didn't answer as {provider} ({version_command}).")
 		"too_old":
-			template = TranslationServer.translate("{provider} {version} is too old; version {minimum} or newer is needed. Run `{program} update`.")
+			# TRANSLATORS: {update_command}: the provider's own command, e.g. "claude update".
+			template = TranslationServer.translate("{provider} {version} is too old; version {minimum} or newer is needed. Run `{update_command}`.")
 		"not_installed":
 			if OS.get_name() == "Windows":
 				template = TranslationServer.translate("{provider} for Windows wasn't found. Install it from {site} (the Windows version, not inside WSL) and sign in once in a terminal.")

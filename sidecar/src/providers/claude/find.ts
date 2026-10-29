@@ -194,7 +194,7 @@ export type ReadVersion = (file: string, env: Record<string, string>) => Promise
 function tooOldError(version: string): ClaudeNotFound {
   return new ClaudeNotFound(
     `Claude Code ${version} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`,
-    { reason: 'too_old', details: { version, minimum: MIN_VERSION } },
+    { reason: 'too_old', details: { version, minimum: MIN_VERSION, update_command: 'claude update' } },
   )
 }
 
@@ -225,7 +225,7 @@ export async function checkClaudePath(file: string, o: {
     throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.', { reason: 'wrapper' })
   }
   const version = await (o.readVersion ?? readVersion)(file, o.cleanEnv)
-  if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).', { reason: 'not_the_program' })
+  if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).', { reason: 'not_the_program', details: { version_command: 'claude --version' } })
   if (!versionAtLeast(version, MIN_VERSION)) throw tooOldError(version)
   return { path: file, version }
 }

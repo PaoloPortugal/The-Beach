@@ -93,8 +93,8 @@ test('C16 step 6: each check that fails has its reason, for Godot to word', asyn
   assert.deepEqual(await reason('claude.exe'), { reason: 'not_full_path' })
   assert.deepEqual(await reason('\\\\host\\share\\claude.exe', 'win32'), { reason: 'network_path' })
   assert.deepEqual(await reason(path.join(path.dirname(exe), 'missing.exe')), { reason: 'no_file' })
-  assert.deepEqual(await reason(old), { reason: 'too_old', details: { version: '2.1.1', minimum: MIN_VERSION } })
-  assert.deepEqual(await reason(file('reasons-silent.exe')), { reason: 'not_the_program' })
+  assert.deepEqual(await reason(old), { reason: 'too_old', details: { version: '2.1.1', minimum: MIN_VERSION, update_command: 'claude update' } })
+  assert.deepEqual(await reason(file('reasons-silent.exe')), { reason: 'not_the_program', details: { version_command: 'claude --version' } })
   if (process.platform === 'win32') assert.deepEqual(await reason(file('reasons-claude.cmd'), 'win32'), { reason: 'wrapper' })
   // Nothing found at all, on each platform.
   for (const platform of ['win32', 'linux'] as const) {

@@ -24,7 +24,6 @@ export interface Agent {
   reason: string | null
 }
 
-/** A way to allow beyond a plain allow; `label` is the provider's words, shown as is. */
 /**
  * A finer code than an error's or a notice's own, and the values its text
  * needs (C16 step 6): Godot words the reasons it knows, else shows the

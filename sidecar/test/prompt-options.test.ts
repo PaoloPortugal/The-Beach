@@ -123,7 +123,12 @@ test('never more than the terminal: other modes, restrictive or removing entries
 })
 
 test('kinds not seen live get a plain label of what they do and where it\'s saved (stopgap)', () => {
-  const label = (s: unknown[]) => suggestedLabel(s as Record<string, unknown>[], CWD, HOME)
+  const label = (s: unknown[]) => {
+    const words = suggestedWords(s as Record<string, unknown>[], CWD, HOME)
+    // No kind: Godot shows the label as it is (C16 step 6).
+    assert.deepEqual(Object.keys(words ?? {}), ['label'], 'the label alone')
+    return suggestedLabel(s as Record<string, unknown>[], CWD, HOME)
+  }
   assert.equal(label([rules('localSettings', { toolName: 'mcp__srv__tool' })]),
     'Yes, and always allow mcp__srv__tool (saved in this project\'s .claude/settings.local.json)')
   assert.equal(label([rules('projectSettings', { toolName: 'Bash', ruleContent: 'make' })]),

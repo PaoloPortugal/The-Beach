@@ -673,12 +673,14 @@ msgstr ""
 msgid "Pick {program}.exe itself: a .cmd or other wrapper can't be started without a shell."
 msgstr ""
 
+#. {version_command}: the provider's own command, e.g. "claude --version".
 #: core/sidecar/sidecar_text.gd
-msgid "That program didn't answer as {provider} ({program} --version)."
+msgid "That program didn't answer as {provider} ({version_command})."
 msgstr ""
 
+#. {update_command}: the provider's own command, e.g. "claude update".
 #: core/sidecar/sidecar_text.gd
-msgid "{provider} {version} is too old; version {minimum} or newer is needed. Run `{program} update`."
+msgid "{provider} {version} is too old; version {minimum} or newer is needed. Run `{update_command}`."
 msgstr ""
 
 #: core/sidecar/sidecar_text.gd

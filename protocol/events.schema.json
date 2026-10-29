@@ -391,7 +391,7 @@
     },
 
     "program": {
-      "description": "The program a provider with program_path found (hello's program, provider.program). Found: path and version. Not found: path null and message, for the player (not installed, too old, or why the path set by hand doesn't work), with an optional reason and details as an error's (not_full_path, network_path, no_file, wrapper, not_the_program, too_old {version, minimum}, not_installed {site}, set_path_broken {why, and why's details}). set_by_hand: the player set the path (client.set_program_path, serve --program-path); then it is the only one tried.",
+      "description": "The program a provider with program_path found (hello's program, provider.program). Found: path and version. Not found: path null and message, for the player (not installed, too old, or why the path set by hand doesn't work), with an optional reason and details as an error's (not_full_path, network_path, no_file, wrapper, not_the_program {version_command}, too_old {version, minimum, update_command}, not_installed {site}, set_path_broken {why, and why's details}). set_by_hand: the player set the path (client.set_program_path, serve --program-path); then it is the only one tried.",
       "oneOf": [
         {
           "type": "object",
@@ -428,8 +428,8 @@
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "message": { "description": "English fallback text for codes Godot doesn't know.", "type": "string" },
-        "reason": { "$ref": "#/$defs/reason", "description": "Which case of the code, when it has several (C16 step 6). sign_in_needed: signed_out, org_not_allowed {command}, cloud_credentials, account_on_hold {account}, billing; signed_out also {command}." },
-        "details": { "$ref": "#/$defs/details" }
+        "reason": { "$ref": "#/$defs/reason", "description": "Which case of the code, when it has several (C16 step 6). sign_in_needed: signed_out {command}, org_not_allowed {command}, cloud_credentials, account_on_hold {account}, billing." },
+        "details": { "$ref": "#/$defs/details", "description": "A reason's values, or the code's own: outside_sessions_off {setting}." }
       },
       "additionalProperties": false
     },
