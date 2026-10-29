@@ -106,7 +106,7 @@ func _make_arrow() -> Node2D:
 	tip.polygon = PackedVector2Array([Vector2(18, 0), Vector2(-10, -13), Vector2(-4, 0), Vector2(-10, 13)])
 	tip.color = SessionIslands.NEW_COLOUR
 	a.add_child(tip)
-	var label := Label.new()
+	var label := Languages.content(Label.new()) as Label # the project's name (C16)
 	label.name = "Label"
 	label.add_theme_font_size_override("font_size", 18)
 	label.add_theme_color_override("font_color", SessionIslands.NEW_COLOUR)

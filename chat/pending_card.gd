@@ -62,7 +62,9 @@ func _init() -> void:
 	_box.add_theme_constant_override("separation", 8)
 	add_child(_box)
 	var header := HBoxContainer.new()
-	_who = _label("", 18)
+	# Tool and subagent names inside our words (C16): auto-translate off;
+	# the chat's chrome step translates the words.
+	_who = Languages.translated(_label("", 18)) as Label
 	_who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_count = _label("", 16, DIM, false)
 	header.add_child(_who)
@@ -71,7 +73,7 @@ func _init() -> void:
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 8)
 	_box.add_child(_body)
-	_error_label = _label("", 16, ERROR)
+	_error_label = Languages.content(_label("", 16, ERROR)) as Label # the sidecar's message
 	_box.add_child(_error_label)
 
 

@@ -124,6 +124,10 @@ var _read_only_hint: Label
 
 func _ready() -> void:
 	Languages.content(_title) # the session's title (C16)
+	Languages.content(_model) # the provider's model and effort names
+	# The sidecar's message where we have no text of our own; the chat's
+	# chrome step translates NOTICE_TEXT in code.
+	Languages.translated(_notices)
 	$Layout/Compose/Send.pressed.connect(send)
 	_read_only_hint = Label.new()
 	_read_only_hint.text = READ_ONLY_TEXT

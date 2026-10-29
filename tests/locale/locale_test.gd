@@ -125,7 +125,7 @@ func _template() -> void:
 	_check(found["errors"].is_empty(), "the game's code reads without errors (%s)" % [found["errors"]])
 	var on_disk := FileAccess.get_file_as_string(Pot.POT_PATH)
 	_check(on_disk == Pot.render_pot(found["entries"]), "locale/messages.pot is up to date with the code (else run tests/locale/write_pot.gd)")
-	_check(not on_disk.contains("The Beach"), "the template doesn't hold the codename")
+	_check(not on_disk.contains(ProjectSettings.get_setting("application/config/name")), "the template doesn't hold the codename")
 	var ids: Array = found["entries"].map(func(e: Dictionary) -> String: return Pot.key_of(e["ctx"], e["id"]))
 	_check(Pot.key_of("", "Settings") in ids and Pot.key_of("biome", "Forest") in ids and Pot.key_of(Languages.OWN_NAME_CONTEXT, Languages.OWN_NAME) in ids and Pot.key_of("", "Hold Tab for sessions") in ids, "it has the menus' text, the biomes', the language's own name and the scenes'")
 	var debug: Array = found["entries"].filter(func(e: Dictionary) -> bool: return e["files"].any(func(f: String) -> bool: return f.begins_with("world/debug/")))
@@ -161,6 +161,9 @@ func _checker() -> void:
 	var r := Pot.check_po(good, entries)
 	_check(r["errors"].is_empty(), "a good PO file passes (%s)" % [r["errors"]])
 	_check(r["translated"] == 4 and r["fuzzy"] == 1 and r["total"] == 6, "coverage: 4 of 6 translated, 1 fuzzy (fuzzy and missing ones show English); obsolete ones are fine")
+	var crlf := Pot.check_po(good.replace("\n", "\r\n"), entries)
+	var crlf_po := Pot.parse_po(good.replace("\n", "\r\n"))
+	_check(crlf["errors"].is_empty() and crlf["translated"] == 4 and crlf_po["header"].get("Language") == "de", "and the same file with Windows line endings (%s)" % [crlf["errors"]])
 	var cases := {
 		"stale": "msgid \"Gone\"\nmsgstr \"Weg\"",
 		"placeholder lost": "msgid \"Choose {program}\"\nmsgstr \"Wählen\"",
@@ -217,7 +220,7 @@ func _pseudo() -> void:
 ## the world test too.
 static func pseudo_translation() -> Translation:
 	var template: Array = Pot.parse_po(FileAccess.get_file_as_string(Pot.POT_PATH))["entries"]
-	var path := "user://test-pseudo.po"
+	var path := "user://test-pseudo-%d.po" % OS.get_process_id()
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(Pot.render_pseudo(template))
 	f.close()

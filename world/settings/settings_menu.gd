@@ -485,6 +485,8 @@ func _browse(id: String) -> void:
 	if program is String:
 		_file_dialog.current_dir = (program as String).get_base_dir()
 	_file_dialog.filters = PackedStringArray(["*.exe ; " + tr("Programs")]) if OS.get_name() == "Windows" else PackedStringArray()
+	# The dialog keeps auto-translate for its own buttons, so the title is
+	# looked up once more: harmless, no key reads "Choose <a program>".
 	_file_dialog.title = Languages.fill(tr("Choose {program}"), {"program": _programs[id]["label"].text})
 	_file_dialog.popup_centered_ratio(0.6)
 

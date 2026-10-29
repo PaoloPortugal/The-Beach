@@ -229,8 +229,7 @@ static func _has_letter(s: String) -> bool:
 
 static func _from_tscn(text: String) -> Array:
 	var found := []
-	var lines := text.split("
-")
+	var lines := text.split("\n")
 	var section := []
 	var off := false
 	for i in lines.size():
@@ -246,8 +245,7 @@ static func _from_tscn(text: String) -> Array:
 			for p: String in PROPERTIES:
 				if line.begins_with(p + " = \""):
 					# The value may run over several lines.
-					var lexed := _string("
-".join(lines.slice(i)), p.length() + 3, false, false)
+					var lexed := _string("\n".join(lines.slice(i)), p.length() + 3, false, false)
 					if lexed.has("text") and _has_letter(lexed["text"]):
 						section.append({"id": lexed["text"], "plural": "", "ctx": "", "comment": ""})
 					break
@@ -435,10 +433,7 @@ static func _escape(s: String) -> String:
 ## many "#~" entries, errors: Array of String}.
 static func parse_po(text: String) -> Dictionary:
 	var out := {"header": {}, "entries": [], "obsolete": 0, "errors": []}
-	var lines := text.replace("
-", "
-").split("
-")
+	var lines := text.replace("\r\n", "\n").split("\n")
 	var e := {}
 	var field := "" # the field the next "…" line continues
 	for k in lines.size():
@@ -497,8 +492,7 @@ static func _finish(e: Dictionary, out: Dictionary) -> void:
 		out["errors"].append("line %d: an entry without msgid" % e["line"])
 	elif e["id"].is_empty() and e["ctx"].is_empty():
 		var body: String = e["strs"][0] if not e["strs"].is_empty() else ""
-		for h in body.split("
-", false):
+		for h in body.split("\n", false):
 			var colon := h.find(":")
 			if colon > 0:
 				out["header"][h.substr(0, colon).strip_edges()] = h.substr(colon + 1).strip_edges()

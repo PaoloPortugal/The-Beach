@@ -866,12 +866,62 @@ func _languages(world: Node3D, player: Player) -> void:
 	guard.quit = quit_before
 	world.store.apply({"type": "session.ended", "session": "l1", "seq": 2, "reason": "exited"})
 	_check(bad.is_empty(), "C16: every menu's text is translated, content aside (not: %s)" % [bad])
+	await _chat_content(world)
 
 	settings.set_value("game/language", "en")
 	TranslationServer.remove_translation(pseudo)
 	await _settle()
 	_check(TranslationServer.get_locale() == "en" and pause.button("Resume").text == "Resume", "C16: back in English")
 	_check(quits[0] == 0 and player.controls_enabled, "C16: (nothing quit, the player free)")
+
+
+# C16 (security review): in the made-up language, a chat whose content is
+# word for word the menus' ("Settings", "Resume", "Back") shows it as
+# written, so a prompt's options read as in the terminal; the card's own
+# "Details" is translated.
+func _chat_content(world: Node3D) -> void:
+	var store: SessionStore = world.store
+	var panel: ChatPanel = (world.get_node("ChatController") as ChatController).panel()
+	var snap := _snapshot("l2")
+	snap["title"] = "Settings"
+	snap["capabilities"] = {"model_info": {}}
+	snap["model"] = {"id": "m", "label": "Resume"}
+	snap["agents"].append(_agent("s1", "main", "working"))
+	snap["agents"][1]["name"] = "Settings"
+	store.apply({"type": "session.snapshot", "session": snap})
+	store.apply({"type": "session.notice", "session": "l2", "seq": 2, "notice": {"code": "not_ours", "message": "Settings"}})
+	store.apply({"type": "message.started", "session": "l2", "seq": 3, "message": "u1", "agent": "main", "role": "user"})
+	store.apply({"type": "message.completed", "session": "l2", "seq": 4, "message": "u1", "text": "Settings"})
+	store.apply({"type": "tool.started", "session": "l2", "seq": 5, "tool_call": "t1", "agent": "main", "tool": "Back", "summary": "Settings"})
+	store.apply({"type": "tool.finished", "session": "l2", "seq": 6, "tool_call": "t1", "status": "ok", "summary": "Resume"})
+	store.apply({"type": "permission.requested", "session": "l2", "seq": 7, "permission": {
+		"permission": "p1", "agent": "main", "tool": "Back", "summary": "Settings", "input": {"x": 1},
+		"options": [{"option": "o1", "label": "Resume"}]}})
+	store.apply({"type": "question.asked", "session": "l2", "seq": 8, "question": {"question": "q1", "agent": "s1", "items": [
+		{"text": "Settings", "header": "Back", "multi_select": false, "options": [{"label": "Resume", "description": "Settings"}, {"label": "Back"}]},
+	]}})
+	panel.open("l2")
+	await _until(func() -> bool: return not panel.is_loading(), 5.0)
+	panel.tool_fold("u1").set_open(true)
+	await _settle()
+	var card := panel.pending_card()
+	var shown := func(where: Node) -> Array:
+		var out := []
+		for n: Node in where.find_children("*", "", true, false):
+			if (n is Label or n is Button or n is RichTextLabel) and (n as CanvasItem).is_visible_in_tree():
+				out.append(n.atr(n.text))
+		return out
+	var permission: Array = shown.call(panel)
+	var wrong := permission.filter(func(t: String) -> bool: return t.contains("⟦Settings⟧") or t.contains("⟦Resume⟧") or t.contains("⟦Back⟧"))
+	_check(wrong.is_empty() and card.header_text().contains("Back") and "Resume" in permission and "⟦Details⟧" in permission and panel._title.text == "Settings" and panel.model_text() == "Resume", "C16: a chat's title, model, notice, message, tool row and permission (summary, options) as written, the card's Details translated (bracketed: %s)" % [wrong])
+	store.apply({"type": "permission.resolved", "session": "l2", "seq": 9, "permission": "p1", "decision": "deny", "by": "external"})
+	await _settle()
+	var question: Array = shown.call(card)
+	wrong = question.filter(func(t: String) -> bool: return t.contains("⟦Settings⟧") or t.contains("⟦Resume⟧") or t.contains("⟦Back⟧"))
+	_check(wrong.is_empty() and card.header_text().contains("Settings") and ["Settings", "Back", "Resume"].all(func(t: String) -> bool: return t in question), "C16: a question's header, text, options and descriptions as written, and the subagent's name (bracketed: %s)" % [wrong])
+	panel.close()
+	store.apply({"type": "session.ended", "session": "l2", "seq": 10, "reason": "exited"})
+	await _settle()
 
 
 # The text [param node] and the nodes under it show, as in
