@@ -1,53 +1,54 @@
 LIVE CHECK: C16 the
-language setting and
-the menus through
+drawn HUDs through
 translation
   godot --path . -- --checklist
-(the text, the template and
-the setting are tested
+(the text and the made-up
+language are tested
 headless; this checks that
-nothing looks different)
+nothing looks different
+in English)
 PgDn/PgUp scroll this.
 
-1. Start the game as usual.
-   The opening, then the
-   main menu: same words,
-   same layout as before?
-2. Settings → Game: the
-   first row is Language,
-   showing Automatic?
-3. Open it: two choices,
-   Automatic and English?
-4. Pick English, close
-   Settings and open it
-   again: still English?
-   Then back to Automatic.
-5. Walk the menus: every
-   Settings tab, the pause
-   menu, the sessions menu
-   (Tab, and its + to start
-   one: the folder and
-   resume lists), Quit's
-   "sessions are running"
-   prompt (then Back): all
-   in English as before, no
-   cut-off or overlapping
-   text, and no leftover
+1. Start the game, play.
+   Look at an orchestrator:
+   the crosshair's hint
+   says "E  Talk" as before?
+   A zipline's post: "E
+   Zipline up" / "down"?
+2. Press 1 and 2: the
+   hotbar shows Hands and
+   Rod as before?
+3. Hold Tab: the ring's
+   middle says "New
+   session", its footer
+   "Release Tab to go ...".
+   Point at a session: its
+   title, folder and state.
+   At the platform:
+   "Platform" and "the
+   spawn platform"?
+4. Press M: under each
+   island, "title · state"
+   as before?
+5. With a session waiting
+   on you: the top-right
+   corner says "1 session
+   waiting" (or "2
+   sessions waiting")?
+6. With a Claude session
+   running: the
+   bottom-right limits read
+   as before, e.g. "5-hour
+   74% · resets 3:40 PM",
+   the weekly one with its
+   day ("Fri 9:00 AM") or
+   date ("Oct 15")?
+7. Start a new session
+   and turn away from its
+   island: the edge arrow
+   says "folder · 120 m"?
+8. Nowhere a leftover
    placeholder in braces
-   (like {count} or
-   {name}) anywhere?
-6. Open a session's chat:
-   its title, your
-   messages, tool names
-   and folder names show
-   exactly as before? If
-   you can, rename a
-   session to a menu word
-   ("Settings"): it keeps
-   that title?
-7. In the game's output,
-   no new error or
-   warning (anything
-   naming locale,
-   translation or
-   Languages)?
+   ({n}, {hour12}), and no
+   new error or warning in
+   the game's output?

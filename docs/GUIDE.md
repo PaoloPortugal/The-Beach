@@ -1135,8 +1135,10 @@ puts everything back.
 - **Game:** first, **Language**: **Automatic** (the default) shows the
   game in your computer's language if the game has it, else in English;
   or pick a language, listed under its own name. It changes at once.
-  For now the game only comes in English, and only the menus are ready
-  for other languages. Your chats, session titles, folder names and
+  For now the game only comes in English; the menus and the words drawn
+  on screen (the crosshair's hint, the hotbar, the sessions ring, the
+  big map, the waiting count, the usage limits and their times, the new
+  island's arrow) are ready for other languages. Your chats, session titles, folder names and
   model names always stay as they are. Then, whether starting a
   session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
