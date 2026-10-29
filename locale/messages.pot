@@ -13,11 +13,82 @@ msgid "Talk"
 msgstr ""
 
 #: chat/chat_panel.gd
+msgid "Read-only: use its terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Read-only: use its own window."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session isn't saving transcripts, so parts of it may not show here."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session isn't reporting what it does. Chat still works."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "A new conversation started in this session (/clear). The earlier one can be brought back with /resume in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session switched to an earlier conversation (/resume). The chat now shows that conversation."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This conversation moved to another Claude Code session. Continue it in the terminal; messages from here can't reach it."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session started before the game restarted, so it's read-only here. Use its terminal, or /exit it and resume it from the world for full control."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "This session was started outside the game, so it's read-only here. Use its own window to chat with it."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: a usage or rate limit was reached. See the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service is overloaded. Try again in a moment."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service had an error. Try again in a moment."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the AI service refused the request. See the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the model isn't available. Pick another in the terminal."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Stopped: the reply reached its length limit."
+msgstr ""
+
+#: chat/chat_panel.gd
 msgid "Open link?"
 msgstr ""
 
 #: chat/chat_panel.gd
 msgid "Open in browser"
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Couldn't send: {reason}"
+msgstr ""
+
+#: chat/chat_panel.gd
+#: chat/pending_card.gd
+#: world/sessions_menu/session_launcher.gd
+#: world/sessions_menu/sessions_menu.gd
+msgid "Not connected to the sidecar."
 msgstr ""
 
 #: chat/chat_panel.gd
@@ -52,6 +123,19 @@ msgstr ""
 msgid "Waiting for you in the terminal."
 msgstr ""
 
+#: chat/chat_panel.gd
+msgid "Stopped."
+msgstr ""
+
+#: chat/chat_panel.gd
+msgid "Mode: {mode}"
+msgstr ""
+
+#. the model's effort level: the provider's own word for it ("High"), as it is.
+#: chat/chat_panel.gd
+msgid "{effort} effort"
+msgstr ""
+
 #: chat/chat_panel.tscn
 msgid "Esc to close"
 msgstr ""
@@ -61,6 +145,7 @@ msgid "Message (Enter to send, Shift+Enter for a new line)"
 msgstr ""
 
 #: chat/chat_panel.tscn
+#: chat/pending_card.gd
 msgid "Send"
 msgstr ""
 
@@ -72,9 +157,52 @@ msgstr ""
 msgid "Copied"
 msgstr ""
 
+#. the card shows the first of {n} requests waiting (never fewer than 2).
+#: chat/pending_card.gd
+msgid "1 of {n} waiting"
+msgid_plural "1 of {n} waiting"
+msgstr[0] ""
+msgstr[1] ""
+
 #: chat/pending_card.gd
 #: chat/tool_fold.gd
 msgid "Details"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Yes"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "No"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Optional: what to do instead (sent as your next message)"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Press No to add a note"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Would you like to proceed? The plan is above, in the chat."
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "No, keep planning"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Optional: what to change in the plan"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Press \"No, keep planning\" to say what to change"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Question {n} of {total}"
 msgstr ""
 
 #: chat/pending_card.gd
@@ -89,6 +217,184 @@ msgstr ""
 #: chat/pending_card.gd
 msgid "Next"
 msgstr ""
+
+#: chat/pending_card.gd
+msgid "Couldn't answer: {reason}"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "The orchestrator asks to use {tool}:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Subagent {name} asks to use {tool}:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "A subagent asks to use {tool}:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "The orchestrator has a plan for you to approve:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Subagent {name} has a plan for you to approve:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "A subagent has a plan for you to approve:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "The orchestrator asks:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "Subagent {name} asks:"
+msgstr ""
+
+#: chat/pending_card.gd
+msgid "A subagent asks:"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgctxt "permission mode"
+msgid "Manual"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgctxt "permission mode"
+msgid "Accept edits"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgctxt "permission mode"
+msgid "Plan"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgctxt "permission mode"
+msgid "Auto"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgid "Yes, and use auto mode"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgid "Yes, auto-accept edits"
+msgstr ""
+
+#: chat/permission_modes.gd
+msgid "Yes, manually approve edits"
+msgstr ""
+
+#. approving a plan and switching to a permission mode: our name for it ("Plan"), or the provider's id as it is.
+#: chat/permission_modes.gd
+msgid "Yes, and switch to {mode} mode"
+msgstr ""
+
+#: chat/tool_fold.gd
+msgctxt "tool status"
+msgid "running"
+msgstr ""
+
+#: chat/tool_fold.gd
+msgctxt "tool status"
+msgid "ok"
+msgstr ""
+
+#: chat/tool_fold.gd
+msgctxt "tool status"
+msgid "failed"
+msgstr ""
+
+#: chat/tool_fold.gd
+msgctxt "tool status"
+msgid "denied"
+msgstr ""
+
+#: chat/tool_fold.gd
+msgid "{n} tool call"
+msgid_plural "{n} tool calls"
+msgstr[0] ""
+msgstr[1] ""
+
+#: chat/tool_fold.gd
+msgid "{n} running"
+msgid_plural "{n} running"
+msgstr[0] ""
+msgstr[1] ""
+
+#: chat/tool_fold.gd
+msgid "{n} failed"
+msgid_plural "{n} failed"
+msgstr[0] ""
+msgstr[1] ""
+
+#: chat/tool_fold.gd
+msgid "{n} denied"
+msgid_plural "{n} denied"
+msgstr[0] ""
+msgstr[1] ""
+
+#: chat/tool_fold.gd
+msgid ""
+"Tool: {tool}\n"
+"Agent: {agent}"
+msgstr ""
+
+#. how full the model's context window is.
+#: chat/usage_text.gd
+msgid "Context {percent}%"
+msgstr ""
+
+#. how many tokens the model's context holds ("34k").
+#: chat/usage_text.gd
+msgid "Context {tokens}"
+msgstr ""
+
+#. tokens sent to the model so far ("2.1M").
+#: chat/usage_text.gd
+msgid "↑ {tokens} in"
+msgstr ""
+
+#. tokens the model wrote so far ("48k").
+#: chat/usage_text.gd
+msgid "↓ {tokens} out"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Context: {n} tokens of {window}"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Context: {n} tokens"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Input: {n}"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Cache reads: {n}"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Cache writes: {n}"
+msgstr ""
+
+#: chat/usage_text.gd
+msgid "Output: {n}"
+msgstr ""
+
+#. the tokens the model wrote this turn; {n} is compact ("1.2k").
+#: chat/usage_text.gd
+msgid "↓ {n} token"
+msgid_plural "↓ {n} tokens"
+msgstr[0] ""
+msgstr[1] ""
 
 #: chat/usage_text.gd
 msgctxt "weekday, short"
@@ -414,11 +720,6 @@ msgstr ""
 #: world/sessions_menu/session_launcher.gd
 #: world/sessions_menu/sessions_menu.tscn
 msgid "Starting…"
-msgstr ""
-
-#: world/sessions_menu/session_launcher.gd
-#: world/sessions_menu/sessions_menu.gd
-msgid "Not connected to the sidecar."
 msgstr ""
 
 #: world/sessions_menu/session_launcher.gd

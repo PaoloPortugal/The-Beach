@@ -120,7 +120,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
-| C16 | Multi-language support                    | groundwork, menus and HUDs built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/usage_text.gd`, `project.godot` (internationalization) |
+| C16 | Multi-language support                    | groundwork, menus, HUDs and chat chrome built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/`, `project.godot` (internationalization) |
 | C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
@@ -3829,15 +3829,17 @@ good"). macOS and Linux unchecked.
 
 ### C16 Multi-language support
 *Groundwork and menus built (2026-10-29: steps 1-2 of the migration
-order below), the drawn HUDs too (step 3, 2026-10-29); the rest
-designed (user's, 2026-10-27). Scope: core,*
+order below), the drawn HUDs too (step 3, 2026-10-29), and the chat
+panel's chrome (step 4, 2026-10-29); the rest designed (user's,
+2026-10-27). Scope: core,*
 mostly on the world side:
 every provider's sessions show the same game text, no protocol event is
 added, and a provider's own strings live in its own folders (below).
 The game's text in more languages than English, made so that adding
 text (species, hints, menus) and adding a language both scale. Dev log
 2026-10-27-c16-localisation-design; the first part,
-2026-10-29-c16-localisation-groundwork; the HUDs, 2026-10-29-c16-huds.
+2026-10-29-c16-localisation-groundwork; the HUDs, 2026-10-29-c16-huds;
+the chat's chrome, 2026-10-29-c16-chat.
 
 *Decided (user's, 2026-10-28), for the first part:*
 - **This branch is the groundwork and the menus** (steps 1-2 below);
@@ -4042,11 +4044,8 @@ text (species, hints, menus) and adding a language both scale. Dev log
   a notice of the sidecar's, a message, a tool row, and the card's
   permission (summary, options, tool) and question (header, text,
   options, descriptions, the subagent's name) all show as written,
-  while the card's own "Details" is translated. Until the chat's
-  chrome is converted (step 4), its labels that mix our words with
-  provider text (the card's "who" line, the notices) have
-  auto-translate off, and the status line keeps it: its only provider
-  text, "Couldn't send: …", can't be a whole key.
+  while the card's own "Details" is translated; then the chat's chrome
+  (step 4, below).
 
 **How the drawn HUDs work** (step 3, 2026-10-29). Text painted with
 `draw_string`, and the corners' Labels, go through `tr()` / `tr_n()` and
@@ -4073,7 +4072,7 @@ slot numbers, which name the keys 1 to 9):
   under "time", "{weekday} {time}" and "{month} {day}" under "time", the
   short day and month names under "weekday, short" and "month, short"
   (my picks; "Sun" and "May" need a context). The chat header's usage
-  line and turn hints are step 4's.
+  line and turn hints: step 4, below.
 - *Redrawn:* the ring and the corners (A05, C08) on
   `NOTIFICATION_TRANSLATION_CHANGED`; the crosshair, hotbar, big map and
   arrows repaint every frame anyway.
@@ -4090,6 +4089,66 @@ slot numbers, which name the keys 1 to 9):
 - *Not this step:* the fishing HUD's text (D01's, step 5, user's
   2026-10-29: on its own branch, as the migration order has it).
 - *Live check (2026-10-29, the user):* all steps passed.
+
+**How the chat's chrome works** (step 4, 2026-10-29). The chat panel's
+own words go through `tr()` / `tr_n()` and `Languages.fill`, on labels
+marked `Languages.translated`, and are said again on
+`NOTIFICATION_TRANSLATION_CHANGED` (the panel's header, status, notices
+and turn hints; the card, laid out again with its notes and choices
+kept; each tool fold). Text set once (Send, Details, Back, Next,
+"Other…", "Plan", the read-only hints) stays auto-translated.
+- *The status line:* each state's line, and the stop reasons
+  (`STOP_TEXT`), translated. A send that fails keeps its English
+  ("Couldn't send: {reason}", "Not connected to the sidecar.") and the
+  sidecar's reason apart, filled when shown, so the line no longer
+  relies on auto-translate. *Notices:* ours (`NOTICE_TEXT`) by code;
+  any other is the sidecar's message as it is.
+- *The header:* "Mode: {mode}", the mode's name ours by id under the
+  context "permission mode" (`PermissionModes.name_of`; an unknown id as
+  it is); the model's label as it is, then "{effort} effort" around the
+  provider's effort label (user's, 2026-10-29). *Usage*
+  (`UsageText.header`, `header_details`, `turn`): "Context {percent}%",
+  "Context {tokens}", "↑ {tokens} in", "↓ {tokens} out"; the tooltip's
+  "Context: {n} tokens of {window}" and its lines; the turn hint
+  "↓ {n} token(s)" (`tr_n`). Compact counts' digits through
+  `Languages.number`, "k" and "M" kept; the exact figures keep
+  English's "," separator, left for the first real language (step 7).
+- *The pending card:* who asks, as whole sentences (three askers, the
+  orchestrator, "Subagent {name}" or "A subagent", by three kinds: "asks
+  to use {tool}:", "has a plan for you to approve:", "asks:"), the tool
+  and the subagent's name as they are; "1 of {n} waiting" (`tr_n`);
+  "Question {n} of {total}"; Yes, No, Send, "No, keep planning", the
+  plan's line and the notes' placeholders. A refused answer keeps its
+  English ("Couldn't answer: {reason}") and the reason apart, like the
+  status line. The plan's choices ("Yes, and use auto mode", …) are
+  ours, translated by mode id (`PermissionModes.plan_choice`); an id
+  without one, "Yes, and switch to {mode} mode", the mode's name
+  translated as it reads alone ("Plan"), an unknown id as it is. **A
+  permission prompt's options stay the provider's words**: translating
+  our fixed ones by option id needs codes (step 6).
+- *The tool fold:* "{n} tool call(s)", "{n} running", "{n} failed",
+  "{n} denied" (`tr_n`); a row's status under the context "tool
+  status" (`ToolFold.status_text`); its details "Tool: {tool}\nAgent:
+  {agent}", the tool's and agent's names as they are.
+- *Marking:* ids look like keys, so `# TRANSLATE` would skip a line
+  holding one beside our text (`"acceptEdits": "Accept edits"`); those
+  go through `TranslationServer.translate` with literal strings
+  instead.
+- *Tests:* the world test's `_chat_content` adds, in `zz`, the walk
+  over the whole panel (every label of ours bracketed, content aside),
+  then the status line, a notice of ours beside the sidecar's, the mode,
+  "{effort} effort" around a provider's label "Back {n}", the usage line,
+  its tooltip and the turn hint, the card's who line (a tool named
+  "Back {tool}"), its count, buttons and note, a subagent's question,
+  the tool fold's line, statuses and details (a tool named "{tool}"
+  and summary "{n}", as written); the sidecar's reasons in a refused
+  send and answer, an unknown mode id in the header and a plan's choice,
+  and a subagent named "{tool}" asking for a tool, all as written
+  (security review); then back in English, the header, status, turn
+  hint, card and fold said again at once.
+- *Live check (2026-10-29, the user):* all steps passed. The English checks elsewhere ("The orchestrator asks
+  to use Bash:", "1 of 2 waiting", "Context 31% · ↑ 61k in · ↓ 1.2k
+  out") are unchanged.
 
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,
@@ -7049,9 +7108,8 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's groundwork, menus and drawn HUDs (steps 1-3)
-are merged (2026-10-29, live checks passed). Next for it, the chat's
-chrome and D01's text, each on its own branch. The headless suites run with
+**Current focus:** C16's groundwork, menus, drawn HUDs and chat chrome
+(steps 1-4) are merged (2026-10-29, live checks passed). Next for it, D01's text (step 5), on its own branch. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried

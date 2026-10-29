@@ -911,14 +911,22 @@ func _languages(world: Node3D, player: Player) -> void:
 # C16 (security review): in the made-up language, a chat whose content is
 # word for word the menus' ("Settings", "Resume", "Back") shows it as
 # written, so a prompt's options read as in the terminal; the card's own
-# "Details" is translated.
+# "Details" is translated. Then (step 4) the chat's chrome: the status
+# line, a notice of ours, the mode, "{effort} effort", the usage line and
+# its details, the turn hint, the card's who line, count and buttons, the
+# tool fold's line and statuses all bracketed, with content holding
+# placeholders ("{tool}", "{n}") as written; back in English, said again.
 func _chat_content(world: Node3D) -> void:
 	var store: SessionStore = world.store
 	var panel: ChatPanel = (world.get_node("ChatController") as ChatController).panel()
 	var snap := _snapshot("l2")
 	snap["title"] = "Settings"
-	snap["capabilities"] = {"model_info": {}}
+	snap["capabilities"] = {"model_info": {}, "permission_modes": {}, "usage": {}}
 	snap["model"] = {"id": "m", "label": "Resume"}
+	snap["effort"] = {"id": "e", "label": "Back {n}"}
+	snap["mode"] = "auto"
+	snap["agents"][0]["state"] = "waiting"
+	snap["agents"][0]["reason"] = "permission"
 	snap["agents"].append(_agent("s1", "main", "working"))
 	snap["agents"][1]["name"] = "Settings"
 	store.apply({"type": "session.snapshot", "session": snap})
@@ -927,10 +935,17 @@ func _chat_content(world: Node3D) -> void:
 	store.apply({"type": "message.completed", "session": "l2", "seq": 4, "message": "u1", "text": "Settings"})
 	store.apply({"type": "tool.started", "session": "l2", "seq": 5, "tool_call": "t1", "agent": "main", "tool": "Back", "summary": "Settings"})
 	store.apply({"type": "tool.finished", "session": "l2", "seq": 6, "tool_call": "t1", "status": "ok", "summary": "Resume"})
-	store.apply({"type": "permission.requested", "session": "l2", "seq": 7, "permission": {
-		"permission": "p1", "agent": "main", "tool": "Back", "summary": "Settings", "input": {"x": 1},
+	store.apply({"type": "tool.started", "session": "l2", "seq": 7, "tool_call": "t2", "agent": "main", "tool": "{tool}", "summary": "{n}"})
+	store.apply({"type": "tool.finished", "session": "l2", "seq": 8, "tool_call": "t2", "status": "error", "summary": "{n}"})
+	store.apply({"type": "session.notice", "session": "l2", "seq": 9, "notice": {"code": "transcripts_off", "message": "x"}})
+	store.apply({"type": "usage.updated", "session": "l2", "seq": 10, "usage": {
+		"tokens": {"input": 40, "output": 1234, "cache_read": 52000, "cache_write": 9000},
+		"context": {"tokens": 61040, "percent": 31, "window": 200000},
+		"turn": {"message": "u1", "output_tokens": 1234}, "limits": []}})
+	store.apply({"type": "permission.requested", "session": "l2", "seq": 11, "permission": {
+		"permission": "p1", "agent": "main", "tool": "Back {tool}", "summary": "Settings", "input": {"x": 1},
 		"options": [{"option": "o1", "label": "Resume"}]}})
-	store.apply({"type": "question.asked", "session": "l2", "seq": 8, "question": {"question": "q1", "agent": "s1", "items": [
+	store.apply({"type": "question.asked", "session": "l2", "seq": 12, "question": {"question": "q1", "agent": "s1", "items": [
 		{"text": "Settings", "header": "Back", "multi_select": false, "options": [{"label": "Resume", "description": "Settings"}, {"label": "Back"}]},
 	]}})
 	panel.open("l2")
@@ -946,14 +961,57 @@ func _chat_content(world: Node3D) -> void:
 		return out
 	var permission: Array = shown.call(panel)
 	var wrong := permission.filter(func(t: String) -> bool: return t.contains("⟦Settings⟧") or t.contains("⟦Resume⟧") or t.contains("⟦Back⟧"))
-	_check(wrong.is_empty() and card.header_text().contains("Back") and "Resume" in permission and "⟦Details⟧" in permission and panel._title.text == "Settings" and panel.model_text() == "Resume", "C16: a chat's title, model, notice, message, tool row and permission (summary, options) as written, the card's Details translated (bracketed: %s)" % [wrong])
-	store.apply({"type": "permission.resolved", "session": "l2", "seq": 9, "permission": "p1", "decision": "deny", "by": "external"})
+	_check(wrong.is_empty() and card.header_text().contains("Back") and "Resume" in permission and "⟦Details⟧" in permission and panel._title.text == "Settings" and panel.model_text().begins_with("Resume · "), "C16: a chat's title, model, notice, message, tool row and permission (summary, options) as written, the card's Details translated (bracketed: %s)" % [wrong])
+	# The chrome (step 4).
+	var bad := _untranslated(panel, "chat")
+	_check(bad.is_empty(), "C16: the chat's chrome is translated, content aside (not: %s)" % [bad])
+	_check(panel.status_text() == "⟦Waiting for a permission: answer it above or in the terminal.⟧", "C16: the status line (%s)" % panel.status_text())
+	_check(panel.notices_text() == "Settings\n⟦This session isn't saving transcripts, so parts of it may not show here.⟧", "C16: a notice of ours translated, the sidecar's as written (%s)" % panel.notices_text())
+	_check(panel.mode_text() == "⟦Mode: ⟦Auto⟧⟧" and panel.model_text() == "Resume · ⟦Back {n} effort⟧", "C16: the mode, and the effort around the provider's label (%s, %s)" % [panel.mode_text(), panel.model_text()])
+	var details: String = panel.get_node("Layout/Header/Usage").tooltip_text
+	_check(panel.usage_text() == "⟦Context 31%⟧ · ⟦↑ 61k in⟧ · ⟦↓ 1.2k out⟧" and details.begins_with("⟦Context: 61,040 tokens of 200,000⟧\n⟦Input: 40⟧") and panel.turn_hints() == [["u1", "⟦↓ 1.2k tokens⟧"]], "C16: the usage line, its details and the turn hint (%s; %s; %s)" % [panel.usage_text(), details, panel.turn_hints()])
+	_check(card.header_text() == "⟦The orchestrator asks to use Back {tool}:⟧" and card.count_text() == "⟦1 of 2 waiting⟧" and ["⟦Yes⟧", "⟦No⟧", "⟦Send⟧"].all(func(t: String) -> bool: return t in permission) and _note(card).atr(_note(card).placeholder_text) == "⟦Press No to add a note⟧", "C16: the card's who line (the tool as written), count, buttons and note (%s, %s)" % [card.header_text(), card.count_text()])
+	var fold := panel.tool_fold("u1")
+	_check(fold.header_text() == "▾ ⟦2 tool calls⟧ (⟦1 failed⟧)" and fold.shown_calls() == ["⟦ok⟧ Settings / Resume", "⟦failed⟧ {n} / {n}"], "C16: the tool fold's line and statuses, the summaries as written (%s; %s)" % [fold.header_text(), fold.shown_calls()])
+	fold.show_details("t2", true)
+	_check(fold.details_text("t2").begins_with("⟦Tool: {tool}\nAgent: main⟧"), "C16: a call's details, the tool's name as written (%s)" % fold.details_text("t2"))
+	fold.show_details("t2", false)
+	store.apply({"type": "permission.resolved", "session": "l2", "seq": 13, "permission": "p1", "decision": "deny", "by": "external"})
 	await _settle()
 	var question: Array = shown.call(card)
 	wrong = question.filter(func(t: String) -> bool: return t.contains("⟦Settings⟧") or t.contains("⟦Resume⟧") or t.contains("⟦Back⟧"))
 	_check(wrong.is_empty() and card.header_text().contains("Settings") and ["Settings", "Back", "Resume"].all(func(t: String) -> bool: return t in question), "C16: a question's header, text, options and descriptions as written, and the subagent's name (bracketed: %s)" % [wrong])
+	_check(card.header_text() == "⟦Subagent Settings asks:⟧" and card.count_text() == "" and "⟦Send⟧" in question, "C16: a subagent's question, its name as written (%s)" % card.header_text())
+	# Content holding placeholders, where our words wrap it (security
+	# review): the sidecar's reasons, a mode id, a subagent's name.
+	panel._send_error = "Couldn't send: {reason}"
+	panel._send_reason = "Settings {reason}"
+	panel._refresh_status()
+	_check(panel.status_text() == "⟦Couldn't send: Settings {reason}⟧", "C16: a send refused, the sidecar's reason as written (%s)" % panel.status_text())
+	panel._send_error = ""
+	panel._refresh_status()
+	card._error = "Couldn't answer: {reason}"
+	card._error_reason = "Settings {reason}"
+	card._render()
+	_check(card.error_text() == "⟦Couldn't answer: Settings {reason}⟧", "C16: an answer refused, the sidecar's reason as written (%s)" % card.error_text())
+	card._error = ""
+	card._render()
+	store.apply({"type": "session.updated", "session": "l2", "seq": 15, "mode": "{mode}"})
+	_check(panel.mode_text() == "⟦Mode: {mode}⟧" and PermissionModes.plan_choice("{mode}") == "⟦Yes, and switch to {mode} mode⟧" and PermissionModes.plan_choice("plan") == "⟦Yes, and switch to ⟦Plan⟧ mode⟧", "C16: an unknown mode id as written, in the header and a plan's choice (%s)" % panel.mode_text())
+	store.apply({"type": "session.updated", "session": "l2", "seq": 16, "mode": "auto"})
+	var named := _agent("s2", "main", "working")
+	named["name"] = "{tool}"
+	store.apply({"type": "agent.spawned", "session": "l2", "seq": 17, "agent": named})
+	var asking: String = card._who_text({"kind": "permission", "item": {"agent": "s2", "tool": "Back {tool}"}})
+	_check(asking == "⟦Subagent {tool} asks to use Back {tool}:⟧", "C16: a subagent named \"{tool}\" asking for a tool, both as written (%s)" % asking)
+	# Back in English, the chrome is said again at once.
+	TranslationServer.set_locale("en")
+	await _settle()
+	_check(panel.mode_text() == "Mode: Auto" and panel.usage_text() == "Context 31% · ↑ 61k in · ↓ 1.2k out" and panel.turn_hints() == [["u1", "↓ 1.2k tokens"]] and card.header_text() == "Subagent Settings asks:" and fold.header_text() == "▾ 2 tool calls (1 failed)" and panel.status_text().begins_with("Waiting for a permission"), "C16: the chat's chrome follows the language (%s; %s; %s)" % [panel.mode_text(), card.header_text(), fold.header_text()])
+	TranslationServer.set_locale(Pot.PSEUDO_LOCALE)
+	await _settle()
 	panel.close()
-	store.apply({"type": "session.ended", "session": "l2", "seq": 10, "reason": "exited"})
+	store.apply({"type": "session.ended", "session": "l2", "seq": 30, "reason": "exited"})
 	await _settle()
 
 

@@ -1,6 +1,6 @@
 LIVE CHECK: C16 the
-drawn HUDs through
-translation
+chat panel's chrome
+through translation
   godot --path . -- --checklist
 (the text and the made-up
 language are tested
@@ -9,46 +9,60 @@ nothing looks different
 in English)
 PgDn/PgUp scroll this.
 
-1. Start the game, play.
-   Look at an orchestrator:
-   the crosshair's hint
-   says "E  Talk" as before?
-   A zipline's post: "E
-   Zipline up" / "down"?
-2. Press 1 and 2: the
-   hotbar shows Hands and
-   Rod as before?
-3. Hold Tab: the ring's
-   middle says "New
-   session", its footer
-   "Release Tab to go ...".
-   Point at a session: its
-   title, folder and state.
-   At the platform:
-   "Platform" and "the
-   spawn platform"?
-4. Press M: under each
-   island, "title · state"
-   as before?
-5. With a session waiting
-   on you: the top-right
-   corner says "1 session
-   waiting" (or "2
-   sessions waiting")?
-6. With a Claude session
-   running: the
-   bottom-right limits read
-   as before, e.g. "5-hour
-   74% · resets 3:40 PM",
-   the weekly one with its
-   day ("Fri 9:00 AM") or
-   date ("Oct 15")?
-7. Start a new session
-   and turn away from its
-   island: the edge arrow
-   says "folder · 120 m"?
+1. Start the game, start a
+   Claude session and open
+   its chat (walk up to the
+   orchestrator, E). The
+   header reads as before:
+   "Mode: Manual" (or your
+   mode), the model and
+   "High effort" (or your
+   level), and "Context
+   N% · ↑ … in · ↓ … out"?
+   Hover the usage: the
+   exact figures, one per
+   line?
+2. Send a message that
+   makes it run a command.
+   While it works: the
+   status says "Working…",
+   the tool line "▸ 1 tool
+   call (1 running)", then
+   after it "▸ N tool
+   calls"? Click it: each
+   row says "ok" (or
+   "failed"), Details shows
+   "Tool: …" and "Agent: …"?
+3. At the turn's end, a dim
+   "↓ … tokens" under it?
+4. A permission prompt: the
+   card says "The
+   orchestrator asks to use
+   Bash:", lists Yes, the
+   provider's options, No;
+   the note says "Press No
+   to add a note"? The
+   status: "Waiting for a
+   permission: …"?
+5. Two prompts at once (or
+   a question with several
+   items): "1 of 2 waiting"
+   / "Question 1 of 2"?
+6. In plan mode, a plan to
+   approve: "The
+   orchestrator has a plan
+   for you to approve:",
+   the "Yes, …" choices and
+   "No, keep planning"?
+7. Close the chat. Settings
+   → Game → Language: pick
+   Automatic, then English.
+   Open the chat again: it
+   reads as in step 1,
+   nothing blank?
 8. Nowhere a leftover
    placeholder in braces
-   ({n}, {hour12}), and no
-   new error or warning in
-   the game's output?
+   ({n}, {tool}, {mode}),
+   and no new error or
+   warning in the game's
+   output?

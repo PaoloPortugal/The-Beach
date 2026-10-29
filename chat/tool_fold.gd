@@ -10,7 +10,6 @@ extends VBoxContainer
 ## plain Labels, never BBCode.
 
 const FONT_SIZE := 15
-const STATUS_TEXT := {"running": "running", "ok": "ok", "error": "failed", "denied": "denied"}
 const STATUS_COLOUR := {
 	"running": Color(0.95, 0.8, 0.35),
 	"ok": Color(0.5, 0.8, 0.55),
@@ -46,6 +45,7 @@ func setup(p_store: SessionStore, p_session_id: String, p_tree: Dictionary, p_id
 	_header.add_theme_font_size_override("font_size", FONT_SIZE)
 	_header.add_theme_color_override("font_color", DIM)
 	_header.pressed.connect(func() -> void: set_open(not is_open()))
+	Languages.translated(_header) # tr_n in code (C16)
 	add_child(_header)
 	var indent := MarginContainer.new()
 	indent.add_theme_constant_override("margin_left", 20)
@@ -102,6 +102,27 @@ func details_text(tool_call: String) -> String:
 	return e["details"].text if not e.is_empty() and e["details"].visible else ""
 
 
+# The line and the rows are translated in code (C16): say them again.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and store != null:
+		refresh()
+
+
+## A call's status in our words ("ok", "failed"), translated under "tool
+## status"; one we don't know as it is (C16).
+static func status_text(status: String) -> String:
+	match status:
+		"running":
+			return TranslationServer.translate("running", "tool status")
+		"ok":
+			return TranslationServer.translate("ok", "tool status")
+		"error":
+			return TranslationServer.translate("failed", "tool status")
+		"denied":
+			return TranslationServer.translate("denied", "tool status")
+	return status
+
+
 ## Updates the line and, when open, every call in it.
 func refresh() -> void:
 	var tools: Dictionary = store.session(session_id).get("tools", {})
@@ -113,11 +134,14 @@ func refresh() -> void:
 			count += 1
 			by_status[call["status"]] = by_status.get(call["status"], 0) + 1
 	visible = count > 0
-	var text := "%s %d tool call%s" % ["▾" if is_open() else "▸", count, "" if count == 1 else "s"]
+	var text := "%s %s" % ["▾" if is_open() else "▸", _counted(tr_n("{n} tool call", "{n} tool calls", count), count)]
 	var parts: PackedStringArray = []
-	for status in ["running", "error", "denied"]:
-		if by_status.has(status):
-			parts.append("%d %s" % [by_status[status], STATUS_TEXT[status]])
+	if by_status.has("running"):
+		parts.append(_counted(tr_n("{n} running", "{n} running", by_status["running"]), by_status["running"]))
+	if by_status.has("error"):
+		parts.append(_counted(tr_n("{n} failed", "{n} failed", by_status["error"]), by_status["error"]))
+	if by_status.has("denied"):
+		parts.append(_counted(tr_n("{n} denied", "{n} denied", by_status["denied"]), by_status["denied"]))
 	if not parts.is_empty():
 		text += " (%s)" % ", ".join(parts)
 	_header.text = text
@@ -135,7 +159,7 @@ func _make_entry(id: String) -> Dictionary:
 	box.add_theme_constant_override("separation", 0)
 	var line := HBoxContainer.new()
 	box.add_child(line)
-	var status := _label(Color.WHITE)
+	var status := Languages.translated(_label(Color.WHITE)) as Label # status_text
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
 	status.custom_minimum_size.x = 70
 	line.add_child(status)
@@ -174,13 +198,14 @@ func _update_entry(e: Dictionary, call: Dictionary) -> void:
 	if call.is_empty():
 		return
 	var status: String = call["status"]
-	e["status"].text = STATUS_TEXT.get(status, status)
+	e["status"].text = status_text(status)
 	e["status"].add_theme_color_override("font_color", STATUS_COLOUR.get(status, DIM))
 	e["summary"].text = call["summary"]
 	var result: String = call.get("result", "")
 	e["result"].text = result
 	e["result"].visible = not result.is_empty()
-	var details := "Tool: %s\nAgent: %s" % [call["tool"], call["agent"]]
+	# The tool's and agent's names as written; the label is content (C16).
+	var details := Languages.fill(tr("Tool: {tool}\nAgent: {agent}"), {"tool": call["tool"], "agent": call["agent"]})
 	if call.has("input"):
 		var input := JSON.stringify(call["input"], "  ")
 		if input.length() > MAX_DETAILS:
@@ -188,6 +213,10 @@ func _update_entry(e: Dictionary, call: Dictionary) -> void:
 		details += "\n" + input
 	e["details"].text = details
 	e["inner"].refresh()
+
+
+static func _counted(text: String, n: int) -> String:
+	return Languages.fill(text, {"n": Languages.number(str(n))})
 
 
 func _label(colour: Color) -> Label:
