@@ -1143,7 +1143,7 @@ puts everything back.
   usage in its header, the card where you answer, the tool calls'
   lines). Your chats, session titles, folder names, tool names, model
   names and the AI tool's own wording (its permission options, its
-  effort levels) always stay as they are. Then, whether starting a
+  effort levels) stay as they are. Then, whether starting a
   session takes you to its island. Turned
   off, you stay where you are; its green beacon and the arrow at the
   screen's edge show where it rose. And **Crosshair**: off hides the

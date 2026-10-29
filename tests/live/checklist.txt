@@ -54,12 +54,12 @@ PgDn/PgUp scroll this.
    for you to approve:",
    the "Yes, …" choices and
    "No, keep planning"?
-7. Settings → Game →
-   Language: switch to
-   Automatic and back to
-   English with the chat
-   open: nothing changes or
-   blanks?
+7. Close the chat. Settings
+   → Game → Language: pick
+   Automatic, then English.
+   Open the chat again: it
+   reads as in step 1,
+   nothing blank?
 8. Nowhere a leftover
    placeholder in braces
    ({n}, {tool}, {mode}),

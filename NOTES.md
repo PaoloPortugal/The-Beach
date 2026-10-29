@@ -4141,8 +4141,11 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
   its tooltip and the turn hint, the card's who line (a tool named
   "Back {tool}"), its count, buttons and note, a subagent's question,
   the tool fold's line, statuses and details (a tool named "{tool}"
-  and summary "{n}", as written); then back in English, all said
-  again at once. The English checks elsewhere ("The orchestrator asks
+  and summary "{n}", as written); the sidecar's reasons in a refused
+  send and answer, an unknown mode id in the header and a plan's choice,
+  and a subagent named "{tool}" asking for a tool, all as written
+  (security review); then back in English, the header, status, turn
+  hint, card and fold said again at once. The English checks elsewhere ("The orchestrator asks
   to use Bash:", "1 of 2 waiting", "Context 31% · ↑ 61k in · ↓ 1.2k
   out") are unchanged.
 
