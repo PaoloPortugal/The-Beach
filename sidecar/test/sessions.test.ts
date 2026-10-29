@@ -67,16 +67,18 @@ test('create: ok with the session id comes before session.created', async () => 
 test('create refuses unknown providers and bad project paths', async () => {
   const { s, c } = await setup()
   try {
-    const cases: [Record<string, unknown>, string][] = [
+    const cases: [Record<string, unknown>, string, string?][] = [
       [{ provider: 'nope', project }, 'unknown_provider'],
-      [{ provider: 'fake', project: { path: 'relative/dir' } }, 'invalid_project'],
-      [{ provider: 'fake', project: { path: path.join(os.tmpdir(), 'does-not-exist-' + Date.now()) } }, 'invalid_project'],
-      [{ provider: 'fake', project: { path: path.resolve(import.meta.filename) } }, 'invalid_project'],
+      [{ provider: 'fake', project: { path: 'relative/dir' } }, 'invalid_project', 'not_absolute'],
+      [{ provider: 'fake', project: { path: path.join(os.tmpdir(), 'does-not-exist-' + Date.now()) } }, 'invalid_project', 'no_such_folder'],
+      [{ provider: 'fake', project: { path: path.resolve(import.meta.filename) } }, 'invalid_project', 'not_a_folder'],
     ]
-    for (const [fields, code] of cases) {
+    for (const [fields, code, reason] of cases) {
       const r = await c.command({ type: 'session.create', ...fields })
       assert.equal(r.type, 'error')
       assert.equal(r.code, code, JSON.stringify(fields))
+      assert.equal(r.reason, reason, JSON.stringify(fields)) // C16 step 6
+      assert.equal(r.details, undefined)
     }
   } finally { await teardown(s, c) }
 })

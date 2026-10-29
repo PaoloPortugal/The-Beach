@@ -559,8 +559,8 @@ export class ClaudeSession implements ProviderSession {
 
   /** Throws unless the world can send to the conversation it follows. */
   private reachable(): BridgeLink {
-    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
-    if (!this.link?.connected) throw new CommandError('provider_error', UNREACHABLE_ERROR)
+    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR, { reason: 'conversation_moved' })
+    if (!this.link?.connected) throw new CommandError('provider_error', UNREACHABLE_ERROR, { reason: 'unreachable' })
     return this.link
   }
 
@@ -869,8 +869,8 @@ export class ClaudeSession implements ProviderSession {
   }
 
   async sendMessage(text: string): Promise<void> {
-    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
-    if (!this.reachable().send({ type: 'chat', text })) throw new CommandError('provider_error', UNREACHABLE_ERROR)
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR, { reason: 'read_only' })
+    if (!this.reachable().send({ type: 'chat', text })) throw new CommandError('provider_error', UNREACHABLE_ERROR, { reason: 'unreachable' })
     if (!this.hooksSeen && !this.hooksChecked && !this.translator.busy()) {
       this.hooksChecked = true
       this.hooksCheck = setTimeout(() => {
@@ -891,14 +891,14 @@ export class ClaudeSession implements ProviderSession {
    * (spike, 2026-10-03).
    */
   async respondPermission(permission: string, decision: 'allow' | 'deny', note?: string, option?: string): Promise<void> {
-    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR, { reason: 'read_only' })
     const link = this.reachable()
     if (option !== undefined) {
       const chosen = this.translator.promptOption(permission, option)
-      if (!chosen || !this.heldPrompts.has(chosen.toolCall)) throw new CommandError('provider_error', NO_OPTION_ERROR)
+      if (!chosen || !this.heldPrompts.has(chosen.toolCall)) throw new CommandError('provider_error', NO_OPTION_ERROR, { reason: 'option_unavailable' })
       this.releasePrompt(chosen.toolCall, permissionReply({ behavior: 'allow', updatedInput: chosen.input, updates: chosen.updates }))
     } else if (!link.send({ type: 'verdict', request_id: permission, behavior: decision })) {
-      throw new CommandError('provider_error', UNREACHABLE_ERROR)
+      throw new CommandError('provider_error', UNREACHABLE_ERROR, { reason: 'unreachable' })
     }
     this.emitAll(this.translator.permissionAnswered(permission, decision))
     // The channel's verdict carries no message, so a note follows it as the
@@ -908,10 +908,10 @@ export class ClaudeSession implements ProviderSession {
   }
   /** The user answered a question in the world: the held hook gets the answer. */
   async answerQuestion(question: string, answer: { answers: string[][] } | { response: string }): Promise<void> {
-    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR, { reason: 'read_only' })
     const input = this.translator.questionInput(question)
     if (!input || !this.held.has(question)) {
-      throw new CommandError('provider_error', 'The question is no longer waiting for an answer.')
+      throw new CommandError('provider_error', 'The question is no longer waiting for an answer.', { reason: 'question_not_waiting' })
     }
     let reply: Record<string, unknown>
     try { reply = questionReply(input, answer) } catch (e) {
@@ -928,10 +928,10 @@ export class ClaudeSession implements ProviderSession {
    * back denies the call with the user's note, and Claude plans again.
    */
   async answerPlan(plan: string, answer: { approve: true; mode: string } | { approve: false; note?: string }): Promise<void> {
-    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR, { reason: 'read_only' })
     const input = this.translator.planInput(plan)
     if (!input || !this.heldPlans.has(plan)) {
-      throw new CommandError('provider_error', 'The plan is no longer waiting for an answer.')
+      throw new CommandError('provider_error', 'The plan is no longer waiting for an answer.', { reason: 'plan_not_waiting' })
     }
     this.releasePlan(plan, answer.approve
       ? permissionReply({ behavior: 'allow', updatedInput: input, mode: answer.mode })
@@ -947,8 +947,8 @@ export class ClaudeSession implements ProviderSession {
    */
   async interrupt(): Promise<void> {
     // The stop lands through this conversation's hooks, which a moved one no longer sends.
-    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR)
-    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR)
+    if (this.movedTo !== null) throw new CommandError('provider_error', MOVED_ERROR, { reason: 'conversation_moved' })
+    if (this.readOnly) throw new CommandError('not_supported', READ_ONLY_ERROR, { reason: 'read_only' })
     for (const a of this.translator.busyAgents()) this.stopping.add(a)
     // Prompts still waiting for their hooks are shown now, to be declined with the rest.
     for (const [id, { relay, timer }] of [...this.waitingRelays]) {
@@ -974,7 +974,7 @@ export class ClaudeSession implements ProviderSession {
 
   async end(): Promise<void> {
     // No documented way to close Claude Code from outside (S05 decides).
-    throw new CommandError('not_supported', 'end the session with /exit in its terminal')
+    throw new CommandError('not_supported', 'end the session with /exit in its terminal', { reason: 'end_in_terminal' })
   }
   /** The chat and tool calls so far, oldest first. */
   async getHistory(): Promise<History> {

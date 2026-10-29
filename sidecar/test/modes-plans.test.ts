@@ -34,8 +34,8 @@ const heldBash = (mode: string) => hook('PermissionRequest', {
   // What the spike saw: only "don't ask again", never a switch to auto.
   permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: BASH.command }], behavior: 'allow', destination: 'localSettings' }],
 })
-const DONT_ASK = { option: 'suggested', label: 'Yes, and don\'t ask again for: node -e "1"' }
-const TO_AUTO = { option: 'auto', label: AUTO_LABEL }
+const DONT_ASK = { option: 'suggested', label: 'Yes, and don\'t ask again for: node -e "1"', kind: 'allow_commands', parts: { commands: ['node -e "1"'] } }
+const TO_AUTO = { option: 'auto', label: AUTO_LABEL, kind: 'switch_mode', parts: { mode: 'auto' } }
 const relayed = (request_id: string) => ({
   request_id, tool_name: 'Bash', description: 'd', input_preview: JSON.stringify(BASH, null, 1),
 })
@@ -470,6 +470,6 @@ test('through a session: no switch before auto was seen; no option once the hook
     hold.abort()
     await new Promise((r) => setTimeout(r, 50))
     const gone = await x.c.command({ type: 'permission.respond', session: x.id, permission: 'reqbb', decision: 'allow', option: 'auto' })
-    assert.deepEqual([gone.code, gone.message], ['provider_error', NO_OPTION_ERROR])
+    assert.deepEqual([gone.code, gone.message, gone.reason], ['provider_error', NO_OPTION_ERROR, 'option_unavailable'])
   } finally { await x.close() }
 })

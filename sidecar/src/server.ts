@@ -133,7 +133,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     }
     const outcome = await runCommand(registry, cmd, sendSnapshot, log)
     if (outcome.ok) send(ws, { type: 'ok', id, ...(outcome.result ? { result: outcome.result } : {}) })
-    else send(ws, { type: 'error', id, code: outcome.code, message: outcome.message })
+    else {
+      const { reason, details } = outcome
+      send(ws, { type: 'error', id, code: outcome.code, message: outcome.message, ...(reason ? { reason } : {}), ...(details ? { details } : {}) })
+    }
     outcome.after()
   }
 

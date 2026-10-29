@@ -25,7 +25,18 @@ export interface Agent {
 }
 
 /** A way to allow beyond a plain allow; `label` is the provider's words, shown as is. */
-export interface PermissionOption { option: Id; label: string }
+/**
+ * A finer code than an error's or a notice's own, and the values its text
+ * needs (C16 step 6): Godot words the reasons it knows, else shows the
+ * English message.
+ */
+export interface Reasoned { reason?: string; details?: Record<string, string> }
+
+/**
+ * A permission's other way to allow (C05). `kind` and `parts` let Godot word
+ * it (C16 step 6); `label` is the provider's English, the fallback.
+ */
+export interface PermissionOption { option: Id; label: string; kind?: string; parts?: Record<string, string | string[]> }
 
 export interface Permission {
   permission: Id
@@ -54,7 +65,7 @@ export interface QuestionItem {
 /** `asked_at`: set by the registry; see stamp() there. */
 export interface Question { question: Id; agent: Id; asked_at?: string; items: QuestionItem[] }
 
-export interface Notice { code: string; message: string }
+export interface Notice extends Reasoned { code: string; message: string }
 
 /**
  * The program a provider with program_path found (hello's program,
@@ -62,7 +73,7 @@ export interface Notice { code: string; message: string }
  */
 export type Program =
   | { path: string; version: string; set_by_hand: boolean }
-  | { path: null; set_by_hand: boolean; message: string }
+  | ({ path: null; set_by_hand: boolean; message: string } & Reasoned)
 
 /** One value the user can pick or see: the provider's id and its words for it. */
 export interface Choice { id: string; label: string }

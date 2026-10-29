@@ -9,13 +9,21 @@ import os from 'node:os'
 import { execFile, spawn } from 'node:child_process'
 import { findOnPath } from '../../launch/terminal.ts'
 import type { Env } from '../../launch/env.ts'
+import type { Reasoned } from '../../protocol.ts'
 
 /** The version everything was verified against (S02 spike and build). */
 export const MIN_VERSION = '2.1.284'
 
 export interface FoundClaude { path: string; version: string }
 
-export class ClaudeNotFound extends Error {}
+/** Why `claude` wasn't found, in English and as a reason Godot can word (C16 step 6). */
+export class ClaudeNotFound extends Error {
+  readonly reasoned: Reasoned
+  constructor(message: string, reasoned: Reasoned) {
+    super(message)
+    this.reasoned = reasoned
+  }
+}
 
 /** Candidate paths, in order. Exported for tests. */
 export function candidates(platform: NodeJS.Platform, env: Env, home: string): string[] {
@@ -183,8 +191,11 @@ export function readLoginShellPath(o: {
 
 export type ReadVersion = (file: string, env: Record<string, string>) => Promise<string | null>
 
-function tooOldMessage(version: string): string {
-  return `Claude Code ${version} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`
+function tooOldError(version: string): ClaudeNotFound {
+  return new ClaudeNotFound(
+    `Claude Code ${version} is too old; version ${MIN_VERSION} or newer is needed. Run \`claude update\`.`,
+    { reason: 'too_old', details: { version, minimum: MIN_VERSION } },
+  )
 }
 
 /**
@@ -201,19 +212,21 @@ export async function checkClaudePath(file: string, o: {
 }): Promise<FoundClaude> {
   const platform = o.platform ?? process.platform
   const paths = platform === 'win32' ? path.win32 : path.posix
-  if (!paths.isAbsolute(file) || /[\u0000-\u001f\u007f]/.test(file)) throw new ClaudeNotFound('That isn\'t a full path.')
+  if (!paths.isAbsolute(file) || /[\u0000-\u001f\u007f]/.test(file)) {
+    throw new ClaudeNotFound('That isn\'t a full path.', { reason: 'not_full_path' })
+  }
   // Only a drive of this computer: a network path (\\host\share) would be
   // reached over the network at each start, and \claude.exe depends on the drive.
   if (platform === 'win32' && !/^[A-Za-z]:[\\/]/.test(file)) {
-    throw new ClaudeNotFound('Choose a file on a drive of this computer (like C:\\...), not a network path.')
+    throw new ClaudeNotFound('Choose a file on a drive of this computer (like C:\\...), not a network path.', { reason: 'network_path' })
   }
-  if (!isFile(file)) throw new ClaudeNotFound('There\'s no program at that path.')
+  if (!isFile(file)) throw new ClaudeNotFound('There\'s no program at that path.', { reason: 'no_file' })
   if (platform === 'win32' && paths.extname(file).toLowerCase() !== '.exe') {
-    throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.')
+    throw new ClaudeNotFound('Pick claude.exe itself: a .cmd or other wrapper can\'t be started without a shell.', { reason: 'wrapper' })
   }
   const version = await (o.readVersion ?? readVersion)(file, o.cleanEnv)
-  if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).')
-  if (!versionAtLeast(version, MIN_VERSION)) throw new ClaudeNotFound(tooOldMessage(version))
+  if (!version) throw new ClaudeNotFound('That program didn\'t answer as Claude Code (claude --version).', { reason: 'not_the_program' })
+  if (!versionAtLeast(version, MIN_VERSION)) throw tooOldError(version)
   return { path: file, version }
 }
 
@@ -260,7 +273,10 @@ export async function findClaude(opts: {
       return await checkClaudePath(opts.override, { cleanEnv: opts.cleanEnv, platform, readVersion: versionOf })
     } catch (e) {
       if (!(e instanceof ClaudeNotFound)) throw e
-      throw new ClaudeNotFound(`The Claude Code set in Settings doesn't work: ${e.message} Choose it again, or reset it.`)
+      // Godot words it around the check's own reason: `why`, with its details.
+      throw new ClaudeNotFound(`The Claude Code set in Settings doesn't work: ${e.message} Choose it again, or reset it.`, {
+        reason: 'set_path_broken', details: { ...e.reasoned.details, why: e.reasoned.reason! },
+      })
     }
   }
   const list = candidates(platform, opts.env, home)
@@ -293,9 +309,10 @@ export async function findClaude(opts: {
     }
   }
   if (tooOld) {
-    throw new ClaudeNotFound(tooOldMessage(tooOld))
+    throw tooOldError(tooOld)
   }
   throw new ClaudeNotFound(platform === 'win32'
     ? 'Claude Code for Windows wasn\'t found. Install it from code.claude.com (the Windows version, not inside WSL) and sign in once in a terminal.'
-    : 'Claude Code wasn\'t found. Install it from code.claude.com and sign in once in a terminal.')
+    : 'Claude Code wasn\'t found. Install it from code.claude.com and sign in once in a terminal.',
+  { reason: 'not_installed', details: { site: 'code.claude.com' } })
 }

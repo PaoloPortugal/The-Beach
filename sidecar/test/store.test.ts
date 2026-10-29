@@ -375,6 +375,7 @@ test('through a session: list, resume with --resume in the project folder, its c
     for (const [nativeId, why] of [[ID(99), /wasn't found/], [ID(3), /wasn't found/]] as const) {
       const bad = await c.command({ type: 'session.resume', provider: 'claude', native_id: nativeId })
       assert.match(String(bad.message), why)
+      assert.equal(bad.reason, 'not_found')
     }
     // A transcript naming a relative folder isn't resumed from wherever the sidecar runs.
     const rel = path.join(s.dir, 'c')
@@ -384,6 +385,9 @@ test('through a session: list, resume with --resume in the project folder, its c
     fs.rmSync(s.projB, { recursive: true })
     const gone = await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(2) })
     assert.match(String(gone.message), /no longer exists/)
+    // C16 step 6: Godot words it, the folder as it is.
+    assert.equal(gone.reason, 'project_gone')
+    assert.deepEqual(gone.details, { path: s.projB })
     assert.deepEqual(c.invalid, [])
   } finally { sock?.destroy(); await c.close(); await srv.close(); await p.shutdown() }
 })
@@ -422,6 +426,7 @@ test("running in a terminal the game doesn't follow: not listed, and not resumed
     const bad = await c.command({ type: 'session.resume', provider: 'claude', native_id: ID(6) })
     assert.deepEqual([bad.type, bad.code], ['error', 'provider_error'])
     assert.match(String(bad.message), /still running in a terminal/)
+    assert.equal(bad.reason, 'still_running')
     assert.deepEqual(opened, [], 'no terminal opened')
     // Once it has exited there, it's listed and resumable again.
     running = { ids: new Set() }

@@ -338,6 +338,7 @@ test('a moved conversation: a notice; its hooks are ignored; world messages get 
       assert.equal(r.type, 'error', cmd.type)
       assert.equal(r.code, 'provider_error')
       assert.equal(r.message, MOVED_ERROR)
+      assert.equal(r.reason, 'conversation_moved')
     }
     assert.equal(x.fromSidecar.length, sent, 'nothing went down the old bridge')
     assert.deepEqual(x.c.invalid, [])
@@ -355,6 +356,7 @@ test('no live bridge: message.send says so', async () => {
       const r = await x.c.command(cmd)
       assert.equal(r.type, 'error', cmd.type)
       assert.equal(r.message, UNREACHABLE_ERROR)
+      assert.equal(r.reason, 'unreachable')
     }
   } finally { await x.close() }
 })

@@ -50,6 +50,17 @@
   "$defs": {
 
     "id": { "type": "string", "minLength": 1 },
+    "reason": {
+      "description": "A finer code than the message's own (C16 step 6): Godot shows its own text for reasons it knows and falls back to the English message for any other. Generic names; a provider sends only the ones it has.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "details": {
+      "description": "The values a reason's text needs (a path, a version, the provider's own command), by name; shown as they are, never translated.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "type": "string" }
+    },
     "provider_id": {
       "description": "Provider key, e.g. \"claude\". Also the extension namespace.",
       "type": "string",
@@ -103,7 +114,23 @@
       "required": ["option", "label"],
       "properties": {
         "option": { "$ref": "#/$defs/id" },
-        "label": { "description": "What choosing it does, in the provider's words; shown as is.", "type": "string", "minLength": 1 }
+        "label": { "description": "What choosing it does, in the provider's words; shown as is unless Godot knows its kind.", "type": "string", "minLength": 1 },
+        "kind": {
+          "description": "What the option does, so Godot can say it in its own words (C16 step 6); the label is the fallback for a kind Godot doesn't know, and an option without a kind always shows its label. switch_mode: switches the session's permission mode (parts.mode, a permission_modes id). allow_commands: never asks again for these commands (parts.commands). allow_folders: allows access to these folders during this session (parts.folders). read_folders: allows reading from these folders during this session (parts.folders). allow_folders_and_commands: allows access to these folders and these commands (parts.folders, parts.commands). allow_domain: never asks again for this web domain (parts.domain). allow_web_search: never asks again for web searches in this folder (parts.folder).",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "parts": {
+          "description": "The kind's values: the provider's own words (rule patterns, paths, domains) shown word for word, or an id. A list or one string.",
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            ]
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -364,7 +391,7 @@
     },
 
     "program": {
-      "description": "The program a provider with program_path found (hello's program, provider.program). Found: path and version. Not found: path null and message, for the player (not installed, too old, or why the path set by hand doesn't work). set_by_hand: the player set the path (client.set_program_path, serve --program-path); then it is the only one tried.",
+      "description": "The program a provider with program_path found (hello's program, provider.program). Found: path and version. Not found: path null and message, for the player (not installed, too old, or why the path set by hand doesn't work), with an optional reason and details as an error's (not_full_path, network_path, no_file, wrapper, not_the_program, too_old {version, minimum}, not_installed {site}, set_path_broken {why, and why's details}). set_by_hand: the player set the path (client.set_program_path, serve --program-path); then it is the only one tried.",
       "oneOf": [
         {
           "type": "object",
@@ -382,7 +409,9 @@
           "properties": {
             "path": { "type": "null" },
             "set_by_hand": { "type": "boolean" },
-            "message": { "type": "string", "minLength": 1 }
+            "message": { "type": "string", "minLength": 1 },
+            "reason": { "$ref": "#/$defs/reason" },
+            "details": { "$ref": "#/$defs/details" }
           },
           "additionalProperties": false
         }
@@ -398,7 +427,9 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
-        "message": { "description": "English fallback text for codes Godot doesn't know.", "type": "string" }
+        "message": { "description": "English fallback text for codes Godot doesn't know.", "type": "string" },
+        "reason": { "$ref": "#/$defs/reason", "description": "Which case of the code, when it has several (C16 step 6). sign_in_needed: signed_out, org_not_allowed {command}, cloud_credentials, account_on_hold {account}, billing; signed_out also {command}." },
+        "details": { "$ref": "#/$defs/details" }
       },
       "additionalProperties": false
     },
@@ -520,7 +551,9 @@
           "description": "Machine-readable: invalid_message (not JSON, not a command, fails the schema, or names no pending permission/question), unknown_provider, unknown_session (none, or it ended), session_starting (created but not up yet), not_supported (capability or extension not declared, or the session doesn't allow it, e.g. read_only), invalid_project (path not absolute or not a folder), invalid_program (client.set_program_path: the path failed a check; the message says which), provider_error (the provider failed; details stay in the sidecar's log).",
           "type": "string"
         },
-        "message": { "description": "Human-readable.", "type": "string" }
+        "message": { "description": "Human-readable English: the fallback for a reason or code Godot doesn't know.", "type": "string" },
+        "reason": { "$ref": "#/$defs/reason", "description": "Which case of the code (C16 step 6). not_supported: read_only, end_in_terminal. provider_error: conversation_moved, unreachable, option_unavailable, question_not_waiting, plan_not_waiting, already_open, still_running, not_found, project_gone {path}, no_terminal, and a program's reasons when it wasn't found. invalid_project: not_absolute, no_such_folder, not_a_folder. invalid_program: a program's reasons (see program). Developer-facing errors have none." },
+        "details": { "$ref": "#/$defs/details" }
       },
       "additionalProperties": false
     },

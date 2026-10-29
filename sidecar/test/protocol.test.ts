@@ -84,6 +84,28 @@ test('a permission\'s options: an id and a non-empty label each, at least one; C
   assert.equal(checkMessage(perm({ modes: ['auto'] })).ok, false)
 })
 
+test('C16 step 6: an option\'s kind and parts, an error\'s, a notice\'s and a program\'s reason and details', () => {
+  const perm = (option: Record<string, unknown>) => ({
+    type: 'permission.requested', session: 's', seq: 2,
+    permission: { permission: 'p', agent: 'a', tool: 'Bash', summary: 'Run: x', options: [{ option: 'o', label: 'Yes', ...option }] },
+  })
+  assert.equal(checkMessage(perm({ kind: 'allow_commands', parts: { commands: ['npm test *'] } })).ok, true)
+  assert.equal(checkMessage(perm({ kind: 'allow_domain', parts: { domain: 'a.com' } })).ok, true)
+  for (const bad of [{ kind: 'Allow' }, { kind: '' }, { parts: { commands: [] } }, { parts: { commands: [3] } }, { parts: { Commands: 'x' } }, { parts: { n: 3 } }]) {
+    assert.equal(checkMessage(perm(bad)).ok, false, JSON.stringify(bad))
+  }
+  const error = (over: Record<string, unknown>) => ({ type: 'error', id: '1', code: 'provider_error', message: 'm', ...over })
+  assert.equal(checkMessage(error({ reason: 'project_gone', details: { path: '/p' } })).ok, true)
+  for (const bad of [{ reason: 'Gone' }, { details: { path: 3 } }, { details: { 'a-b': 'x' } }, { details: 'x' }]) {
+    assert.equal(checkMessage(error(bad)).ok, false, JSON.stringify(bad))
+  }
+  const notice = { type: 'session.notice', session: 's', seq: 2, notice: { code: 'sign_in_needed', message: 'm', reason: 'signed_out', details: { command: '/login' } } }
+  assert.equal(checkMessage(notice).ok, true)
+  const program = (over: Record<string, unknown>) => ({ type: 'provider.program', provider: 'p', program: { path: null, set_by_hand: false, message: 'm', ...over } })
+  assert.equal(checkMessage(program({ reason: 'too_old', details: { version: '1', minimum: '2' } })).ok, true)
+  assert.equal(checkMessage({ type: 'provider.program', provider: 'p', program: { path: '/x', version: '1', set_by_hand: false, reason: 'too_old' } }).ok, false, 'a found program has none')
+})
+
 test('date-time format is enforced on events', () => {
   const ok = { type: 'session.snapshot', session: sessionWith({ started_at: '2026-09-29T10:00:00.000Z' }) }
   const bad = { type: 'session.snapshot', session: sessionWith({ started_at: 'yesterday' }) }

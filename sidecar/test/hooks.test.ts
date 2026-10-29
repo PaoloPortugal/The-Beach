@@ -148,16 +148,22 @@ test('a failed turn stops with its error type, read from `error` as Claude Code 
 })
 
 test('an account the provider can\'t use: the sign-in notice, and the orchestrator waits for the user in the terminal', () => {
-  for (const [error, message] of Object.entries(SIGN_IN_ERRORS)) {
+  const reasons = new Set<string>()
+  for (const [error, signIn] of Object.entries(SIGN_IN_ERRORS)) {
     const t = new HookTranslator(CWD)
     const ev = run(t, hook('UserPromptSubmit', { prompt: 'go' }),
       hook('StopFailure', { error, last_assistant_message: 'Failed to authenticate. API Error: 401' }))
     assert.deepEqual(ev.slice(-2), [
-      { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message } },
+      { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, ...signIn } },
       { type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' },
     ], error)
-    assert.ok(message.includes('terminal'), `${error}: points to the terminal`)
+    assert.ok(signIn.message.includes('terminal'), `${error}: points to the terminal`)
+    // C16 step 6: a reason of its own, and its details are words of the message.
+    assert.match(signIn.reason!, /^[a-z][a-z0-9_]*$/, error)
+    reasons.add(signIn.reason!)
+    for (const v of Object.values(signIn.details ?? {})) assert.ok(signIn.message.includes(v), `${error}: ${v}`)
   }
+  assert.equal(reasons.size, Object.keys(SIGN_IN_ERRORS).length)
 })
 
 test('the sign-in notice goes when Claude Code says the user signed in, or an API call goes through', () => {
@@ -185,7 +191,7 @@ test('the sign-in notice goes when Claude Code says the user signed in, or an AP
   assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'authentication_failed' })).slice(-1),
     [{ type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' }])
   assert.deepEqual(run(t, hook('UserPromptSubmit', { prompt: 'again' }), hook('StopFailure', { error: 'billing_error' })).slice(-2), [
-    { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: SIGN_IN_ERRORS.billing_error } },
+    { type: 'session.notice', notice: { code: SIGN_IN_NEEDED, ...SIGN_IN_ERRORS.billing_error } },
     { type: 'agent.state_changed', agent: MAIN, state: 'waiting', reason: 'sign_in' },
   ])
   assert.deepEqual(run(t, hook('Stop', {})).filter((e) => e.type === 'session.notice_cleared').length, 1)
