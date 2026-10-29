@@ -34,7 +34,7 @@ var session_id := ""
 var _shown := "" # key ("permission:<id>" / "question:<id>" / "plan:<id>") of the request on the card
 var _busy := "" # key of the request whose answer is on its way
 var _error := "" # why the last answer was refused, for the request on the card: in English, translated when shown (C16)
-var _error_reason := "" # the sidecar's words in it, as they are
+var _error_refusal := {} # the error reply in it, worded when shown (SidecarText)
 # Kept while the chat is closed, keyed by session and request id.
 var _notes := {} # "<session>/<permission or plan>" → the note typed so far
 var _denying := {} # "<session>/<permission or plan>" → true once Deny (or "No, keep planning") is pressed: the note unlocked
@@ -218,10 +218,10 @@ func _render_permission(p: Dictionary) -> void:
 	# One choice per line, as the terminal lists them.
 	_body.add_child(_list_choice("Yes", respond.bind("allow"))) # TRANSLATE
 	for option: Dictionary in p.get("options", []):
-		var label: String = option["label"]
 		var option_id: String = option["option"]
-		# The provider's words (C16: our fixed ones translated by option id later).
-		_body.add_child(Languages.content(_list_choice(label, respond.bind("allow", option_id))))
+		# Ours by its kind, the provider's parts as they are; else the provider's words (C16 step 6).
+		var choice := _list_choice(SidecarText.option(option), respond.bind("allow", option_id))
+		_body.add_child(Languages.translated(choice) if SidecarText.is_ours(option) else Languages.content(choice))
 	var no := _list_choice("No", func() -> void: set_denying(not denying)) # TRANSLATE
 	no.toggle_mode = true
 	no.set_pressed_no_signal(denying)
@@ -500,7 +500,7 @@ func _render() -> void:
 	_options.clear()
 	_next = null
 	var c := current()
-	_error_label.text = Languages.fill(tr(_error), {"reason": _error_reason}) if not _error.is_empty() else ""
+	_error_label.text = Languages.fill(tr(_error), {"reason": SidecarText.error(_error_refusal, _provider())}) if not _error.is_empty() else ""
 	_error_label.visible = not _error.is_empty()
 	if c.is_empty():
 		return
@@ -525,7 +525,7 @@ func _send(type: String, fields: Dictionary) -> void:
 			_busy = ""
 		if _shown == key:
 			_error = "Couldn't answer: {reason}" # TRANSLATE
-			_error_reason = str(reply.get("message", ""))
+			_error_refusal = reply
 			_render())
 	if sent.is_empty():
 		_busy = ""
@@ -600,6 +600,13 @@ func _list_choice(text: String, action: Callable) -> Button:
 
 func _k(id: String) -> String:
 	return "%s/%s" % [session_id, id]
+
+
+# The session's provider's entry from hello, for its words (SidecarText).
+func _provider() -> Dictionary:
+	if sidecar == null or store == null:
+		return {}
+	return sidecar.provider(str(store.session(session_id).get("provider", "")))
 
 
 static func _key(c: Dictionary) -> String:

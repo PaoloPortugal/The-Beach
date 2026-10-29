@@ -213,7 +213,7 @@ func _build() -> void:
 	_outside_off.custom_minimum_size.x = 300.0
 	_outside_off.visible = false
 	# The provider's own English, until notices are translated by their code (C16).
-	Languages.content(_outside_off)
+	Languages.translated(_outside_off)
 	game.add_child(_outside_off)
 	game.add_child(Control.new())
 	_providers = _tabs.get_child(4)
@@ -320,7 +320,12 @@ func _refresh() -> void:
 	outside.disabled = not off.is_empty()
 	if not off.is_empty():
 		outside.set_pressed_no_signal(false)
-	_outside_off.text = off.get("message", "")
+	var off_by: Dictionary = {}
+	if sidecar:
+		for p: Dictionary in sidecar.providers:
+			if p.get("notices", []).has(off):
+				off_by = p
+	_outside_off.text = SidecarText.notice(off, off_by) # ours by its code, the provider's setting and name as they are
 	_outside_off.visible = not off.is_empty()
 	_refresh_programs()
 
@@ -356,7 +361,7 @@ func choose_program(provider: String, path: String) -> void:
 	sidecar.set_program_path(provider, path, func(reply: Dictionary) -> void:
 		row["busy"] = ""
 		if reply.get("type") != "ok":
-			row["refused"] = ["Not changed: {reason}", str(reply.get("message", ""))] # TRANSLATE
+			row["refused"] = ["Not changed: {reason}", reply] # TRANSLATE
 		_refresh_programs())
 
 
@@ -372,7 +377,7 @@ func look_again(provider: String) -> void:
 	sidecar.find_program(provider, func(reply: Dictionary) -> void:
 		row["busy"] = ""
 		if reply.get("type") != "ok":
-			row["refused"] = ["Couldn't look: {reason}", str(reply.get("message", ""))] # TRANSLATE
+			row["refused"] = ["Couldn't look: {reason}", reply] # TRANSLATE
 		_refresh_programs())
 
 
@@ -410,12 +415,12 @@ func _refresh_programs() -> void:
 		elif program.is_empty():
 			status.text = tr("Looking for it…")
 		elif missing:
-			status.text = str(program.get("message", "")) # the provider's English (C16: codes later)
+			status.text = SidecarText.program(program, p) # ours by its reason, else the provider's English
 		else:
 			var found := Languages.fill(tr("{path}\nversion {version}"), {"path": program.get("path", ""), "version": program.get("version", "")})
 			status.text = found + (tr("  ·  set by hand") if program.get("set_by_hand") else "")
 		var refused: Array = row["refused"]
-		row["error"].text = Languages.fill(tr(refused[0]), {"reason": refused[1]}) if not refused.is_empty() else ""
+		row["error"].text = Languages.fill(tr(refused[0]), {"reason": SidecarText.error(refused[1], p)}) if not refused.is_empty() else ""
 		status.modulate = Color(0.95, 0.35, 0.3) if missing and busy.is_empty() else Color.WHITE
 		row["browse"].disabled = not busy.is_empty()
 		row["look"].disabled = not busy.is_empty()

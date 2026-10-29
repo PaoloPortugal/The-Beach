@@ -115,7 +115,9 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 	var id := sidecar.send_command(command, fields, func(reply: Dictionary) -> void:
 		_asking = false
 		if reply.get("type") == "error":
-			_say(refused, {"reason": reply.get("message", "")})
+			var by := sidecar.provider(str(fields.get("provider", "")))
+			# Worded when said, so again in a new language (SidecarText).
+			_say(refused, {"reason": func() -> String: return SidecarText.error(reply, by)})
 			return
 		var result: Dictionary = reply.get("result", {})
 		pending = result.get("session", "")
@@ -129,8 +131,9 @@ func _start(command: String, fields: Dictionary, refused: String, cluster: Strin
 		if not notice.is_empty():
 			if NOTICE_TEXT.has(notice["code"]):
 				_say(NOTICE_TEXT[notice["code"]])
-			else: # the sidecar's English
-				_say("{reason}", {"reason": notice["message"]}))
+			else: # the sidecar's English, or ours for its code
+				var by := sidecar.provider(str(fields.get("provider", "")))
+				_say("{reason}", {"reason": func() -> String: return SidecarText.notice(notice, by)}))
 	_asking = not id.is_empty()
 	_say("Starting…" if _asking else "Not connected to the sidecar.") # TRANSLATE
 
@@ -148,7 +151,12 @@ func _notification(what: int) -> void:
 
 # Says [param text] (English, "" for nothing) translated, its
 # placeholders filled from [param values].
+## A value may be a Callable, called each time it's said (text worded
+## from the sidecar's reasons follows the language too).
 func _say(text: String, values := {}) -> void:
 	_said = [text, values]
-	status = Languages.fill(tr(text), values) if not text.is_empty() else ""
+	var shown := {}
+	for k: String in values:
+		shown[k] = values[k].call() if values[k] is Callable else values[k]
+	status = Languages.fill(tr(text), shown) if not text.is_empty() else ""
 	status_changed.emit(status)
