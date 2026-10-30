@@ -4889,8 +4889,11 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   "Yes, allow reading from /c/… during this session", "Yes, and allow
   access to /c/… and "node -e …" commands", "Yes, and don't ask again
   for example.com", "Yes, and don't ask again for Web Search commands in
-  ~/…". A Bash rule is the hook's own, shown exactly: it can be narrower
-  than the terminal's (`npm --version` where the terminal saves `npm *`).
+  ~/…"; a PowerShell rule like a Bash one, "Yes, and don't ask again
+  for: …" (seen by the user, 2026-10-30, claude 2.1.312). A shell rule
+  is the hook's own, shown exactly: it can be narrower than the
+  terminal's (`npm --version` where the terminal saves `npm *`, Bash and
+  PowerShell alike: the hook never reports the terminal's prefix).
   Anything not seen live gets a plain description of what it does and
   where it's saved, e.g. "Yes, and always allow mcp__x__y (saved in this
   project's .claude/settings.local.json)" or "Yes, and allow access to
@@ -4904,7 +4907,7 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   things the hook never reports, so an exact copy isn't possible. Where
   the two agree (six of the nine prompts tried live), the world offers
   the same choice with the same effect, worded like the terminal. Where
-  they differ, it offers **less, never more**: a narrower Bash rule (the
+  they differ, it offers **less, never more**: a narrower shell rule (the
   terminal's prefix logic is undocumented, and copying it would be
   re-implementing Claude Code), nothing extra on `.claude` writes, and
   PowerShell's folder without the mode switch. Allowing less only means
