@@ -398,7 +398,6 @@ func _sidecar_text() -> void:
 			"Yes, and allow access to /c/Users/me/outside-live and \"node -e \\\"1\\\"\" commands"],
 		[{"kind": "allow_domain", "parts": {"domain": "example.com"}}, "Yes, and don't ask again for example.com"],
 		[{"kind": "allow_web_search", "parts": {"folder": "~\\AppData\\Local\\Temp\\garden-live"}}, "Yes, and don't ask again for Web Search commands in ~\\AppData\\Local\\Temp\\garden-live"],
-		[{"kind": "allow_folders", "parts": {"folders": [cwd, "/b"]}}, "Yes, and allow access to %s, /b during this session" % cwd],
 	]
 	all_same = true
 	for o: Array in options:
@@ -410,6 +409,8 @@ func _sidecar_text() -> void:
 	_check(SidecarText.option({"option": "suggested", "kind": "switch_mode", "parts": {"mode": "plan"}, "label": "L"}) == "Yes, and switch to Plan mode" \
 		and SidecarText.option({"option": "suggested", "kind": "switch_mode", "parts": {"mode": "newMode"}, "label": "L"}) == "Yes, and switch to newMode mode",
 		"another mode: our name for it, or its id as it is")
+	var folders := {"option": "suggested", "label": "Yes, and allow access to %s, /b during this session" % cwd}
+	_check(SidecarText.option(folders) == folders["label"] and not SidecarText.is_ours(folders), "PowerShell's folder for the session, no kind: its label, not ours")
 	var label := "Yes, and always allow Bash(make) (saved in this project's .claude/settings.json)"
 	_check(SidecarText.option({"option": "suggested", "label": label}) == label and not SidecarText.is_ours({"option": "suggested", "label": label}), "the stopgap, no kind: its label, not ours")
 	_check(SidecarText.option({"kind": "something_new", "parts": {"x": "y"}, "label": "L"}) == "L" \

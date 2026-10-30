@@ -109,7 +109,8 @@ export function suggestedWords(updates: PermissionUpdate[], cwd: string, home = 
   if (only?.type === 'setMode') return { label: ACCEPT_EDITS_LABEL, kind: 'switch_mode', parts: { mode: 'acceptEdits' } }
   if (only?.type === 'addDirectories' && only.destination === 'session') {
     const folders = only.directories as string[]
-    return { label: `Yes, and allow access to ${folders.join(', ')} during this session`, kind: 'allow_folders', parts: { folders } }
+    // Not the terminal's words (it says "always allow access to … from this project"): no kind (user's, 2026-10-30).
+    return { label: `Yes, and allow access to ${folders.join(', ')} during this session` }
   }
   if (only?.type === 'addRules') {
     const rules = rulesOf(only)!

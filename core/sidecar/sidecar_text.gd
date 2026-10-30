@@ -110,8 +110,6 @@ static func _option_text(o: Dictionary) -> String:
 					return Languages.fill(TranslationServer.translate("Yes, and switch to {mode} mode"), {"mode": PermissionModes.name_of(mode)})
 		"allow_commands":
 			template = TranslationServer.translate("Yes, and don't ask again for: {commands}")
-		"allow_folders":
-			template = TranslationServer.translate("Yes, and allow access to {folders} during this session")
 		"read_folders":
 			template = TranslationServer.translate("Yes, allow reading from {folders} during this session")
 		"allow_folders_and_commands":

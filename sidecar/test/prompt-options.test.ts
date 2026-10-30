@@ -157,7 +157,6 @@ test('C16 step 6: each option in the terminal\'s words has a kind, its parts wor
       'allow_folders_and_commands', { folders: ['/c/Users/me/outside-live'], commands: ['node -e "1"'] }],
     ['WebFetch', { url: 'u' }, [rules('localSettings', { toolName: 'WebFetch', ruleContent: 'domain:example.com' })], 'allow_domain', { domain: 'example.com' }],
     ['WebSearch', { query: 'q' }, [rules('localSettings', { toolName: 'WebSearch' })], 'allow_web_search', { folder: `~${CWD.slice(HOME.length)}` }],
-    ['PowerShell', { command: 'x' }, [{ type: 'addDirectories', directories: [CWD, '/b'], destination: 'session' }], 'allow_folders', { folders: [CWD, '/b'] }],
   ]
   for (const [tool, input, s, kind, parts] of cases) {
     const [o] = words(tool, input, s)
@@ -172,6 +171,9 @@ test('C16 step 6: each option in the terminal\'s words has a kind, its parts wor
     }
   }
   assert.deepEqual(words('Bash', { command: 'x' }, [], true), [{ option: AUTO, label: AUTO_LABEL, kind: 'switch_mode', parts: { mode: 'auto' } }])
+  // PowerShell's folder for the session isn't in the terminal's words: the label alone (user's, 2026-10-30).
+  assert.deepEqual(words('PowerShell', { command: 'x' }, [{ type: 'addDirectories', directories: [CWD, '/b'], destination: 'session' }]),
+    [{ option: SUGGESTED, label: `Yes, and allow access to ${CWD}, /b during this session`, kind: undefined, parts: undefined }])
   // The stopgap: the label alone.
   const stopgap = suggestedWords([rules('projectSettings', { toolName: 'Bash', ruleContent: 'make' })], CWD, HOME)
   assert.deepEqual(stopgap, { label: 'Yes, and always allow Bash(make) (saved in this project\'s .claude/settings.json)' })

@@ -570,10 +570,6 @@ msgid "Yes, and don't ask again for: {commands}"
 msgstr ""
 
 #: core/sidecar/sidecar_text.gd
-msgid "Yes, and allow access to {folders} during this session"
-msgstr ""
-
-#: core/sidecar/sidecar_text.gd
 msgid "Yes, allow reading from {folders} during this session"
 msgstr ""
 
