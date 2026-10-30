@@ -80,6 +80,16 @@ test('9 PowerShell: the folder for this session, without the mode switch the ter
     [[SUGGESTED, `Yes, and allow access to ${CWD} during this session`, [dirs]]])
 })
 
+test('10 PowerShell: don\'t ask again, in the terminal\'s words like Bash, with the hook\'s exact rule (the terminal saves npm *)', () => {
+  // Seen by the user 2026-10-30 (claude 2.1.312): the terminal's "Yes, and don't ask again for: npm *".
+  const s = [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'npm --version' })]
+  assert.deepEqual(offered('PowerShell', { command: 'npm --version' }, s),
+    [[SUGGESTED, 'Yes, and don\'t ask again for: npm --version', s]])
+  // Two shells' rules in one entry: no terminal wording seen, the plain description.
+  const mixed = [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'a' }, { toolName: 'Bash', ruleContent: 'b' })]
+  assert.equal(suggestedLabel(mixed, CWD, HOME), 'Yes, and always allow PowerShell(a), Bash(b) (saved in this project\'s .claude/settings.local.json)')
+})
+
 test('the switch to auto mode comes last, when C06 offers it', () => {
   const s = [rules('localSettings', { toolName: 'Bash', ruleContent: 'npm test' })]
   const auto = [{ type: 'setMode', mode: 'auto', destination: 'session' }]
@@ -151,6 +161,8 @@ test('C16 step 6: each option in the terminal\'s words has a kind, its parts wor
   const cases: [string, Record<string, unknown>, unknown[], string, Record<string, string | string[]>][] = [
     ['Bash', { command: 'npm test' }, [rules('localSettings', { toolName: 'Bash', ruleContent: 'npm test *' }, { toolName: 'Bash', ruleContent: 'make' })],
       'allow_commands', { commands: ['npm test *', 'make'] }],
+    ['PowerShell', { command: 'npm --version' }, [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'npm --version' })],
+      'allow_commands', { commands: ['npm --version'] }],
     ['Edit', { file_path: path.join(CWD, 'a.txt') }, [toEdits], 'switch_mode', { mode: 'acceptEdits' }],
     ['Read', { file_path: 'x' }, [rules('session', { toolName: 'Read', ruleContent: OUTSIDE })], 'read_folders', { folders: ['/c/Users/me/outside-live'] }],
     ['Bash', { command: 'x' }, [rules('localSettings', { toolName: 'Read', ruleContent: OUTSIDE }, { toolName: 'Bash', ruleContent: 'node -e "1"' })],

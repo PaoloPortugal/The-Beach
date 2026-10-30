@@ -27,6 +27,12 @@ const DESTINATIONS: readonly string[] = ['session', 'localSettings', 'projectSet
  * where the terminal doesn't (PowerShell), so it's dropped.
  */
 const FILE_EDIT_TOOLS: readonly string[] = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit']
+/**
+ * The shells whose command rules the terminal words "Yes, and don't ask
+ * again for: …" (Bash 2026-10-03; PowerShell seen by the user 2026-10-30,
+ * claude 2.1.312).
+ */
+const SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell']
 
 export const ACCEPT_EDITS_LABEL = 'Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session'
 export const AUTO_LABEL = 'Yes, and switch to auto mode'
@@ -118,8 +124,11 @@ export function suggestedWords(updates: PermissionUpdate[], cwd: string, home = 
     const bash = rules.filter((r) => r.toolName === 'Bash' && r.ruleContent).map((r) => r.ruleContent!)
     const reads = folders.filter((f): f is string => f !== null)
     if (only.destination === 'localSettings') {
-      if (bash.length === rules.length) {
-        return { label: `Yes, and don't ask again for: ${bash.join(', ')}`, kind: 'allow_commands', parts: { commands: bash } }
+      // One shell's command rules: the hook's own, word for word.
+      const shell = rules[0]!.toolName
+      if (SHELL_TOOLS.includes(shell) && rules.every((r) => r.toolName === shell && r.ruleContent)) {
+        const commands = rules.map((r) => r.ruleContent!)
+        return { label: `Yes, and don't ask again for: ${commands.join(', ')}`, kind: 'allow_commands', parts: { commands } }
       }
       if (reads.length > 0 && bash.length > 0 && reads.length + bash.length === rules.length) {
         return {
