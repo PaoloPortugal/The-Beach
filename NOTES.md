@@ -904,7 +904,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   translates, the provider's own parts (rule patterns, folders, a
   domain, a mode id; a string or a list of strings) put in word for
   word. Kinds: `switch_mode` {mode}, `allow_commands` {commands},
-  `allow_folders` {folders}, `read_folders` {folders},
+  `read_folders` {folders},
   `allow_folders_and_commands` {folders, commands}, `allow_domain`
   {domain}, `allow_web_search` {folder}. Without a kind, or with one
   Godot doesn't know, it shows the `label` as it is.
@@ -4205,6 +4205,10 @@ the player carries a code Godot words:
   permission option a `kind` and `parts` (a string or a list of
   strings). All optional and additive, no version change. Reasons and
   kinds are generic names; the schema's descriptions list every one.
+  Only an option in the terminal's own words gets a kind: the stopgap
+  labels have none, PowerShell's folder for the session included (its
+  label isn't the terminal's; user's, 2026-10-30), so they show as the
+  provider wrote them.
 - *`SidecarText`* (`core/sidecar/sidecar_text.gd`): `error(reply,
   provider)`, `program(found, provider)`, `notice(n, provider)`,
   `option(o)` and `is_ours(o)`. Each known reason or kind has our
