@@ -6,7 +6,7 @@ project's author, or CC0 (e.g. Kenney). Never AI-generated.
 | File | Source | Author | License | Notes |
 |------|--------|--------|---------|-------|
 | `assets/audio/attention.ogg` | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds), `question_002.ogg` | Kenney | CC0 | A05's chime. Picked by the user. |
-| `assets/opening/moofys_logo.png` | The developer's logo, given by the user (2026-10-28) | moofys (the user) | All rights reserved (the user's own) | C17's opening. Saved at its native 32×32 from the user's 480×480 (15× blocks; checked lossless). |
+| `assets/opening/moofys_logo.png` | The developer's logo, given by the user (2026-10-28) | moofys (the user) | All rights reserved (the user's own; not covered by the repo's MIT license, see LICENSE) | C17's opening. Saved at its native 32×32 from the user's 480×480 (15× blocks; checked lossless). |
 | `assets/opening/godot_logo.png` | [Godot press kit](https://godotengine.org/press/), `logo_large_color_light.png` | Andrea Calabró (Godot logo) | CC BY 4.0 | C17's opening, "Made with" Godot. Not CC0, but Godot's own logo: kept, credited here. |
 | `icon.svg` (repo root) | Godot default project icon | Andrea Calabró (Godot logo) | CC BY 4.0 | Placeholder. Not CC0; replace before release. |
 

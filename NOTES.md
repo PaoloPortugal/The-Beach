@@ -7223,10 +7223,13 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's step 6 (codes for the sidecar's free-form
+**Current focus:** none. The author stopped development on 2026-11-16
+and published the repo as is (MIT, forks welcome; README → Status).
+Anthropic's support couldn't rule on the terms questions (docs/release.md
+→ Anthropic's terms). C16's step 6 (codes for the sidecar's free-form
 messages: reasons on errors, notices and programs, kinds on permission
-options, worded by Godot) is built on `c16-codes`, waiting for the
-user's review and live check. Steps 1-5 (groundwork, menus, drawn HUDs,
+options, worded by Godot) was merged unreviewed and without its live
+check. Steps 1-5 (groundwork, menus, drawn HUDs,
 chat chrome, D01's text) are merged (2026-10-29, live checks passed);
 step 7, the first real language, waits for the UI to settle. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log

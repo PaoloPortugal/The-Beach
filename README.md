@@ -10,9 +10,14 @@ permission prompts and questions, and start or resume sessions, all without
 leaving the world. Every session is also a normal Claude Code terminal, so
 you can switch between the world and the terminal whenever you like.
 
-> **Status:** early development. A first slice runs from source: start a
-> session, walk up to its orchestrator and chat with it. See
-> [NOTES.md](NOTES.md) for the plan.
+> **Status:** no longer maintained. The author has stopped developing it
+> and published the source as is, under the MIT license: fork it and carry
+> it on if you like. It runs from source (start sessions, walk up to their
+> orchestrators, chat, answer permission prompts) and has never had a
+> release. [NOTES.md](NOTES.md) is the design and where things stand
+> (Known issues and next steps), and
+> [docs/release.md](docs/release.md) lists what a public release would
+> still need, including the open questions on Anthropic's terms.
 
 ## What you'll be able to do
 
@@ -67,7 +72,9 @@ More commands (packaging, the fake provider, tests) are in
 
 [MIT](LICENSE). Third-party parts keep their own licenses: the
 `addons/godot_ai` editor plugin (MIT, see its `LICENSE`) and the assets
-listed in [assets/CREDITS.md](assets/CREDITS.md).
+listed in [assets/CREDITS.md](assets/CREDITS.md). The author's moofys
+logo (`assets/opening/moofys_logo.png`) is not covered by the MIT
+license: all rights reserved, so replace it in a fork.
 
 Not affiliated with or endorsed by Anthropic. Claude and Claude Code are
 Anthropic's; this app runs your own installed copy of Claude Code.
