@@ -10,8 +10,8 @@ design; keep it current and short.
   each in `docs/diagrams/sequence/` (create a session, chat, permission,
   question, subagent, stop, failure, ...). Derived from this file; update
   together. The component diagram is in Architecture.
-- `docs/release.md`: plans and checks for a public release (Anthropic's
-  terms and branding, code signing, Steam and itch.io, exports). Read
+- `docs/release.md`: what a public release would need checked
+  (Anthropic's terms and branding, code signing, stores, exports). Read
   before a release or when one of them comes up.
 - `CLAUDE.md`: working rules. `README.md`: pitch and setup.
 - `assets/CREDITS.md`: source and license of every asset.
@@ -49,8 +49,7 @@ at any time (S02).
 **Downtime.** You spend a lot of time waiting on agents, so the world should
 eventually give you something to do: fishing and bug catching as the main
 ways to pass the time, filling a collection, and parkour courses for
-movement (user's direction, 2026-10-12). Together with a good UI they are
-what the public release waits for. Fishing (D01) is built; bug catching (D02),
+movement (user's direction, 2026-10-12). Fishing (D01) is built; bug catching (D02),
 the collection (D03) and parkour (D04) are designed, not built yet (see Known issues and next steps → Deferred ideas).
 
 **Principles (user's).**
@@ -64,10 +63,8 @@ the collection (D03) and parkour (D04) are designed, not built yet (see Known is
   our side fails, the tool must fall back to its own normal behaviour (e.g.
   the terminal asks the question), never to "allowed". See Architecture →
   Security rules.
-- **Public release** is the goal (user's plan, 2026-10-02): free and open
-  source on GitHub, paid on Steam (`docs/release.md` → Anthropic's terms,
-  Steam). Everything must hold up on other people's machines, not just
-  the developer's.
+- **Other people's machines.** Everything must hold up on other
+  people's machines, not just the developer's.
 - **Windows, macOS and Linux are all first-class.** Every feature is
   designed for all three from the start; nothing may assume one OS's
   terminal, paths, shell or installed tools. See Architecture → Platforms.
@@ -506,9 +503,8 @@ The game (Godot) follows the same rule:
   simpler water and lighting), and both renderers get checked. No
   renderer setting (C10's settings menu has none): selection is automatic only; for driver trouble, Godot's
   `--rendering-driver` / `--rendering-method` command-line flags are the
-  escape hatch (goes in the guide once there's something to run). If the
-  game ships on Steam, those become Steam launch options (e.g. "Play
-  (OpenGL)") that Steam offers at start (`docs/release.md` → Steam).
+  escape hatch (goes in the guide once there's something to run). A store
+  release could offer them as launch options (e.g. "Play (OpenGL)").
 - **Shaders** are written in Godot's shading language only, never
   API-specific code, so they work under every driver.
 - **Input.** Movement uses physical key positions (WASD works on AZERTY
@@ -7330,30 +7326,11 @@ exists.
 
 **After v1.** The remaining features in the index. They are not ordered yet.
 
-**Reveal and release** (user's plan, 2026-10-12). The goal is to release
-the user's vision first; others using the MIT code afterwards is fine.
-- *Until the reveal:* the repository stays private and nothing is shown
-  publicly, since the parts that set the game apart (downtime, the hub,
-  the UI) exist only in these notes and would be easy to copy before
-  they're built. Groundwork that shows nothing is fine meanwhile: the
-  terms checks (`docs/release.md` → Anthropic's terms, Steam), what a trailer
-  should show.
-- *The name* must be chosen before the reveal (the user's to pick;
-  "The Beach" is only the codename). Wanted feel: a vacation or a
-  retreat; nothing with "agent" in it (overdone), nor "Claude"
-  (Anthropic's mark; other providers come later). Before settling,
-  check Steam, trademarks (USPTO, EUIPO), the domain and social
-  handles, then rename everywhere listed in Conventions → Renaming the
-  project.
-- *The reveal* comes when the name is chosen, the release-gate
-  features are built and the Steam page is ready: a good UI (a pass across the "UI placeholder"
-  features), the downtime activities and the hub (Deferred ideas →
-  Downtime, The hub), and read-only islands (Deferred ideas). Shown
-  with the Steam page, videos and devlogs.
-- *Release* follows a short gap after the reveal (a few months, enough
-  for wishlists and an audience, too short for a copy to catch up),
-  on Steam (paid) with the repository made public (free, MIT) at the
-  same time. Codex, OpenCode and Copilot CLI come after it.
+**Release.** None planned: development stopped on 2026-11-16 (Current
+focus). What a release would need checked is in `docs/release.md`. "The
+Beach" is only the codename: a fork that picks a name should check
+trademarks, the domain and social handles, then rename everywhere listed
+in Conventions → Renaming the project.
 
 ### Deferred ideas (not features yet)
 
@@ -7363,9 +7340,9 @@ the user's vision first; others using the MIT code afterwards is fine.
   2026-10-07): built (C10, 2026-10-12).
 
 - **Read-only islands for sessions started outside the game**
-  (researched 2026-10-12, brought forward by the user to be part of the
-  public release: similar projects, Agent World and Pixel Agents,
-  already show every session on the machine): built (S08, 2026-10-22).
+  (researched 2026-10-12, brought forward by the user: similar projects,
+  Agent World and Pixel Agents, already show every session on the
+  machine): built (S08, 2026-10-22).
 
 - **Sharing the sidecar as its own project** (user's idea, 2026-10-03).
   The sidecar and its protocol don't depend on the game: others could
@@ -7379,8 +7356,7 @@ the user's vision first; others using the MIT code afterwards is fine.
   and a second repository is upkeep. Until then, keep the boundary
   clean: no game assumptions in the sidecar, and the protocol fully
   described by `protocol/events.schema.json`. Revisit once the protocol
-  has gone a few features without breaking changes, ideally around the
-  public release. Cheapest first step: publish the sidecar from this
+  has gone a few features without breaking changes. Cheapest first step: publish the sidecar from this
   repository as its own package with a versioned protocol; a separate
   repository later if interest justifies it.
 
@@ -7398,9 +7374,7 @@ the user's vision first; others using the MIT code afterwards is fine.
     working" and can be clicked to list them.
 - **Other biomes:** built as W10.
 - **Downtime: fishing, bug catching and parkour** (user's direction,
-  2026-10-12, after looking at similar projects). With a good UI, this is
-  what the public release waits for; Codex and OpenCode can come after
-  the commercial release.
+  2026-10-12, after looking at similar projects).
   - *Fishing and bug catching* are the two main ways to pass the time.
     Fishing is built as D01 and bug catching designed as D02 (2026-10-27);
     their tools are picked on the hotbar (C15: the rod built, the bug
@@ -7489,15 +7463,14 @@ the user's vision first; others using the MIT code afterwards is fine.
   godot-xterm with a pty on Windows running `claude`.
 - **Mod support** (user's idea, 2026-10-12). Things that let players
   customize the game: custom agent models, parkour maps, biomes, and
-  more the user will add later. Steam Workshop is the main way to get
-  mods, but a mod must also work by dropping its files into a folder,
-  for players without the Steam release (the free GitHub build).
+  more the user will add later. A store's workshop (e.g. Steam
+  Workshop) could carry mods, but a mod must also work by dropping its
+  files into a folder.
   Undesigned; to check when it comes up: the mod format (Godot resource
   packs or plain files such as glTF models and data), whether mods may
   carry scripts (code from strangers running on the player's machine,
   against the Principles and Security rules unless sandboxed or left
-  out), the Workshop's terms and API (`docs/release.md` → Anthropic's terms,
-  Steam), and the art rule (mods are the players' own, not ours, so
+  out), a workshop's terms and API, and the art rule (mods are the players' own, not ours, so
   never-AI-generated can't be enforced on them; only our assets follow
   it). A mod's translations: C16 → Mods.
 - **External music app support** (user's idea, 2026-10-01). Show what
@@ -7523,8 +7496,8 @@ the user's vision first; others using the MIT code afterwards is fine.
   server against the Security rules: its auth is an optional password,
   and it can allow browser origins (CORS).
   **GitHub Copilot CLI** added (user's, 2026-10-12): the most-requested
-  provider in Pixel Agents' issues. Like Codex and OpenCode it comes
-  after the commercial release; its place among them is undecided. Its
+  provider in Pixel Agents' issues. Like Codex and OpenCode it is
+  not built; its place among them is undecided. Its
   documented hooks (sessionStart with a startup / resume / new source,
   preToolUse, permissionRequest, sessionEnd) look close to what S02
   uses, but are unchecked: its docs say the hooks that can grant
@@ -7778,12 +7751,11 @@ Release plans (terms, branding, signing, the stores, exports) are in
 - **Finding `claude` through the login shell, live** (Platforms →
   Finding `claude`). Checked on Linux only (Arch in WSL, bash, fake
   and real profiles); the fake-shell tests have run on Linux only (CI
-  paused). To check before a public release: the tests on macOS, macOS
+  paused). Still to check: the tests on macOS, macOS
   live (zsh, started from the Dock), fish, tcsh (which takes `-l` only
   as its sole flag, so `-i -l -c` likely finds nothing: fails safe),
-  and a Steam launch on Linux, where the
-  Steam Linux Runtime runs games in a container in which the user's
-  shell may not start; if it doesn't, the lookup finds nothing and the
+  and a launch from a sandboxed launcher on Linux (Flatpak, a store's
+  runtime container), in which the user's shell may not start; if it doesn't, the lookup finds nothing and the
   not-found message stands (plus the path set by hand, once built).
 - **Hook URL allowlists.** If a user's or organisation's settings define
   `allowedHttpHookUrls`, our HTTP hooks only run if their URL is on it. The
@@ -7830,9 +7802,9 @@ Release plans (terms, branding, signing, the stores, exports) are in
   admin enables them. Pro/Max users without an organisation can use them.
   The docs describe the development flag as the way "to test a channel
   you're building"; plain `--channels` only accepts channels on
-  Anthropic's allowlist (or an organisation's). **Settle before the paid
-  Steam release:** a product whose main feature hangs on a testing flag
-  could break, and refunds would land on us. Ways out: get our channel
+  Anthropic's allowlist (or an organisation's). **Settle before any
+  release:** an app whose main feature hangs on a testing flag could
+  break. Ways out: get our channel
   onto the allowlist, channels leaving the preview, or Anthropic
   confirming the flag is fine (`docs/release.md` → Anthropic's terms).
   The allowlist is the channel plugins in Anthropic's official
