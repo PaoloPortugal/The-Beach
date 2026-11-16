@@ -1,36 +1,59 @@
-LIVE CHECK: C16 D01's
-text through translation
-  godot --path . -- --checklist
-(the text and the made-up
-language are tested
-headless; this checks that
-fishing reads right in
-English)
+LIVE CHECK: C16 codes for
+the sidecar's messages
+  godot --path .
+(not --checklist: real
+Claude Code; the words and
+the made-up language are
+tested headless; this
+checks that the sidecar's
+messages read right in
+English with the real one)
 PgDn/PgUp scroll this.
 
-1. Start the game, play.
-   Take the rod (2) and
-   cast into the water.
-2. Click while it only
-   nibbles: "Too soon: it
-   swam off" under the
-   crosshair?
-3. Let a bite pass: "It got
-   away"?
-4. Catch a fish: the card
-   says "Caught: <fish>!"
-   (no "a"/"an"), its size
-   under it (e.g. "34 cm"),
-   and
-   "New" in gold on a
-   species' first?
-5. Lose one in a fight
-   (pull hard, or let the
-   line go slack): "The
-   line snapped" / "It
-   slipped off the hook"?
+1. Settings → Providers:
+   Browse… and pick a
+   program that isn't
+   Claude Code (e.g.
+   C:\Windows\notepad.exe):
+   "Not changed: That
+   program didn't answer
+   as Claude Code (claude
+   --version)."?
+2. Browse… a .cmd file:
+   "Not changed: Pick
+   claude.exe itself: a
+   .cmd or other wrapper
+   can't be started
+   without a shell."?
+   The row keeps your
+   Claude Code as before.
+3. Start a session in an
+   empty folder. Ask
+   Claude to run
+   "npm --version". The
+   card's option reads as
+   the terminal's ("Yes,
+   and don't ask again
+   for: npm --version"),
+   the command word for
+   word? Answer No.
+4. Ask it to fetch
+   https://example.com:
+   "Yes, and don't ask
+   again for example.com"?
+   Answer No.
+5. If the session has
+   been in auto mode,
+   switch to Manual
+   (Shift+Tab in the
+   terminal) and ask for
+   another command: "Yes,
+   and switch to auto
+   mode" among the card's
+   options?
 6. Nowhere a leftover
    placeholder in braces
-   ({species}, {n}), and no
-   new error or warning in
-   the game's output?
+   ({provider}, {path},
+   {commands}), and no new
+   error or warning in the
+   game's output?

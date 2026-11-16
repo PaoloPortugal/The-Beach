@@ -68,7 +68,7 @@ var _stored: Array = []
 ## "" once listed; else what to say instead of the list (English, its
 ## {reasons} the sidecar's).
 var _stored_status := ""
-var _stored_reasons := ""
+var _stored_failed: Array = [] # [error reply, provider entry] per provider that couldn't list, worded when shown
 ## Bumped on each page shown and on closing, so a late reply from an
 ## earlier listing is ignored.
 var _listing := 0
@@ -523,20 +523,20 @@ func _list_stored() -> void:
 		_stored_status = "Not connected to the sidecar yet." # TRANSLATE
 		return
 	var left := [providers.size()]
-	var failed: Array[String] = []
+	var failed: Array = []
 	for p in providers:
 		var id := sidecar.send_command("session.list_stored", {"provider": p["provider"]}, func(reply: Dictionary) -> void:
 			if run != _listing:
 				return
 			if reply.get("type") == "error":
-				failed.append(str(reply.get("message", "")))
+				failed.append([reply, p])
 			else:
 				_stored.append_array(reply.get("result", {}).get("sessions", []))
 			left[0] -= 1
 			if left[0] == 0:
 				_stored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["updated_at"] > b["updated_at"])
 				_stored_status = "" if failed.is_empty() else "Couldn't list stored sessions: {reasons}" # TRANSLATE
-				_stored_reasons = "; ".join(failed)
+				_stored_failed = failed
 				_fill())
 		if id.is_empty():
 			_stored_status = "Not connected to the sidecar." # TRANSLATE
@@ -571,7 +571,8 @@ func _fill() -> void:
 
 func _fill_stored() -> void:
 	if not _stored_status.is_empty():
-		_add_heading(Languages.fill(tr(_stored_status), {"reasons": _stored_reasons}))
+		var reasons := PackedStringArray(_stored_failed.map(func(f: Array) -> String: return SidecarText.error(f[0], f[1])))
+		_add_heading(Languages.fill(tr(_stored_status), {"reasons": "; ".join(reasons)}))
 		return
 	var query := _search.text.strip_edges().to_lower()
 	var shown := 0
@@ -723,7 +724,7 @@ func cannot_start() -> String:
 	for p: Dictionary in sidecar.providers:
 		var program: Dictionary = p.get("program", {})
 		var where := tr("(Settings → Providers)") if program.get("set_by_hand", false) else tr("Or choose it yourself in Settings → Providers.")
-		lines.append("%s %s" % [program.get("message", ""), where]) # the provider's English, then ours
+		lines.append("%s %s" % [SidecarText.program(program, p), where]) # why (ours by its reason, else the provider's English), then where
 	return "\n".join(lines)
 
 

@@ -2,7 +2,7 @@
 
 [All diagrams](../../flows.md)
 
-> **Status:** Built (C05, C06). NOTES.md → S02 → Prompt options.
+> **Status:** Built (C05, C06, C16). NOTES.md → S02 → Prompt options.
 
 The terminal's prompts offer more than Yes and No ("Yes, and don't ask
 again for: npm test \*", "Yes, and switch to auto mode", ...). The world
@@ -38,7 +38,8 @@ sequenceDiagram
         Note over Sidecar: prompt-options.ts keeps the suggestions that allow<br/>no more than the terminal ("suggested"), and adds<br/>"Yes, and switch to auto mode" ("auto") on Bash in<br/>Manual or Accept edits once auto was seen.
         Note over Sidecar: Options left: the PermissionRequest hook is held open.<br/>None: it's answered at once, and this is flow 3.
     end
-    Sidecar->>World: permission.requested (options: [{option, label}, ...])
+    Sidecar->>World: permission.requested (options: [{option, label, kind?, parts?}, ...])
+    Note over World: each option ours by its kind, translated, its parts word for word<br/>(SidecarText, C16 step 6)#59; without a kind, its label as it is
     alt an option picked in the world
         User->>World: e.g. "Yes, and don't ask again for: npm --version"
         World->>Sidecar: permission.respond (allow, option)

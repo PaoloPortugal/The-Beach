@@ -36,8 +36,9 @@ const BUILD_BUDGET_USEC := 8000
 ## wrapped text settles its height.
 const SETTLE_FRAMES := 4
 
-## Our own text for the notices we know, translated (C16); others show
-## the sidecar's message as it is.
+## Our own text for the notices we know, translated (C16); others are
+## worded by SidecarText (sign_in_needed by its reason), else the
+## sidecar's message as it is.
 const NOTICE_TEXT := {
 	"transcripts_off": "This session isn't saving transcripts, so parts of it may not show here.", # TRANSLATE
 	"hooks_unavailable": "This session isn't reporting what it does. Chat still works.", # TRANSLATE
@@ -55,8 +56,8 @@ const SWITCH_NOTICES := ["conversation_cleared", "conversation_resumed"]
 
 ## What stopped a turn, for the error reasons any provider may report
 ## (Protocol → state_reason); any other says only "Stopped.". The
-## sign_in_needed notice has no text of ours: the provider's message says
-## what to do in its own window (S06).
+## sign_in_needed notice says what to do in the provider's own window
+## (S06), worded by its reason (SidecarText).
 const STOP_TEXT := {
 	"rate_limit": "Stopped: a usage or rate limit was reached. See the terminal.", # TRANSLATE
 	"overloaded": "Stopped: the AI service is overloaded. Try again in a moment.", # TRANSLATE
@@ -94,7 +95,7 @@ var _keeping := false # the scroll is being set by _keep_place
 var _link_dialog: ConfirmationDialog
 var _link_url := ""
 var _send_error := "" # in English, translated when shown (C16)
-var _send_reason := "" # the sidecar's words, as they are
+var _send_refusal := {} # the error reply, worded when shown (SidecarText)
 ## How long a sent message may take to show up in the chat before the
 ## panel says it wasn't picked up (S06). A var for tests.
 var pickup_timeout := 15.0
@@ -331,7 +332,7 @@ func send() -> void:
 				_given_back.erase(sent_to)
 				return
 			_send_error = "Couldn't send: {reason}" # TRANSLATE
-			_send_reason = str(reply.get("message", ""))
+			_send_refusal = reply
 			# Give the text back, unless something new was typed meanwhile.
 			if _input.text.is_empty():
 				_input.text = text
@@ -649,11 +650,11 @@ func _refresh_status() -> void:
 	for n in notices:
 		if n["code"] in SWITCH_NOTICES and n != switches.back():
 			continue
-		lines.append(tr(NOTICE_TEXT[n["code"]]) if NOTICE_TEXT.has(n["code"]) else n["message"])
+		lines.append(tr(NOTICE_TEXT[n["code"]]) if NOTICE_TEXT.has(n["code"]) else SidecarText.notice(n, _provider()))
 	_notices.text = "\n".join(lines)
 	_notices.visible = not lines.is_empty()
 	if not _send_error.is_empty():
-		_status.text = Languages.fill(tr(_send_error), {"reason": _send_reason})
+		_status.text = Languages.fill(tr(_send_error), {"reason": SidecarText.error(_send_refusal, _provider())})
 		return
 	if _not_picked_up.has(session_id):
 		_status.text = tr("Your message hasn't reached the session. Check its terminal, then send it again.")
@@ -695,6 +696,13 @@ func _refresh_header() -> void:
 	_read_only_hint.visible = _read_only()
 	_read_only_hint.text = OUTSIDE_READ_ONLY_TEXT if s.get("origin") == "external" else READ_ONLY_TEXT
 	_refresh_usage()
+
+
+# The session's provider's entry from hello, for its words (SidecarText).
+func _provider() -> Dictionary:
+	if sidecar == null:
+		return {}
+	return sidecar.provider(str(store.session(session_id).get("provider", "")))
 
 
 # A session the world only watches (S07, S08): no message box.

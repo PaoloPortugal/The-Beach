@@ -5,7 +5,8 @@ extends SceneTree
 ## the PO checker on made-up files, every shipped .po listed, loading and
 ## passing it, the made-up ⟦English⟧ language, and Languages: shipped
 ## languages, their own names, Automatic, applying one, the Language
-## setting, content marking and fill.
+## setting, content marking and fill; SidecarText's words for the
+## sidecar's reasons and kinds (C16 step 6).
 ##
 ##   godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test.gd
 
@@ -27,6 +28,7 @@ func _initialize() -> void:
 	_setting()
 	_content()
 	_fill()
+	_sidecar_text()
 	if not _failed and _errors.ok():
 		print("PASS locale_test")
 		quit(0)
@@ -297,6 +299,135 @@ func _fill() -> void:
 	_check(Languages.fill("{a} and {b}", {"a": "{b}", "b": "x"}) == "{b} and x", "in one pass: a value holding {name} stays as it is")
 	_check(Languages.fill("{a} {unknown}", {"a": 1}) == "1 {unknown}", "an unknown name stays")
 	_check(Array(Languages.placeholders("{b} then {a}, {b}")) == ["b", "a", "b"], "placeholders, in order")
+
+
+# C16 step 6: in English, each reason and kind worded by SidecarText reads
+# as the sidecar's own English message or label (copied from sidecar/src:
+# claude/session.ts, index.ts, find.ts, hooks.ts, prompt-options.ts and
+# sidecar/test/prompt-options.test.ts); anything else falls back to it.
+func _sidecar_text() -> void:
+	var claude := {"provider": "claude", "name": "Claude Code", "capabilities": {"program_path": {"program": "claude"}}}
+	var err := func(reason: String, message: String, details := {}) -> String:
+		return SidecarText.error({"type": "error", "code": "provider_error", "message": message, "reason": reason, "details": details}, claude)
+	var same := {
+		"read_only": "This session is read-only here; use its terminal.",
+		"conversation_moved": "This conversation moved to another Claude Code session; continue it in the terminal.",
+		"unreachable": "The world can't reach this conversation right now (its channel to Claude Code is closed); use the terminal.",
+		"option_unavailable": "This prompt can't be answered that way right now. Answer Yes or No, or answer in the terminal.",
+		"question_not_waiting": "The question is no longer waiting for an answer.",
+		"plan_not_waiting": "The plan is no longer waiting for an answer.",
+		"already_open": "That session is already open.",
+		"still_running": "That session is still running in a terminal. Continue it there, or type /exit in it and resume it again.",
+		"not_found": "That session wasn't found. Claude Code may have deleted it.",
+		"no_terminal": "No terminal window could be opened to run Claude Code.",
+	}
+	var all_same := true
+	for reason: String in same:
+		# A made-up message, so only our wording can match.
+		var said: String = err.call(reason, "(the sidecar's)")
+		if said != same[reason]:
+			all_same = false
+			printerr("  %s: %s" % [reason, said])
+	_check(all_same, "SidecarText: each session reason in English reads as the sidecar's message")
+	_check(err.call("project_gone", "x", {"path": "C:\\p\\{n}"}) == "Its project folder no longer exists: C:\\p\\{n}", "a detail filled in as written, a path holding {n} too")
+	_check(err.call("project_gone", "Its project folder no longer exists: /p") == "Its project folder no longer exists: /p", "a reason whose detail is missing: the sidecar's message")
+	_check(err.call("something_new", "The sidecar's words.") == "The sidecar's words.", "an unknown reason: the sidecar's message")
+	_check(SidecarText.error({"code": "provider_error", "message": "Free words."}, claude) == "Free words.", "no reason: the message")
+	_check(SidecarText.error({"code": "unknown_session", "message": "unknown session s1"}) == "That session has ended.", "no reason, a code of one meaning: ours")
+	_check(SidecarText.error({"code": "unknown_session", "reason": "something_new", "message": "Free words."}) == "Free words.", "an unknown reason wins over the code")
+	_check(SidecarText.error({"code": "provider_error", "reason": "not_found", "message": "M"}) == "M", "without the provider's name from hello: the message")
+	_check(SidecarText.error({"code": "not_supported", "reason": "end_in_terminal", "message": "end the session with /exit in its terminal"}) == "End the session with /exit in its terminal.", "end_in_terminal, as a sentence")
+	_check(SidecarText.error({"code": "invalid_project", "reason": "no_such_folder", "message": "project folder does not exist"}) == "The project's folder doesn't exist.", "invalid_project, as a sentence")
+	_check(SidecarText.error({"code": "disconnected", "reason": "not_running", "message": "x"}) == "The sidecar isn't running.", "Godot's own disconnected reasons")
+	# The program (find.ts).
+	var prog := func(reason: String, details := {}) -> String:
+		return SidecarText.program({"path": null, "message": "(the sidecar's)", "reason": reason, "details": details}, claude)
+	var windows := OS.get_name() == "Windows"
+	var programs := {
+		"not_full_path": ["That isn't a full path.", {}],
+		"network_path": ["Choose a file on a drive of this computer (like C:\\...), not a network path.", {}],
+		"no_file": ["There's no program at that path.", {}],
+		"wrapper": ["Pick claude.exe itself: a .cmd or other wrapper can't be started without a shell.", {}],
+		"not_the_program": ["That program didn't answer as Claude Code (claude --version).", {"version_command": "claude --version"}],
+		"too_old": ["Claude Code 2.0.1 is too old; version 2.1.200 or newer is needed. Run `claude update`.", {"version": "2.0.1", "minimum": "2.1.200", "update_command": "claude update"}],
+		"not_installed": ["Claude Code for Windows wasn't found. Install it from code.claude.com (the Windows version, not inside WSL) and sign in once in a terminal." if windows \
+			else "Claude Code wasn't found. Install it from code.claude.com and sign in once in a terminal.", {"site": "code.claude.com"}],
+	}
+	all_same = true
+	for reason: String in programs:
+		var said: String = prog.call(reason, programs[reason][1])
+		if said != programs[reason][0]:
+			all_same = false
+			printerr("  %s: %s" % [reason, said])
+	_check(all_same, "each program reason in English reads as the sidecar's message")
+	_check(prog.call("set_path_broken", {"why": "too_old", "version": "2.0.1", "minimum": "2.1.200", "update_command": "claude update"}) \
+		== "The Claude Code set in Settings doesn't work: Claude Code 2.0.1 is too old; version 2.1.200 or newer is needed. Run `claude update`. Choose it again, or reset it.",
+		"set_path_broken: around its why, with why's details")
+	_check(prog.call("set_path_broken", {"why": "something_new"}) == "(the sidecar's)" and prog.call("set_path_broken", {"why": "set_path_broken"}) == "(the sidecar's)" \
+		and prog.call("too_old", {"version": "2.0.1", "minimum": "2.1.200"}) == "(the sidecar's)" and prog.call("not_the_program") == "(the sidecar's)",
+		"an unknown why, a looping one or a missing detail (the provider's command too): the message")
+	_check(SidecarText.program({"path": null, "message": "M", "reason": "wrapper"}, {"name": "Claude Code"}) == "M", "{program} needs the provider's program_path")
+	# Notices (hooks.ts, index.ts).
+	var notices := [
+		["signed_out", {"command": "/login"}, "Claude Code needs you to sign in again: run /login in its terminal."],
+		["org_not_allowed", {"command": "/login"}, "Your organization doesn't allow this account in Claude Code: run /login in its terminal to sign in with another."],
+		["cloud_credentials", {}, "Claude Code couldn't load your cloud provider's credentials: check its terminal."],
+		["account_on_hold", {"account": "Claude"}, "Your Claude account is on hold: check Claude Code's terminal."],
+		["billing", {}, "Claude Code reports a billing problem with your account: check its terminal."],
+	]
+	all_same = true
+	for n: Array in notices:
+		var said := SidecarText.notice({"code": "sign_in_needed", "message": "(the sidecar's)", "reason": n[0], "details": n[1]}, claude)
+		if said != n[2]:
+			all_same = false
+			printerr("  %s: %s" % [n[0], said])
+	_check(all_same, "each sign-in reason in English reads as the sidecar's message")
+	_check(SidecarText.notice({"code": "outside_sessions_off", "message": "M", "details": {"setting": "agent view"}}, claude) \
+		== "Sessions started outside the game can't be shown: agent view is off in Claude Code.", "outside_sessions_off, the setting's name as it is")
+	_check(SidecarText.notice({"code": "sign_in_needed", "message": "M", "reason": "signed_out"}, claude) == "M" \
+		and SidecarText.notice({"code": "sign_in_needed", "message": "M"}, claude) == "M" \
+		and SidecarText.notice({"code": "something_new", "message": "M", "reason": "billing"}, claude) == "M", "a missing detail, no reason or another code: the message")
+	# Options (prompt-options.test.ts).
+	var cwd := "C:\\Users\\me\\AppData\\Local\\Temp\\garden-live"
+	var options := [
+		[{"kind": "allow_commands", "parts": {"commands": ["npm test *", "make"]}}, "Yes, and don't ask again for: npm test *, make"],
+		[{"kind": "switch_mode", "parts": {"mode": "acceptEdits"}}, "Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session"],
+		[{"kind": "switch_mode", "parts": {"mode": "auto"}}, "Yes, and switch to auto mode"],
+		[{"kind": "read_folders", "parts": {"folders": ["/c/Users/me/outside-live"]}}, "Yes, allow reading from /c/Users/me/outside-live during this session"],
+		[{"kind": "allow_folders_and_commands", "parts": {"folders": ["/c/Users/me/outside-live"], "commands": ["node -e \"1\""]}},
+			"Yes, and allow access to /c/Users/me/outside-live and \"node -e \\\"1\\\"\" commands"],
+		[{"kind": "allow_domain", "parts": {"domain": "example.com"}}, "Yes, and don't ask again for example.com"],
+		[{"kind": "allow_web_search", "parts": {"folder": "~\\AppData\\Local\\Temp\\garden-live"}}, "Yes, and don't ask again for Web Search commands in ~\\AppData\\Local\\Temp\\garden-live"],
+	]
+	all_same = true
+	for o: Array in options:
+		var opt: Dictionary = (o[0] as Dictionary).merged({"option": "suggested", "label": "(the sidecar's)"})
+		if SidecarText.option(opt) != o[1] or not SidecarText.is_ours(opt):
+			all_same = false
+			printerr("  %s: %s" % [opt["kind"], SidecarText.option(opt)])
+	_check(all_same, "each option kind in English reads as the sidecar's label, its parts word for word")
+	_check(SidecarText.option({"option": "suggested", "kind": "switch_mode", "parts": {"mode": "plan"}, "label": "L"}) == "Yes, and switch to Plan mode" \
+		and SidecarText.option({"option": "suggested", "kind": "switch_mode", "parts": {"mode": "newMode"}, "label": "L"}) == "Yes, and switch to newMode mode",
+		"another mode: our name for it, or its id as it is")
+	var folders := {"option": "suggested", "label": "Yes, and allow access to %s, /b during this session" % cwd}
+	_check(SidecarText.option(folders) == folders["label"] and not SidecarText.is_ours(folders), "PowerShell's folder for the session, no kind: its label, not ours")
+	var label := "Yes, and always allow Bash(make) (saved in this project's .claude/settings.json)"
+	_check(SidecarText.option({"option": "suggested", "label": label}) == label and not SidecarText.is_ours({"option": "suggested", "label": label}), "the stopgap, no kind: its label, not ours")
+	_check(SidecarText.option({"kind": "something_new", "parts": {"x": "y"}, "label": "L"}) == "L" \
+		and SidecarText.option({"kind": "allow_domain", "parts": {}, "label": "L"}) == "L" \
+		and SidecarText.option({"kind": "allow_commands", "parts": {"commands": []}, "label": "L"}) == "L" \
+		and SidecarText.option({"kind": "allow_commands", "parts": {"commands": [3]}, "label": "L"}) == "L" \
+		and SidecarText.option({"kind": "switch_mode", "label": "L"}) == "L", "an unknown kind, missing, empty or odd parts: the label")
+	_check(SidecarText.option({"kind": "allow_domain", "parts": {"domain": "{commands}.com"}, "label": "L"}) == "Yes, and don't ask again for {commands}.com", "a part holding a placeholder stays as written")
+	# In a language, ours is translated, the provider's words as written.
+	var zz := pseudo_translation()
+	TranslationServer.add_translation(zz)
+	TranslationServer.set_locale(Pot.PSEUDO_LOCALE)
+	_check(err.call("project_gone", "x", {"path": "/Settings"}) == "⟦Its project folder no longer exists: /Settings⟧", "translated, a detail as written")
+	_check(err.call("something_new", "Settings") == "Settings", "an unknown reason's message as written")
+	_check(SidecarText.option({"kind": "allow_domain", "parts": {"domain": "Back"}, "label": "L"}) == "⟦Yes, and don't ask again for Back⟧", "an option translated, its part as written")
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(zz)
 
 
 func _check(ok: bool, what: String) -> void:

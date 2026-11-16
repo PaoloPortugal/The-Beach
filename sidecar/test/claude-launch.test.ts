@@ -151,10 +151,11 @@ test('create reports a missing claude or terminal as a readable error', async ()
   const { ClaudeNotFound } = await import('../src/providers/claude/find.ts')
   const { TerminalError } = await import('../src/launch/terminal.ts')
   const cases = [
-    provider({ findClaude: async () => { throw new ClaudeNotFound('Claude Code wasn\'t found.') } }).p,
-    provider({ openTerminal: async () => { throw new TerminalError('none') } }).p,
-  ]
-  for (const p of cases) {
+    [provider({ findClaude: async () => { throw new ClaudeNotFound('Claude Code wasn\'t found.', { reason: 'not_installed', details: { site: 'code.claude.com' } }) } }).p,
+      { reason: 'not_installed', details: { site: 'code.claude.com' } }],
+    [provider({ openTerminal: async () => { throw new TerminalError('none') } }).p, { reason: 'no_terminal' }],
+  ] as const
+  for (const [p, reasoned] of cases) {
     const s = await testServer([p])
     try {
       const c = await connect(s.port, s.token)
@@ -163,6 +164,8 @@ test('create reports a missing claude or terminal as a readable error', async ()
       assert.equal(r.type, 'error')
       assert.equal(r.code, 'provider_error')
       assert.match(String(r.message), /wasn't found|terminal/)
+      // C16 step 6: a reason Godot can word, with its details.
+      assert.deepEqual({ reason: r.reason, ...(r.details ? { details: r.details } : {}) }, reasoned)
       await c.close()
     } finally { await s.close(); await p.shutdown() }
   }

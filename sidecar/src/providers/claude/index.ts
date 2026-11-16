@@ -64,6 +64,8 @@ export const AGENTS_POLL_BACKGROUND_MS = 10_000
 export const OUTSIDE_SESSIONS_OFF = {
   code: 'outside_sessions_off',
   message: 'Sessions started outside the game can\'t be shown: agent view is off in Claude Code.',
+  // Godot words it by its code (C16 step 6), the setting's name as it is.
+  details: { setting: 'agent view' },
 }
 
 /** What started a conversation that gets no island (S08): `claude -p` runs and Agent SDK programs. */
@@ -206,7 +208,7 @@ export class ClaudeProvider implements Provider {
     try {
       found = await checkClaudePath(file, { cleanEnv: this.cleanEnv(), ...(this.opts.readVersion ? { readVersion: this.opts.readVersion } : {}) })
     } catch (e) {
-      if (e instanceof ClaudeNotFound) throw new CommandError('invalid_program', e.message)
+      if (e instanceof ClaudeNotFound) throw new CommandError('invalid_program', e.message, e.reasoned)
       throw e
     }
     this.handPath = file
@@ -235,7 +237,7 @@ export class ClaudeProvider implements Provider {
       const found = await this.find(fresh)
       return { path: found.path, version: found.version, set_by_hand: this.handPath !== undefined }
     } catch (e) {
-      if (e instanceof CommandError) return { path: null, set_by_hand: this.handPath !== undefined, message: e.message }
+      if (e instanceof CommandError) return { path: null, set_by_hand: this.handPath !== undefined, message: e.message, ...e.reasoned }
       throw e
     }
   }
@@ -266,16 +268,21 @@ export class ClaudeProvider implements Provider {
    * from the transcript.
    */
   async resume(host: SessionHost, nativeId: string, launch?: LaunchChoice): Promise<ProviderSession> {
-    if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.')
+    if (this.live.has(nativeId)) throw new CommandError('provider_error', 'That session is already open.', { reason: 'already_open' })
     // Running in a terminal the game doesn't follow: resuming it would run the conversation twice.
     if ((await this.running()).has(nativeId.toLowerCase())) {
       throw new CommandError('provider_error',
-        'That session is still running in a terminal. Continue it there, or type /exit in it and resume it again.')
+        'That session is still running in a terminal. Continue it there, or type /exit in it and resume it again.',
+        { reason: 'still_running' })
     }
     const stored = findStored(nativeId, this.opts.projectsDir ?? projectsDir())
-    if (!stored) throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.')
+    if (!stored) {
+      throw new CommandError('provider_error', 'That session wasn\'t found. Claude Code may have deleted it.', { reason: 'not_found' })
+    }
     if (!path.isAbsolute(stored.project.path) || !fs.statSync(stored.project.path, { throwIfNoEntry: false })?.isDirectory()) {
-      throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`)
+      throw new CommandError('provider_error', `Its project folder no longer exists: ${stored.project.path}`, {
+        reason: 'project_gone', details: { path: stored.project.path },
+      })
     }
     const read = readConversation(stored.file)
     return this.start(host, {
@@ -901,9 +908,9 @@ export class ClaudeProvider implements Provider {
       if (e instanceof ClaudeNotFound) {
         if (run === this.programRun) {
           this.foundPath = undefined
-          this.reportProgram?.({ path: null, set_by_hand: byHand, message: e.message })
+          this.reportProgram?.({ path: null, set_by_hand: byHand, message: e.message, ...e.reasoned })
         }
-        throw new CommandError('provider_error', e.message)
+        throw new CommandError('provider_error', e.message, e.reasoned)
       }
       throw e
     }
@@ -943,7 +950,7 @@ export class ClaudeProvider implements Provider {
     } catch (e) {
       this.forget(launch.runDir)
       if (e instanceof TerminalError) {
-        throw new CommandError('provider_error', 'No terminal window could be opened to run Claude Code.')
+        throw new CommandError('provider_error', 'No terminal window could be opened to run Claude Code.', { reason: 'no_terminal' })
       }
       throw e
     }

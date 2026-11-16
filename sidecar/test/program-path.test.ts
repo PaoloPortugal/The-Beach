@@ -82,6 +82,27 @@ test('checks on a path set by hand: full path, a file, .exe on Windows, answerin
   }
 })
 
+test('C16 step 6: each check that fails has its reason, for Godot to word', async () => {
+  const exe = file('reasons-claude.exe')
+  const old = file('reasons-old.exe')
+  const v = versions({ [exe]: '2.1.300', [old]: '2.1.1' })
+  const reason = async (f: string, platform: NodeJS.Platform = process.platform) => {
+    try { await checkClaudePath(f, { cleanEnv: {}, platform, readVersion: v.read }) } catch (e) { return (e as ClaudeNotFound).reasoned }
+    return null
+  }
+  assert.deepEqual(await reason('claude.exe'), { reason: 'not_full_path' })
+  assert.deepEqual(await reason('\\\\host\\share\\claude.exe', 'win32'), { reason: 'network_path' })
+  assert.deepEqual(await reason(path.join(path.dirname(exe), 'missing.exe')), { reason: 'no_file' })
+  assert.deepEqual(await reason(old), { reason: 'too_old', details: { version: '2.1.1', minimum: MIN_VERSION, update_command: 'claude update' } })
+  assert.deepEqual(await reason(file('reasons-silent.exe')), { reason: 'not_the_program', details: { version_command: 'claude --version' } })
+  if (process.platform === 'win32') assert.deepEqual(await reason(file('reasons-claude.cmd'), 'win32'), { reason: 'wrapper' })
+  // Nothing found at all, on each platform.
+  for (const platform of ['win32', 'linux'] as const) {
+    await assert.rejects(findClaude({ env: { PATH: '' }, cleanEnv: {}, home: path.join(os.tmpdir(), 'no-home-here'), platform, readVersion: v.read, loginShellPath: async () => [] }),
+      (e: ClaudeNotFound) => e.reasoned.reason === 'not_installed' && e.reasoned.details?.site === 'code.claude.com', platform)
+  }
+})
+
 test('a path set by hand is the only one tried: once it fails, no other claude is found instead', async () => {
   const good = file(process.platform === 'win32' ? 'claude.exe' : 'claude')
   const env = { PATH: path.dirname(good) }
@@ -94,7 +115,8 @@ test('a path set by hand is the only one tried: once it fails, no other claude i
   const gone = path.join(os.tmpdir(), 'no-such-folder-program-path', 'claude.exe')
   await assert.rejects(
     findClaude({ env, cleanEnv: {}, home: os.tmpdir(), override: gone, readVersion: v.read, loginShellPath: async () => { throw new Error('the login shell is not asked') } }),
-    (e: Error) => e instanceof ClaudeNotFound && /^The Claude Code set in Settings doesn't work: There's no program at that path\. Choose it again, or reset it\.$/.test(e.message),
+    (e: Error) => e instanceof ClaudeNotFound && /^The Claude Code set in Settings doesn't work: There's no program at that path\. Choose it again, or reset it\.$/.test(e.message)
+      && e.reasoned.reason === 'set_path_broken' && e.reasoned.details?.why === 'no_file',
   )
 })
 
@@ -142,8 +164,11 @@ test('client.set_program_path: checked, answered with the program, then provider
     const failed = await c2.command({ type: 'session.create', provider: 'claude', project: { path: proj } })
     assert.equal(failed.code, 'provider_error')
     assert.match(failed.message as string, /set in Settings doesn't work: There's no program at that path/)
+    // C16 step 6: the reason around the check's own, for Godot to word.
+    assert.equal(failed.reason, 'set_path_broken')
+    assert.deepEqual(failed.details, { why: 'no_file' })
     const lost = (await c2.next('provider.program')).program as Program
-    assert.deepEqual(lost, { path: null, set_by_hand: true, message: failed.message })
+    assert.deepEqual(lost, { path: null, set_by_hand: true, message: failed.message, reason: 'set_path_broken', details: { why: 'no_file' } })
 
     // Reset: found as usual again, at once.
     const reset = await c2.command({ type: 'client.set_program_path', provider: 'claude', path: null })
@@ -327,7 +352,7 @@ test('Look again outranks a look begun before it: the older one\'s answer isn\'t
     findClaude: async () => {
       if (++calls === 1) {
         await new Promise<void>((r) => { release = r })
-        throw new ClaudeNotFound('Claude Code wasn\'t found.')
+        throw new ClaudeNotFound('Claude Code wasn\'t found.', { reason: 'not_installed', details: { site: 'code.claude.com' } })
       }
       return { path: '/found/claude', version: '2.1.299' }
     },
@@ -382,7 +407,7 @@ test('client.find_program: looks again now, answered with the program; provider.
   const p = provider({
     readVersion: v.read,
     findClaude: async () => {
-      if (!installed) throw new ClaudeNotFound('Claude Code wasn\'t found.')
+      if (!installed) throw new ClaudeNotFound('Claude Code wasn\'t found.', { reason: 'not_installed', details: { site: 'code.claude.com' } })
       return { path: '/found/claude', version: '2.1.299' }
     },
   })
@@ -392,8 +417,8 @@ test('client.find_program: looks again now, answered with the program; provider.
     await c.sync()
     const none = await c.command({ type: 'client.find_program', provider: 'claude' })
     assert.equal(none.type, 'ok', 'not found is an answer')
-    assert.deepEqual(none.result, { program: { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.' } })
-    assert.deepEqual((await c.next('provider.program')).program, { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.' })
+    assert.deepEqual(none.result, { program: { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.', reason: 'not_installed', details: { site: 'code.claude.com' } } })
+    assert.deepEqual((await c.next('provider.program')).program, { path: null, set_by_hand: false, message: 'Claude Code wasn\'t found.', reason: 'not_installed', details: { site: 'code.claude.com' } })
 
     installed = true
     const found = await c.command({ type: 'client.find_program', provider: 'claude' })

@@ -5,7 +5,7 @@
 // (MessageDisplay); every field is treated as optional and checked.
 import path from 'node:path'
 import crypto from 'node:crypto'
-import type { Agent, Id, Permission, QuestionItem, SessionEvent, State } from '../../protocol.ts'
+import type { Agent, Id, Permission, QuestionItem, Reasoned, SessionEvent, State } from '../../protocol.ts'
 import { jsonBytes } from '../../history.ts'
 import type { HookPayload } from './hook-server.ts'
 import { BRIDGE_SERVER_NAME } from './bridge.ts'
@@ -18,14 +18,30 @@ export const MAIN = 'main'
  * StopFailure's errors that only the user can sort out, in Claude Code's
  * own terminal (NOTES.md -> S06): the account can't be used. We never
  * handle a login; the notice says what to do there. Each maps to the
- * notice's English text (the provider's words; Godot shows them as is).
+ * notice's English text and its reason, which Godot words (C16 step 6),
+ * with the provider's own words in its details.
  */
-export const SIGN_IN_ERRORS: Readonly<Record<string, string>> = {
-  authentication_failed: 'Claude Code needs you to sign in again: run /login in its terminal.',
-  oauth_org_not_allowed: "Your organization doesn't allow this account in Claude Code: run /login in its terminal to sign in with another.",
-  cloud_credential_error: "Claude Code couldn't load your cloud provider's credentials: check its terminal.",
-  account_on_hold: "Your Claude account is on hold: check Claude Code's terminal.",
-  billing_error: 'Claude Code reports a billing problem with your account: check its terminal.',
+export const SIGN_IN_ERRORS: Readonly<Record<string, Reasoned & { message: string }>> = {
+  authentication_failed: {
+    message: 'Claude Code needs you to sign in again: run /login in its terminal.',
+    reason: 'signed_out', details: { command: '/login' },
+  },
+  oauth_org_not_allowed: {
+    message: "Your organization doesn't allow this account in Claude Code: run /login in its terminal to sign in with another.",
+    reason: 'org_not_allowed', details: { command: '/login' },
+  },
+  cloud_credential_error: {
+    message: "Claude Code couldn't load your cloud provider's credentials: check its terminal.",
+    reason: 'cloud_credentials',
+  },
+  account_on_hold: {
+    message: "Your Claude account is on hold: check Claude Code's terminal.",
+    reason: 'account_on_hold', details: { account: 'Claude' },
+  },
+  billing_error: {
+    message: 'Claude Code reports a billing problem with your account: check its terminal.',
+    reason: 'billing',
+  },
 }
 
 /** The notice's code (generic: every tool has logins). */
@@ -279,8 +295,8 @@ export class HookTranslator {
         const signIn = Object.hasOwn(SIGN_IN_ERRORS, error) ? SIGN_IN_ERRORS[error] : undefined
         if (signIn !== undefined) {
           // Failing again the same way keeps the notice that is up.
-          if (this.signInNeeded !== signIn) out.push({ type: 'session.notice', notice: { code: SIGN_IN_NEEDED, message: signIn } })
-          this.signInNeeded = signIn
+          if (this.signInNeeded !== signIn.message) out.push({ type: 'session.notice', notice: { code: SIGN_IN_NEEDED, ...signIn } })
+          this.signInNeeded = signIn.message
           this.setState(MAIN, 'waiting', 'sign_in', out)
         } else {
           this.setState(MAIN, 'error', STOP_REASONS.has(error) ? error : 'unknown', out)
@@ -532,7 +548,9 @@ export class HookTranslator {
     if (pick) {
       const [id, call] = pick
       call.permission = r.request_id
-      const options = (call.options ?? []).map(({ option, label }) => ({ option, label }))
+      // The fields Godot shows; the updates never leave the sidecar.
+      const options = (call.options ?? []).map(({ option, label, kind, parts }) =>
+        ({ option, label, ...(kind ? { kind } : {}), ...(parts ? { parts } : {}) }))
       permission = {
         permission: r.request_id, agent: call.agent, tool: call.tool, summary: call.summary,
         ...(call.small ? { input: call.input } : {}), ...(options.length > 0 ? { options } : {}),

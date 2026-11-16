@@ -38,8 +38,25 @@ of these is decided or done, and reread it before a release.
     on anthropics/claude-code#82571; the terms questions sent by the user
     the same day through claude.ai's Product Support chat, Get help →
     Send us a message, and passed to a human agent, who answers by
-    email; waiting). Not contact sales: its form wants a company, and
-    sales now only takes large deals. Both messages are drafted in the dev log (2026-10-27-anthropic-questions, refreshed
+    email). *2026-10-30:* support replied that an internal team is
+    reviewing the questions and asked for three things first: the
+    planned release date (including the paid Steam release), what the
+    paid release charges for and confirmation that nothing sold includes
+    or resells Claude access, and the exact wording of the rights
+    confirmation Steam asks for (dev log 2026-10-27-anthropic-questions →
+    Reply 1). No ruling yet. The answer gives the user's target (not
+    confirmed): late December 2026, GitHub and Steam at the same time,
+    maybe itch.io too; and adds a question on embedding the terminal
+    (NOTES.md → Ideas → An embedded terminal). *2026-11-16:* support's
+    final answer: it can't rule on whether a product design complies,
+    so it neither confirms nor denies either setup; it points to the
+    legal page's sections ("Can customers offer Claude Code in their
+    products?", "Authentication and credential use", the name and logo)
+    and to contact sales for authentication questions, and suggests our
+    own legal advisor (dev log → Reply 2). Support is a dead end for a
+    ruling; contact sales is now the route, despite its company field
+    and large-deal note (the legal page, rechecked 2026-11-16, still
+    names it and is otherwise unchanged). Both messages are drafted in the dev log (2026-10-27-anthropic-questions, refreshed
     against the docs and terms that day; they replace the
     2026-10-02-terms-steam drafts); if they wait long, recheck the
     contacts and terms before sending. The routes: the terms questions

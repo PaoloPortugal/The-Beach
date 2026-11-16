@@ -578,7 +578,7 @@ test('restore, read-only: its hook port was taken: read_only, the transcript\'s 
       ['question', () => session.answerQuestion('q1', { response: 'yes' })],
       ['plan', () => session.answerPlan('pl1', { approve: true, mode: 'default' })],
     ] as const) {
-      await assert.rejects(answer, (e: CommandError) => e.code === 'not_supported' && e.message === READ_ONLY_ERROR, name)
+      await assert.rejects(answer, (e: CommandError) => e.code === 'not_supported' && e.message === READ_ONLY_ERROR && e.reasoned.reason === 'read_only', name)
     }
     assert.deepEqual((await r.c.quiet(300)).filter((m) => m.type === 'session.updated' || m.type.endsWith('.resolved')), [], 'nothing resolved')
     assert.deepEqual(r.c.invalid, [])

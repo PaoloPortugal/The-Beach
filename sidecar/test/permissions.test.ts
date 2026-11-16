@@ -162,7 +162,7 @@ test('a prompt waits for its PermissionRequest hook too; one shown without it ne
   assert.equal(t.promptHooked(held), 'toolu_1')
   assert.equal(t.promptHooked(held), null, 'one hook per call')
   assert.deepEqual((t.permissionRequested(relayed('eeeee', 'npm i'))![0] as any).permission.options,
-    [{ option: 'suggested', label: 'Yes, and don\'t ask again for: npm i' }])
+    [{ option: 'suggested', label: 'Yes, and don\'t ask again for: npm i', kind: 'allow_commands', parts: { commands: ['npm i'] } }])
 
   // Forced before its hook came: shown without options, and the late hook isn't held.
   t.translate(bash('toolu_2', 'npm ci'))

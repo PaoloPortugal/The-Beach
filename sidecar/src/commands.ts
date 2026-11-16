@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   COMMAND_CAPABILITY, EXTENSION_TYPE,
-  type Command, type ErrorCode, type ExtensionCommand, type Launch, type Project,
+  type Command, type ErrorCode, type ExtensionCommand, type Launch, type Project, type Reasoned,
 } from './protocol.ts'
 import { CommandError, type Provider, type ProviderSession } from './provider.ts'
 import { fitInputs } from './history.ts'
@@ -18,7 +18,7 @@ type Afters = (() => void)[]
 
 export type Outcome =
   | { ok: true; result?: Record<string, unknown>; after: () => void }
-  | { ok: false; code: ErrorCode; message: string; after: () => void }
+  | ({ ok: false; code: ErrorCode; message: string; after: () => void } & Reasoned)
 
 export async function runCommand(
   registry: Registry, cmd: Command | ExtensionCommand, sendSnapshot: (entry: Entry) => void, log: Log,
@@ -38,7 +38,7 @@ export async function runCommand(
     const result = await execute(registry, cmd, sendSnapshot, afters)
     return { ok: true, ...(result ? { result } : {}), after }
   } catch (e) {
-    if (e instanceof CommandError) return { ok: false, code: e.code, message: e.message, after }
+    if (e instanceof CommandError) return { ok: false, code: e.code, message: e.message, ...e.reasoned, after }
     // Unexpected failures: details stay in the log, not in the reply.
     log.error(`${cmd.type} failed: ${e instanceof Error ? e.message : String(e)}`)
     return { ok: false, code: 'provider_error', message: 'the provider failed to do this', after }
@@ -224,12 +224,12 @@ function checkLaunch(provider: Provider, launch: Launch | undefined): Launch | u
 /** The project folder must be an absolute path to an existing folder. */
 function checkProject(project: Project): Project {
   const p = project.path
-  if (!path.isAbsolute(p)) throw new CommandError('invalid_project', 'project path must be absolute')
+  if (!path.isAbsolute(p)) throw new CommandError('invalid_project', 'project path must be absolute', { reason: 'not_absolute' })
   let stat: fs.Stats
   try { stat = fs.statSync(p) } catch {
-    throw new CommandError('invalid_project', 'project folder does not exist')
+    throw new CommandError('invalid_project', 'project folder does not exist', { reason: 'no_such_folder' })
   }
-  if (!stat.isDirectory()) throw new CommandError('invalid_project', 'project path is not a folder')
+  if (!stat.isDirectory()) throw new CommandError('invalid_project', 'project path is not a folder', { reason: 'not_a_folder' })
   const resolved = path.resolve(p)
   // A drive or filesystem root has no folder name; show the path itself.
   return { path: resolved, name: project.name ?? (path.basename(resolved) || resolved) }

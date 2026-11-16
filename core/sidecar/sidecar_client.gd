@@ -170,7 +170,7 @@ func set_program_path(provider: String, path: String, on_reply := Callable()) ->
 		if on_reply.is_valid():
 			on_reply.call(reply)
 	if send_command("client.set_program_path", {"provider": provider, "path": path if not path.is_empty() else null}, done) == "":
-		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
+		done.call({"type": "error", "code": "disconnected", "reason": "not_running", "message": "The sidecar isn't running."})
 
 
 ## Has a provider look for its program again now (S02's Look again; the
@@ -185,7 +185,7 @@ func find_program(provider: String, on_reply := Callable()) -> void:
 		if on_reply.is_valid():
 			on_reply.call(reply)
 	if send_command("client.find_program", {"provider": provider}, done) == "":
-		done.call({"type": "error", "code": "disconnected", "message": "The sidecar isn't running."})
+		done.call({"type": "error", "code": "disconnected", "reason": "not_running", "message": "The sidecar isn't running."})
 
 
 ## The providers that can start a session now (S02): all but those whose
@@ -194,6 +194,15 @@ func startable_providers() -> Array:
 	return providers.filter(func(p: Dictionary) -> bool:
 		var program: Dictionary = p.get("program", {})
 		return not (program.has("path") and program["path"] == null))
+
+
+## A provider's entry from hello ([code]{provider, name, capabilities,
+## …}[/code]), or an empty dictionary.
+func provider(id: String) -> Dictionary:
+	for p: Dictionary in providers:
+		if p.get("provider") == id:
+			return p
+	return {}
 
 
 ## What a provider found for its program (S02): [code]{path, version,
@@ -638,7 +647,7 @@ func _drop_pending() -> void:
 	var waiting := _pending
 	_pending = {}
 	for id in waiting:
-		(waiting[id] as Callable).call({"type": "error", "id": id, "code": "disconnected",
+		(waiting[id] as Callable).call({"type": "error", "id": id, "code": "disconnected", "reason": "dropped",
 			"message": "the connection to the sidecar dropped, so it may not have arrived."})
 
 

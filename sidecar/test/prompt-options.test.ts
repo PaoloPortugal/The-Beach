@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import {
-  ACCEPT_EDITS_LABEL, AUTO, AUTO_LABEL, SUGGESTED, offerable, promptOptions, suggestedLabel,
+  ACCEPT_EDITS_LABEL, AUTO, AUTO_LABEL, SUGGESTED, offerable, promptOptions, suggestedLabel, suggestedWords,
 } from '../src/providers/claude/prompt-options.ts'
 
 const HOME = path.join(path.sep, 'home', 'me')
@@ -80,6 +80,16 @@ test('9 PowerShell: the folder for this session, without the mode switch the ter
     [[SUGGESTED, `Yes, and allow access to ${CWD} during this session`, [dirs]]])
 })
 
+test('10 PowerShell: don\'t ask again, in the terminal\'s words like Bash, with the hook\'s exact rule (the terminal saves npm *)', () => {
+  // Seen by the user 2026-10-30 (claude 2.1.312): the terminal's "Yes, and don't ask again for: npm *".
+  const s = [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'npm --version' })]
+  assert.deepEqual(offered('PowerShell', { command: 'npm --version' }, s),
+    [[SUGGESTED, 'Yes, and don\'t ask again for: npm --version', s]])
+  // Two shells' rules in one entry: no terminal wording seen, the plain description.
+  const mixed = [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'a' }, { toolName: 'Bash', ruleContent: 'b' })]
+  assert.equal(suggestedLabel(mixed, CWD, HOME), 'Yes, and always allow PowerShell(a), Bash(b) (saved in this project\'s .claude/settings.local.json)')
+})
+
 test('the switch to auto mode comes last, when C06 offers it', () => {
   const s = [rules('localSettings', { toolName: 'Bash', ruleContent: 'npm test' })]
   const auto = [{ type: 'setMode', mode: 'auto', destination: 'session' }]
@@ -123,7 +133,12 @@ test('never more than the terminal: other modes, restrictive or removing entries
 })
 
 test('kinds not seen live get a plain label of what they do and where it\'s saved (stopgap)', () => {
-  const label = (s: unknown[]) => suggestedLabel(s as Record<string, unknown>[], CWD, HOME)
+  const label = (s: unknown[]) => {
+    const words = suggestedWords(s as Record<string, unknown>[], CWD, HOME)
+    // No kind: Godot shows the label as it is (C16 step 6).
+    assert.deepEqual(Object.keys(words ?? {}), ['label'], 'the label alone')
+    return suggestedLabel(s as Record<string, unknown>[], CWD, HOME)
+  }
   assert.equal(label([rules('localSettings', { toolName: 'mcp__srv__tool' })]),
     'Yes, and always allow mcp__srv__tool (saved in this project\'s .claude/settings.local.json)')
   assert.equal(label([rules('projectSettings', { toolName: 'Bash', ruleContent: 'make' })]),
@@ -138,4 +153,40 @@ test('kinds not seen live get a plain label of what they do and where it\'s save
     'Yes, and allow Glob for this session, and allow access to /a, /b for this session')
   assert.equal(label([toEdits, rules('session', { toolName: 'Glob' })]),
     'Yes, and switch to accept edits for this session, and allow Glob for this session')
+})
+
+test('C16 step 6: each option in the terminal\'s words has a kind, its parts word for word in the label; the stopgap has none', () => {
+  const words = (tool: string, input: Record<string, unknown>, s: unknown[], auto = false) =>
+    promptOptions(tool, input, s, auto, CWD, HOME).map(({ option, label, kind, parts }) => ({ option, label, kind, parts }))
+  const cases: [string, Record<string, unknown>, unknown[], string, Record<string, string | string[]>][] = [
+    ['Bash', { command: 'npm test' }, [rules('localSettings', { toolName: 'Bash', ruleContent: 'npm test *' }, { toolName: 'Bash', ruleContent: 'make' })],
+      'allow_commands', { commands: ['npm test *', 'make'] }],
+    ['PowerShell', { command: 'npm --version' }, [rules('localSettings', { toolName: 'PowerShell', ruleContent: 'npm --version' })],
+      'allow_commands', { commands: ['npm --version'] }],
+    ['Edit', { file_path: path.join(CWD, 'a.txt') }, [toEdits], 'switch_mode', { mode: 'acceptEdits' }],
+    ['Read', { file_path: 'x' }, [rules('session', { toolName: 'Read', ruleContent: OUTSIDE })], 'read_folders', { folders: ['/c/Users/me/outside-live'] }],
+    ['Bash', { command: 'x' }, [rules('localSettings', { toolName: 'Read', ruleContent: OUTSIDE }, { toolName: 'Bash', ruleContent: 'node -e "1"' })],
+      'allow_folders_and_commands', { folders: ['/c/Users/me/outside-live'], commands: ['node -e "1"'] }],
+    ['WebFetch', { url: 'u' }, [rules('localSettings', { toolName: 'WebFetch', ruleContent: 'domain:example.com' })], 'allow_domain', { domain: 'example.com' }],
+    ['WebSearch', { query: 'q' }, [rules('localSettings', { toolName: 'WebSearch' })], 'allow_web_search', { folder: `~${CWD.slice(HOME.length)}` }],
+  ]
+  for (const [tool, input, s, kind, parts] of cases) {
+    const [o] = words(tool, input, s)
+    assert.deepEqual([o!.kind, o!.parts], [kind, parts], kind)
+    if (kind === 'switch_mode') continue
+    for (const [name, v] of Object.entries(parts)) {
+      // Commands beside folders are quoted, as JSON strings (Godot does the same).
+      for (const w of [v].flat()) {
+        const shown = kind === 'allow_folders_and_commands' && name === 'commands' ? JSON.stringify(w) : w
+        assert.ok(o!.label.includes(shown), `${kind}: ${shown}`)
+      }
+    }
+  }
+  assert.deepEqual(words('Bash', { command: 'x' }, [], true), [{ option: AUTO, label: AUTO_LABEL, kind: 'switch_mode', parts: { mode: 'auto' } }])
+  // PowerShell's folder for the session isn't in the terminal's words: the label alone (user's, 2026-10-30).
+  assert.deepEqual(words('PowerShell', { command: 'x' }, [{ type: 'addDirectories', directories: [CWD, '/b'], destination: 'session' }]),
+    [{ option: SUGGESTED, label: `Yes, and allow access to ${CWD}, /b during this session`, kind: undefined, parts: undefined }])
+  // The stopgap: the label alone.
+  const stopgap = suggestedWords([rules('projectSettings', { toolName: 'Bash', ruleContent: 'make' })], CWD, HOME)
+  assert.deepEqual(stopgap, { label: 'Yes, and always allow Bash(make) (saved in this project\'s .claude/settings.json)' })
 })

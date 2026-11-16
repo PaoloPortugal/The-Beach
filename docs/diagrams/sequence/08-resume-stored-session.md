@@ -34,7 +34,7 @@ sequenceDiagram
     Sidecar->>Agents: still running in a terminal?
     Agents-->>Sidecar: the live sessions' ids
     opt it still runs
-        Sidecar-->>World: error provider_error ("still running in a<br/>terminal ... type /exit in it"); nothing opens, and it stops here
+        Sidecar-->>World: error provider_error, reason still_running ("still running in a<br/>terminal ... type /exit in it"); nothing opens, and it stops here
     end
 
     Store->>Sidecar: its whole transcript: the chat and tool calls so far<br/>(subagents' calls from their own transcripts)

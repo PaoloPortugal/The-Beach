@@ -120,7 +120,7 @@ slice.
 | C13 | Pause menu                                | built (UI placeholder) | C13 | `world/pause_menu.gd`, `world/settings/settings_menu.gd`, `world/world.gd` |
 | C14 | Main menu                                 | built (UI placeholder) | C14 | `world/main_menu.gd`, `world/menu_camera.gd`, `world/pause_menu.gd`, `world/world.gd` |
 | C15 | Hotbar                                    | built (UI placeholder) | C15 | `world/hotbar.gd`, `world/world.gd`, `project.godot` (input) |
-| C16 | Multi-language support                    | groundwork, menus, HUDs, chat chrome and D01's text built | C10 | `core/locale/languages.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/`, `project.godot` (internationalization) |
+| C16 | Multi-language support                    | groundwork, menus, HUDs, chat chrome, D01's text and the sidecar's codes built | C10 | `core/locale/languages.gd`, `core/sidecar/sidecar_text.gd`, `locale/messages.pot`, `tests/locale/pot.gd`, `world/settings/`, `chat/`, `project.godot` (internationalization) |
 | C17 | Opening                                   | built (UI placeholder) | C17 | `world/opening.gd`, `world/world.gd`, `assets/opening/`, `project.godot` (boot splash) |
 | S01 | Sidecar and WebSocket server (v1)         | built   | S01           | `sidecar/src/`, `core/sidecar/`, `world/sidecar_lost.gd` |
 | S02 | Claude provider (v1)                      | built   | S02, C10      | `sidecar/src/providers/claude/`, `sidecar/src/launch/`, `core/sidecar/sidecar_client.gd` (program set by hand), `world/settings/settings_menu.gd` |
@@ -545,7 +545,7 @@ removing a provider means deleting its folders.
 
 | Path | Role |
 |------|------|
-| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. `core/locale/`: `Languages` (C16: the language setting, content marking, placeholders). |
+| `core/` | Generic, provider-neutral code. `core/sidecar/`: the sidecar client (autoload `Sidecar`) and `SidecarText` (C16: Godot's words for the sidecar's reasons and kinds). `core/sessions/`: `SessionStore`, Godot's copy of every live session, kept up to date from the events. `core/locale/`: `Languages` (C16: the language setting, content marking, placeholders). |
 | `world/` | The world scene (`world.tscn`, the main scene) and its parts: `island/` (W01; biomes and props, W10), `session_islands.gd` (an island per session), `ocean/` (W02; its `underwater.gd`, W08), `seabed/` (W08), `sky/` (W09: day and night, the weather, night lights), `debug/` (C09: the debug commands and their console, debug builds only), `player/` (W03), `platform/` (the spawn platform), `sessions_menu/` (the sessions menu: S03, S04, W07), `settings/` (C10: the settings and their menu), `pause_menu.gd` (C13), `main_menu.gd` and `menu_camera.gd` (C14), `opening.gd` (C17: the logos and the bar at start), `loading_cover.gd` (S07; unused since C14), `sidecar_lost.gd` (S01: when the sidecar can't be started), `crosshair.gd` and `interactable.gd` (C11), `hotbar.gd` (C15), `fishing/` (D01: the rod, the fish and the catches), `attention.gd` (A05's count, flash and chime), `draw_distance.gd` (Architecture → Performance), `session_clusters.gd` (W05), `island_memory.gd` (W12: islands kept across restarts), `warm_up.gd` (W01: first-time costs paid behind the main menu), `new_island_pointers.gd` (W04's edge arrows), `bridges/`, `minimap.gd` and `world_map.gd` (W06). |
 | `agents/` | Agent scenes and scripts: `orchestrator/` (A01). |
 | `chat/` | Chat scenes and scripts: `ChatController`, walking up to chat (C01); `ChatPanel` and `MessageBubble` (C02). |
@@ -711,7 +711,13 @@ overview. **Version 1.**
 - Every command has an `id`. The sidecar answers `ok` (with an optional
   `result`) or `error` (`code`, `message`) carrying the same `id`. An `error`
   without `id` is a protocol-level error. Error codes are listed in the
-  schema (`error.code`).
+  schema (`error.code`). An `error` the player sees may add a `reason`
+  (a finer code, `^[a-z][a-z0-9_]*$`) and `details` (the string values
+  its text needs, by name): Godot words the reasons it knows, translated,
+  and shows the English `message` for any other (C16 step 6, user's
+  2026-10-29; optional and additive, no version change). The schema's
+  `error.reason` lists every one; `details` are content, never
+  translated.
 - **Replies come first.** Events a command causes (e.g. `session.created`
   after `session.create`, `session.ended` after `session.end`) are sent
   after its reply, never before.
@@ -782,7 +788,9 @@ a config object, and `notices`: its notices so far, one per code.
 - `provider.notice {provider, notice}`: a notice about a provider
   rather than a session, replacing one with the same code, and kept for
   the next `hello`. Code: `outside_sessions_off` (the provider can't
-  list sessions started outside the app; Claude: agent view is off).
+  list sessions started outside the app; Claude: agent view is off;
+  `details.setting`, the provider's name for the setting, e.g. "agent
+  view", which Godot's text puts in as it is, C16 step 6).
 - `client.set_focus {focused}`: whether the app's window has focus,
   sent on every change and after a sync if unfocused; until told, the
   sidecar takes it as focused. Providers may check on things less
@@ -793,7 +801,9 @@ a config object, and `notices`: its notices so far, one per code.
   `claude`), which can be pointed at by hand. What it found is
   `program`: `{path, version, set_by_hand}` when found, `{path: null,
   set_by_hand, message}` when not (`message` for the player: not
-  installed, too old, or why the path set by hand doesn't work). The
+  installed, too old, or why the path set by hand doesn't work), with an
+  optional `reason` and `details` as an error's (C16 step 6; the schema's
+  `program` lists them). The
   event `provider.program {provider, program}` sends it when a look
   gives another answer than the last (the look at start, in the
   background; one when the provider needs the program; after a path is
@@ -881,7 +891,7 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   terminal).
 - A permission may carry `options`: its other ways to allow, beyond a
   plain allow, each `{option, label}` (an id, and what choosing it does
-  in the provider's own words, which Godot shows as they are), in the
+  in the provider's own words), in the
   order the provider's own interface lists them (e.g. Claude Code's
   "Yes, and don't ask again for: npm test \*", "Yes, and switch to auto
   mode"). `permission.respond` then takes an optional `option`: allow
@@ -889,7 +899,15 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   any tool's prompt can have them. Changed 2026-10-03: these replaced
   C06's `modes` and `mode` (the switch to auto mode is one option among
   them), without a version change, since Godot and the sidecar ship
-  together.
+  together. An option may add a `kind` and its `parts` (C16 step 6,
+  2026-10-29; optional): what it does, in generic terms Godot words and
+  translates, the provider's own parts (rule patterns, folders, a
+  domain, a mode id; a string or a list of strings) put in word for
+  word. Kinds: `switch_mode` {mode}, `allow_commands` {commands},
+  `read_folders` {folders},
+  `allow_folders_and_commands` {folders, commands}, `allow_domain`
+  {domain}, `allow_web_search` {folder}. Without a kind, or with one
+  Godot doesn't know, it shows the `label` as it is.
 - Permissions and questions carry `asked_at`: when the sidecar first saw
   them, set by the registry for every provider (a provider's own value
   is replaced). Kept in the snapshot, so a reconnect doesn't restart the
@@ -897,7 +915,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   decision, 2026-10-02).
 - `session.notice` tells the user something about a session that isn't an
   agent's state: a `code` (Godot shows its own text for codes it knows)
-  and an English fallback `message`. One per code (a new one replaces
+  and an English fallback `message`, and, for a code with several cases,
+  an optional `reason` and `details` as an error's (C16 step 6). One per
+  code (a new one replaces
   it); the snapshot lists them in `notices`. Codes: `transcripts_off`,
   `hooks_unavailable`, `conversation_cleared` (a new conversation started
   in the session; it remembers nothing of the chat before),
@@ -906,8 +926,9 @@ The orchestrator never becomes `done`: the session ending is `session.ended`.
   `conversation_moved` (the conversation went on somewhere the world
   can't reach; continue it in the provider's own window),
   `sign_in_needed` (the provider can't use the user's account; sort it
-  out in its own window; Godot shows the provider's `message` as is,
-  S06), `reattached_read_only` (a session taken over after a restart
+  out in its own window, S06; reasons `signed_out` {command},
+  `org_not_allowed` {command}, `cloud_credentials`, `account_on_hold`
+  {account}, `billing`), `reattached_read_only` (a session taken over after a restart
   whose hooks can't reach the game: the world only watches it until it
   ends; S07, 2026-10-19; it was `reattached_limited`), `outside_read_only`
   (a session started outside the app: the world only watches it; S08,
@@ -2884,8 +2905,8 @@ changes, so typing and progress aren't lost to other events.
   waiting" when more than one waits.
 - *Permission:* the summary, Details (the input as indented JSON, in a
   140 px scroll box), then one button per line, full width, in the
-  terminal's order: "Yes", each of the permission's `options` by its
-  label (left-aligned, wrapping, shown in full: a long Bash rule makes a
+  terminal's order: "Yes", each of the permission's `options` (ours by
+  its kind, else its label: C16 → How the codes work) (left-aligned, wrapping, shown in full: a long Bash rule makes a
   tall button), and "No". Under them the note field and Send, both
   locked until No is pressed ("Press No to add a note"). No is a toggle:
   pressed, it unlocks them and focuses the note; pressed again, it locks
@@ -3830,17 +3851,19 @@ good"). macOS and Linux unchecked.
 ### C16 Multi-language support
 *Groundwork and menus built (2026-10-29: steps 1-2 of the migration
 order below), the drawn HUDs too (step 3, 2026-10-29), the chat
-panel's chrome (step 4, 2026-10-29) and D01's text (step 5,
-2026-10-29); the rest designed (user's, 2026-10-27). Scope: core,*
+panel's chrome (step 4, 2026-10-29), D01's text (step 5,
+2026-10-29) and codes for the sidecar's messages (step 6, 2026-10-29);
+the rest designed (user's, 2026-10-27). Scope: core,*
 mostly on the world side:
 every provider's sessions show the same game text, no protocol event is
-added, and a provider's own strings live in its own folders (below).
+added (step 6 adds optional fields), and a provider's own strings live
+in its own folders (below).
 The game's text in more languages than English, made so that adding
 text (species, hints, menus) and adding a language both scale. Dev log
 2026-10-27-c16-localisation-design; the first part,
 2026-10-29-c16-localisation-groundwork; the HUDs, 2026-10-29-c16-huds;
 the chat's chrome, 2026-10-29-c16-chat; D01's text,
-2026-10-29-c16-d01-text.
+2026-10-29-c16-d01-text; the codes, 2026-10-29-c16-codes.
 
 *Decided (user's, 2026-10-28), for the first part:*
 - **This branch is the groundwork and the menus** (steps 1-2 below);
@@ -3905,10 +3928,12 @@ the chat's chrome, 2026-10-29-c16-chat; D01's text,
   a notice or error by its `code`, and the sidecar's English `message`
   is the fallback for a code it doesn't know (as `NOTICE_TEXT` does
   already). The sidecar's free-form reasons (refusals, "not found",
-  sign-in) get codes over time. No locale is sent to the sidecar.
+  sign-in) have codes since step 6 (How the codes work, below). No
+  locale is sent to the sidecar.
 - *Permission choices* (C05-C07): our fixed wording ("Yes, and use
-  auto mode") is translated by its option id; the AI tool's own parts
-  (a rule pattern, a tool name) stay word for word. Rejected: keeping
+  auto mode") is translated (the plan's by mode id; a prompt's options
+  by their `kind` since step 6, not their option id); the AI tool's own
+  parts (a rule pattern, a tool name) stay word for word. Rejected: keeping
   them English to match the terminal exactly.
 - *Debug commands* (C09) stay English: a developer tool.
 - *Species and other data:* each row keeps a stable `id` and an
@@ -4000,8 +4025,8 @@ the chat's chrome, 2026-10-29-c16-chat; D01's text,
   name. A selector that can show content (cluster, launch options,
   language, biome) has auto-translate off and translates its own items
   in code: an OptionButton's face ignores its items' own mode (probed).
-  The sidecar's English (a reason, a provider's message) is filled in
-  as it is, until codes come (step 6).
+  The sidecar's English (a reason, a provider's message) is worded by
+  its code since step 6 (below), else filled in as it is.
 - *The template* (`locale/messages.pot`), written by
   `godot --headless --path . --script res://tests/locale/write_pot.gd`
   from `agents/`, `chat/`, `core/` and `world/` (not `world/debug/`),
@@ -4124,7 +4149,8 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
   ("Couldn't send: {reason}", "Not connected to the sidecar.") and the
   sidecar's reason apart, filled when shown, so the line no longer
   relies on auto-translate. *Notices:* ours (`NOTICE_TEXT`) by code;
-  any other is the sidecar's message as it is.
+  any other is worded by `SidecarText` (step 6), else the sidecar's
+  message as it is.
 - *The header:* "Mode: {mode}", the mode's name ours by id under the
   context "permission mode" (`PermissionModes.name_of`; an unknown id as
   it is); the model's label as it is, then "{effort} effort" around the
@@ -4145,9 +4171,8 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
   status line. The plan's choices ("Yes, and use auto mode", …) are
   ours, translated by mode id (`PermissionModes.plan_choice`); an id
   without one, "Yes, and switch to {mode} mode", the mode's name
-  translated as it reads alone ("Plan"), an unknown id as it is. **A
-  permission prompt's options stay the provider's words**: translating
-  our fixed ones by option id needs codes (step 6).
+  translated as it reads alone ("Plan"), an unknown id as it is. A
+  permission prompt's options: ours by their kind since step 6 (below).
 - *The tool fold:* "{n} tool call(s)", "{n} running", "{n} failed",
   "{n} denied" (`tr_n`); a row's status under the context "tool
   status" (`ToolFold.status_text`); its details "Tool: {tool}\nAgent:
@@ -4172,11 +4197,71 @@ kept; each tool fold). Text set once (Send, Details, Back, Next,
   to use Bash:", "1 of 2 waiting", "Context 31% · ↑ 61k in · ↓ 1.2k
   out") are unchanged.
 
+**How the codes work** (step 6, 2026-10-29; design the user's, "option
+A"). The sidecar stays English and is sent no locale; what it says to
+the player carries a code Godot words:
+- *On the wire* (Protocol): an `error` reply, a not-found `program` and
+  a notice may carry a `reason` and `details` (string values); a
+  permission option a `kind` and `parts` (a string or a list of
+  strings). All optional and additive, no version change. Reasons and
+  kinds are generic names; the schema's descriptions list every one.
+  Only an option in the terminal's own words gets a kind: the stopgap
+  labels have none, PowerShell's folder for the session included (its
+  label isn't the terminal's; user's, 2026-10-30), so they show as the
+  provider wrote them.
+- *`SidecarText`* (`core/sidecar/sidecar_text.gd`): `error(reply,
+  provider)`, `program(found, provider)`, `notice(n, provider)`,
+  `option(o)` and `is_ours(o)`. Each known reason or kind has our
+  English text, a literal `TranslationServer.translate` (reasons look
+  like keys, so a `# TRANSLATE` line would skip them); any other, or one
+  whose text needs a value that didn't come, shows the sidecar's
+  `message` (or the option's `label`) as it is. An error without a
+  reason is worded by its code where that has one meaning
+  (`unknown_session`, `session_starting`). `set_path_broken` wraps its
+  `why`, itself a program reason worded with the same details.
+- *Placeholders:* `{provider}` is the provider's name from hello
+  (`SidecarClient.provider(id)`), `{program}` its
+  `capabilities.program_path.program`; the details and parts (paths,
+  versions, the provider's commands such as `/login` or `claude update`,
+  rule patterns, folders, a domain) fill the rest (security review: a
+  provider's command lines are details, never Godot's text), in one pass (`Languages.fill`), so a path
+  holding "{n}" stays as written. A list part is joined with ", "; the
+  commands beside folders (`allow_folders_and_commands`) are each
+  JSON-quoted, as the terminal shows them. A `switch_mode` to a mode
+  without its own line reads "Yes, and switch to {mode} mode", the mode
+  named by `PermissionModes.name_of` (an unknown id as it is).
+- *Godot's own:* `SidecarClient`'s `disconnected` replies carry
+  `not_running` (no sidecar) or `dropped` (it went with the command on
+  its way).
+- *Where:* the chat's refused send and the card's refused answer keep
+  the reply and word it when shown; the card's options are ours
+  (`Languages.translated`) when `is_ours`, else content; notices that
+  aren't `NOTICE_TEXT`'s (`sign_in_needed` by its reason); the
+  launcher's refusals and notices (`_say` takes a Callable, worded each
+  time it's said); the sessions menu's listing failures and
+  `cannot_start`; the settings' program rows, their refusals and the
+  `outside_sessions_off` line (no longer content). The invalid project
+  reasons and `end_in_terminal` read as whole sentences ("The project's
+  folder doesn't exist.") where the sidecar's English is lowercase.
+- *Tests:* `locale_test.gd`'s `_sidecar_text`: in English each reason,
+  program reason, sign-in reason and option kind reads exactly as the
+  sidecar's message or label (copied from its source and
+  `prompt-options.test.ts`), but for the whole sentences above; unknown reasons, kinds and why, a missing
+  detail, a missing provider name or program, odd parts: the sidecar's
+  words; a detail or part holding a placeholder as written; in `zz`,
+  ours bracketed and the provider's words as written. The world test:
+  `_chat_content`'s sign-in notice (the provider named "Settings
+  {command}"), an option with a kind bracketed beside one without as
+  written, a refused send and answer with a known reason bracketed and
+  without one as written; the settings' `outside_sessions_off` line and
+  a `set_path_broken` row worded; a missing folder refused as "Couldn't
+  start a session: The project's folder doesn't exist.".
+
 *Migration order:* (1) the groundwork: `locale/`, the project
 settings (fallback `en`, the translation list), C10's Language row,
 the tests, auto-translate off on content; (2) the menus; (3) the drawn
 HUDs; (4) the chat panel's chrome; (5) D01's text (above); (6) codes for the sidecar's
-free-form messages; (7) the first real language and its font.
+free-form messages (above); (7) the first real language and its font.
 
 *Open:* which languages come first, and who translates them (Open
 questions → 11). Checked on 4.7.2 (2026-10-29): a `.po` loads from
@@ -4804,8 +4889,11 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   "Yes, allow reading from /c/… during this session", "Yes, and allow
   access to /c/… and "node -e …" commands", "Yes, and don't ask again
   for example.com", "Yes, and don't ask again for Web Search commands in
-  ~/…". A Bash rule is the hook's own, shown exactly: it can be narrower
-  than the terminal's (`npm --version` where the terminal saves `npm *`).
+  ~/…"; a PowerShell rule like a Bash one, "Yes, and don't ask again
+  for: …" (seen by the user, 2026-10-30, claude 2.1.312). A shell rule
+  is the hook's own, shown exactly: it can be narrower than the
+  terminal's (`npm --version` where the terminal saves `npm *`, Bash and
+  PowerShell alike: the hook never reports the terminal's prefix).
   Anything not seen live gets a plain description of what it does and
   where it's saved, e.g. "Yes, and always allow mcp__x__y (saved in this
   project's .claude/settings.local.json)" or "Yes, and allow access to
@@ -4819,7 +4907,7 @@ shown. `prompt-options.ts` turns them into a permission's `options`:
   things the hook never reports, so an exact copy isn't possible. Where
   the two agree (six of the nine prompts tried live), the world offers
   the same choice with the same effect, worded like the terminal. Where
-  they differ, it offers **less, never more**: a narrower Bash rule (the
+  they differ, it offers **less, never more**: a narrower shell rule (the
   terminal's prefix logic is undocumented, and copying it would be
   re-implementing Claude Code), nothing extra on `.claude` writes, and
   PowerShell's folder without the mode switch. Allowing less only means
@@ -4989,8 +5077,9 @@ the sessions menu's Add a session (S03).
   sessions menu's Add a session, "+ New session…" and "▸ Resume a
   session…" are greyed out while **no provider can start one**: every
   provider's program was looked for and not found (a provider without
-  `program_path`, or one still looking, can). Under them, in red, each
-  provider's message, then "Or choose it yourself in Settings →
+  `program_path`, or one still looking, can). Under them, in red, why
+  for each provider (worded by its reason, C16 → How the codes work;
+  else the provider's message), then "Or choose it yourself in Settings →
   Providers." ("(Settings → Providers)" after a path set by hand, whose
   message already says what to do). On Resume a session, a stored
   session whose provider can't start is greyed out. A new session uses
@@ -5476,7 +5565,8 @@ rules), so the world only points there.
   error sends `session.notice` `sign_in_needed` whose `message` is the
   provider's own English text, pointing to the terminal (e.g. "Claude
   Code needs you to sign in again: run /login in its terminal.";
-  `SIGN_IN_ERRORS`), and sets the orchestrator `waiting` with reason
+  `SIGN_IN_ERRORS`), with the `reason` and `details` Godot words it by
+  (C16 step 6: `signed_out` {command: `/login`}, ...), and sets the orchestrator `waiting` with reason
   `sign_in`. Any other error sets `error` with its type as the reason
   when it's one of the generic ones (`STOP_REASONS`), else `unknown`. Failing again the same way keeps the notice that is up;
   another account error replaces its text. The notice goes
@@ -5485,9 +5575,11 @@ rules), so the world only points there.
   becomes `idle`. The registry removes a cleared notice from the
   snapshot and drops a clear with nothing to clear.
 - *Godot:* `SessionStore` removes a cleared notice (`notices_changed`).
-  The chat panel (C02) shows the provider's message as is (no text of
-  ours for this code, Multi-provider rules) and the status "Waiting for
-  you to sign in, in the terminal."; A03 and A05 react to the wait as to
+  The chat panel (C02) shows the notice worded by its reason (C16 step
+  6: "{provider} needs you to sign in again: run {command} in its
+  terminal.", the provider's name and command as it sent them; a
+  reason Godot doesn't know, the provider's message as is) and the
+  status "Waiting for you to sign in, in the terminal."; A03 and A05 react to the wait as to
   any other.
 - *Tests:* `hooks.test.ts` (the `error` field, each account error, the
   clearing paths, a repeated failure), `notices.test.ts` (the registry,
@@ -6704,6 +6796,9 @@ godot --headless --fixed-fps 60 --path . --script res://tests/locale/locale_test
 After changing the game's text, write C16's template again (the locale
 test fails until it's done):
 `godot --headless --path . --script res://tests/locale/write_pot.gd`.
+After adding a script with a new `class_name`, refresh Godot's class
+cache once, or every script using it fails to parse ("Identifier not
+declared"): `godot --headless --path . --import` (CI does this first).
 
 **`--fixed-fps 60`** (user's choice, 2026-10-29; dev log
 2026-10-29-test-speed): each frame is one 1/60 s step of game time and
@@ -7128,9 +7223,12 @@ plugin (authenticated WebSocket, port 9500, loopback only). Per machine:
 
 ## Known issues and next steps
 
-**Current focus:** C16's steps 1-5 (groundwork, menus, drawn HUDs,
-chat chrome, D01's text) are merged (2026-10-29, live checks passed). Next for it, codes for the
-sidecar's free-form messages (step 6). The headless suites run with
+**Current focus:** C16's step 6 (codes for the sidecar's free-form
+messages: reasons on errors, notices and programs, kinds on permission
+options, worded by Godot) is built on `c16-codes`, waiting for the
+user's review and live check. Steps 1-5 (groundwork, menus, drawn HUDs,
+chat chrome, D01's text) are merged (2026-10-29, live checks passed);
+step 7, the first real language, waits for the UI to settle. The headless suites run with
 `--fixed-fps 60` (about 4 minutes in all; dev log
 2026-10-29-test-speed). Before that: S01's start retry and restart and C17's opening are
 merged (2026-10-28, live check passed): a start that can pass is tried
@@ -7367,6 +7465,25 @@ the user's vision first; others using the MIT code afterwards is fine.
   way; untested). Built-ins with a launch-time equivalent could be offered
   at session creation or resume. Other built-ins stay terminal-only (S02),
   and the world should say so instead of sending them to Claude as text.
+- **An embedded terminal** (user's idea, 2026-10-29; worth exploring,
+  user's). The session's own terminal shown in the game, beside the chat
+  panel (a "Terminal" view per session), not replacing it. It would give
+  everything the terminal has that the world doesn't: mode switching,
+  built-in commands (`/exit`, `/clear`, …), quitting, every new Claude
+  Code feature on its first day, and exactly vanilla's wording. The world
+  (islands, agents, cues, usage) still comes from the sidecar's events.
+  To weigh before building: the game must own the process through a
+  pseudo-terminal (ConPTY on Windows), so sessions no longer outlive the
+  game (S05, S07) unless they can be detached and taken back; a native
+  pty module in the sidecar (node-pty?) against Few, pinned
+  dependencies and the single executable; a terminal emulator in Godot
+  good enough for Claude Code's interface (colours, Unicode widths,
+  resizing, mouse; godot-xterm's Windows support to check); keys going to
+  the terminal instead of the game's controls; no translation (C16) and
+  no gamepad in it; sessions started outside the game (S08) can't be
+  embedded; and Anthropic's terms on showing Claude Code's interface in
+  the game (docs/release.md). Cheapest first step: a spike of
+  godot-xterm with a pty on Windows running `claude`.
 - **Mod support** (user's idea, 2026-10-12). Things that let players
   customize the game: custom agent models, parkour maps, biomes, and
   more the user will add later. Steam Workshop is the main way to get

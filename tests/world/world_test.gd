@@ -719,6 +719,9 @@ func _settings(world: Node3D, player: Player) -> void:
 	stand_in.providers_changed.emit()
 	_check(outside.disabled and not outside.button_pressed and menu.outside_off_text() == "Can't list them: agent view is off.", "S08: the provider's notice: greyed out, shown off, the notice in red beside it")
 	_check(settings.value("game/outside_sessions") == true, "S08: and the saved choice is kept")
+	stand_in.providers[0]["notices"] = [{"code": "outside_sessions_off", "message": "Can't list them: agent view is off.", "details": {"setting": "agent view"}}]
+	stand_in.providers_changed.emit()
+	_check(menu.outside_off_text() == "Sessions started outside the game can't be shown: agent view is off in Fake.", "C16: with its details, worded by its code, the setting's and provider's names in it (%s)" % menu.outside_off_text())
 	# S02: a row per provider that runs a program of the user's, kept up with what it found.
 	menu.show_tab("Providers")
 	_check(menu.program_text("fake") == "" and menu._programs.is_empty() and menu._no_providers.is_visible_in_tree(), "S02: no row for a provider without program_path, Providers says there's nothing to set")
@@ -738,10 +741,14 @@ func _settings(world: Node3D, player: Player) -> void:
 	stand_in.providers[1]["program"] = {"path": null, "set_by_hand": true, "message": "The Claude Code set in Settings doesn't work: There's no program at that path. Choose it again, or reset it."}
 	stand_in.providers_changed.emit()
 	_check(menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and tool_row["status"].modulate != Color.WHITE, "S02: not found: why, in red")
+	stand_in.providers[1]["program"] = {"path": null, "set_by_hand": true, "message": "The Claude Code set in Settings doesn't work: There's no program at that path. Choose it again, or reset it.",
+		"reason": "set_path_broken", "details": {"why": "no_file"}}
+	stand_in.providers_changed.emit()
+	_check(menu.program_text("tool") == "The Tool set in Settings doesn't work: There's no program at that path. Choose it again, or reset it.", "C16: with a reason, worded by it, the provider's name from hello (%s)" % menu.program_text("tool"))
 	menu.choose_program("tool", "/somewhere/else")
 	_check(menu.program_error("tool") == "Not changed: The sidecar isn't running." and stand_in.program_paths == {"tool": "/opt/tool/bin/tool"} and not tool_row["browse"].disabled, "S02: no sidecar: not changed, said why, the setting kept")
 	menu.look_again("tool")
-	_check(menu.program_error("tool") == "Couldn't look: The sidecar isn't running." and menu.program_text("tool").begins_with("The Claude Code set in Settings doesn't work") and not tool_row["look"].disabled, "S02: Look again with no sidecar: said why, the row as it was")
+	_check(menu.program_error("tool") == "Couldn't look: The sidecar isn't running." and menu.program_text("tool").begins_with("The Tool set in Settings doesn't work") and not tool_row["look"].disabled, "S02: Look again with no sidecar: said why, the row as it was")
 	# The panel is as tall as its tallest tab, hidden ones too: the row's
 	# wrapping text, a message and a refusal shown, mustn't make it taller
 	# than a small screen on any tab.
@@ -931,6 +938,11 @@ func _chat_content(world: Node3D) -> void:
 	snap["agents"][1]["name"] = "Settings"
 	store.apply({"type": "session.snapshot", "session": snap})
 	store.apply({"type": "session.notice", "session": "l2", "seq": 2, "notice": {"code": "not_ours", "message": "Settings"}})
+	# Worded by its reason, with the provider's name from hello (named like content).
+	var sidecar_node: SidecarClient = root.get_node("Sidecar")
+	var had_providers := sidecar_node.providers
+	sidecar_node.providers = [{"provider": "fake", "name": "Settings {command}", "capabilities": {}}] + had_providers
+	store.apply({"type": "session.notice", "session": "l2", "seq": 2, "notice": {"code": "sign_in_needed", "message": "x", "reason": "signed_out", "details": {"command": "/login"}}})
 	store.apply({"type": "message.started", "session": "l2", "seq": 3, "message": "u1", "agent": "main", "role": "user"})
 	store.apply({"type": "message.completed", "session": "l2", "seq": 4, "message": "u1", "text": "Settings"})
 	store.apply({"type": "tool.started", "session": "l2", "seq": 5, "tool_call": "t1", "agent": "main", "tool": "Back", "summary": "Settings"})
@@ -944,7 +956,7 @@ func _chat_content(world: Node3D) -> void:
 		"turn": {"message": "u1", "output_tokens": 1234}, "limits": []}})
 	store.apply({"type": "permission.requested", "session": "l2", "seq": 11, "permission": {
 		"permission": "p1", "agent": "main", "tool": "Back {tool}", "summary": "Settings", "input": {"x": 1},
-		"options": [{"option": "o1", "label": "Resume"}]}})
+		"options": [{"option": "o1", "label": "Resume"}, {"option": "o2", "label": "x", "kind": "allow_domain", "parts": {"domain": "Back"}}]}})
 	store.apply({"type": "question.asked", "session": "l2", "seq": 12, "question": {"question": "q1", "agent": "s1", "items": [
 		{"text": "Settings", "header": "Back", "multi_select": false, "options": [{"label": "Resume", "description": "Settings"}, {"label": "Back"}]},
 	]}})
@@ -966,7 +978,8 @@ func _chat_content(world: Node3D) -> void:
 	var bad := _untranslated(panel, "chat")
 	_check(bad.is_empty(), "C16: the chat's chrome is translated, content aside (not: %s)" % [bad])
 	_check(panel.status_text() == "⟦Waiting for a permission: answer it above or in the terminal.⟧", "C16: the status line (%s)" % panel.status_text())
-	_check(panel.notices_text() == "Settings\n⟦This session isn't saving transcripts, so parts of it may not show here.⟧", "C16: a notice of ours translated, the sidecar's as written (%s)" % panel.notices_text())
+	_check(panel.notices_text() == "Settings\n⟦Settings {command} needs you to sign in again: run /login in its terminal.⟧\n⟦This session isn't saving transcripts, so parts of it may not show here.⟧", "C16: notices of ours translated (sign-in by its reason, the provider's name and command as written), the sidecar's as written (%s)" % panel.notices_text())
+	_check("⟦Yes, and don't ask again for Back⟧" in permission and "Resume" in permission, "C16: an option with a kind translated, its parts as written; one without, the provider's label as written")
 	_check(panel.mode_text() == "⟦Mode: ⟦Auto⟧⟧" and panel.model_text() == "Resume · ⟦Back {n} effort⟧", "C16: the mode, and the effort around the provider's label (%s, %s)" % [panel.mode_text(), panel.model_text()])
 	var details: String = panel.get_node("Layout/Header/Usage").tooltip_text
 	_check(panel.usage_text() == "⟦Context 31%⟧ · ⟦↑ 61k in⟧ · ⟦↓ 1.2k out⟧" and details.begins_with("⟦Context: 61,040 tokens of 200,000⟧\n⟦Input: 40⟧") and panel.turn_hints() == [["u1", "⟦↓ 1.2k tokens⟧"]], "C16: the usage line, its details and the turn hint (%s; %s; %s)" % [panel.usage_text(), details, panel.turn_hints()])
@@ -985,15 +998,21 @@ func _chat_content(world: Node3D) -> void:
 	# Content holding placeholders, where our words wrap it (security
 	# review): the sidecar's reasons, a mode id, a subagent's name.
 	panel._send_error = "Couldn't send: {reason}"
-	panel._send_reason = "Settings {reason}"
+	panel._send_refusal = {"type": "error", "code": "provider_error", "message": "Settings {reason}", "reason": "something_new"}
 	panel._refresh_status()
-	_check(panel.status_text() == "⟦Couldn't send: Settings {reason}⟧", "C16: a send refused, the sidecar's reason as written (%s)" % panel.status_text())
+	_check(panel.status_text() == "⟦Couldn't send: Settings {reason}⟧", "C16: a send refused for a reason we don't know, the sidecar's message as written (%s)" % panel.status_text())
+	panel._send_refusal = {"type": "error", "code": "provider_error", "message": "Settings", "reason": "conversation_moved"}
+	panel._refresh_status()
+	_check(panel.status_text() == "⟦Couldn't send: ⟦This conversation moved to another Settings {command} session; continue it in the terminal.⟧⟧", "C16: one we know, ours translated, the provider's name as written (%s)" % panel.status_text())
 	panel._send_error = ""
 	panel._refresh_status()
 	card._error = "Couldn't answer: {reason}"
-	card._error_reason = "Settings {reason}"
+	card._error_refusal = {"type": "error", "code": "provider_error", "message": "Settings {reason}"}
 	card._render()
-	_check(card.error_text() == "⟦Couldn't answer: Settings {reason}⟧", "C16: an answer refused, the sidecar's reason as written (%s)" % card.error_text())
+	_check(card.error_text() == "⟦Couldn't answer: Settings {reason}⟧", "C16: an answer refused without a reason, the sidecar's message as written (%s)" % card.error_text())
+	card._error_refusal = {"type": "error", "code": "provider_error", "message": "Settings", "reason": "question_not_waiting"}
+	card._render()
+	_check(card.error_text() == "⟦Couldn't answer: ⟦The question is no longer waiting for an answer.⟧⟧", "C16: one with a reason we know, ours translated (%s)" % card.error_text())
 	card._error = ""
 	card._render()
 	store.apply({"type": "session.updated", "session": "l2", "seq": 15, "mode": "{mode}"})
@@ -1004,6 +1023,7 @@ func _chat_content(world: Node3D) -> void:
 	store.apply({"type": "agent.spawned", "session": "l2", "seq": 17, "agent": named})
 	var asking: String = card._who_text({"kind": "permission", "item": {"agent": "s2", "tool": "Back {tool}"}})
 	_check(asking == "⟦Subagent {tool} asks to use Back {tool}:⟧", "C16: a subagent named \"{tool}\" asking for a tool, both as written (%s)" % asking)
+	sidecar_node.providers = had_providers
 	# Back in English, the chrome is said again at once.
 	TranslationServer.set_locale("en")
 	await _settle()
@@ -1829,7 +1849,7 @@ func _menu(world: Node3D, player: Player) -> void:
 	await _until(func() -> bool: return not menu.is_open(), 2.0)
 	_check(not menu.is_open() and player.controls_enabled, "system picker: choosing a folder closes the menu and gives the controls back")
 	await _until_wall(func() -> bool: return menu.notice_text().begins_with("Couldn't"), 5.0)
-	_check(menu.notice_text().contains("does not exist") and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
+	_check(menu.notice_text() == "Couldn't start a session: The project's folder doesn't exist." and not menu.launcher.busy(), "a missing folder is refused, and the notice says so")
 	menu.native_picker = false
 
 	# A session that's slow to start (its terminal may have closed unseen):

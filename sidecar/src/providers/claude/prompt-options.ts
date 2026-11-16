@@ -27,6 +27,12 @@ const DESTINATIONS: readonly string[] = ['session', 'localSettings', 'projectSet
  * where the terminal doesn't (PowerShell), so it's dropped.
  */
 const FILE_EDIT_TOOLS: readonly string[] = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit']
+/**
+ * The shells whose command rules the terminal words "Yes, and don't ask
+ * again for: …" (Bash 2026-10-03; PowerShell seen by the user 2026-10-30,
+ * claude 2.1.312).
+ */
+const SHELL_TOOLS: readonly string[] = ['Bash', 'PowerShell']
 
 export const ACCEPT_EDITS_LABEL = 'Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session'
 export const AUTO_LABEL = 'Yes, and switch to auto mode'
@@ -94,18 +100,23 @@ const WHERE: Record<string, string> = {
   userSettings: '(saved in your ~/.claude/settings.json)',
 }
 
+/** An option's words: the label, and the kind and parts Godot words it from (C16 step 6). */
+type Worded = Pick<PermissionOption, 'label' | 'kind' | 'parts'>
+
 /**
  * The label for a prompt's offered updates. The terminal's own words where
- * the live check (2026-10-03) showed the same updates behind them; else a
- * plain description of what they do and where they're saved (a stopgap,
- * user's: each such kind is to be checked live and worded like the
- * terminal later).
+ * the live check (2026-10-03) showed the same updates behind them, each with
+ * its kind; else a plain description of what they do and where they're
+ * saved, with no kind (a stopgap, user's: each such kind is to be checked
+ * live and worded like the terminal later).
  */
-export function suggestedLabel(updates: PermissionUpdate[], cwd: string, home = os.homedir()): string {
+export function suggestedWords(updates: PermissionUpdate[], cwd: string, home = os.homedir()): Worded {
   const only = updates.length === 1 ? updates[0]! : null
-  if (only?.type === 'setMode') return ACCEPT_EDITS_LABEL
+  if (only?.type === 'setMode') return { label: ACCEPT_EDITS_LABEL, kind: 'switch_mode', parts: { mode: 'acceptEdits' } }
   if (only?.type === 'addDirectories' && only.destination === 'session') {
-    return `Yes, and allow access to ${(only.directories as string[]).join(', ')} during this session`
+    const folders = only.directories as string[]
+    // Not the terminal's words (it says "always allow access to … from this project"): no kind (user's, 2026-10-30).
+    return { label: `Yes, and allow access to ${folders.join(', ')} during this session` }
   }
   if (only?.type === 'addRules') {
     const rules = rulesOf(only)!
@@ -113,20 +124,30 @@ export function suggestedLabel(updates: PermissionUpdate[], cwd: string, home = 
     const bash = rules.filter((r) => r.toolName === 'Bash' && r.ruleContent).map((r) => r.ruleContent!)
     const reads = folders.filter((f): f is string => f !== null)
     if (only.destination === 'localSettings') {
-      if (bash.length === rules.length) return `Yes, and don't ask again for: ${bash.join(', ')}`
+      // One shell's command rules: the hook's own, word for word.
+      const shell = rules[0]!.toolName
+      if (SHELL_TOOLS.includes(shell) && rules.every((r) => r.toolName === shell && r.ruleContent)) {
+        const commands = rules.map((r) => r.ruleContent!)
+        return { label: `Yes, and don't ask again for: ${commands.join(', ')}`, kind: 'allow_commands', parts: { commands } }
+      }
       if (reads.length > 0 && bash.length > 0 && reads.length + bash.length === rules.length) {
-        return `Yes, and allow access to ${reads.join(', ')} and ${bash.map((c) => JSON.stringify(c)).join(', ')} commands`
+        return {
+          label: `Yes, and allow access to ${reads.join(', ')} and ${bash.map((c) => JSON.stringify(c)).join(', ')} commands`,
+          kind: 'allow_folders_and_commands', parts: { folders: reads, commands: bash },
+        }
       }
       const [rule] = rules
       if (rules.length === 1 && rule!.toolName === 'WebFetch' && rule!.ruleContent?.startsWith('domain:')) {
-        return `Yes, and don't ask again for ${rule!.ruleContent.slice('domain:'.length)}`
+        const domain = rule!.ruleContent.slice('domain:'.length)
+        return { label: `Yes, and don't ask again for ${domain}`, kind: 'allow_domain', parts: { domain } }
       }
       if (rules.length === 1 && rule!.toolName === 'WebSearch' && rule!.ruleContent === undefined) {
-        return `Yes, and don't ask again for Web Search commands in ${shownFolder(cwd, home)}`
+        const folder = shownFolder(cwd, home)
+        return { label: `Yes, and don't ask again for Web Search commands in ${folder}`, kind: 'allow_web_search', parts: { folder } }
       }
     }
     if (only.destination === 'session' && reads.length === rules.length) {
-      return `Yes, allow reading from ${reads.join(', ')} during this session`
+      return { label: `Yes, allow reading from ${reads.join(', ')} during this session`, kind: 'read_folders', parts: { folders: reads } }
     }
   }
   const parts = updates.map((e) => {
@@ -136,7 +157,12 @@ export function suggestedLabel(updates: PermissionUpdate[], cwd: string, home = 
     const rules = rulesOf(e)!.map((r) => (r.ruleContent !== undefined ? `${r.toolName}(${r.ruleContent})` : r.toolName))
     return `${e.destination === 'session' ? 'allow' : 'always allow'} ${rules.join(', ')} ${where}`
   })
-  return `Yes, and ${parts.join(', and ')}`
+  return { label: `Yes, and ${parts.join(', and ')}` }
+}
+
+/** The label alone (what the terminal would say). */
+export function suggestedLabel(updates: PermissionUpdate[], cwd: string, home = os.homedir()): string {
+  return suggestedWords(updates, cwd, home).label
 }
 
 /**
@@ -149,7 +175,12 @@ export function promptOptions(
 ): PromptOption[] {
   const out: PromptOption[] = []
   const updates = offerable(tool, input, suggestions)
-  if (updates.length > 0) out.push({ option: SUGGESTED, label: suggestedLabel(updates, cwd, home), updates })
-  if (auto) out.push({ option: AUTO, label: AUTO_LABEL, updates: [{ type: 'setMode', mode: 'auto', destination: 'session' }] })
+  if (updates.length > 0) out.push({ option: SUGGESTED, ...suggestedWords(updates, cwd, home), updates })
+  if (auto) {
+    out.push({
+      option: AUTO, label: AUTO_LABEL, kind: 'switch_mode', parts: { mode: 'auto' },
+      updates: [{ type: 'setMode', mode: 'auto', destination: 'session' }],
+    })
+  }
   return out
 }

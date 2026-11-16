@@ -4,15 +4,21 @@
 import crypto from 'node:crypto'
 import type {
   Agent, Choice, EndReason, ErrorCode, ExtensionCommand, History, Id, Launch, LaunchOptions, Notice, Program, Project,
-  SessionEvent, StoredSession,
+  Reasoned, SessionEvent, StoredSession,
 } from './protocol.ts'
 
-/** Thrown by a provider to fail a command with a specific protocol error code. */
+/**
+ * Thrown by a provider to fail a command with a specific protocol error code,
+ * and for the player's errors a reason (and its details) Godot can word
+ * (C16 step 6); `message` stays the English fallback.
+ */
 export class CommandError extends Error {
   readonly code: ErrorCode
-  constructor(code: ErrorCode, message: string) {
+  readonly reasoned: Reasoned
+  constructor(code: ErrorCode, message: string, reasoned: Reasoned = {}) {
     super(message)
     this.code = code
+    this.reasoned = reasoned
   }
 }
 
