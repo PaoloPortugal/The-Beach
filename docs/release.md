@@ -1,29 +1,28 @@
 # Public release
 
-Plans and checks for releasing the game publicly: Anthropic's terms and
-branding, code signing, the stores, exports and the repo going public.
-Moved out of NOTES.md → Watch items (2026-10-27, the user's) since
-they're not needed every session; NOTES.md stays the source of truth for
-the design and links here. Nothing here is built yet. Update it when one
-of these is decided or done, and reread it before a release.
+What releasing builds of the game would need checked: Anthropic's terms
+and branding, code signing, the stores and exports. Development stopped
+on 2026-11-16 and no release is planned; this is kept for anyone who
+carries the project on. Nothing here is built. Moved out of NOTES.md →
+Watch items (2026-10-27), which stays the source of truth for the
+design. Recheck everything here before a release: terms and store rules
+change.
 
-- **Anthropic's terms (public release).** *Plan (user's, 2026-10-02):*
-  free and open source (MIT) on GitHub, **paid on Steam** (NOTES.md → Principles).
-  Per Claude Code's legal and compliance docs (rechecked 2026-10-02):
+- **Anthropic's terms.** Per Claude Code's legal and compliance docs (rechecked 2026-10-02):
   third parties may not offer claude.ai login, route requests through
   Free/Pro/Max credentials, or collect, store or intermediate Claude
   credentials; this doesn't prevent a user signing in to the
   **unmodified** Claude Code binary with their own subscription. Hence the
   CLI route (NOTES.md → S02): each user installs and signs in to Claude Code
   themselves; we never bundle, modify or authenticate it. What this means
-  for the paid release:
+  for a release, above all a paid one:
   - *Commercial Terms:* "preinstalling or running Claude Code in your
     products" requires agreeing to Anthropic's Commercial Terms, on two
     conditions we meet: the binary is unmodified, and each user signs in
-    and pays with their own credentials. A paid Steam app is clearly a
+    and pays with their own credentials. A paid app is clearly a
     product, so expect to agree to them (likely through a Claude Console
-    account) before the Steam release.
-  - *Never intermediate Claude usage:* players buy the app, not Claude.
+    account) before selling it.
+  - *Never intermediate Claude usage:* buyers would buy the app, not Claude.
     No bundled Claude credit, no edition "with Claude included", no
     trial on our key: each player pays Anthropic directly.
   - *Automated access:* the Consumer Terms forbid "automated or
@@ -41,13 +40,13 @@ of these is decided or done, and reread it before a release.
     sections on offering Claude Code in a product, authentication and
     the name and logo, to contact sales for questions about permitted
     authentication methods, and to the developer's own legal advisor.
-    No ruling was obtained, and contact sales wasn't tried. Recheck the
-    terms before any release.
+    No ruling was obtained, and contact sales wasn't tried; without one,
+    the author dropped the paid release and stopped development.
 - **Claude branding.** Same page: a product may say in plain text that it
   runs Claude Code, but may not use the Claude Code or Anthropic names or
   logos in its own name or logo, or suggest Anthropic built or endorses it.
   Other use of their logos needs written permission. This affects the "logo
-  model" agents (NOTES.md → A01, A02) in a public release, and the Steam store page:
+  model" agents (NOTES.md → A01, A02) in a public release, and any store page:
   "Requires Claude Code" in plain text is fine; the name, capsule art,
   logo and trailer must not use their names or logos. The agents get
   the user's own custom models instead (NOTES.md → Open questions → 7, 2026-10-12).
@@ -55,14 +54,15 @@ of these is decided or done, and reread it before a release.
   and notarized (Gatekeeper), which needs an Apple Developer account (99
   USD a year); unsigned Windows apps get a SmartScreen warning. Both apply
   to the Godot export and the sidecar executable, and matter most for
-  itch.io's browser downloads. Decide before the first public release.
+  browser downloads (e.g. itch.io). Decide before the first release of builds.
   The sidecar is a Node binary with our script injected, which breaks
   Node's own signature (Windows: "signature seems corrupted"; macOS: won't
   run until re-signed, which needs a Mac). Release builds should strip it
   and sign with ours (NOTES.md → S01).
-- **Steam (planned, paid).** *User's plan (2026-10-02):* sell the game
-  on Steam while the source stays free on GitHub (depots per OS, updates
-  through SteamPipe; the bundled sidecar ships as ordinary game files).
+- **Steam** (the author's plan until 2026-11-16, dropped): selling
+  builds on Steam while the source stays free on GitHub (depots per OS,
+  updates through SteamPipe; the bundled sidecar ships as ordinary game
+  files).
   Anthropic's side of a paid release is under Anthropic's terms (above)
   and NOTES.md → Watch items → Channels are a research preview. Things
   to check before
@@ -104,7 +104,7 @@ of these is decided or done, and reread it before a release.
     tested by installing a build from a private Steam branch on each OS,
     which needs a Steamworks account (one-time fee per app); the Linux
     runtime part can be tried earlier, since that runtime is free.
-- **itch.io (certain).** The game will be offered on itch.io, uploaded
+- **itch.io.** Builds could be offered on itch.io, uploaded
   per OS with itch's `butler` tool (patch updates; the itch app updates
   players automatically). Nothing itch-specific is needed to build for
   it, but browser downloads differ from Steam installs:
@@ -128,9 +128,9 @@ of these is decided or done, and reread it before a release.
   and ships: its attribution reaches players through the main menu's
   Credits, which reads `assets/CREDITS.md`, so the export presets must
   include that file (C14 says so too).
-- **`assets/opening/moofys_logo.png`** is the user's own logo. Before
-  the repo is public, say whether it falls under the MIT licence or is
-  excluded (one line in LICENSE or the README; security review,
-  2026-10-28).
-- **Before making the repo public:** re-run the history scan for secrets,
-  personal data and machine paths (dev log 2026-09-29-privacy-check).
+- **`assets/opening/moofys_logo.png`** is the author's own logo,
+  excluded from the MIT licence (LICENSE, README): a fork replaces it.
+- **The repo went public** on 2026-11-16, archived, after a history
+  scan for secrets, personal data and machine paths came back clean (as
+  in dev log 2026-09-29-privacy-check) and the drafts of the messages to
+  Anthropic were purged from the history.

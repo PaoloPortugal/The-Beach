@@ -10,7 +10,7 @@ Working rules for this repo. Read `NOTES.md` first every session.
 - `docs/flows.md`: index of the step-by-step diagrams of how the pieces
   talk, one file per flow in `docs/diagrams/sequence/`. Update the
   matching flow with any change to NOTES.md → S02 or Protocol.
-- `docs/release.md`: plans and checks for a public release (terms,
+- `docs/release.md`: checks a public release would need (terms,
   branding, signing, stores, exports). Not routine reading.
 - `README.md`: pitch and setup for newcomers.
 - `assets/CREDITS.md`: source and license of every asset.

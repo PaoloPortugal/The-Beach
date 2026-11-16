@@ -531,7 +531,7 @@ top-level folders sit beside it:
 | `core/`, `tests/` | Godot code (by domain) and headless tests; see the folder table below. |
 | `locale/` | The game's translations (C16): `messages.pot`, the English template (written from the code by `tests/locale/write_pot.gd`), and one `<lang>.po` per language (none yet). |
 | `protocol/` | Shared event schema, `events.schema.json` (see Protocol). Has a `.gdignore`. |
-| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`), dev log and release plans (`release.md`). |
+| `docs/` | User's guide, flow diagrams (`flows.md`, the index, and `diagrams/sequence/`), dev log and release checks (`release.md`). |
 | `spikes/` | Throwaway prototypes (M0), each with a dev-log entry, kept as references and deleted once their feature is built. None left: `claude-cli/` (Node, for S02) deleted 2026-10-22, `markdown/` (Godot, for C03) 2026-10-27; both in git history. |
 | `addons/godot_ai/` | Dev tool, not a feature: third-party editor plugin (godot-ai, MIT) that lets Claude Code drive the Godot editor over MCP. See Running it. Don't edit it by hand; it self-updates and checks its files against a signed manifest. It adds the `_mcp_game_helper` autoload to `project.godot` (game-side screenshots and logs over Godot's debugger channel only; inert in the editor, stripped from exports). |
 
@@ -7526,7 +7526,7 @@ Ideas weighed and turned down. Each says what would reopen it.
 
 ### Watch items
 
-Release plans (terms, branding, signing, the stores, exports) are in
+What a release would need (terms, branding, signing, the stores, exports) are in
 `docs/release.md`.
 
 - **A soft first few seconds at start** (W01; measured 2026-10-27, left
