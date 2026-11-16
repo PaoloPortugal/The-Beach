@@ -6999,15 +6999,16 @@ choice, 2026-10-12: "we're using way too many minutes"), except pushes
 that only touch docs or the live checklist, and by hand from the
 Actions tab (Run workflow, any branch); a newer run on the same branch
 cancels the older one. A feature branch is checked locally (the
-`verify` skill) and by CI once merged. The repo is private, so runs use
-the account's Actions minutes, and a minute counts ten times on macOS
-and twice on Windows: a run on all three costs about 44 minutes (each
-job rounded up to a minute), 30 of them macOS, so about 45 runs a month
-on the free 2,000. *Before* (2026-10-02 to 2026-10-12): every push ran
-Windows and Linux, about 14 minutes each, with macOS only on `main` and
-by hand. *Once the repo is public* (user's, 2026-10-07): Actions minutes
-are free for public repositories, so CI can then run on every push;
-until then, keep it as is. The system list is the same in both jobs'
+`verify` skill) and by CI once merged. The limit dates from while the
+repo was private and runs used the account's Actions minutes (a minute
+counts ten times on macOS and twice on Windows: about 44 minutes a run
+on all three, so about 45 runs a month on the free 2,000). The workflow
+has been disabled since 2026-10-12, when the minutes ran out, and the
+repo went public and archived on 2026-11-16. Public repositories run
+Actions for free, so a fork can re-enable it (Actions tab) and run it on
+every push. *Before* (2026-10-02 to 2026-10-12): every push ran Windows
+and Linux, about 14 minutes each, with macOS only on `main` and by
+hand. The system list is the same in both jobs'
 matrices; the Godot job picks its release
 archive and binary from the runner's OS, so bumping Godot means
 changing `GODOT_VERSION` only. The actions are pinned to major versions
@@ -7751,7 +7752,7 @@ What a release would need (terms, branding, signing, the stores, exports) are in
 - **Finding `claude` through the login shell, live** (Platforms →
   Finding `claude`). Checked on Linux only (Arch in WSL, bash, fake
   and real profiles); the fake-shell tests have run on Linux only (CI
-  paused). Still to check: the tests on macOS, macOS
+  disabled since 2026-10-12). Still to check: the tests on macOS, macOS
   live (zsh, started from the Dock), fish, tcsh (which takes `-l` only
   as its sole flag, so `-i -l -c` likely finds nothing: fails safe),
   and a launch from a sandboxed launcher on Linux (Flatpak, a store's

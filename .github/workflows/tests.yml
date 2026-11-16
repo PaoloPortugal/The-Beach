@@ -5,7 +5,8 @@ name: Tests
 
 on:
   push:
-    # Only main runs on its own (the repo is private: minutes count); a
+    # Only main runs on its own (chosen while the repo was private and
+    # minutes counted; public repos run free, so this can widen); a
     # branch is run by hand from the Actions tab (Run workflow) if needed.
     branches: [main]
     # Docs-only pushes don't need a run.
