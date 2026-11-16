@@ -64,12 +64,10 @@ is left for C06 (recommendation: no).
   email through contact-sales, the channel-flag question as a public
   issue on anthropics/claude-code. Then the user decided to leave
   sending them until before the public release, without looking for
-  better contacts now. The drafts are below; recheck the contacts and
-  the terms before sending, and record the answers under Anthropic's
-  terms.
+  better contacts now. (The drafts were later
+  removed; see docs/release.md → Anthropic's terms for the outcome.)
 - An automated Anthropic agent the user talked to pointed at the
   channels reference's advice to gate inbound messages by sender. We
   already do: the game is the only sender and is authenticated at each
-  step (NOTES.md → S02 → Sender gating, added here). The email gained a
-  line saying so.
+  step (NOTES.md → S02 → Sender gating, added here).
 - Not legal advice; Anthropic's written answer is the only certainty.

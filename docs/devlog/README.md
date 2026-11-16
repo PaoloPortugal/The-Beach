@@ -121,7 +121,6 @@ reading; look things up by feature ID.
 | 2026-10-27 | [Merge log](2026-10-27-merge-log.md) | docs |
 | 2026-10-27 | [Trimming NOTES.md and the last spike](2026-10-27-docs-trim.md) | docs |
 | 2026-10-27 | [Similar projects (third look)](2026-10-27-similar-projects.md) | docs |
-| 2026-10-27 | [The questions for Anthropic, refreshed](2026-10-27-anthropic-questions.md) | docs |
 | 2026-10-27 | [D01: the fight](2026-10-27-d01-fight.md) | D01, A05, W03 |
 | 2026-10-28 | [D01: the fight's runs, arrow and view](2026-10-28-d01-fight-runs.md) | D01 |
 | 2026-10-28 | [S01: retrying the sidecar's start, and restarting it](2026-10-28-s01-start-retry.md) | S01 |
